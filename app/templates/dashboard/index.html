@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% block page_title %}Dashboard{% endblock %}
+{% block title %}Dashboard — GOS Objetivos{% endblock %}
+{% block extra_css %}
+<link href="{{ url_for('static', filename='css/dashboard.css') }}?v={{ app_version }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="dash-header">
+  <div>
+    <h2 class="dash-header-title">
+      <i class="bi bi-speedometer2 text-success"></i> Cumplimiento estratégico 2026
+    </h2>
+    <p class="dash-header-sub">Objetivos estratégicos y KPI · Verde = cumple · Rojo = no cumple</p>
+  </div>
+  <a href="{{ url_for('reportes.index') }}" class="btn btn-sm btn-outline-primary">
+    <i class="bi bi-file-earmark-bar-graph"></i> Ver informe completo
+  </a>
+</div>
+
+{# —— Resumen global —— #}
+<div class="dash-summary">
+  <a href="{{ url_for('dashboard.detalle', filtro='objetivos') }}" class="dash-box dash-box--link dash-box--neutral">
+    <span class="dash-box-value">{{ informe.total_objetivos }}</span>
+    <span class="dash-box-label">Objetivos estratégicos</span>
+  </a>
+  <a href="{{ url_for('dashboard.detalle', filtro='kpis') }}" class="dash-box dash-box--link dash-box--neutral">
+    <span class="dash-box-value">{{ informe.total_kpis }}</span>
+    <span class="dash-box-label">KPI totales</span>
+  </a>
+  <a href="{{ url_for('dashboard.detalle', filtro='kpis-cumplimiento') }}"
+     class="dash-box dash-box--link {% if informe.pct_kpis_cumplidos is not none and informe.pct_kpis_cumplidos >= 100 %}dash-box--ok{% elif informe.pct_kpis_cumplidos is not none and informe.pct_kpis_cumplidos >= 50 %}dash-box--warn{% elif informe.pct_kpis_cumplidos is not none %}dash-box--bad{% else %}dash-box--muted{% endif %}">
+    <span class="dash-box-value">
+      {% if informe.pct_kpis_cumplidos is not none %}{{ '%.0f'|format(informe.pct_kpis_cumplidos) }}%{% else %}—{% endif %}
+    </span>
+    <span class="dash-box-label">% cumplimiento KPI<br><small>{{ informe.kpis_cumplidos }}/{{ informe.total_kpis }} en meta</small></span>
+  </a>
+  <a href="{{ url_for('dashboard.detalle', filtro='objetivos-cumplimiento') }}"
+     class="dash-box dash-box--link {% if informe.pct_objetivos_cumplidos is not none and informe.pct_objetivos_cumplidos >= 100 %}dash-box--ok{% elif informe.pct_objetivos_cumplidos is not none and informe.pct_objetivos_cumplidos >= 50 %}dash-box--warn{% elif informe.pct_objetivos_cumplidos is not none %}dash-box--bad{% else %}dash-box--muted{% endif %}">
+    <span class="dash-box-value">
+      {% if informe.pct_objetivos_cumplidos is not none %}{{ '%.0f'|format(informe.pct_objetivos_cumplidos) }}%{% else %}—{% endif %}
+    </span>
+    <span class="dash-box-label">% cumplimiento objetivos<br><small>{{ informe.objetivos_cumplidos }}/{{ informe.objetivos_con_kpis }} cumplidos</small></span>
+  </a>
+</div>
+
+{# —— Desglose KPI —— #}
+{% if informe.total_kpis > 0 %}
+<h3 class="dash-section-title">Estado de los KPI</h3>
+<div class="dash-kpi-breakdown">
+  <a href="{{ url_for('dashboard.detalle', filtro='en-meta') }}" class="dash-box dash-box--link dash-box--ok">
+    <span class="dash-box-value">{{ informe.kpis_cumplidos }}</span>
+    <span class="dash-box-label">✓ En meta</span>
+  </a>
+  <a href="{{ url_for('dashboard.detalle', filtro='fuera-meta') }}" class="dash-box dash-box--link dash-box--bad">
+    <span class="dash-box-value">{{ informe.kpis_fuera }}</span>
+    <span class="dash-box-label">✗ Fuera de meta</span>
+  </a>
+  <a href="{{ url_for('dashboard.detalle', filtro='sin-datos') }}" class="dash-box dash-box--link dash-box--muted">
+    <span class="dash-box-value">{{ informe.kpis_sin_datos }}</span>
+    <span class="dash-box-label">Sin datos</span>
+  </a>
+</div>
+{% endif %}
+
+{# —— Tarjetas por objetivo —— #}
+<h3 class="dash-section-title">Objetivos estratégicos</h3>
+
+{% if informe.objetivos %}
+<div class="dash-obj-grid">
+  {% for obj in informe.objetivos %}
+  {% set estado_cls = 'vacio' if obj.total_kpis == 0 else ('ok' if obj.cumplido else ('parcial' if obj.kpis_cumplidos > 0 else 'bad')) %}
+  <article class="dash-obj-card dash-obj-card--{{ estado_cls }}">
+    <div class="dash-obj-top">
+      <span class="dash-obj-code">{{ obj.codigo }}</span>
+      {% if obj.total_kpis == 0 %}
+      <span class="dash-obj-badge dash-obj-badge--vacio">Sin KPI</span>
+      {% elif obj.cumplido %}
+      <span class="dash-obj-badge dash-obj-badge--ok">Cumple</span>
+      {% elif obj.kpis_cumplidos > 0 %}
+      <span class="dash-obj-badge dash-obj-badge--parcial">Parcial</span>
+      {% else %}
+      <span class="dash-obj-badge dash-obj-badge--bad">No cumple</span>
+      {% endif %}
+    </div>
+    <p class="dash-obj-nombre" title="{{ obj.nombre }}">{{ obj.nombre }}</p>
+    {% if obj.pct_cumplimiento is not none %}
+    <div class="dash-obj-pct-row">
+      <span class="dash-obj-pct-num dash-obj-pct-num--{{ estado_cls }}">{{ '%.0f'|format(obj.pct_cumplimiento) }}%</span>
+      <div class="dash-obj-bar">
+        <div class="dash-obj-bar-fill dash-obj-bar-fill--{{ estado_cls }}"
+             style="width: {{ obj.pct_cumplimiento }}%"></div>
+      </div>
+    </div>
+    {% else %}
+    <div class="dash-obj-pct-row">
+      <span class="dash-obj-pct-num dash-obj-pct-num--vacio">—</span>
+    </div>
+    {% endif %}
+    <div class="dash-obj-stats">
+      <span class="dash-obj-stat dash-obj-stat--total">{{ obj.total_kpis }} KPI</span>
+      {% if obj.kpis_cumplidos %}<span class="dash-obj-stat dash-obj-stat--ok">{{ obj.kpis_cumplidos }} ✓</span>{% endif %}
+      {% if obj.kpis_fuera %}<span class="dash-obj-stat dash-obj-stat--bad">{{ obj.kpis_fuera }} ✗</span>{% endif %}
+      {% if obj.kpis_sin_datos %}<span class="dash-obj-stat dash-obj-stat--total">{{ obj.kpis_sin_datos }} sin datos</span>{% endif %}
+    </div>
+    {% if obj.kpis %}
+    <div class="dash-kpi-chips">
+      {% for kpi in obj.kpis %}
+      <a href="{{ url_for('kpis.index', ver=kpi.id) }}"
+         class="dash-kpi-chip {% if kpi.estado == 'En meta' %}dash-kpi-chip--ok{% elif kpi.estado == 'Fuera de meta' %}dash-kpi-chip--bad{% else %}dash-kpi-chip--muted{% endif %}"
+         title="{{ kpi.indicador }}{% if kpi.avance_pct is not none %} · {{ '%.0f'|format(kpi.avance_pct) }}%{% endif %}">
+        {{ kpi.codigo }}
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="pe-card dash-empty">
+  <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+  No hay objetivos cargados. <a href="{{ url_for('objetivos.index') }}">Cargar objetivos 2026</a>
+</div>
+{% endif %}
+
+{# —— KPI huérfanos —— #}
+{% if informe.kpis_sin_objetivo %}
+<h3 class="dash-section-title">KPI sin objetivo asociado</h3>
+<div class="dash-orphan-grid">
+  {% for kpi in informe.kpis_sin_objetivo %}
+  <a href="{{ url_for('kpis.index', ver=kpi.id) }}"
+     class="dash-orphan-card dash-orphan-card--link {% if kpi.estado == 'En meta' %}dash-orphan-card--ok{% elif kpi.estado == 'Fuera de meta' %}dash-orphan-card--bad{% else %}dash-orphan-card--muted{% endif %}">
+    <div class="fw-bold font-monospace">{{ kpi.codigo }}</div>
+    <div class="text-muted small">{{ kpi.indicador }}</div>
+    <div class="mt-1 small fw-semibold {% if kpi.estado == 'En meta' %}text-success{% elif kpi.estado == 'Fuera de meta' %}text-danger{% endif %}">
+      {{ kpi.estado }}{% if kpi.avance_pct is not none %} · {{ '%.0f'|format(kpi.avance_pct) }}%{% endif %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

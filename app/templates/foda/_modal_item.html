@@ -1,0 +1,74 @@
+<div class="modal fade" id="modalFodaItem" tabindex="-1" aria-labelledby="modalFodaItemLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post"
+            action="{% if edit_item %}{{ url_for('foda.item_editar', id=edit_item.id) }}{% else %}{{ url_for('foda.item_nuevo') }}{% endif %}">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalFodaItemLabel">
+            {% if edit_item %}Editar ítem FODA{% else %}Nuevo ítem FODA{% endif %}
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          {% if edit_item %}
+          <div class="mb-3">
+            <label class="form-label">Código</label>
+            <input type="text" class="form-control" value="{{ edit_item.codigo }}" readonly disabled>
+          </div>
+          {% endif %}
+          <div class="mb-3">
+            <label class="form-label" for="fodaTipo">Cuadrante</label>
+            <select class="form-select" name="tipo" id="fodaTipo" required>
+              {% for t in foda_tipos %}
+              <option value="{{ t }}"
+                {% if edit_item and edit_item.tipo == t %}selected{% elif not edit_item and loop.first %}selected{% endif %}>
+                {{ foda_labels[t] }} ({{ t }})
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="fodaDesc">Descripción</label>
+            <textarea class="form-control" name="descripcion" id="fodaDesc" rows="3" required
+              placeholder="Describí el factor FODA...">{% if edit_item %}{{ edit_item.descripcion }}{% endif %}</textarea>
+          </div>
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label" for="fodaArea">Área</label>
+              <select class="form-select" name="area_id" id="fodaArea">
+                <option value="">— Sin área —</option>
+                {% for a in areas %}
+                <option value="{{ a.id }}"
+                  {% if edit_item and edit_item.area_id == a.id %}selected{% endif %}>
+                  {{ a.codigo }} — {{ a.nombre }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="fodaResp">Responsable</label>
+              <select class="form-select" name="responsable_id" id="fodaResp">
+                <option value="">— Sin responsable —</option>
+                {% for r in responsables %}
+                <option value="{{ r.id }}"
+                  {% if edit_item and edit_item.responsable_id == r.id %}selected{% endif %}>
+                  {{ r.nombre }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="mb-0 mt-2">
+            <label class="form-label" for="fodaFecha">Fecha</label>
+            <input type="date" class="form-control" name="fecha" id="fodaFecha"
+              value="{% if edit_item and edit_item.fecha %}{{ edit_item.fecha.isoformat() }}{% endif %}">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">{% if edit_item %}Guardar cambios{% else %}Agregar{% endif %}</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

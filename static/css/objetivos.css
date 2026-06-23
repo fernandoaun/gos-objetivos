@@ -1,0 +1,110 @@
+.obj-header {
+  padding: 1rem 1.25rem;
+}
+
+.obj-header-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.obj-title {
+  font-weight: 700;
+  color: var(--gos-green-dark);
+}
+
+.obj-subtitle {
+  font-size: 0.82rem;
+  color: var(--pe-muted);
+}
+
+.obj-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.obj-table-wrap {
+  overflow: hidden;
+}
+
+.obj-table {
+  font-size: 0.82rem;
+  margin-bottom: 0;
+}
+
+.obj-table thead th {
+  background: var(--gos-yellow-soft);
+  color: var(--gos-green-dark);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 0.72rem;
+  border-bottom: 2px solid var(--gos-yellow);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.obj-table tbody td {
+  vertical-align: top;
+  border-color: var(--pe-border);
+  line-height: 1.4;
+}
+
+.obj-table tbody tr:hover {
+  background: rgba(118, 185, 71, 0.04);
+}
+
+.obj-col-num {
+  width: 4.5rem;
+  white-space: nowrap;
+}
+
+.obj-col-fecha {
+  width: 6.5rem;
+  white-space: nowrap;
+}
+
+.obj-col-acciones {
+  width: 5.5rem;
+  white-space: nowrap;
+}
+
+.obj-col-resp {
+  min-width: 10rem;
+  max-width: 14rem;
+}
+
+.obj-col-nombre {
+  min-width: 12rem;
+  max-width: 16rem;
+  font-weight: 600;
+}
+
+.obj-col-desc {
+  min-width: 18rem;
+}
+
+.obj-code {
+  display: inline-block;
+  font-weight: 800;
+  font-size: 0.78rem;
+  color: var(--gos-green-dark);
+}
+
+.obj-col-acciones form {
+  display: inline;
+}
+
+.obj-empty {
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+@media (max-width: 992px) {
+  .obj-table {
+    font-size: 0.78rem;
+  }
+}

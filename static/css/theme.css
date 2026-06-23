@@ -1,0 +1,128 @@
+:root,
+[data-theme="light"] {
+  /* Paleta GOS — Green Oil Services */
+  --gos-yellow: #f9e29c;
+  --gos-yellow-soft: #fdf6dc;
+  --gos-green: #76b947;
+  --gos-green-dark: #5f9938;
+  --gos-grey: #808080;
+  --gos-grey-dark: #5c5c5c;
+  --gos-grey-light: #b0b0b0;
+
+  --gos-primary: var(--gos-green);
+  --gos-primary-hover: var(--gos-green-dark);
+
+  --pe-bg: #f4f4f4;
+  --pe-card: #ffffff;
+  --pe-sidebar: #ffffff;
+  --pe-sidebar-text: var(--gos-grey-dark);
+  --pe-sidebar-border: #e8e8e8;
+  --pe-sidebar-active: var(--gos-green);
+  --pe-sidebar-hover: var(--gos-yellow-soft);
+  --pe-text: #333333;
+  --pe-muted: var(--gos-grey);
+  --pe-border: #e0e0e0;
+  --pe-shadow: 0 1px 4px rgba(128, 128, 128, 0.12);
+  --pe-topbar-accent: var(--gos-yellow);
+  --pe-topbar-line: var(--gos-grey);
+}
+
+[data-theme="dark"] {
+  --gos-yellow-soft: rgba(249, 226, 156, 0.12);
+  --pe-bg: #1a1a1a;
+  --pe-card: #242424;
+  --pe-sidebar: #1e1e1e;
+  --pe-sidebar-text: #d0d0d0;
+  --pe-sidebar-border: #333333;
+  --pe-sidebar-hover: rgba(118, 185, 71, 0.12);
+  --pe-text: #f0f0f0;
+  --pe-muted: #a0a0a0;
+  --pe-border: #3a3a3a;
+  --pe-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+body.pe-body {
+  background: var(--pe-bg);
+  color: var(--pe-text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.pe-card {
+  background: var(--pe-card);
+  border: 1px solid var(--pe-border);
+  border-radius: 12px;
+  box-shadow: var(--pe-shadow);
+}
+
+[data-theme="dark"] .form-control,
+[data-theme="dark"] .form-select {
+  background: #2a2a2a;
+  border-color: var(--pe-border);
+  color: var(--pe-text);
+}
+
+[data-theme="dark"] .table {
+  --bs-table-bg: transparent;
+  --bs-table-color: var(--pe-text);
+  --bs-table-border-color: var(--pe-border);
+}
+
+[data-theme="dark"] .nav-tabs .nav-link {
+  color: var(--pe-muted);
+}
+
+[data-theme="dark"] .nav-tabs .nav-link.active {
+  background: var(--pe-card);
+  color: var(--pe-text);
+  border-color: var(--pe-border);
+}
+
+.btn-primary,
+.btn-success {
+  background: var(--gos-primary);
+  border-color: var(--gos-primary);
+  color: #fff;
+}
+
+.btn-primary:hover,
+.btn-success:hover {
+  background: var(--gos-primary-hover);
+  border-color: var(--gos-primary-hover);
+  color: #fff;
+}
+
+.btn-outline-primary {
+  color: var(--gos-green);
+  border-color: var(--gos-green);
+}
+
+.btn-outline-primary:hover {
+  background: var(--gos-green);
+  border-color: var(--gos-green);
+  color: #fff;
+}
+
+.alert-success {
+  background: var(--gos-yellow-soft);
+  border-color: var(--gos-yellow);
+  color: var(--gos-grey-dark);
+}
+
+.pe-badge--warn {
+  display: inline-block;
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: var(--gos-yellow-soft);
+  color: var(--gos-grey-dark);
+}
+
+[data-theme="dark"] .pe-badge--warn {
+  background: rgba(249, 226, 156, 0.15);
+  color: var(--gos-yellow);
+}
+
+.form-check-input:checked {
+  background-color: var(--gos-green);
+  border-color: var(--gos-green);
+}

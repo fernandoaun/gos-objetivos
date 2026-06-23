@@ -1,0 +1,29 @@
+# Blueprint de Render: https://render.com/docs/blueprint-spec
+# Conectar el repo en Render → New → Blueprint → seleccionar este archivo.
+
+databases:
+  - name: gos-objetivos-db
+    databaseName: gos_objetivos
+    user: gos_objetivos
+    plan: free
+
+services:
+  - type: web
+    name: gos-objetivos
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt && python scripts/seed_demo.py
+    startCommand: gunicorn --bind 0.0.0.0:$PORT wsgi:app
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gos-objetivos-db
+          property: connectionString
+      - key: GOS_AUTO_LOGIN
+        value: "false"
+      - key: PYTHON_VERSION
+        value: 3.12.8

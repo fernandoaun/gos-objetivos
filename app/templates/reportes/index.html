@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block page_title %}Reportes{% endblock %}
+{% block title %}Reporte de cumplimiento — GOS Objetivos{% endblock %}
+{% block extra_css %}
+<link href="{{ url_for('static', filename='css/reportes.css') }}?v={{ app_version }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="rep-header pe-card mb-3">
+  <div class="rep-header-row">
+    <div>
+      <h2 class="rep-title h5 mb-1">
+        <i class="bi bi-file-earmark-bar-graph text-success"></i>
+        Informe de cumplimiento — Objetivos estratégicos y KPI
+      </h2>
+      <p class="rep-subtitle mb-0">
+        Período 2026 · Generado el {{ fecha_informe.strftime('%d/%m/%Y %H:%M') }}
+        · Un objetivo se considera cumplido cuando <strong>todos</strong> sus KPI asociados están en meta.
+      </p>
+    </div>
+    <div class="rep-actions">
+      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.print()">
+        <i class="bi bi-printer"></i> Imprimir
+      </button>
+      <a href="{{ url_for('kpis.index') }}" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-graph-up"></i> Ver KPI
+      </a>
+      <a href="{{ url_for('objetivos.index') }}" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-bullseye"></i> Ver objetivos
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="rep-grid">
+  <div class="rep-stat">
+    <span class="rep-stat-value">{{ informe.total_objetivos }}</span>
+    <span class="rep-stat-label">Objetivos estratégicos</span>
+  </div>
+  <div class="rep-stat">
+    <span class="rep-stat-value">{{ informe.total_kpis }}</span>
+    <span class="rep-stat-label">KPI totales</span>
+  </div>
+  <div class="rep-stat">
+    <span class="rep-stat-value">{{ informe.kpis_cumplidos }} / {{ informe.total_kpis }}</span>
+    <span class="rep-stat-label">KPI en meta</span>
+  </div>
+  <div class="rep-stat">
+    <span class="rep-stat-value">
+      {% if informe.pct_kpis_cumplidos is not none %}{{ '%.1f'|format(informe.pct_kpis_cumplidos) }}%{% else %}—{% endif %}
+    </span>
+    <span class="rep-stat-label">% cumplimiento KPI</span>
+  </div>
+  <div class="rep-stat">
+    <span class="rep-stat-value">{{ informe.objetivos_cumplidos }} / {{ informe.objetivos_con_kpis }}</span>
+    <span class="rep-stat-label">Objetivos cumplidos</span>
+  </div>
+  <div class="rep-stat">
+    <span class="rep-stat-value">
+      {% if informe.pct_objetivos_cumplidos is not none %}{{ '%.1f'|format(informe.pct_objetivos_cumplidos) }}%{% else %}—{% endif %}
+    </span>
+    <span class="rep-stat-label">% cumplimiento objetivos</span>
+  </div>
+</div>
+
+{% if informe.total_kpis == 0 and informe.total_objetivos == 0 %}
+<div class="alert alert-info py-2 mb-3">
+  <i class="bi bi-info-circle"></i>
+  Todavía no hay objetivos ni KPI cargados. Cargá la plantilla 2026 o importá KPI desde Excel.
+</div>
+{% elif informe.total_kpis == 0 %}
+<div class="alert alert-warning py-2 mb-3">
+  <i class="bi bi-exclamation-triangle"></i>
+  Hay {{ informe.total_objetivos }} objetivo(s) registrado(s) pero ningún KPI asociado todavía.
+</div>
+{% endif %}
+
+<h3 class="rep-section-title">Resumen por objetivo estratégico</h3>
+<div class="rep-table-wrap pe-card">
+  <div class="table-responsive">
+    <table class="table rep-table mb-0">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Objetivo estratégico</th>
+          <th class="text-center">KPI</th>
+          <th class="text-center">En meta</th>
+          <th class="text-center">Fuera</th>
+          <th class="text-center">Sin datos</th>
+          <th>% cumplimiento</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for obj in informe.objetivos %}
+        <tr>
+          <td><span class="rep-code">{{ obj.codigo }}</span></td>
+          <td class="rep-obj-nombre">{{ obj.nombre }}</td>
+          <td class="text-center">{{ obj.total_kpis }}</td>
+          <td class="text-center text-success fw-semibold">{{ obj.kpis_cumplidos }}</td>
+          <td class="text-center">{{ obj.kpis_fuera }}</td>
+          <td class="text-center text-muted">{{ obj.kpis_sin_datos }}</td>
+          <td>
+            {% if obj.pct_cumplimiento is not none %}
+            <div class="rep-pct-bar">
+              <div class="rep-pct-track">
+                <div class="rep-pct-fill{% if obj.pct_cumplimiento < 50 %} rep-pct-fill--bad{% elif obj.pct_cumplimiento < 100 %} rep-pct-fill--warn{% endif %}"
+                     style="width: {{ obj.pct_cumplimiento }}%"></div>
+              </div>
+              <span class="rep-pct-num">{{ '%.1f'|format(obj.pct_cumplimiento) }}%</span>
+            </div>
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if obj.total_kpis == 0 %}
+            <span class="rep-estado rep-estado--vacio">Sin KPI</span>
+            {% elif obj.cumplido %}
+            <span class="rep-estado rep-estado--ok">✅ Cumplido</span>
+            {% elif obj.kpis_cumplidos > 0 %}
+            <span class="rep-estado rep-estado--parcial">Parcial</span>
+            {% else %}
+            <span class="rep-estado rep-estado--no">No cumplido</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% if obj.kpis %}
+        {% for kpi in obj.kpis %}
+        <tr class="rep-detail-row">
+          <td></td>
+          <td colspan="2">
+            <span class="rep-code">{{ kpi.codigo }}</span>
+            <span class="text-muted ms-1">{{ kpi.indicador }}</span>
+          </td>
+          <td colspan="3" class="text-center">
+            {% if kpi.avance_pct is not none %}{{ '%.1f'|format(kpi.avance_pct) }}% avance{% else %}—{% endif %}
+          </td>
+          <td colspan="2">
+            <span class="rep-kpi-estado--{{ kpi.estado|lower|replace(' ', '-') }}">{{ kpi.estado }}</span>
+          </td>
+        </tr>
+        {% endfor %}
+        {% endif %}
+        {% else %}
+        <tr>
+          <td colspan="8" class="text-center text-muted py-4">No hay objetivos estratégicos registrados.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="rep-note">
+    La asociación KPI → objetivo se determina por el código (ej. <code>KPI-01-02</code> → <code>OE-01</code>).
+    KPI cumplido = estado <strong>En meta</strong> (avance ≥ 100% respecto de la meta 2026).
+  </div>
+</div>
+
+{% if informe.kpis_sin_objetivo %}
+<h3 class="rep-section-title">KPI sin objetivo asociado</h3>
+<div class="rep-table-wrap pe-card mb-3">
+  <div class="table-responsive">
+    <table class="table rep-table mb-0">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Indicador</th>
+          <th>Avance</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for kpi in informe.kpis_sin_objetivo %}
+        <tr>
+          <td><span class="rep-code">{{ kpi.codigo }}</span></td>
+          <td>{{ kpi.indicador }}</td>
+          <td>{% if kpi.avance_pct is not none %}{{ '%.1f'|format(kpi.avance_pct) }}%{% else %}—{% endif %}</td>
+          <td><span class="rep-kpi-estado--{{ kpi.estado|lower|replace(' ', '-') }}">{{ kpi.estado }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

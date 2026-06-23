@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+{% block page_title %}Avance KPI 2026{% endblock %}
+{% block title %}Avance KPI 2026 — GOS Objetivos{% endblock %}
+{% block extra_css %}
+<link href="{{ url_for('static', filename='css/kpis.css') }}?v={{ app_version }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+{% set _tipo_opciones = tipo_medicion_opciones|default([
+  ('suma', 'Acumulable'),
+  ('cumplimiento', '% Cumpl.'),
+  ('promedio', '% Prom.'),
+  ('ultimo', 'V. mensual')
+], true) %}
+{% set _tipo_labels = tipo_medicion_labels|default({
+  'suma': 'Acumulable',
+  'cumplimiento': '% Cumpl.',
+  'promedio': '% Prom.',
+  'ultimo': 'V. mensual'
+}, true) %}
+{% set _tipo_titulos = tipo_medicion_titulos|default({
+  'suma': 'Acumulable — suma mes a mes hasta la meta',
+  'cumplimiento': '% Cumplimiento — la meta es un %; si el último mes lo alcanza o supera, está en meta',
+  'promedio': '% Promedio — promedio de los % mensuales comparado con la meta',
+  'ultimo': 'Valor mensual — meta puntual; se mira el cumplimiento del último mes cargado'
+}, true) %}
+{% set _puede_editar = kpi_editable|default(false) %}
+<div class="kpi-header pe-card mb-3">
+  <div class="kpi-header-row">
+    <div>
+      <h2 class="kpi-title h5 mb-1">
+        <i class="bi bi-graph-up text-success"></i> Seguimiento de avance de indicadores — 2026
+        {% if filas %}
+        <span class="badge text-bg-success ms-1">{{ filas|length }}</span>
+        {% endif %}
+      </h2>
+      <p class="kpi-subtitle mb-0">Hacé clic en <strong>Editar</strong> para modificar una fila · <strong>Agregar KPI</strong> para uno nuevo</p>
+    </div>
+    <div class="kpi-header-actions">
+      <a href="{{ url_for('kpis.index', nuevo=1) }}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg"></i> Agregar KPI
+      </a>
+      {% if filas %}
+      <form method="post" action="{{ url_for('kpis.importar_excel') }}" class="d-inline"
+            onsubmit="return confirm('¿Reimportar desde Excel? Se perderán los cambios guardados en la app.');">
+        <input type="hidden" name="reemplazar" value="1">
+        <button type="submit" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-arrow-repeat"></i> Reimportar Excel
+        </button>
+      </form>
+      {% else %}
+      <form method="post" action="{{ url_for('kpis.importar_excel') }}" class="d-inline">
+        <button type="submit" class="btn btn-success btn-sm">
+          <i class="bi bi-file-earmark-excel"></i> Cargar desde Excel 2026
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if not filas %}
+<div class="alert alert-info py-2 mb-3">
+  <i class="bi bi-info-circle"></i>
+  Todavía no hay KPI. Cargá desde Excel o usá <strong>Agregar KPI</strong>.
+</div>
+{% endif %}
+
+<div class="kpi-table-wrap pe-card">
+  <div class="kpi-scroll">
+    <table class="table kpi-table mb-0">
+      <thead>
+        <tr class="kpi-head-main">
+          <th rowspan="2" class="kpi-col-num">N°</th>
+          <th rowspan="2" class="kpi-col-codigo" title="Código KPI">Código</th>
+          <th rowspan="2" class="kpi-col-indicador">Indicador</th>
+          <th rowspan="2" class="kpi-col-resp">Responsable</th>
+          <th rowspan="2" class="kpi-col-medio">Medio</th>
+          <th rowspan="2" class="kpi-col-base" title="Resultado 2025">Res. 25</th>
+          <th rowspan="2" class="kpi-col-meta" title="Meta 2026">Meta 26</th>
+          <th rowspan="2" class="kpi-col-tipo" title="Tipo de medición">Tipo</th>
+          <th colspan="12" class="kpi-head-meses">Meses 2026</th>
+          <th rowspan="2" class="kpi-col-calc" title="Valor calculado según tipo">Valor</th>
+          <th rowspan="2" class="kpi-col-calc" title="% Avance vs Meta">% Av.</th>
+          <th rowspan="2" class="kpi-col-estado">Estado</th>
+          <th rowspan="2" class="kpi-col-obs" title="Observación">Obs.</th>
+          <th rowspan="2" class="kpi-col-acciones">Acc.</th>
+        </tr>
+        <tr class="kpi-head-meses-row">
+          {% for label in meses_labels %}
+          <th class="kpi-col-mes">{{ label }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for fila in filas %}
+        {% set k = fila.kpi %}
+        {% set editing = edit_id == k.id %}
+        {% set tipo_actual = k.tipo_agregacion if k.tipo_agregacion in ['suma', 'cumplimiento', 'promedio', 'ultimo'] else 'promedio' %}
+
+        {% if editing %}
+        <form method="post" action="{{ url_for('kpis.actualizar', id=k.id) }}" class="kpi-row-form">
+        {% endif %}
+        <tr id="kpi-row-{{ k.id }}"
+            class="{% if editing %}kpi-row-editing{% else %}kpi-row-view{% endif %}{% if ver_id == k.id and not editing %} kpi-row-highlighted{% endif %}">
+          <td class="kpi-col-num">
+            {{ k.numero if k.numero is not none else '—' }}
+          </td>
+          <td class="kpi-col-codigo"><span class="kpi-code">{{ k.codigo }}</span></td>
+          <td class="kpi-col-indicador">
+            {% if editing %}
+            <input type="text" name="indicador" class="form-control form-control-sm kpi-input kpi-input-indicador"
+                   value="{{ k.indicador }}" maxlength="250">
+            {% else %}
+            <span class="kpi-indicador-text">{{ k.indicador }}</span>
+            {% endif %}
+          </td>
+          <td class="kpi-col-resp">
+            {% if editing %}
+            <input type="text" name="responsable" class="form-control form-control-sm kpi-input"
+                   value="{{ k.responsable or '' }}" placeholder="Responsable">
+            {% else %}
+            <span class="kpi-cell-text">{{ k.responsable or '—' }}</span>
+            {% endif %}
+          </td>
+          <td class="kpi-col-medio">
+            {% if editing %}
+            <input type="text" name="medio" class="form-control form-control-sm kpi-input"
+                   value="{{ k.medio or '' }}" placeholder="Medio">
+            {% else %}
+            <span class="kpi-cell-text">{{ k.medio or '—' }}</span>
+            {% endif %}
+          </td>
+          <td class="kpi-col-base">
+            {% if editing %}
+            <input type="text" name="resultado_2025" class="form-control form-control-sm kpi-input"
+                   value="{{ k.resultado_2025 or '' }}" placeholder="2025">
+            {% else %}
+            <span class="kpi-cell-text">{{ k.resultado_2025 or '—' }}</span>
+            {% endif %}
+          </td>
+          <td class="kpi-col-meta">
+            {% if editing %}
+            <input type="text" name="meta_2026" class="form-control form-control-sm kpi-input"
+                   value="{{ k.meta_2026 or '' }}" placeholder="Meta">
+            {% else %}
+            <span class="kpi-cell-text">{{ k.meta_2026 or '—' }}</span>
+            {% endif %}
+          </td>
+          <td class="kpi-col-tipo">
+            {% if editing %}
+            <select name="tipo_agregacion" class="form-select form-select-sm kpi-select-tipo"
+                    title="{{ _tipo_titulos.get(tipo_actual, 'Tipo de medición') }}">
+              {% for valor, etiqueta in _tipo_opciones %}
+              <option value="{{ valor }}" {% if tipo_actual == valor %}selected{% endif %}>{{ etiqueta }}</option>
+              {% endfor %}
+            </select>
+            {% elif _puede_editar %}
+            <select name="tipo_agregacion" class="form-select form-select-sm kpi-select-tipo"
+                    form="kpi-tipo-form-{{ k.id }}"
+                    title="{{ _tipo_titulos.get(tipo_actual, 'Cambiá el tipo y se guarda al instante') }}"
+                    data-kpi-tipo-select data-kpi-id="{{ k.id }}">
+              {% for valor, etiqueta in _tipo_opciones %}
+              <option value="{{ valor }}" {% if tipo_actual == valor %}selected{% endif %}>{{ etiqueta }}</option>
+              {% endfor %}
+            </select>
+            {% else %}
+            {% set tipo_label = _tipo_labels.get(tipo_actual, tipo_actual) %}
+            <span class="kpi-tipo-badge kpi-tipo-badge--{{ tipo_actual }}" title="{{ _tipo_titulos.get(tipo_actual, tipo_label) }}">{{ tipo_label }}</span>
+            {% endif %}
+          </td>
+          {% for mes in meses %}
+          <td class="kpi-col-mes">
+            {% if editing %}
+            <input type="text" name="mes_{{ mes }}" inputmode="decimal"
+                   class="form-control form-control-sm kpi-input kpi-input-mes"
+                   value="{{ kpi_valor_mes(k.valores_mes.get(mes|string)) if k.valores_mes and k.valores_mes.get(mes|string) is not none else '' }}">
+            {% else %}
+            {% set val = k.valores_mes.get(mes|string) if k.valores_mes else none %}
+            {% if val is not none %}<span class="kpi-cell-num">{{ kpi_valor_mes(val) }}</span>{% else %}<span class="kpi-empty-cell">—</span>{% endif %}
+            {% endif %}
+          </td>
+          {% endfor %}
+          <td class="kpi-col-calc kpi-readonly">
+            {% if fila.agregado is not none %}{{ '%.2f'|format(fila.agregado) }}{% else %}—{% endif %}
+          </td>
+          <td class="kpi-col-calc kpi-readonly">
+            {% if fila.avance is not none %}{{ '%.1f'|format(fila.avance * 100) }}%{% else %}—{% endif %}
+          </td>
+          <td class="kpi-col-estado">
+            <span class="kpi-estado kpi-estado--{{ fila.estado|lower|replace(' ', '-') }}" title="{{ fila.estado }}">
+              <span class="kpi-estado-icon" aria-hidden="true">{% if fila.estado == 'En meta' %}✅{% elif fila.estado == 'Fuera de meta' %}❌{% else %}⏺{% endif %}</span>
+              <span class="kpi-estado-label">{{ fila.estado }}</span>
+            </span>
+          </td>
+          <td class="kpi-col-obs">
+            {% if editing %}
+            <textarea name="observacion" class="form-control form-control-sm kpi-textarea" rows="2"
+                      placeholder="Observaciones">{{ k.observacion or '' }}</textarea>
+            {% else %}
+            <span class="kpi-cell-text">{{ k.observacion or '—' }}</span>
+            {% endif %}
+          </td>
+          <td class="kpi-col-acciones">
+            {% if editing %}
+            <button type="submit" class="btn btn-sm btn-primary" title="Guardar">
+              <i class="bi bi-check-lg"></i>
+            </button>
+            <a href="{{ url_for('kpis.index') }}" class="btn btn-sm btn-outline-secondary" title="Cancelar">
+              <i class="bi bi-x-lg"></i>
+            </a>
+            {% else %}
+            <a href="{{ url_for('kpis.index', edit=k.id) }}" class="btn btn-sm btn-outline-primary" title="Editar">
+              <i class="bi bi-pencil"></i>
+            </a>
+            <form method="post" action="{{ url_for('kpis.eliminar', id=k.id) }}" class="kpi-delete-form"
+                  onsubmit="return confirm('¿Eliminar {{ k.codigo }}?');">
+              <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% if editing %}
+        </form>
+        {% endif %}
+        {% endfor %}
+
+        {% if request.args.get('nuevo') %}
+        <form method="post" action="{{ url_for('kpis.nuevo') }}" class="kpi-row-form" id="kpi-row-nuevo">
+        <tr class="kpi-row-nuevo">
+          <td class="kpi-col-num">
+            <span class="kpi-num-auto" title="Se asigna automáticamente al guardar">{{ siguiente_numero }}</span>
+          </td>
+          <td class="kpi-col-codigo">
+            <input type="text" name="codigo" class="form-control form-control-sm kpi-input kpi-input-codigo"
+                   placeholder="KPI-XX-XX" maxlength="30" autofocus>
+          </td>
+          <td class="kpi-col-indicador">
+            <input type="text" name="indicador" class="form-control form-control-sm kpi-input kpi-input-indicador"
+                   placeholder="Nombre del indicador" maxlength="250">
+          </td>
+          <td class="kpi-col-resp">
+            <input type="text" name="responsable" class="form-control form-control-sm kpi-input" placeholder="Responsable">
+          </td>
+          <td class="kpi-col-medio">
+            <input type="text" name="medio" class="form-control form-control-sm kpi-input" placeholder="Medio">
+          </td>
+          <td class="kpi-col-base">
+            <input type="text" name="resultado_2025" class="form-control form-control-sm kpi-input" placeholder="2025">
+          </td>
+          <td class="kpi-col-meta">
+            <input type="text" name="meta_2026" class="form-control form-control-sm kpi-input" placeholder="Meta">
+          </td>
+          <td class="kpi-col-tipo">
+            <select name="tipo_agregacion" class="form-select form-select-sm kpi-select-tipo" title="Tipo de medición">
+              {% for valor, etiqueta in _tipo_opciones %}
+              <option value="{{ valor }}" {% if valor == 'promedio' %}selected{% endif %}>{{ etiqueta }}</option>
+              {% endfor %}
+            </select>
+          </td>
+          {% for mes in meses %}
+          <td class="kpi-col-mes">
+            <input type="text" name="mes_{{ mes }}" inputmode="decimal"
+                   class="form-control form-control-sm kpi-input kpi-input-mes" placeholder="—">
+          </td>
+          {% endfor %}
+          <td class="kpi-col-calc kpi-readonly" colspan="3">
+            <span class="kpi-nuevo-hint"><i class="bi bi-plus-circle"></i> Nuevo KPI</span>
+          </td>
+          <td class="kpi-col-obs">
+            <textarea name="observacion" class="form-control form-control-sm kpi-textarea" rows="2"
+                      placeholder="Observaciones"></textarea>
+          </td>
+          <td class="kpi-col-acciones">
+            <button type="submit" class="btn btn-sm btn-success" title="Agregar KPI">
+              <i class="bi bi-check-lg"></i>
+            </button>
+            <a href="{{ url_for('kpis.index') }}" class="btn btn-sm btn-outline-secondary" title="Cancelar">
+              <i class="bi bi-x-lg"></i>
+            </a>
+          </td>
+        </tr>
+        </form>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if _puede_editar %}
+<div class="d-none" aria-hidden="true">
+  {% for fila in filas %}
+  {% set k = fila.kpi %}
+  {% if edit_id != k.id %}
+  <form id="kpi-tipo-form-{{ k.id }}" method="post" action="{{ url_for('kpis.actualizar_tipo', id=k.id) }}"></form>
+  {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("[data-kpi-tipo-select]").forEach(function (select) {
+      select.addEventListener("change", function () {
+        var formId = "kpi-tipo-form-" + select.getAttribute("data-kpi-id");
+        var form = document.getElementById(formId);
+        if (form) form.submit();
+      });
+    });
+  });
+</script>
+{% if request.args.get('nuevo') %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var row = document.querySelector(".kpi-row-nuevo");
+    if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+</script>
+{% endif %}
+{% if edit_id %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var row = document.querySelector(".kpi-row-editing");
+    if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+</script>
+{% endif %}
+{% if ver_id and not edit_id %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var row = document.getElementById("kpi-row-{{ ver_id }}");
+    if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
+  });
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,228 @@
+/* Informe de cumplimiento — objetivos y KPI */
+
+.rep-header {
+  padding: 1rem 1.25rem;
+}
+
+.rep-header-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.rep-title {
+  font-weight: 600;
+  color: var(--pe-text);
+}
+
+.rep-subtitle {
+  font-size: 0.85rem;
+  color: var(--pe-muted);
+}
+
+.rep-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.rep-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 1199.98px) {
+  .rep-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 575.98px) {
+  .rep-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.rep-stat {
+  background: var(--pe-card);
+  border: 1px solid var(--pe-border);
+  border-radius: 8px;
+  box-shadow: var(--pe-shadow);
+  padding: 1rem;
+  text-align: center;
+}
+
+.rep-stat-value {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--pe-text);
+}
+
+.rep-stat-label {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--pe-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  line-height: 1.3;
+}
+
+.rep-section-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 0 0 0.75rem;
+  padding: 0 0.25rem;
+}
+
+.rep-table-wrap {
+  overflow: hidden;
+  margin-bottom: 1.25rem;
+}
+
+.rep-table {
+  font-size: 0.85rem;
+  margin-bottom: 0;
+}
+
+.rep-table thead th {
+  background: var(--gos-yellow-soft);
+  color: var(--gos-grey-dark);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  vertical-align: middle;
+  border-bottom-width: 2px;
+}
+
+.rep-table tbody td {
+  vertical-align: middle;
+}
+
+.rep-code {
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--gos-green-dark);
+}
+
+.rep-obj-nombre {
+  font-weight: 500;
+  max-width: 280px;
+}
+
+.rep-pct-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 120px;
+}
+
+.rep-pct-track {
+  flex: 1;
+  height: 6px;
+  background: var(--pe-border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.rep-pct-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--gos-green);
+}
+
+.rep-pct-fill--warn {
+  background: #e6a800;
+}
+
+.rep-pct-fill--bad {
+  background: #dc3545;
+}
+
+.rep-pct-num {
+  font-size: 0.8rem;
+  font-weight: 600;
+  min-width: 2.75rem;
+  text-align: right;
+}
+
+.rep-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.rep-estado--ok {
+  background: rgba(118, 185, 71, 0.15);
+  color: var(--gos-green-dark);
+}
+
+.rep-estado--parcial {
+  background: rgba(230, 168, 0, 0.15);
+  color: #9a7200;
+}
+
+.rep-estado--no {
+  background: rgba(220, 53, 69, 0.12);
+  color: #b02a37;
+}
+
+.rep-estado--vacio {
+  background: rgba(128, 128, 128, 0.12);
+  color: var(--pe-muted);
+}
+
+.rep-kpi-estado--en-meta { color: var(--gos-green-dark); font-weight: 600; }
+.rep-kpi-estado--fuera-de-meta { color: #b02a37; font-weight: 600; }
+.rep-kpi-estado--sin-datos { color: var(--pe-muted); }
+
+.rep-detail-row td {
+  background: rgba(249, 226, 156, 0.08);
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.rep-note {
+  font-size: 0.8rem;
+  color: var(--pe-muted);
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--pe-border);
+}
+
+@media print {
+  .pe-sidebar,
+  .pe-topbar,
+  .rep-actions,
+  .pe-menu-toggle {
+    display: none !important;
+  }
+
+  .pe-main {
+    margin-left: 0 !important;
+  }
+
+  .pe-content {
+    padding: 0 !important;
+  }
+
+  .rep-stat,
+  .pe-card {
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+}

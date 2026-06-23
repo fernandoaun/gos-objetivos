@@ -1,0 +1,53 @@
+COMO CORRER GOS OBJETIVOS
+=========================
+
+OPCION 1 (la mas facil)
+-----------------------
+1. En el Explorador de archivos, abri esta carpeta:
+   GOS Objetivos
+
+2. Doble clic en:  iniciar.bat
+
+3. Esperá a que diga "Running on http://127.0.0.1:5000"
+
+4. Abrí el navegador en: http://127.0.0.1:5000
+
+5. Ingresá:
+   Email:      admin@demo.local
+   Contraseña: admin123
+
+
+OPCION 2 (PowerShell)
+---------------------
+cd "C:\Users\ferna\OneDrive\GOS\GOS Objetivos"
+python -m pip install -r requirements.txt
+python scripts\init_db.py
+python scripts\seed_demo.py
+python run.py
+
+IMPORTANTE en PowerShell: usa punto y coma (;) NO uses &&
+
+
+Si sale error "no se encuentra python"
+-------------------------------------
+Instalá Python desde python.org y al instalar marcá:
+  [x] Add python.exe to PATH
+
+Luego cerrá y abrí de nuevo la ventana.
+
+
+FODA desde Word
+---------------
+1. En Word guardá el documento como .docx (no .doc antiguo)
+2. Usá titulos: Fortalezas, Oportunidades, Debilidades, Amenazas
+3. Debajo de cada titulo, viñetas o parrafos con cada item
+4. Menu FODA - Importar - Procesar
+
+Si actualizaste el codigo, ejecutá de nuevo:
+  python scripts\init_db.py
+
+
+Si el puerto 5000 está ocupado
+-------------------------------
+Editá run.py y cambiá port=5000 por port=5001
+Abrí http://127.0.0.1:5001

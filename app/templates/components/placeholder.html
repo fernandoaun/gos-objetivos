@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block page_title %}{{ title }}{% endblock %}
+{% block title %}{{ title }} — GOS Objetivos{% endblock %}
+{% block content %}
+<div class="pe-card p-5 text-center">
+  <i class="bi bi-cone-striped display-4 text-muted mb-3 d-block"></i>
+  <h2 class="h4">{{ title }}</h2>
+  <p class="text-muted mb-0">{{ message }}</p>
+</div>
+{% endblock %}

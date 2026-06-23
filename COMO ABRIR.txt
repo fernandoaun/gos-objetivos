@@ -1,0 +1,50 @@
+╔══════════════════════════════════════════════════════════╗
+║         COMO ABRIR GOS OBJETIVOS (MUY FACIL)             ║
+╚══════════════════════════════════════════════════════════╝
+
+PASO 1 (solo una vez, opcional)
+────────────────────────────────
+  Doble clic en:
+
+      CREAR ICONO EN ESCRITORIO.vbs
+
+  Eso pone un icono "GOS Objetivos" en tu Escritorio.
+
+
+PASO 2 (cada vez que quieras usar el sistema)
+──────────────────────────────────────────────
+  Doble clic en UNO de estos:
+
+      ABRIR GOS Objetivos.bat        (en esta carpeta)
+      o el icono del Escritorio      (si lo creaste)
+
+  No aparecen ventanas negras: solo se abre el navegador.
+  Espera unos segundos (Chrome, Edge, etc.).
+
+
+PASO 3 - Ingresar
+─────────────────
+  Email:      admin@demo.local
+  Clave:      admin123
+
+
+IMPORTANTE
+──────────
+  • El servidor corre en segundo plano (sin ventana negra).
+
+  • Para apagar todo: Administrador de tareas → finalizar "pythonw"
+    o reiniciar la PC.
+
+
+SI NO ABRE EL NAVEGADOR
+───────────────────────
+  Escribe en el navegador a mano:
+
+      http://127.0.0.1:5000
+
+
+SI DICE QUE NO HAY PYTHON
+─────────────────────────
+  Instala desde: https://www.python.org/downloads/
+  Al instalar, marca: [x] Add python.exe to PATH
+  Reinicia la PC y vuelve a intentar.
