@@ -29,5 +29,7 @@ services:
           property: connectionString
       - key: GOS_AUTO_LOGIN
         value: "false"
+      - key: GOS_IMPORT_SECRET
+        value: gos-restaurar-datos
       - key: PYTHON_VERSION
         value: 3.12.8
