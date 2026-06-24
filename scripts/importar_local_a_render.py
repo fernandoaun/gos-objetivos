@@ -94,6 +94,24 @@ def _row_dict(row) -> dict:
     return data
 
 
+def _verify_import(source_counts: dict[str, int], target_url: str) -> None:
+    from sqlalchemy import create_engine, text
+
+    engine = create_engine(_fix_postgres_url(target_url))
+    with engine.connect() as conn:
+        print("  Verificando en Render...")
+        for table, expected in source_counts.items():
+            if expected == 0:
+                continue
+            got = conn.execute(text(f'SELECT COUNT(*) FROM "{table}"')).scalar() or 0
+            status = "OK" if got == expected else "ERROR"
+            print(f"    {table}: {got} (esperado {expected}) [{status}]")
+            if got != expected:
+                print("ERROR: la importacion no coincidio. Revisa la URL de la base gos-objetivos-db.")
+                sys.exit(1)
+    engine.dispose()
+
+
 def importar(local_path: Path, target_url: str) -> None:
     from sqlalchemy import MetaData, create_engine, insert
 
@@ -118,6 +136,8 @@ def importar(local_path: Path, target_url: str) -> None:
     print("  Creando tablas en Render (si no existen)...")
     _ensure_target_schema(target_url)
 
+    source_counts: dict[str, int] = {}
+
     with src_engine.connect() as src_conn:
         with tgt_engine.begin() as tgt_conn:
             print("  Limpiando datos anteriores en Render...")
@@ -127,6 +147,7 @@ def importar(local_path: Path, target_url: str) -> None:
                 src_table = src_meta.tables[table]
                 tgt_table = db.Model.metadata.tables[table]
                 rows = src_conn.execute(src_table.select()).mappings().all()
+                source_counts[table] = len(rows)
                 if not rows:
                     print(f"  {table}: 0 filas")
                     continue
@@ -137,7 +158,8 @@ def importar(local_path: Path, target_url: str) -> None:
             for table in TABLES:
                 _reset_sequences(tgt_conn, table)
 
-    print("Importación completa.")
+    _verify_import(source_counts, target_url)
+    print("Importación completa y verificada.")
 
 
 def main() -> None:
