@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Análisis HWO — GOS{% endblock %}
+{% block page_title %}Dashboard HWO{% endblock %}
+{% block extra_css %}
+<style>
+  .pe-content.hwo-shell {
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .hwo-frame {
+    flex: 1;
+    border: 0;
+    width: 100%;
+    min-height: calc(100vh - 120px);
+    background: #0f172a;
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="hwo-shell w-100">
+  <iframe class="hwo-frame" src="{{ url_for('hwo_main.app') }}" title="Análisis HWO"></iframe>
+</div>
+{% endblock %}

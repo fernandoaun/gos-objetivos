@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard HWO</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --green:#10b981;--yellow:#f59e0b;--red:#ef4444;
+  --blue:#3b82f6;--dark:#0f172a;--dark2:#1e293b;
+  --bg:#f1f5f9;--card:#ffffff;--border:#e2e8f0;
+  --text:#1e293b;--muted:#64748b;--sidebar-w:220px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;overflow:hidden;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);}
+.hidden{display:none!important;}
+
+/* ══ UPLOAD OVERLAY ══ */
+#upload-zone{position:fixed;inset:0;z-index:300;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:40px 20px;background:linear-gradient(135deg,#0f172a 0%,#1a3a5c 100%);}
+.upload-card{background:rgba(255,255,255,.06);border:2px dashed rgba(255,255,255,.25);border-radius:18px;padding:48px 72px;text-align:center;color:#fff;cursor:pointer;transition:all .25s;max-width:460px;width:90%;}
+.upload-card:hover,.upload-card.drag-over{border-color:var(--blue);background:rgba(59,130,246,.12);}
+.upload-icon{font-size:52px;margin-bottom:18px;}
+.upload-card h2{font-size:22px;font-weight:700;margin-bottom:8px;}
+.upload-card p{color:rgba(255,255,255,.55);font-size:14px;margin-bottom:24px;line-height:1.6;}
+.btn-primary{background:var(--blue);color:#fff;border:none;padding:10px 26px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;}
+.btn-primary:hover{background:#2563eb;}
+.upload-hint{margin-top:14px;font-size:12px;color:rgba(255,255,255,.35);}
+#saved-panel{max-width:660px;width:90%;color:#fff;}
+#saved-panel h3{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,.35);margin-bottom:10px;text-align:center;}
+.saved-list{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
+.saved-item{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:9px;padding:10px 14px;display:flex;align-items:center;gap:9px;cursor:pointer;transition:all .2s;max-width:280px;}
+.saved-item:hover{background:rgba(59,130,246,.2);border-color:var(--blue);}
+.saved-item-icon{font-size:18px;flex-shrink:0;}
+.saved-item-info{flex:1;min-width:0;}
+.saved-item-name{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.saved-item-date{font-size:11px;color:rgba(255,255,255,.4);margin-top:1px;}
+.saved-item-sub{font-size:10px;color:rgba(255,255,255,.25);margin-top:1px;}
+.saved-item-del{width:20px;height:20px;border-radius:4px;border:none;cursor:pointer;background:rgba(239,68,68,.15);color:#fca5a5;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s;}
+.saved-item-del:hover{background:rgba(239,68,68,.4);color:#fff;}
+#btn-clear-all{background:transparent;border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.3);padding:4px 12px;border-radius:5px;font-size:11px;cursor:pointer;margin:10px auto 0;display:block;transition:all .2s;}
+#btn-clear-all:hover{border-color:rgba(239,68,68,.4);color:#fca5a5;}
+
+/* ══ APP ══ */
+#app{display:flex;height:100vh;width:100%;}
+
+/* ══ SIDEBAR ══ */
+#sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--dark);display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,255,255,.06);}
+.sidebar-brand{padding:16px 16px 12px;border-bottom:1px solid rgba(255,255,255,.07);}
+.brand-abbr{font-size:10px;font-weight:800;letter-spacing:.1em;color:var(--blue);margin-bottom:2px;}
+.brand-title{font-size:13px;font-weight:700;color:#fff;line-height:1.2;}
+.sidebar-conn{display:flex;align-items:center;gap:5px;margin-top:4px;font-size:10px;color:rgba(255,255,255,.3);}
+.conn-dot{width:6px;height:6px;border-radius:50%;background:#ef4444;flex-shrink:0;transition:background .3s;}
+.conn-dot.ok{background:#10b981;}
+.sidebar-period{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.07);font-size:11px;color:rgba(255,255,255,.4);line-height:1.6;}
+.sidebar-period strong{color:rgba(255,255,255,.7);}
+.sidebar-nav{padding:8px 8px 0;flex:1;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;width:100%;background:transparent;border:none;border-radius:7px;font-size:12px;font-weight:600;color:rgba(255,255,255,.5);cursor:pointer;text-align:left;transition:all .15s;margin-bottom:2px;}
+.nav-item:hover{background:rgba(255,255,255,.07);color:rgba(255,255,255,.85);}
+.nav-item.active{background:rgba(59,130,246,.18);color:#93c5fd;}
+.nav-icon{font-size:15px;width:18px;text-align:center;flex-shrink:0;}
+.nav-badge{margin-left:auto;background:rgba(239,68,68,.25);color:#fca5a5;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;}
+.sidebar-section{padding:6px 8px 0;border-top:1px solid rgba(255,255,255,.06);margin-top:4px;}
+.sidebar-section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.25);padding:5px 10px 3px;}
+.file-item{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;cursor:pointer;transition:background .15s;}
+.file-item:hover{background:rgba(255,255,255,.06);}
+.file-item.active{background:rgba(59,130,246,.15);}
+.file-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.15);flex-shrink:0;}
+.file-dot.active{background:var(--blue);}
+.file-name{font-size:11px;color:rgba(255,255,255,.45);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+.file-item.active .file-name{color:rgba(255,255,255,.85);}
+.file-del{width:16px;height:16px;display:flex;align-items:center;justify-content:center;border-radius:3px;font-size:12px;color:rgba(255,255,255,.2);cursor:pointer;flex-shrink:0;transition:all .15s;}
+.file-del:hover{background:rgba(239,68,68,.25);color:#fca5a5;}
+.sidebar-add-btn{display:flex;align-items:center;gap:7px;width:calc(100% - 16px);margin:4px 8px;padding:7px 10px;background:transparent;border:1px dashed rgba(255,255,255,.15);border-radius:6px;font-size:11px;font-weight:600;color:rgba(255,255,255,.3);cursor:pointer;transition:all .15s;}
+.sidebar-add-btn:hover{border-color:rgba(255,255,255,.35);color:rgba(255,255,255,.7);}
+.sidebar-bottom{padding:10px 8px;border-top:1px solid rgba(255,255,255,.06);}
+.sidebar-action{display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;background:transparent;border:none;border-radius:6px;font-size:11px;font-weight:600;color:rgba(255,255,255,.3);cursor:pointer;transition:all .15s;}
+.sidebar-action:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.6);}
+
+/* ══ MAIN ══ */
+#main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+#topbar{background:var(--dark2);color:#fff;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.07);box-shadow:0 2px 6px rgba(0,0,0,.25);}
+.topbar-left{display:flex;flex-direction:column;gap:2px;}
+.topbar-title{font-size:13px;font-weight:700;}
+.topbar-period{font-size:11px;color:rgba(255,255,255,.45);}
+.topbar-right{display:flex;align-items:center;gap:10px;}
+.last-update{font-size:11px;color:rgba(255,255,255,.3);}
+.btn-closed{background:rgba(16,185,129,.15);color:#6ee7b7;border:1px solid rgba(16,185,129,.3);padding:5px 12px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;}
+.btn-closed:hover{background:rgba(16,185,129,.25);}
+.btn-closed.active{background:#10b981;color:#fff;border-color:#10b981;}
+.period-bar{background:rgba(15,23,42,.95);padding:6px 20px;display:flex;align-items:center;gap:12px;font-size:11px;color:rgba(255,255,255,.5);flex-shrink:0;}
+.period-track{flex:1;height:4px;background:rgba(255,255,255,.12);border-radius:2px;overflow:hidden;}
+.period-fill{height:100%;border-radius:2px;background:var(--blue);transition:width .5s;}
+#content{flex:1;overflow-y:auto;padding:20px 24px 36px;}
+.view{display:none;}
+.view.active{display:block;}
+
+/* ══ KPIs ══ */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px;}
+.kpi-card{background:var(--card);border-radius:10px;padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,.07);border-left:4px solid var(--blue);display:flex;flex-direction:column;gap:5px;}
+.kpi-card.c-green{border-left-color:var(--green);}
+.kpi-card.c-yellow{border-left-color:var(--yellow);}
+.kpi-card.c-red{border-left-color:var(--red);}
+.kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:var(--muted);}
+.kpi-value{font-size:28px;font-weight:800;line-height:1;}
+.kpi-sub{font-size:11px;color:var(--muted);}
+
+/* ══ SECTIONS ══ */
+.section{background:var(--card);border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.07);margin-bottom:18px;overflow:hidden;}
+.section-head{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.section-title{font-size:13px;font-weight:700;}
+.section-sub{font-size:11px;color:var(--muted);}
+.chart-body{padding:14px 18px 18px;}
+.chart-wrap{position:relative;}
+.charts-grid{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:18px;}
+
+/* ══ TABLE ══ */
+table{width:100%;border-collapse:collapse;font-size:13px;}
+thead th{background:#f8fafc;padding:8px 13px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;}
+thead th.r{text-align:right;}
+tbody td{padding:8px 13px;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover{background:#f8fafc;}
+.tfoot-row td{padding:8px 13px;border-top:2px solid var(--border);background:#f8fafc;font-weight:700;}
+.r{text-align:right;}
+.eq-name{font-weight:700;font-size:13px;}
+.cli-name{font-size:11px;color:var(--muted);}
+.dot{width:22px;height:22px;border-radius:50%;display:inline-block;border:2px solid rgba(0,0,0,.1);flex-shrink:0;}
+.dot-green{background:var(--green);box-shadow:0 0 6px rgba(16,185,129,.5);}
+.dot-yellow{background:var(--yellow);box-shadow:0 0 6px rgba(245,158,11,.5);}
+.dot-red{background:var(--red);box-shadow:0 0 6px rgba(239,68,68,.6),0 0 0 3px rgba(239,68,68,.15);}
+.badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap;}
+.b-green{background:#d1fae5;color:#065f46;}
+.b-yellow{background:#fef3c7;color:#92400e;}
+.b-red{background:#fee2e2;color:#991b1b;}
+.b-blue{background:#dbeafe;color:#1e40af;}
+.b-gray{background:#f1f5f9;color:#475569;}
+.b-neg{background:#fce7f3;color:#9d174d;font-weight:900;}
+.pbar-wrap{width:68px;height:4px;background:#e2e8f0;border-radius:2px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:4px;}
+.pbar-fill{height:100%;border-radius:2px;}
+.sched-sel{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:11px;font-weight:600;cursor:pointer;max-width:115px;}
+.sched-sel:focus{outline:2px solid var(--blue);outline-offset:1px;}
+.leg{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);margin-right:12px;}
+.leg-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.obs-cell{max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:var(--muted);cursor:help;}
+
+/* ══ BURNUP STATS ══ */
+.burnup-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;}
+.stat-card{background:var(--card);border-radius:8px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.06);}
+.stat-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:4px;}
+.stat-value{font-size:22px;font-weight:800;}
+.stat-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+
+@media(max-width:1100px){.kpi-grid{grid-template-columns:repeat(2,1fr);}.charts-grid{grid-template-columns:1fr;}.burnup-stats{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:700px){:root{--sidebar-w:0px;}#sidebar{display:none;}.kpi-grid{grid-template-columns:1fr;}#content{padding:12px;}}
+</style>
+</head>
+<body>
+
+<!-- ═══ UPLOAD ═══ -->
+<div id="upload-zone">
+  <div class="upload-card" id="drop-zone">
+    <div class="upload-icon">📊</div>
+    <h2>Dashboard HWO</h2>
+    <p>Arrastrá uno o más archivos Excel (.xlsx) o hacé clic para seleccionarlos.</p>
+    <button class="btn-primary" onclick="document.getElementById('file-input').click()">Seleccionar archivo(s)</button>
+    <div class="upload-hint">Compatible con Hoja3 · Podés cargar varios archivos a la vez</div>
+    <input type="file" id="file-input" accept=".xlsx,.xls" style="display:none" multiple>
+  </div>
+  <div id="saved-panel" class="hidden">
+    <h3>— Datos guardados —</h3>
+    <div class="saved-list" id="saved-list"></div>
+    <button id="btn-clear-all" onclick="clearAllSaved()">Borrar todos los datos guardados</button>
+  </div>
+</div>
+
+<!-- ═══ APP ═══ -->
+<div id="app" class="hidden">
+  <aside id="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-abbr">HWO</div>
+      <div class="brand-title">Dashboard Operativo</div>
+      <div class="sidebar-conn">
+        <span class="conn-dot" id="conn-dot"></span>
+        <span id="conn-label">Conectando...</span>
+      </div>
+    </div>
+
+    <div class="sidebar-period" id="sidebar-period-info"></div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-view="dashboard" onclick="switchView('dashboard')">
+        <span class="nav-icon">📊</span><span>Dashboard</span>
+      </button>
+      <button class="nav-item" data-view="equipos" onclick="switchView('equipos')">
+        <span class="nav-icon">🔧</span><span>Equipos</span>
+        <span class="nav-badge" id="nav-badge-riesgo" style="display:none"></span>
+      </button>
+      <button class="nav-item" data-view="burnup" onclick="switchView('burnup')">
+        <span class="nav-icon">📈</span><span>Burn-Up</span>
+      </button>
+      <button class="nav-item" data-view="incidencias" onclick="switchView('incidencias')">
+        <span class="nav-icon">⚠️</span><span>Incidencias</span>
+        <span class="nav-badge" id="nav-badge-inc" style="display:none"></span>
+      </button>
+    </nav>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Archivos</div>
+      <div id="sidebar-file-list"></div>
+      <button class="sidebar-add-btn" onclick="document.getElementById('file-input-add').click()">
+        <span style="font-size:16px">+</span> Agregar archivo
+      </button>
+    </div>
+
+    <div class="sidebar-bottom">
+      <button class="sidebar-action" onclick="goToUpload()">↻ &nbsp;Cargar otro archivo</button>
+    </div>
+  </aside>
+
+  <div id="main">
+    <div id="topbar">
+      <div class="topbar-left">
+        <div class="topbar-title" id="topbar-tab-name">—</div>
+        <div class="topbar-period" id="topbar-period">—</div>
+      </div>
+      <div class="topbar-right">
+        <span class="last-update" id="last-update"></span>
+        <button class="btn-closed" id="btn-closed" onclick="toggleMesCerrado()">✓ Mes cerrado</button>
+      </div>
+    </div>
+
+    <div class="period-bar">
+      <span id="period-bar-label" style="white-space:nowrap">—</span>
+      <div class="period-track"><div class="period-fill" id="period-fill" style="width:0%"></div></div>
+      <span id="period-bar-right" style="white-space:nowrap">—</span>
+    </div>
+
+    <div id="content">
+
+      <!-- DASHBOARD -->
+      <div id="view-dashboard" class="view active">
+        <div class="kpi-grid" id="kpi-grid"></div>
+        <div class="charts-grid">
+          <div class="section">
+            <div class="section-head">
+              <div class="section-title">Burn-Up del período</div>
+              <div>
+                <span class="leg"><span class="leg-dot" style="background:#10b981"></span>Real</span>
+                <span class="leg"><span class="leg-dot" style="background:#3b82f6;opacity:.7"></span>Proyectado</span>
+                <span class="leg"><span class="leg-dot" style="background:#94a3b8"></span>Scope</span>
+              </div>
+            </div>
+            <div class="chart-body"><div class="chart-wrap" style="height:260px"><canvas id="chart-burnup-dash"></canvas></div></div>
+          </div>
+          <div class="section">
+            <div class="section-head"><div class="section-title">Estados (días)</div></div>
+            <div class="chart-body"><div class="chart-wrap" style="height:260px"><canvas id="chart-states-dash"></canvas></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- EQUIPOS -->
+      <div id="view-equipos" class="view">
+        <div class="section">
+          <div class="section-head">
+            <div class="section-title">Situación por equipo</div>
+            <div>
+              <span class="leg"><span class="leg-dot" style="background:var(--green)"></span>Sin desvíos</span>
+              <span class="leg"><span class="leg-dot" style="background:var(--yellow)"></span>1 rest.</span>
+              <span class="leg"><span class="leg-dot" style="background:var(--red)"></span>Agotados</span>
+              <span class="section-sub" id="eq-count"></span>
+            </div>
+          </div>
+          <div style="overflow-x:auto">
+            <table>
+              <thead><tr>
+                <th></th><th>Equipo</th><th>Cliente</th><th>Modalidad</th>
+                <th class="r">Jornadas</th><th class="r">Operando</th>
+                <th class="r">SBSP</th><th class="r">SBCC</th>
+                <th class="r">FDS</th><th class="r">FDS Tol.</th><th class="r">FDS Rest.</th>
+                <th class="r">Esp. a fecha</th><th class="r">Real (serv.)</th>
+                <th class="r">Desvío</th><th>% Oper.</th>
+              </tr></thead>
+              <tbody id="eq-tbody"></tbody>
+              <tfoot><tr class="tfoot-row" id="eq-tfoot"></tr></tfoot>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- BURN-UP -->
+      <div id="view-burnup" class="view">
+        <div class="burnup-stats" id="burnup-stats"></div>
+        <div class="section">
+          <div class="section-head">
+            <div class="section-title">Burn-Up — Avance del período</div>
+            <div>
+              <span class="leg"><span class="leg-dot" style="background:#10b981"></span>Real acumulado</span>
+              <span class="leg"><span class="leg-dot" style="background:#3b82f6;opacity:.7"></span>Proyectado por turno</span>
+              <span class="leg"><span class="leg-dot" style="background:#94a3b8"></span>Scope total período</span>
+            </div>
+          </div>
+          <div class="chart-body"><div class="chart-wrap" style="height:380px"><canvas id="chart-burnup-full"></canvas></div></div>
+        </div>
+      </div>
+
+      <!-- INCIDENCIAS -->
+      <div id="view-incidencias" class="view">
+        <div class="section">
+          <div class="section-head">
+            <div class="section-title">Incidencias — FDS y Stand By con cargo</div>
+            <span class="section-sub" id="inc-count"></span>
+          </div>
+          <div style="overflow-x:auto">
+            <table>
+              <thead><tr>
+                <th>Fecha</th><th>Equipo</th><th>Cliente</th>
+                <th>Estado real</th><th>Sit. programada</th>
+                <th>Ubicación</th><th>Observaciones</th>
+              </tr></thead>
+              <tbody id="inc-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<input type="file" id="file-input-add" accept=".xlsx,.xls" style="display:none" multiple>
+
+<script>
+'use strict';
+
+let charts     = {};
+let D          = {};
+let datasets   = [];
+let activeIdx  = -1;
+let activeView = 'dashboard';
+let mesCerrado = false;
+
+// ── Dates ──────────────────────────────────
+function parseDate(val){if(!val)return null;if(val instanceof Date){if(isNaN(val.getTime()))return null;return new Date(val.getFullYear(),val.getMonth(),val.getDate());}if(typeof val==='number'){const ms=Math.round((val-25569)*86400000);const d=new Date(ms);return new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());}const s=val.toString().trim();const m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);if(m)return new Date(+m[3],+m[2]-1,+m[1]);return null;}
+function fmt(d){if(!d)return'';return`${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;}
+function fmtShort(d){if(!d)return'';return`${d.getDate()}/${d.getMonth()+1}`;}
+function pad(n){return String(n).padStart(2,'0');}
+function daysBetween(a,b){return Math.round((b-a)/86400000);}
+function parseNum(v){if(v===null||v===undefined||v==='')return 0;if(typeof v==='number')return isNaN(v)?0:v;const s=v.toString().replace(/\./g,'').replace(',','.').replace(/[^0-9.\-]/g,'');return parseFloat(s)||0;}
+function countWeekdays(from,to){let n=0;const d=new Date(from.getTime());while(d<=to){if(d.getDay()!==0&&d.getDay()!==6)n++;d.setDate(d.getDate()+1);}return n;}
+
+// ── Feriados ───────────────────────────────
+const FERIADOS_ARG={2026:['2026-01-01','2026-02-16','2026-02-17','2026-03-24','2026-04-02','2026-04-03','2026-05-01','2026-05-25','2026-06-15','2026-06-20','2026-07-09','2026-08-17','2026-10-12','2026-11-23','2026-12-08','2026-12-25'].map(s=>{const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d).getTime();})};
+const FERIADO_NOMBRES={'2026-01-01':'Año Nuevo','2026-02-16':'Carnaval','2026-02-17':'Carnaval','2026-03-24':'Día de la Memoria','2026-04-02':'Veteranos de Malvinas','2026-04-03':'Viernes Santo','2026-05-01':'Día del Trabajador','2026-05-25':'Revolución de Mayo','2026-06-15':'Güemes','2026-06-20':'Belgrano','2026-07-09':'Día de la Independencia','2026-08-17':'San Martín','2026-10-12':'Diversidad Cultural','2026-11-23':'Soberanía Nacional','2026-12-08':'Inmaculada Concepción','2026-12-25':'Navidad'};
+function buildHolidaySet(ps,pe){const set=new Set();if(!ps||!pe)return set;const yrs=new Set([ps.getFullYear(),pe.getFullYear()]);for(const yr of yrs)for(const t of(FERIADOS_ARG[yr]||[])){const dt=new Date(t);if(dt>=ps&&dt<=pe)set.add(t);}return set;}
+
+// ── Schedules ──────────────────────────────
+const SCHEDULES=['24hs','12hs','lun-lun','lun-vie','lun-vie-sf'];
+const SCHEDULE_LABEL={'24hs':'24hs (2j/día)','12hs':'12hs (1j/día)','lun-lun':'Lun–Lun (7d)','lun-vie':'Lun–Vie','lun-vie-sf':'L–V s/fer.'};
+function jpd(s){return s==='24hs'?2:1;}
+function calcFdsTol(s,base){if(s==='lun-vie'||s==='lun-vie-sf')return 1;return(base||0)*jpd(s);}
+function detectSchedule(tc,cfg){if(!tc||!cfg.periodDays)return'lun-lun';if(tc/cfg.periodDays>=1.8)return'24hs';if(cfg.weekdaysNoHol>0&&Math.abs(tc-cfg.weekdaysNoHol)<=1)return'lun-vie-sf';if(cfg.weekdays>0&&Math.abs(tc-cfg.weekdays)<=1)return'lun-vie';return'lun-lun';}
+function expectedOnDay(date,schedule,holidays){const dow=date.getDay();if(schedule==='24hs')return 2;if(schedule==='12hs'||schedule==='lun-lun')return 1;if(dow===0||dow===6)return 0;if(schedule==='lun-vie-sf'&&holidays.has(date.getTime()))return 0;return 1;}
+function expectedRange(schedule,from,to,holidays){let n=0;const d=new Date(from.getTime());while(d<=to){n+=expectedOnDay(d,schedule,holidays);d.setDate(d.getDate()+1);}return n;}
+
+
+// ════════════════════════════════════════════════════════════════
+//  MODALIDAD — CONFIGURACIÓN EXCLUSIVA DEL USUARIO
+//  ⚠️  ESTA SECCIÓN NO SE MODIFICA EN ACTUALIZACIONES DE CÓDIGO.
+//  El schedule de cada equipo es elegido por el usuario.
+//  Se persiste en el servidor (tabla: modalidad en hwo.db).
+// ════════════════════════════════════════════════════════════════
+let _modalidadCache = {};
+
+async function initModalidad() {
+  try {
+    const resp = await fetch('/gos/hwo/api/modalidad');
+    if (resp.ok) _modalidadCache = await resp.json();
+  } catch(e) { console.warn('No se pudo cargar modalidad:', e); }
+}
+
+function loadModalidad() { return _modalidadCache; }
+
+async function saveModalidad() {
+  const prefs = {};
+  for (const [k, e] of Object.entries(D.eqs)) prefs[k] = e.schedule;
+  Object.assign(_modalidadCache, prefs);
+  try {
+    await fetch('/gos/hwo/api/modalidad', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(prefs),
+    });
+  } catch(e) { console.warn('No se pudo guardar modalidad:', e); }
+}
+
+function applyModalidad() {
+  const saved = loadModalidad();
+  for (const [k, e] of Object.entries(D.eqs)) {
+    if (saved[k] && SCHEDULES.includes(saved[k])) {
+      e.schedule = saved[k];
+      reCountEquipment(k);
+    }
+  }
+}
+
+function setSchedule(sel) {
+  const eq = sel.dataset.eq; const e = D.eqs[eq]; if (!e) return;
+  e.schedule = sel.value;
+  _modalidadCache[eq] = sel.value;
+  reCountEquipment(eq);
+  saveModalidad();
+  D.burnup = calcBurnup();
+  renderEquipmentTable(); renderKPIs(); renderChartsForView(activeView);
+}
+// ════════════════════════════════════════════════════════════════
+
+
+// ════════════════════════════════════════════════════════════════
+//  API — Persistencia en backend (Node.js + SQLite)
+// ════════════════════════════════════════════════════════════════
+function serializeDataset(name, ds) {
+  return {
+    name,
+    configRaw: { ...ds.config, periodStart: ds.config.periodStart ? ds.config.periodStart.getTime() : null, periodEnd: ds.config.periodEnd ? ds.config.periodEnd.getTime() : null },
+    rowsRaw: ds.rows.map(r => ({ ...r, fecha: r.fecha.getTime() })),
+  };
+}
+
+function deserializeDataset(raw) {
+  return {
+    config: { ...raw.configRaw, periodStart: raw.configRaw.periodStart ? new Date(raw.configRaw.periodStart) : null, periodEnd: raw.configRaw.periodEnd ? new Date(raw.configRaw.periodEnd) : null },
+    rows: raw.rowsRaw.map(r => ({ ...r, fecha: new Date(r.fecha) })),
+    savedAt: raw.savedAt,
+  };
+}
+
+async function apiSaveDataset(name, ds) {
+  try { await fetch('/gos/hwo/api/datasets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(serializeDataset(name, ds)) }); }
+  catch(e) { console.warn('No se pudo guardar dataset:', e); }
+}
+
+async function apiLoadAll() {
+  try { const r = await fetch('/gos/hwo/api/datasets'); return r.ok ? await r.json() : []; }
+  catch { return []; }
+}
+
+async function apiLoadDataset(name) {
+  try { const r = await fetch('/gos/hwo/api/datasets/' + encodeURIComponent(name)); return r.ok ? await r.json() : null; }
+  catch { return null; }
+}
+
+async function apiDeleteDataset(name) {
+  try { await fetch('/gos/hwo/api/datasets/' + encodeURIComponent(name), { method: 'DELETE' }); }
+  catch(e) { console.warn('No se pudo borrar dataset:', e); }
+}
+
+async function apiClearAll() {
+  try { await fetch('/gos/hwo/api/datasets', { method: 'DELETE' }); }
+  catch(e) { console.warn('No se pudo limpiar datasets:', e); }
+}
+
+async function checkConnection() {
+  try {
+    const r = await fetch('/gos/hwo/api/health');
+    const ok = r.ok;
+    document.getElementById('conn-dot').className = 'conn-dot' + (ok ? ' ok' : '');
+    document.getElementById('conn-label').textContent = ok ? 'Servidor conectado' : 'Sin conexión';
+  } catch {
+    document.getElementById('conn-dot').className = 'conn-dot';
+    document.getElementById('conn-label').textContent = 'Sin conexión';
+  }
+}
+
+function rebuildDataset(raw) {
+  const { config, rows } = deserializeDataset(raw);
+  D = {}; D.config = config; D.rows = rows;
+  D.maxDate = rows.length ? new Date(Math.max(...rows.map(r => r.fecha.getTime()))) : null;
+  if (!D.config.periodStart && rows.length) {
+    const minT = Math.min(...rows.map(r => r.fecha.getTime())); const minD = new Date(minT);
+    let yr = minD.getFullYear(), mo = minD.getMonth();
+    if (minD.getDate() < 21) { mo--; if (mo < 0) { mo = 11; yr--; } }
+    D.config.periodStart = new Date(yr, mo, 21); D.config.periodEnd = new Date(yr, mo + 1, 20);
+    D.config.periodDays = daysBetween(D.config.periodStart, D.config.periodEnd) + 1;
+    D.config.weekdays = countWeekdays(D.config.periodStart, D.config.periodEnd);
+    const hSet = buildHolidaySet(D.config.periodStart, D.config.periodEnd);
+    let wdHol = 0; for (const t of hSet) { const dow = new Date(t).getDay(); if (dow !== 0 && dow !== 6) wdHol++; }
+    D.config.feriados = wdHol; D.config.weekdaysNoHol = Math.max(0, D.config.weekdays - wdHol);
+  }
+  D.eqs = calcEquipments(); D.holidays = detectHolidays();
+  applyModalidad(); addExpectedToDate(); D.burnup = calcBurnup();
+  return { ...D };
+}
+
+async function renderSavedPanel() {
+  const all = await apiLoadAll();
+  const panel = document.getElementById('saved-panel'); const list = document.getElementById('saved-list');
+  if (!all.length) { panel.classList.add('hidden'); return; }
+  panel.classList.remove('hidden');
+  list.innerHTML = all.map(item => {
+    const date = new Date(item.saved_at).toLocaleString('es-AR');
+    const sn = item.name.replace(/"/g, '&quot;');
+    return `<div class="saved-item" onclick="loadFromAPI('${sn}')"><span class="saved-item-icon">📁</span><div class="saved-item-info"><div class="saved-item-name" title="${sn}">${item.name}</div><div class="saved-item-date">Guardado: ${date}</div><div class="saved-item-sub">${item.row_count} registros</div></div><button class="saved-item-del" title="Eliminar" onclick="event.stopPropagation();deleteSavedItem('${sn}')">×</button></div>`;
+  }).join('');
+}
+
+async function loadFromAPI(name) {
+  const raw = await apiLoadDataset(name);
+  if (!raw) { alert('No se encontró el dataset.'); return; }
+  const ds = rebuildDataset(raw);
+  const existing = datasets.findIndex(d => d.name === name);
+  if (existing >= 0) { datasets[existing].D = ds; activeIdx = existing; }
+  else { datasets.push({ name, D: ds }); activeIdx = datasets.length - 1; }
+  D = datasets[activeIdx].D;
+  showApp('Datos guardados · ' + new Date(raw.savedAt).toLocaleString('es-AR'));
+}
+
+async function deleteSavedItem(name) { await apiDeleteDataset(name); renderSavedPanel(); }
+async function clearAllSaved() { if (!confirm('¿Borrar todos los datos guardados?')) return; await apiClearAll(); renderSavedPanel(); }
+// ════════════════════════════════════════════════════════════════
+
+
+// ── Vista navigation ────────────────────────
+function switchView(name) {
+  activeView = name;
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  document.querySelector(`[data-view="${name}"]`).classList.add('active');
+  if (name === 'burnup') renderBurnupStats();
+  renderChartsForView(name);
+}
+
+// ── File handling ────────────────────────────
+function onFilesPicked(files) { Array.from(files).forEach(f => loadFile(f)); }
+document.getElementById('file-input').addEventListener('change', e => { onFilesPicked(e.target.files); e.target.value = ''; });
+document.getElementById('file-input-add').addEventListener('change', e => { onFilesPicked(e.target.files); e.target.value = ''; });
+const dropZone = document.getElementById('drop-zone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); onFilesPicked(e.dataTransfer.files); });
+document.getElementById('app').addEventListener('dragover', e => e.preventDefault());
+document.getElementById('app').addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files.length) onFilesPicked(e.dataTransfer.files); });
+
+function loadFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array', cellDates: true });
+      const filename = file.name.replace(/\.[^.]+$/, '');
+      const results = processWorkbook(wb);
+      if (!results.length) { alert(`No se encontraron hojas de datos en "${file.name}".`); return; }
+      for (const { sheetName, D: ds } of results) {
+        const tabName = results.length === 1 ? filename : `${filename} · ${sheetName}`;
+        const existing = datasets.findIndex(d => d.name === tabName);
+        if (existing >= 0) { datasets[existing].D = ds; activeIdx = existing; }
+        else { datasets.push({ name: tabName, D: ds }); activeIdx = datasets.length - 1; }
+        apiSaveDataset(tabName, ds);
+      }
+      D = datasets[activeIdx].D;
+      showApp('Actualizado: ' + new Date().toLocaleString('es-AR'));
+    } catch (err) { alert('Error al leer "' + file.name + '": ' + err.message); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function showApp(updateText) {
+  document.getElementById('upload-zone').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('last-update').textContent = updateText;
+  mesCerrado = false;
+  document.getElementById('btn-closed').classList.remove('active');
+  renderAll();
+}
+
+function goToUpload() {
+  document.getElementById('upload-zone').classList.remove('hidden');
+  document.getElementById('app').classList.add('hidden');
+  renderSavedPanel();
+}
+
+function renderSidebarFiles() {
+  document.getElementById('sidebar-file-list').innerHTML = datasets.map((ds, i) => `
+    <div class="file-item ${i === activeIdx ? 'active' : ''}" onclick="switchDataset(${i})">
+      <span class="file-dot ${i === activeIdx ? 'active' : ''}"></span>
+      <span class="file-name" title="${ds.name}">${ds.name}</span>
+      <span class="file-del" onclick="event.stopPropagation();closeDataset(${i})" title="Cerrar">×</span>
+    </div>`).join('');
+}
+
+function switchDataset(idx) {
+  if (idx === activeIdx) return;
+  activeIdx = idx; D = datasets[idx].D;
+  mesCerrado = false; document.getElementById('btn-closed').classList.remove('active');
+  renderAll();
+}
+
+function closeDataset(idx) {
+  datasets.splice(idx, 1);
+  if (!datasets.length) { goToUpload(); return; }
+  activeIdx = Math.min(idx, datasets.length - 1);
+  D = datasets[activeIdx].D; renderAll();
+}
+
+// ── Workbook ─────────────────────────────────
+function processWorkbook(wb) {
+  const baseCfg = readConfig(wb); const results = [];
+  for (const shName of wb.SheetNames) {
+    const raw = XLSX.utils.sheet_to_json(wb.Sheets[shName], { header: 1, raw: true, defval: '' });
+    if (!isDataSheet(shName, raw)) continue;
+    const rows = parseDataRows(raw); if (!rows.length) continue;
+    D = {}; D.config = { ...baseCfg, eqs: { ...baseCfg.eqs } }; D.rows = rows;
+    D.maxDate = new Date(Math.max(...rows.map(r => r.fecha.getTime())));
+    if (!D.config.periodStart) {
+      const minT = Math.min(...rows.map(r => r.fecha.getTime())); const minD = new Date(minT);
+      let yr = minD.getFullYear(), mo = minD.getMonth();
+      if (minD.getDate() < 21) { mo--; if (mo < 0) { mo = 11; yr--; } }
+      D.config.periodStart = new Date(yr, mo, 21); D.config.periodEnd = new Date(yr, mo + 1, 20);
+      D.config.periodDays = daysBetween(D.config.periodStart, D.config.periodEnd) + 1;
+      D.config.weekdays = countWeekdays(D.config.periodStart, D.config.periodEnd);
+      const hSet = buildHolidaySet(D.config.periodStart, D.config.periodEnd);
+      let wdHol = 0; for (const t of hSet) { const dow = new Date(t).getDay(); if (dow !== 0 && dow !== 6) wdHol++; }
+      D.config.feriados = wdHol; D.config.weekdaysNoHol = Math.max(0, D.config.weekdays - wdHol);
+    }
+    D.eqs = calcEquipments(); D.holidays = detectHolidays();
+    applyModalidad(); addExpectedToDate(); D.burnup = calcBurnup();
+    results.push({ sheetName: shName, D });
+  }
+  return results;
+}
+
+function readConfig(wb) {
+  const cfg = { periodStart: null, periodEnd: null, feriados: 0, periodDays: 31, weekdays: 22, weekdaysNoHol: 20, eqs: {} };
+  const shName = wb.SheetNames.find(n => n.toLowerCase().replace(/\s/g, '').includes('análisishwo') || n.toLowerCase().replace(/\s/g, '').includes('analisishwo'));
+  if (!shName) return cfg;
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[shName], { header: 1, raw: true, defval: '' });
+  if (rows[1]) { cfg.periodStart = parseDate(rows[1][0]); cfg.periodEnd = parseDate(rows[1][1]); }
+  if (cfg.periodStart && cfg.periodEnd) {
+    cfg.periodDays = daysBetween(cfg.periodStart, cfg.periodEnd) + 1;
+    cfg.weekdays = countWeekdays(cfg.periodStart, cfg.periodEnd);
+    const hSet = buildHolidaySet(cfg.periodStart, cfg.periodEnd);
+    let wdHol = 0; for (const t of hSet) { const dow = new Date(t).getDay(); if (dow !== 0 && dow !== 6) wdHol++; }
+    cfg.feriados = wdHol; cfg.weekdaysNoHol = Math.max(0, cfg.weekdays - wdHol);
+  }
+  for (let i = 4; i < rows.length; i++) {
+    const r = rows[i]; if (!r || !r[0]) continue;
+    const eq = r[0].toString().trim(); if (!eq || eq.toUpperCase().startsWith('TOTAL')) continue;
+    if (eq.toLowerCase().includes('nálisis') || eq.toLowerCase().includes('eríodo')) break;
+    const total = parseInt(r[2]) || 0, fdsTol = parseInt(r[3]) || 0, proy = parseInt(r[4]) || 0;
+    if (!cfg.eqs[eq]) cfg.eqs[eq] = { equipo: eq, cliente: (r[1] || '').toString().trim(), totalCompleto: total, fdsTolerado: fdsTol, proyectado: proy };
+    else { cfg.eqs[eq].fdsTolerado += fdsTol; cfg.eqs[eq].proyectado += proy; if (total > 0) cfg.eqs[eq].totalCompleto += total; }
+  }
+  return cfg;
+}
+
+function isDataSheet(shName, raw) {
+  if (!raw || raw.length < 3) return false;
+  const l = shName.toLowerCase().replace(/\s+/g, '');
+  if (l.includes('análisis') || l.includes('analisis')) return false;
+  return (raw[0] || []).map(h => (h || '').toString().trim().toLowerCase()).some(h => h === 'fecha');
+}
+
+function parseDataRows(raw) {
+  if (!raw || raw.length < 2) return [];
+  const hdrs = raw[0].map(h => (h || '').toString().trim().toLowerCase());
+  const col = name => hdrs.findIndex(h => h.includes(name.toLowerCase()));
+  const C = { fecha: hdrs.findIndex(h => h === 'fecha'), centro: col('centro prog'), cliente: col('cliente'), sitProg: col('situación prog'), sitReal: col('situación real'), ubicacion: col('ubicación'), obs: col('observaciones'), cantServ: col('cant. servicios'), horasReal: col('horas real'), horasObj: col('horas obj') };
+  if (C.fecha < 0) C.fecha = 1; if (C.centro < 0) C.centro = 2;
+  const rows = [];
+  for (let i = 1; i < raw.length; i++) {
+    const r = raw[i]; if (!r) continue;
+    const fecha = parseDate(r[C.fecha]); const centro = (r[C.centro] || '').toString().trim();
+    if (!fecha || !centro) continue;
+    const sitReal = (r[C.sitReal] || '').toString().trim().toUpperCase();
+    rows.push({ fecha, centro, cliente: (r[C.cliente] || '').toString().trim(), sitProg: (r[C.sitProg] || '').toString().trim(), sitReal: (r[C.sitReal] || '').toString().trim(), sitRealUC: sitReal, ubicacion: (r[C.ubicacion] || '').toString().trim(), obs: (r[C.obs] || '').toString().trim(), cantServ: parseNum(r[C.cantServ]), horasReal: parseNum(r[C.horasReal]), horasObj: parseNum(r[C.horasObj]) });
+  }
+  return rows;
+}
+
+// ── Calculations ─────────────────────────────
+function stateOf(row) { const s = row.sitRealUC; if (s.includes('FUERA')) return 'fds'; if (s.includes('STAND BY C')) return 'sbcc'; if (s.includes('STAND BY')) return 'sbsp'; if (s.includes('OPERANDO')) return 'op'; return 'other'; }
+
+function calcEquipments() {
+  const eqs = {}, cfg = D.config;
+  for (const [k, c] of Object.entries(cfg.eqs)) {
+    const sched = detectSchedule(c.totalCompleto, cfg);
+    eqs[k] = { ...c, schedule: sched, _fdsTolBase: c.fdsTolerado || 0, fdsTolerado: calcFdsTol(sched, c.fdsTolerado), dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
+  }
+  for (const row of D.rows) {
+    const k = row.centro;
+    if (!eqs[k]) eqs[k] = { equipo: k, cliente: row.cliente, totalCompleto: cfg.periodDays, _fdsTolBase: 2, fdsTolerado: 2, proyectado: cfg.periodDays - 2, schedule: 'lun-lun', dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
+    const e = eqs[k], st = stateOf(row), j = jpd(e.schedule);
+    e.totalServ += row.cantServ;
+    if (st === 'op') { e.op += j; e.dias += j; }
+    else if (st === 'fds') { e.fds += j; e.dias += j; e.incidents.push({ fecha: row.fecha, estado: row.sitReal, sitProg: row.sitProg, ubicacion: row.ubicacion, obs: row.obs, cliente: row.cliente, st }); }
+    else if (st === 'sbsp') { e.sbsp += j; e.dias += j; }
+    else if (st === 'sbcc') { e.sbcc += j; e.dias += j; e.incidents.push({ fecha: row.fecha, estado: row.sitReal, sitProg: row.sitProg, ubicacion: row.ubicacion, obs: row.obs, cliente: row.cliente, st }); }
+    else e.dias += j;
+  }
+  for (const e of Object.values(eqs)) { e.fdsRestante = e.fdsTolerado - e.fds; e.semaforo = e.fdsRestante > 1 ? 'green' : e.fdsRestante === 1 ? 'yellow' : 'red'; }
+  return eqs;
+}
+
+function reCountEquipment(eq) {
+  const e = D.eqs[eq], j = jpd(e.schedule);
+  e.dias = 0; e.op = 0; e.fds = 0; e.sbsp = 0; e.sbcc = 0; e.totalServ = 0; e.incidents = [];
+  e.fdsTolerado = calcFdsTol(e.schedule, e._fdsTolBase);
+  for (const row of D.rows) {
+    if (row.centro !== eq) continue; const st = stateOf(row); e.totalServ += row.cantServ;
+    if (st === 'op') { e.op += j; e.dias += j; }
+    else if (st === 'fds') { e.fds += j; e.dias += j; e.incidents.push({ fecha: row.fecha, estado: row.sitReal, sitProg: row.sitProg, ubicacion: row.ubicacion, obs: row.obs, cliente: row.cliente, st }); }
+    else if (st === 'sbsp') { e.sbsp += j; e.dias += j; }
+    else if (st === 'sbcc') { e.sbcc += j; e.dias += j; e.incidents.push({ fecha: row.fecha, estado: row.sitReal, sitProg: row.sitProg, ubicacion: row.ubicacion, obs: row.obs, cliente: row.cliente, st }); }
+    else e.dias += j;
+  }
+  e.fdsRestante = e.fdsTolerado - e.fds;
+  e.semaforo = mesCerrado ? (e.fds <= e.fdsTolerado ? 'green' : 'red') : (e.fdsRestante > 1 ? 'green' : e.fdsRestante === 1 ? 'yellow' : 'red');
+  const cfg = D.config;
+  e.jornadasPeriodo = (cfg.periodStart && cfg.periodEnd) ? expectedRange(e.schedule, cfg.periodStart, cfg.periodEnd, D.holidays) : 0;
+  e.expectedToDate = cfg.periodStart ? Math.max(0, expectedRange(e.schedule, cfg.periodStart, D.maxDate, D.holidays) - e.fdsTolerado) : 0;
+  e.desvioServ = e.totalServ - e.expectedToDate;
+  e.pctCumpl = e.expectedToDate > 0 ? (e.totalServ / e.expectedToDate) * 100 : null;
+  const den = e.totalServ + e.fds;
+  e.pctOp = den > 0 ? (e.totalServ / den) * 100 : (e.dias > 0 ? (e.op / e.dias) * 100 : null);
+}
+
+function detectHolidays() { return buildHolidaySet(D.config.periodStart, D.config.periodEnd); }
+
+function addExpectedToDate() {
+  const cfg = D.config; if (!cfg.periodStart || !D.maxDate) return;
+  for (const e of Object.values(D.eqs)) {
+    e.jornadasPeriodo = cfg.periodEnd ? expectedRange(e.schedule, cfg.periodStart, cfg.periodEnd, D.holidays) : 0;
+    e.expectedToDate = Math.max(0, expectedRange(e.schedule, cfg.periodStart, D.maxDate, D.holidays) - e.fdsTolerado);
+    e.desvioServ = e.totalServ - e.expectedToDate;
+    e.pctCumpl = e.expectedToDate > 0 ? (e.totalServ / e.expectedToDate) * 100 : null;
+    const den = e.totalServ + e.fds;
+    e.pctOp = den > 0 ? (e.totalServ / den) * 100 : (e.dias > 0 ? (e.op / e.dias) * 100 : null);
+  }
+}
+
+function calcBurnup() {
+  const cfg = D.config;
+  if (!cfg.periodStart || !D.maxDate) return { labels: [], real: [], proj: [], scope: 0 };
+  const totalScope = Object.values(D.eqs).reduce((s, e) => s + (e.jornadasPeriodo || 0), 0);
+  const actualByDate = {};
+  for (const row of D.rows) { const t = row.fecha.getTime(); actualByDate[t] = (actualByDate[t] || 0) + row.cantServ; }
+  const labels = [], real = [], proj = [];
+  let cumReal = 0, cumProj = 0;
+  const d = new Date(cfg.periodStart.getTime());
+  while (d <= D.maxDate) {
+    const t = d.getTime();
+    cumReal += actualByDate[t] || 0;
+    cumProj += Object.values(D.eqs).reduce((s, e) => s + expectedOnDay(d, e.schedule, D.holidays), 0);
+    labels.push(fmtShort(d)); real.push(+(cumReal.toFixed(1))); proj.push(+(cumProj.toFixed(1)));
+    d.setDate(d.getDate() + 1);
+  }
+  return { labels, real, proj, scope: totalScope };
+}
+
+function toggleMesCerrado() {
+  mesCerrado = !mesCerrado;
+  document.getElementById('btn-closed').classList.toggle('active', mesCerrado);
+  for (const e of Object.values(D.eqs))
+    e.semaforo = mesCerrado ? (e.fds <= e.fdsTolerado ? 'green' : 'red') : (e.fdsRestante > 1 ? 'green' : e.fdsRestante === 1 ? 'yellow' : 'red');
+  renderEquipmentTable(); renderKPIs();
+}
+
+// ═══════════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════════
+function renderAll() {
+  renderTopbar(); renderSidebarInfo(); renderSidebarFiles();
+  renderProgressBar(); renderKPIs(); renderEquipmentTable();
+  renderIncidents(); renderBurnupStats(); renderChartsForView(activeView);
+}
+
+function renderTopbar() {
+  const cfg = D.config;
+  document.getElementById('topbar-tab-name').textContent = datasets[activeIdx]?.name || '—';
+  let p = '';
+  if (cfg.periodStart && cfg.periodEnd) p = `${fmt(cfg.periodStart)} — ${fmt(cfg.periodEnd)}`;
+  if (D.maxDate) p += (p ? ' · ' : '') + `Último dato: ${fmt(D.maxDate)}`;
+  document.getElementById('topbar-period').textContent = p || '—';
+}
+
+function renderSidebarInfo() {
+  const cfg = D.config; let html = '';
+  if (cfg.periodStart && cfg.periodEnd) {
+    html += `<strong>Período</strong><br>${fmt(cfg.periodStart)} al ${fmt(cfg.periodEnd)}<br>`;
+    if (D.maxDate) { const el = daysBetween(cfg.periodStart, D.maxDate) + 1; const rem = Math.max(0, daysBetween(D.maxDate, cfg.periodEnd)); html += `Día <strong>${el}</strong> de ${cfg.periodDays} · ${rem} restante${rem !== 1 ? 's' : ''}`; }
+  }
+  if (D.holidays && D.holidays.size > 0) {
+    const names = [...D.holidays].sort().map(t => { const d = new Date(t); const k = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; return FERIADO_NOMBRES[k] || fmt(d); });
+    html += `<br><br>Feriados: ${names.join(', ')}`;
+  }
+  document.getElementById('sidebar-period-info').innerHTML = html;
+  const eqList = Object.values(D.eqs);
+  const enRiesgo = eqList.filter(e => e.semaforo !== 'green').length;
+  const incTotal = eqList.reduce((s, e) => s + e.incidents.length, 0);
+  const badgeR = document.getElementById('nav-badge-riesgo');
+  const badgeI = document.getElementById('nav-badge-inc');
+  if (enRiesgo > 0) { badgeR.textContent = enRiesgo; badgeR.style.display = ''; } else badgeR.style.display = 'none';
+  if (incTotal > 0) { badgeI.textContent = incTotal; badgeI.style.display = ''; } else badgeI.style.display = 'none';
+}
+
+function renderProgressBar() {
+  const cfg = D.config; if (!cfg.periodStart || !cfg.periodEnd || !D.maxDate) return;
+  const el = daysBetween(cfg.periodStart, D.maxDate) + 1; const rem = Math.max(0, daysBetween(D.maxDate, cfg.periodEnd));
+  const pct = Math.min(100, (el / cfg.periodDays) * 100);
+  document.getElementById('period-fill').style.width = pct + '%';
+  document.getElementById('period-bar-label').textContent = `Día ${el} de ${cfg.periodDays} · ${pct.toFixed(0)}% del período`;
+  document.getElementById('period-bar-right').textContent = `${rem} día${rem !== 1 ? 's' : ''} restante${rem !== 1 ? 's' : ''}`;
+}
+
+function renderKPIs() {
+  const eqList = Object.values(D.eqs);
+  const totServ = eqList.reduce((s, e) => s + e.totalServ, 0), totExp = eqList.reduce((s, e) => s + e.expectedToDate, 0), totFDS = eqList.reduce((s, e) => s + e.fds, 0);
+  const enRiesgo = eqList.filter(e => e.semaforo !== 'green').length, enRojo = eqList.filter(e => e.semaforo === 'red').length, enAmari = eqList.filter(e => e.semaforo === 'yellow').length;
+  const cfg = D.config, elapsed = (cfg.periodStart && D.maxDate) ? daysBetween(cfg.periodStart, D.maxDate) + 1 : 0, remaining = (cfg.periodEnd && D.maxDate) ? Math.max(0, daysBetween(D.maxDate, cfg.periodEnd)) : 0;
+  const pctOp = (totServ + totFDS) > 0 ? (totServ / (totServ + totFDS) * 100) : 0, vsExp = totExp > 0 ? ((totServ / totExp) - 1) * 100 : 0;
+  document.getElementById('kpi-grid').innerHTML = [
+    { label: 'Operatividad global', value: `${pctOp.toFixed(1)}%`, sub: `${totServ} servicios · ${totFDS} día${totFDS !== 1 ? 's' : ''} FDS`, color: pctOp >= 95 ? 'c-green' : pctOp >= 85 ? 'c-yellow' : 'c-red' },
+    { label: 'Equipos en riesgo (FDS)', value: enRiesgo, sub: `${enRojo} en rojo · ${enAmari} en amarillo`, color: enRiesgo === 0 ? 'c-green' : enRojo > 0 ? 'c-red' : 'c-yellow' },
+    { label: 'Avance del período', value: `${elapsed} / ${cfg.periodDays} días`, sub: `${remaining} día${remaining !== 1 ? 's' : ''} restante${remaining !== 1 ? 's' : ''}`, color: '' },
+    { label: 'Serv. real vs esperado', value: `${totServ} / ${totExp}`, sub: `${vsExp >= 0 ? '+' : ''}${vsExp.toFixed(1)}% vs esperado`, color: vsExp >= 0 ? 'c-green' : vsExp >= -5 ? 'c-yellow' : 'c-red' },
+  ].map(k => `<div class="kpi-card ${k.color}"><div class="kpi-label">${k.label}</div><div class="kpi-value">${k.value}</div><div class="kpi-sub">${k.sub}</div></div>`).join('');
+}
+
+function renderEquipmentTable() {
+  const eqList = Object.values(D.eqs).sort((a, b) => { const o = { red: 0, yellow: 1, green: 2 }; return o[a.semaforo] - o[b.semaforo] || a.equipo.localeCompare(b.equipo); });
+  document.getElementById('eq-count').textContent = `${eqList.length} equipos`;
+  document.getElementById('eq-tbody').innerHTML = eqList.map(e => {
+    const pctC = e.pctOp || 0, pctColor = pctC >= 95 ? 'var(--green)' : pctC >= 85 ? 'var(--yellow)' : 'var(--red)', pctStr = e.pctOp !== null ? e.pctOp.toFixed(1) + '%' : '—';
+    const fdsRest = e.fdsRestante >= 0 ? `<span class="badge b-${e.semaforo === 'green' ? 'green' : e.semaforo === 'yellow' ? 'yellow' : 'red'}">${e.fdsRestante}</span>` : `<span class="badge b-neg">${e.fdsRestante}</span>`;
+    let desvBadge = '—';
+    if (e.expectedToDate > 0) { const d = e.desvioServ, cls = d >= 0 ? 'b-green' : d >= -2 ? 'b-yellow' : 'b-red'; desvBadge = `<span class="badge ${cls}">${d >= 0 ? '+' : ''}${d}</span>`; }
+    return `<tr><td><span class="dot dot-${e.semaforo}"></span></td><td><span class="eq-name">${e.equipo}</span></td><td><span class="cli-name">${e.cliente}</span></td><td><select class="sched-sel" data-eq="${e.equipo}" onchange="setSchedule(this)">${SCHEDULES.map(s => `<option value="${s}"${e.schedule === s ? ' selected' : ''}>${SCHEDULE_LABEL[s]}</option>`).join('')}</select></td><td class="r">${e.jornadasPeriodo || 0}</td><td class="r"><span class="badge b-green">${e.op}</span></td><td class="r"><span class="badge b-blue">${e.sbsp}</span></td><td class="r"><span class="badge ${e.sbcc > 0 ? 'b-yellow' : 'b-gray'}">${e.sbcc}</span></td><td class="r"><span class="badge ${e.fds > 0 ? 'b-red' : 'b-gray'}">${e.fds}</span></td><td class="r">${e.fdsTolerado}</td><td class="r">${fdsRest}</td><td class="r">${e.expectedToDate}</td><td class="r"><strong>${e.totalServ}</strong></td><td class="r">${desvBadge}</td><td><span class="pbar-wrap"><span class="pbar-fill" style="width:${Math.min(pctC, 100).toFixed(0)}%;background:${pctColor}"></span></span><span style="font-size:11px;font-weight:700;color:${pctColor}">${pctStr}</span></td></tr>`;
+  }).join('');
+  const tot = f => eqList.reduce((s, e) => s + (e[f] || 0), 0);
+  const totServ = tot('totalServ'), totExp = tot('expectedToDate'), totFDS = tot('fds'), totDesv = totServ - totExp;
+  const pctG = (totServ + totFDS) > 0 ? (totServ / (totServ + totFDS) * 100).toFixed(1) + '%' : '—';
+  const desvB = totExp > 0 ? `<span class="badge ${totDesv >= 0 ? 'b-green' : 'b-red'}">${totDesv >= 0 ? '+' : ''}${totDesv}</span>` : '—';
+  document.getElementById('eq-tfoot').innerHTML = `<td></td><td>TOTAL</td><td></td><td></td><td class="r">${tot('jornadasPeriodo')}</td><td class="r">${tot('op')}</td><td class="r">${tot('sbsp')}</td><td class="r">${tot('sbcc')}</td><td class="r">${totFDS}</td><td class="r">${tot('fdsTolerado')}</td><td class="r">${tot('fdsRestante')}</td><td class="r">${totExp}</td><td class="r"><strong>${totServ}</strong></td><td class="r">${desvB}</td><td>${pctG}</td>`;
+  document.querySelectorAll('#eq-tbody .sched-sel').forEach(sel => { const e = D.eqs[sel.dataset.eq]; if (e) sel.value = e.schedule; });
+}
+
+function renderIncidents() {
+  const incidents = [];
+  for (const e of Object.values(D.eqs)) for (const inc of e.incidents) incidents.push({ ...inc, equipo: e.equipo });
+  incidents.sort((a, b) => a.fecha - b.fecha);
+  document.getElementById('inc-count').textContent = `${incidents.length} evento${incidents.length !== 1 ? 's' : ''}`;
+  const tbody = document.getElementById('inc-tbody');
+  if (!incidents.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:28px;color:var(--muted)">Sin incidencias registradas</td></tr>'; return; }
+  tbody.innerHTML = incidents.map(inc => { const cls = inc.st === 'fds' ? 'b-red' : 'b-yellow'; const obs = (inc.obs || '').replace(/</g, '&lt;'); return `<tr><td style="white-space:nowrap;font-weight:600">${fmt(inc.fecha)}</td><td><span class="eq-name">${inc.equipo}</span></td><td><span class="cli-name">${inc.cliente}</span></td><td><span class="badge ${cls}">${inc.estado}</span></td><td style="font-size:11px;color:var(--muted)">${inc.sitProg}</td><td style="font-size:11px">${inc.ubicacion}</td><td class="obs-cell" title="${obs}">${obs || '—'}</td></tr>`; }).join('');
+}
+
+function renderBurnupStats() {
+  const bu = D.burnup; if (!bu || !bu.scope) return;
+  const done = bu.real.length ? bu.real[bu.real.length - 1] : 0;
+  const proj = bu.proj.length ? bu.proj[bu.proj.length - 1] : 0;
+  const remaining = Math.max(0, bu.scope - done);
+  const pctDone = bu.scope > 0 ? (done / bu.scope * 100) : 0;
+  const ahead = done - proj;
+  const cfg = D.config, daysLeft = (cfg.periodEnd && D.maxDate) ? Math.max(0, daysBetween(D.maxDate, cfg.periodEnd)) : 0;
+  document.getElementById('burnup-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-label">Scope total (período)</div><div class="stat-value">${bu.scope}</div><div class="stat-sub">servicios esperados en el período</div></div>
+    <div class="stat-card"><div class="stat-label">Completado</div><div class="stat-value" style="color:var(--green)">${done}</div><div class="stat-sub">${pctDone.toFixed(1)}% del scope total</div></div>
+    <div class="stat-card"><div class="stat-label">Restante</div><div class="stat-value" style="color:${remaining > 0 ? 'var(--yellow)' : 'var(--green)'}">${remaining}</div><div class="stat-sub">${daysLeft} día${daysLeft !== 1 ? 's' : ''} restante${daysLeft !== 1 ? 's' : ''}</div></div>
+    <div class="stat-card"><div class="stat-label">vs. Proyectado</div><div class="stat-value" style="color:${ahead >= 0 ? 'var(--green)' : 'var(--red)'}">${ahead >= 0 ? '+' : ''}${ahead.toFixed(1)}</div><div class="stat-sub">${ahead >= 0 ? 'adelantado' : 'retrasado'} respecto al plan</div></div>`;
+}
+
+function renderChartsForView(name) {
+  Object.values(charts).forEach(c => c.destroy()); charts = {};
+  if (name === 'dashboard') { renderBurnupChart('chart-burnup-dash'); renderStatesChart('chart-states-dash'); }
+  else if (name === 'burnup') renderBurnupChart('chart-burnup-full');
+}
+
+function renderBurnupChart(canvasId) {
+  const bu = D.burnup; if (!bu || !bu.labels.length) return;
+  const scope = Array(bu.labels.length).fill(bu.scope);
+  const ctx = document.getElementById(canvasId); if (!ctx) return;
+  charts[canvasId] = new Chart(ctx.getContext('2d'), {
+    type: 'line',
+    data: { labels: bu.labels, datasets: [
+      { label: 'Scope total', data: scope, borderColor: '#94a3b8', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0, fill: false, order: 3 },
+      { label: 'Proyectado', data: bu.proj, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.08)', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, fill: 'origin', order: 2 },
+      { label: 'Real acumulado', data: bu.real, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,.12)', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, fill: 'origin', tension: 0.25, order: 1 },
+    ] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12, usePointStyle: true } },
+        tooltip: { callbacks: { afterBody: ctx => { const real = ctx.find(c => c.dataset.label === 'Real acumulado')?.raw ?? 0; const proj = ctx.find(c => c.dataset.label === 'Proyectado')?.raw ?? 0; const sc = ctx.find(c => c.dataset.label === 'Scope total')?.raw ?? 0; return [`Desvío vs proy: ${(real - proj) >= 0 ? '+' : ''}${(real - proj).toFixed(1)}`, `Restante: ${(sc - real).toFixed(1)}`]; } } },
+      },
+      scales: {
+        x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, maxRotation: 45, maxTicksLimit: 20 } },
+        y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } }, beginAtZero: true },
+      },
+    },
+  });
+}
+
+function renderStatesChart(canvasId) {
+  const eqList = Object.values(D.eqs);
+  const totOp = eqList.reduce((s, e) => s + e.op, 0), totFDS = eqList.reduce((s, e) => s + e.fds, 0), totSBCC = eqList.reduce((s, e) => s + e.sbcc, 0), totSBSP = eqList.reduce((s, e) => s + e.sbsp, 0);
+  const grand = totOp + totFDS + totSBCC + totSBSP;
+  const ctx = document.getElementById(canvasId); if (!ctx) return;
+  charts[canvasId] = new Chart(ctx.getContext('2d'), {
+    type: 'doughnut',
+    data: { labels: ['Operando', 'FDS', 'SBCC', 'SBSP'], datasets: [{ data: [totOp, totFDS, totSBCC, totSBSP], backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#3b82f6'], borderWidth: 3, borderColor: '#fff' }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 11, padding: 12, usePointStyle: true } }, tooltip: { callbacks: { label: ctx => { const pct = grand ? (ctx.parsed / grand * 100).toFixed(1) : 0; return `  ${ctx.label}: ${ctx.parsed} días (${pct}%)`; } } } }, cutout: '62%' },
+  });
+}
+
+// ── Init ────────────────────────────────────
+async function initApp() {
+  await initModalidad();
+  await renderSavedPanel();
+  checkConnection();
+  setInterval(checkConnection, 30000);
+}
+initApp();
+</script>
+</body>
+</html>
