@@ -82,3 +82,44 @@ def test_vacaciones_dashboard_lists(auth_client):
     assert len(data) == 1
     assert data[0]["empleado"] == "Juan Pérez"
     assert data[0]["tomados_real"] == 1
+
+
+def test_vacaciones_import_excel(auth_client):
+    import io
+
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "TOTAL"
+    ws.append(
+        [
+            "fecha", "empleado", "sector", "servicio", "centro", "situacion",
+            "total_horas", "hs_viaje", "hs50", "hs_noc", "hs_noc50", "hs100",
+            "viandas", "v_desayuno", "d_normales", "ausente", "fr_trabajados",
+            "feriados", "enfermedad", "traslado", "vacaciones", "licencia",
+            "suspension", "accidente", "francos_comp",
+        ]
+    )
+    ws.append(
+        [
+            "2024-06-01", "Maria Lopez", "Planta", "", "", "TRABAJANDO",
+            8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
+        ]
+    )
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    r = auth_client.post(
+        "/gos/vacaciones/api/importar/excel",
+        data={"file": (buf, "test.xlsx")},
+        content_type="multipart/form-data",
+    )
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data["ok"] is True
+    assert data["detalle"]["registros"] == 1
+
+    r2 = auth_client.get("/gos/vacaciones/api/dashboard/empleados")
+    assert "Maria Lopez" in r2.get_json()

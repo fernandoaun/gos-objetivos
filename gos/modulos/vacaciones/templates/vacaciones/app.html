@@ -62,7 +62,8 @@ tr:hover td{background:rgba(30,41,59,.5);}
 .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
 .tag{background:rgba(59,130,246,.15);color:var(--blue);border:1px solid rgba(59,130,246,.3);border-radius:999px;padding:2px 8px;font-size:.7rem;display:inline-flex;align-items:center;gap:4px;}
 .tag button{background:none;border:none;color:inherit;cursor:pointer;opacity:.7;}
-.dropzone{border:2px dashed var(--border);border-radius:16px;padding:48px 24px;text-align:center;cursor:pointer;transition:border-color .2s;}
+.dropzone{border:2px dashed var(--border);border-radius:16px;padding:48px 24px;text-align:center;cursor:pointer;transition:border-color .2s;position:relative;}
+.dropzone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
 .dropzone:hover,.dropzone.drag{border-color:var(--blue);background:rgba(59,130,246,.08);}
 .dropzone h3{margin-top:12px;font-size:1rem;}
 .dropzone p{color:var(--muted);font-size:.85rem;margin-top:6px;}
@@ -153,14 +154,15 @@ tr:hover td{background:rgba(30,41,59,.5);}
   <h1>Importar / Actualizar Datos</h1>
   <p class="subtitle" style="margin-bottom:20px;">Subí un Excel con las hojas <strong>TOTAL</strong> y <strong>PLANILLA VACACIONES</strong>.</p>
 
-  <div class="card dropzone" id="dropzone">
+  <label class="card dropzone" id="dropzone" for="file-input">
     <div style="font-size:2.5rem;">📂</div>
     <h3 id="drop-title">Arrastrá el archivo Excel aquí</h3>
     <p id="drop-sub">o hacé clic para seleccionar · .xlsx / .xls</p>
-    <input type="file" id="file-input" accept=".xlsx,.xls" class="hidden">
-  </div>
+    <input type="file" id="file-input" accept=".xlsx,.xls,.xlsm">
+  </label>
 
-  <button class="btn hidden" id="btn-import" style="width:100%;margin-top:16px;padding:14px;">Importar datos</button>
+  <button type="button" class="btn hidden" id="btn-import" style="width:100%;margin-top:16px;padding:14px;">Importar datos</button>
+  <div id="import-status" class="hidden card" style="margin-top:16px;padding:16px;text-align:center;color:var(--muted);">Importando datos, puede tardar varios minutos…</div>
   <div id="import-result" class="hidden card" style="margin-top:16px;"></div>
 
   <div class="card" style="margin-top:20px;font-size:.85rem;color:var(--muted);">
@@ -180,9 +182,18 @@ const state = {
 
 async function apiGet(path, params = {}) {
   const qs = new URLSearchParams(Object.entries(params).filter(([,v]) => v)).toString();
-  const res = await fetch(`${API}${path}${qs ? '?' + qs : ''}`);
+  const res = await fetch(`${API}${path}${qs ? '?' + qs : ''}`, { credentials: 'same-origin' });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
+}
+
+async function apiPostForm(path, formData) {
+  const res = await fetch(`${API}${path}`, { method: 'POST', body: formData, credentials: 'same-origin' });
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); } catch { throw new Error(text.slice(0, 200) || 'Error del servidor'); }
+  if (!res.ok) throw new Error(data.error || 'Error en la solicitud');
+  return data;
 }
 
 function semaforo(dias) {
@@ -378,47 +389,73 @@ document.querySelector('[data-export="excel"]').onclick = () => {
 // ── Importar ──
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');
-dropzone.onclick = () => fileInput.click();
 dropzone.ondragover = e => { e.preventDefault(); dropzone.classList.add('drag'); };
 dropzone.ondragleave = () => dropzone.classList.remove('drag');
-dropzone.ondrop = e => { e.preventDefault(); dropzone.classList.remove('drag'); setFile(e.dataTransfer.files[0]); };
-fileInput.onchange = () => setFile(fileInput.files[0]);
+dropzone.ondrop = e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFileSelected(f);
+};
+fileInput.onchange = () => {
+  const f = fileInput.files[0];
+  if (f) handleFileSelected(f);
+  fileInput.value = '';
+};
 
-function setFile(f) {
+function handleFileSelected(f) {
   if (!f) return;
+  const ext = f.name.toLowerCase();
+  if (!ext.endsWith('.xlsx') && !ext.endsWith('.xls') && !ext.endsWith('.xlsm')) {
+    showImportError('Solo se aceptan archivos Excel (.xlsx, .xls)');
+    return;
+  }
   state.file = f;
   document.getElementById('drop-title').textContent = f.name;
-  document.getElementById('drop-sub').textContent = `${(f.size/1024/1024).toFixed(2)} MB`;
-  document.getElementById('btn-import').classList.remove('hidden');
+  document.getElementById('drop-sub').textContent = `${(f.size/1024/1024).toFixed(2)} MB · importando…`;
+  document.getElementById('btn-import').classList.add('hidden');
+  runImport();
 }
 
-document.getElementById('btn-import').onclick = async () => {
-  if (!state.file) return;
-  const btn = document.getElementById('btn-import');
-  btn.disabled = true;
-  btn.textContent = 'Importando...';
+function showImportResult(data) {
   const res = document.getElementById('import-result');
+  res.className = 'card result-ok';
+  res.innerHTML = `<h3 style="color:var(--green);margin-bottom:8px;">✓ Importación exitosa</h3><p style="font-size:.85rem;color:var(--muted);">${data.mensaje}</p>`;
+  if (data.detalle?.registros > 0) res.innerHTML += `<div class="grid3"><div class="stat-box"><div class="val">${data.detalle.registros}</div><div class="lbl">Registros</div></div><div class="stat-box"><div class="val" style="color:var(--blue)">${data.detalle.registros_nuevos}</div><div class="lbl">Nuevos</div></div><div class="stat-box"><div class="val" style="color:var(--yellow)">${data.detalle.registros_actualizados}</div><div class="lbl">Actualizados</div></div></div>`;
+  if (data.detalle?.vacaciones > 0) res.innerHTML += `<div class="grid3" style="margin-top:12px;"><div class="stat-box"><div class="val">${data.detalle.vacaciones}</div><div class="lbl">Vacaciones</div></div><div class="stat-box"><div class="val" style="color:var(--blue)">${data.detalle.vacaciones_nuevas}</div><div class="lbl">Nuevas</div></div><div class="stat-box"><div class="val" style="color:var(--yellow)">${data.detalle.vacaciones_actualizadas}</div><div class="lbl">Actualizadas</div></div></div>`;
+  res.innerHTML += `<p style="font-size:.8rem;color:var(--muted);margin-top:12px;">Los datos ya están disponibles en <strong>Vacaciones adeudadas</strong>.</p>`;
+  res.classList.remove('hidden');
+}
+
+function showImportError(msg) {
+  const res = document.getElementById('import-result');
+  res.className = 'card result-err';
+  res.innerHTML = `<h3 style="color:var(--red);">Error al importar</h3><p style="font-size:.85rem;margin-top:8px;">${msg}</p>`;
+  res.classList.remove('hidden');
+  document.getElementById('drop-sub').textContent = 'o hacé clic para seleccionar · .xlsx / .xls';
+}
+
+async function runImport() {
+  if (!state.file) return;
+  const status = document.getElementById('import-status');
+  const res = document.getElementById('import-result');
+  status.classList.remove('hidden');
   res.classList.add('hidden');
   try {
     const fd = new FormData();
     fd.append('file', state.file);
-    const r = await fetch(`${API}/importar/excel`, { method: 'POST', body: fd });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error || 'Error al importar');
-    res.className = 'card result-ok';
-    res.innerHTML = `<h3 style="color:var(--green);margin-bottom:8px;">✓ Importación exitosa</h3><p style="font-size:.85rem;color:var(--muted);">${data.mensaje}</p>`;
-    if (data.detalle?.registros > 0) res.innerHTML += `<div class="grid3"><div class="stat-box"><div class="val">${data.detalle.registros}</div><div class="lbl">Registros</div></div><div class="stat-box"><div class="val" style="color:var(--blue)">${data.detalle.registros_nuevos}</div><div class="lbl">Nuevos</div></div><div class="stat-box"><div class="val" style="color:var(--yellow)">${data.detalle.registros_actualizados}</div><div class="lbl">Actualizados</div></div></div>`;
-    if (data.detalle?.vacaciones > 0) res.innerHTML += `<div class="grid3" style="margin-top:12px;"><div class="stat-box"><div class="val">${data.detalle.vacaciones}</div><div class="lbl">Vacaciones</div></div><div class="stat-box"><div class="val" style="color:var(--blue)">${data.detalle.vacaciones_nuevas}</div><div class="lbl">Nuevas</div></div><div class="stat-box"><div class="val" style="color:var(--yellow)">${data.detalle.vacaciones_actualizadas}</div><div class="lbl">Actualizadas</div></div></div>`;
-    res.classList.remove('hidden');
+    const data = await apiPostForm('/importar/excel', fd);
+    showImportResult(data);
+    document.getElementById('drop-sub').textContent = 'Archivo importado correctamente';
   } catch (err) {
-    res.className = 'card result-err';
-    res.innerHTML = `<h3 style="color:var(--red);">Error al importar</h3><p style="font-size:.85rem;margin-top:8px;">${err.message}</p>`;
-    res.classList.remove('hidden');
+    showImportError(err.message || 'Error al importar');
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'Importar datos';
+    status.classList.add('hidden');
+    state.file = null;
   }
-};
+}
+
+document.getElementById('btn-import').onclick = runImport;
 
 // ── Init ──
 const initialView = '{{ initial_view }}';

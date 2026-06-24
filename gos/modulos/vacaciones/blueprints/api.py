@@ -91,21 +91,28 @@ def importar_excel():
     upload = request.files.get("file")
     if not upload or not upload.filename:
         return jsonify({"error": "No se recibió archivo"}), 400
-    if not upload.filename.lower().endswith((".xlsx", ".xls")):
+    if not upload.filename.lower().endswith((".xlsx", ".xls", ".xlsm")):
         return jsonify({"error": "Solo se aceptan archivos Excel (.xlsx, .xls)"}), 400
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
-        upload.save(tmp.name)
-        tmp_path = tmp.name
-
-    db = _db()
+    tmp_path = None
     try:
-        result = import_excel(tmp_path, db)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
+            upload.save(tmp)
+            tmp_path = tmp.name
+
+        db = _db()
+        try:
+            result = import_excel(tmp_path, db)
+        finally:
+            db.close()
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
     finally:
-        os.unlink(tmp_path)
-        db.close()
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
     partes = []
     if result["registros"] > 0:
