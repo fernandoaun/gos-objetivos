@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vacaciones — GOS</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg:#0f172a;--card:#1e293b;--border:#334155;
+  --text:#f1f5f9;--muted:#94a3b8;--blue:#3b82f6;
+  --green:#22c55e;--yellow:#f59e0b;--red:#ef4444;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);}
+.hidden{display:none!important;}
+.app{padding:24px;max-width:1400px;margin:0 auto;}
+h1{font-size:1.5rem;font-weight:700;}
+.subtitle{color:var(--muted);font-size:.85rem;margin-top:4px;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:0 4px 24px rgba(0,0,0,.25);}
+.filters{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin:20px 0;}
+.filters label{display:block;font-size:.7rem;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em;}
+.filters input,.filters select{background:#0f172a;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 12px;font-size:.85rem;}
+.filters input:focus,.filters select:focus{outline:2px solid var(--blue);}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px;}
+.kpi{border-left:3px solid var(--blue);}
+.kpi.warn{border-left-color:var(--yellow);}
+.kpi.danger{border-left-color:var(--red);}
+.kpi-label{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
+.kpi-value{font-size:2rem;font-weight:700;margin-top:4px;}
+.kpi.blue .kpi-value{color:var(--blue);}
+.kpi.warn .kpi-value{color:var(--yellow);}
+.kpi.danger .kpi-value{color:var(--red);}
+.table-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:.8rem;}
+th{text-align:left;color:var(--muted);font-weight:600;padding:10px 8px;border-bottom:1px solid var(--border);font-size:.75rem;}
+th.num,td.num{text-align:right;}
+td{padding:8px;border-bottom:1px solid rgba(51,65,85,.5);}
+tr:hover td{background:rgba(30,41,59,.5);}
+.badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:.7rem;font-weight:600;border:1px solid;}
+.badge.ok{background:rgba(34,197,94,.15);color:var(--green);border-color:rgba(34,197,94,.3);}
+.badge.warn{background:rgba(245,158,11,.15);color:var(--yellow);border-color:rgba(245,158,11,.3);}
+.badge.bad{background:rgba(239,68,68,.15);color:var(--red);border-color:rgba(239,68,68,.3);}
+.btn{background:var(--blue);color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:.85rem;font-weight:600;cursor:pointer;}
+.btn:hover{background:#2563eb;}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--muted);}
+.btn-outline:hover{border-color:var(--blue);color:var(--text);}
+.header-row{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:8px;}
+.spinner{text-align:center;padding:40px;color:var(--muted);}
+.chart-box{height:260px;margin-top:8px;}
+.multi-select{position:relative;min-width:260px;}
+.multi-btn{width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:8px;background:#0f172a;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 12px;font-size:.85rem;cursor:pointer;}
+.multi-panel{position:absolute;z-index:50;top:100%;left:0;margin-top:4px;width:320px;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.4);}
+.multi-search{padding:8px;border-bottom:1px solid var(--border);}
+.multi-search input{width:100%;background:#0f172a;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:.8rem;}
+.multi-list{max-height:240px;overflow-y:auto;}
+.multi-item{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;font-size:.8rem;}
+.multi-item:hover{background:rgba(51,65,85,.4);}
+.multi-footer{padding:8px 12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:.7rem;color:var(--muted);}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.tag{background:rgba(59,130,246,.15);color:var(--blue);border:1px solid rgba(59,130,246,.3);border-radius:999px;padding:2px 8px;font-size:.7rem;display:inline-flex;align-items:center;gap:4px;}
+.tag button{background:none;border:none;color:inherit;cursor:pointer;opacity:.7;}
+.dropzone{border:2px dashed var(--border);border-radius:16px;padding:48px 24px;text-align:center;cursor:pointer;transition:border-color .2s;}
+.dropzone:hover,.dropzone.drag{border-color:var(--blue);background:rgba(59,130,246,.08);}
+.dropzone h3{margin-top:12px;font-size:1rem;}
+.dropzone p{color:var(--muted);font-size:.85rem;margin-top:6px;}
+.result-ok{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.08);}
+.result-err{border-color:rgba(239,68,68,.4);background:rgba(239,68,68,.08);}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px;}
+.stat-box{background:#0f172a;border-radius:12px;padding:16px;text-align:center;}
+.stat-box .val{font-size:1.5rem;font-weight:700;}
+.stat-box .lbl{font-size:.7rem;color:var(--muted);margin-top:4px;}
+.export-menu{position:relative;}
+.export-drop{position:absolute;right:0;top:100%;margin-top:6px;width:200px;background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;z-index:40;}
+.export-drop button{display:block;width:100%;text-align:left;padding:12px 16px;background:none;border:none;color:var(--text);font-size:.8rem;cursor:pointer;}
+.export-drop button:hover{background:rgba(51,65,85,.5);}
+.export-drop button+button{border-top:1px solid var(--border);}
+@media(max-width:768px){.kpis{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div id="view-vacaciones" class="app {% if initial_view != 'vacaciones' %}hidden{% endif %}">
+  <div class="header-row">
+    <div>
+      <h1>Vacaciones Adeudadas</h1>
+      <p class="subtitle">Cruce entre planilla de vacaciones y registros del TOTAL</p>
+    </div>
+    <div class="export-menu">
+      <button class="btn" id="btn-export" disabled>Exportar informe</button>
+      <div class="export-drop hidden" id="export-drop">
+        <button type="button" data-export="excel">Exportar Excel</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card filters">
+    <div><label>Desde</label><input type="date" id="f-desde"></div>
+    <div><label>Hasta</label><input type="date" id="f-hasta"></div>
+    <div><label>Sector</label><select id="f-sector"><option value="">Todos los sectores</option></select></div>
+    <div class="multi-select" id="personas-wrap">
+      <label>Persona(s)</label>
+      <button type="button" class="multi-btn" id="personas-btn"><span id="personas-label">Todas las personas</span><span>▾</span></button>
+      <div class="multi-panel hidden" id="personas-panel">
+        <div class="multi-search"><input type="text" id="personas-search" placeholder="Buscar empleado..."></div>
+        <div class="multi-list" id="personas-list"></div>
+        <div class="multi-footer"><span id="personas-count">0 seleccionado(s)</span><button type="button" class="btn-outline btn" id="personas-clear" style="padding:2px 8px;font-size:.7rem;">Limpiar</button></div>
+      </div>
+      <div class="tags" id="personas-tags"></div>
+    </div>
+  </div>
+
+  <div id="loading" class="spinner hidden">Cargando...</div>
+
+  <div id="content" class="hidden">
+    <div class="kpis">
+      <div class="card kpi blue"><div class="kpi-label">Total días pendientes</div><div class="kpi-value" id="kpi-total">0</div></div>
+      <div class="card kpi warn"><div class="kpi-label">Empleados con deuda</div><div class="kpi-value" id="kpi-deuda">0</div></div>
+      <div class="card kpi danger"><div class="kpi-label">Críticos (+14 días)</div><div class="kpi-value" id="kpi-rojo">0</div></div>
+    </div>
+
+    <div class="card" id="chart-card" style="margin-bottom:20px;">
+      <div class="header-row" style="margin-bottom:0;">
+        <h2 style="font-size:1rem;">Días Pendientes por Sector</h2>
+        <button type="button" class="btn-outline btn hidden" id="chart-clear" style="padding:4px 10px;font-size:.75rem;">✕ Quitar filtro</button>
+      </div>
+      <div class="chart-box"><canvas id="chart-sector"></canvas></div>
+    </div>
+
+    <div class="card">
+      <div class="header-row">
+        <h2 style="font-size:1rem;">Detalle por Empleado <span id="sector-filter-label" style="color:var(--blue);font-weight:400;"></span></h2>
+        <span class="subtitle" id="table-count">0 registros</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Empleado</th><th>Sector</th><th class="num">Año</th>
+              <th class="num">Disponibles</th><th class="num">Tomados (Planilla)</th>
+              <th class="num">Tomados (Real)</th><th class="num">Pendientes</th><th style="text-align:center;">Estado</th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="view-importar" class="app {% if initial_view != 'importar' %}hidden{% endif %}" style="max-width:720px;">
+  <h1>Importar / Actualizar Datos</h1>
+  <p class="subtitle" style="margin-bottom:20px;">Subí un Excel con las hojas <strong>TOTAL</strong> y <strong>PLANILLA VACACIONES</strong>.</p>
+
+  <div class="card dropzone" id="dropzone">
+    <div style="font-size:2.5rem;">📂</div>
+    <h3 id="drop-title">Arrastrá el archivo Excel aquí</h3>
+    <p id="drop-sub">o hacé clic para seleccionar · .xlsx / .xls</p>
+    <input type="file" id="file-input" accept=".xlsx,.xls" class="hidden">
+  </div>
+
+  <button class="btn hidden" id="btn-import" style="width:100%;margin-top:16px;padding:14px;">Importar datos</button>
+  <div id="import-result" class="hidden card" style="margin-top:16px;"></div>
+
+  <div class="card" style="margin-top:20px;font-size:.85rem;color:var(--muted);">
+    <h3 style="color:var(--text);margin-bottom:12px;">Formato esperado</h3>
+    <p><strong style="color:var(--text);">Hoja TOTAL:</strong> Fecha, Empleado, Sector, Servicio, Centro, Situación, Total Horas…</p>
+    <p style="margin-top:8px;"><strong style="color:var(--text);">Hoja PLANILLA VACACIONES:</strong> Legajo, Empleado, Fecha ingreso, Sector + bloques 2023/2024/2025.</p>
+  </div>
+</div>
+
+<script>
+const API = '/gos/vacaciones/api';
+const state = {
+  sectores: [], empleados: [], selectedPersonas: [],
+  deuda: [], resumenSector: [], sectorChart: null,
+  sectorSeleccionado: null, file: null,
+};
+
+async function apiGet(path, params = {}) {
+  const qs = new URLSearchParams(Object.entries(params).filter(([,v]) => v)).toString();
+  const res = await fetch(`${API}${path}${qs ? '?' + qs : ''}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+function semaforo(dias) {
+  if (dias === 0) return '<span class="badge ok">Al día ✓</span>';
+  if (dias <= 14) return `<span class="badge warn">⚠ ${dias} días</span>`;
+  return `<span class="badge bad">🔴 ${dias} días</span>`;
+}
+
+function shortName(name) {
+  return name.split(' ').slice(0, 2).join(' ');
+}
+
+// ── Personas multi-select ──
+function renderPersonasList() {
+  const q = document.getElementById('personas-search').value.toLowerCase();
+  const list = document.getElementById('personas-list');
+  const filtered = state.empleados.filter(e => !q || e.toLowerCase().includes(q));
+  list.innerHTML = filtered.map(emp => `
+    <label class="multi-item">
+      <input type="checkbox" value="${emp.replace(/"/g,'&quot;')}" ${state.selectedPersonas.includes(emp)?'checked':''}>
+      <span>${emp}</span>
+    </label>`).join('') || '<p style="padding:12px;text-align:center;color:var(--muted);font-size:.8rem;">Sin resultados</p>';
+  list.querySelectorAll('input').forEach(cb => {
+    cb.onchange = () => {
+      const v = cb.value;
+      if (cb.checked) state.selectedPersonas.push(v);
+      else state.selectedPersonas = state.selectedPersonas.filter(x => x !== v);
+      updatePersonasUI();
+      renderTable();
+    };
+  });
+}
+
+function updatePersonasUI() {
+  const n = state.selectedPersonas.length;
+  document.getElementById('personas-count').textContent = `${n} seleccionado(s)`;
+  document.getElementById('personas-label').textContent = n === 0 ? 'Todas las personas' : n === 1 ? shortName(state.selectedPersonas[0]) : `${n} personas seleccionadas`;
+  document.getElementById('personas-tags').innerHTML = state.selectedPersonas.map(emp =>
+    `<span class="tag">${shortName(emp)}<button type="button" data-rm="${emp.replace(/"/g,'&quot;')}">✕</button></span>`).join('');
+  document.querySelectorAll('#personas-tags button').forEach(b => {
+    b.onclick = () => { state.selectedPersonas = state.selectedPersonas.filter(x => x !== b.dataset.rm); updatePersonasUI(); renderPersonasList(); renderTable(); };
+  });
+}
+
+document.getElementById('personas-btn').onclick = () => document.getElementById('personas-panel').classList.toggle('hidden');
+document.getElementById('personas-search').oninput = renderPersonasList;
+document.getElementById('personas-clear').onclick = () => { state.selectedPersonas = []; updatePersonasUI(); renderPersonasList(); renderTable(); };
+document.addEventListener('mousedown', e => {
+  if (!document.getElementById('personas-wrap').contains(e.target))
+    document.getElementById('personas-panel').classList.add('hidden');
+});
+
+// ── Vacaciones data ──
+function getFiltrado() {
+  return state.deuda.filter(d => {
+    const byP = !state.selectedPersonas.length || state.selectedPersonas.includes(d.empleado);
+    const byS = !state.sectorSeleccionado || d.sector === state.sectorSeleccionado;
+    return byP && byS;
+  });
+}
+
+function renderTable() {
+  const filtrado = getFiltrado().sort((a,b) => (b.dias_pendientes||0) - (a.dias_pendientes||0));
+  const total = filtrado.reduce((a,d) => a + (d.dias_pendientes||0), 0);
+  const conDeuda = filtrado.filter(d => (d.dias_pendientes||0) > 0).length;
+  const enRojo = filtrado.filter(d => (d.dias_pendientes||0) > 14).length;
+  document.getElementById('kpi-total').textContent = total;
+  document.getElementById('kpi-deuda').textContent = conDeuda;
+  document.getElementById('kpi-rojo').textContent = enRojo;
+  document.getElementById('table-count').textContent = `${filtrado.length} registros`;
+  document.getElementById('btn-export').disabled = !filtrado.length;
+  document.getElementById('sector-filter-label').textContent = state.sectorSeleccionado ? `— ${state.sectorSeleccionado}` : '';
+  document.getElementById('table-body').innerHTML = filtrado.map(row => `
+    <tr>
+      <td>${row.empleado}</td><td style="color:var(--muted)">${row.sector||''}</td>
+      <td class="num">${row.anio}</td><td class="num">${row.dias_disponibles}</td>
+      <td class="num">${row.tomados_planilla}</td><td class="num" style="color:var(--blue)">${row.tomados_real}</td>
+      <td class="num" style="font-weight:700">${row.dias_pendientes}</td>
+      <td style="text-align:center">${semaforo(row.dias_pendientes||0)}</td>
+    </tr>`).join('');
+}
+
+function renderChart() {
+  const ctx = document.getElementById('chart-sector');
+  if (state.sectorChart) state.sectorChart.destroy();
+  if (!state.resumenSector.length) { document.getElementById('chart-card').classList.add('hidden'); return; }
+  document.getElementById('chart-card').classList.remove('hidden');
+  const colors = state.resumenSector.map(e => {
+    if (state.sectorSeleccionado && e.sector !== state.sectorSeleccionado) return '#475569';
+    return e.pendientes > 50 ? '#ef4444' : e.pendientes > 20 ? '#f59e0b' : '#22c55e';
+  });
+  state.sectorChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: state.resumenSector.map(r => r.sector),
+      datasets: [{ label: 'Días Pendientes', data: state.resumenSector.map(r => r.pendientes), backgroundColor: colors, borderRadius: 4 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      onClick: (_, els) => {
+        if (!els.length) return;
+        const sector = state.resumenSector[els[0].index].sector;
+        state.sectorSeleccionado = state.sectorSeleccionado === sector ? null : sector;
+        document.getElementById('chart-clear').classList.toggle('hidden', !state.sectorSeleccionado);
+        renderChart(); renderTable();
+      },
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e293b' } },
+        y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e293b' } }
+      }
+    }
+  });
+}
+
+async function loadVacaciones() {
+  const desde = document.getElementById('f-desde').value;
+  const hasta = document.getElementById('f-hasta').value;
+  const sector = document.getElementById('f-sector').value;
+  document.getElementById('loading').classList.remove('hidden');
+  document.getElementById('content').classList.add('hidden');
+  try {
+    const params = {};
+    if (desde) params.desde = desde;
+    if (hasta) params.hasta = hasta;
+    if (sector) params.sector = sector;
+    const [deuda, resumen] = await Promise.all([
+      apiGet('/vacaciones/deuda', params),
+      apiGet('/vacaciones/resumen-por-sector', { ...(desde?{desde}:{}), ...(hasta?{hasta}:{}) }),
+    ]);
+    state.deuda = deuda;
+    state.resumenSector = resumen;
+    renderChart();
+    renderTable();
+    document.getElementById('content').classList.remove('hidden');
+  } catch (err) {
+    console.error(err);
+  } finally {
+    document.getElementById('loading').classList.add('hidden');
+  }
+}
+
+async function initVacaciones() {
+  const [anios, sectores, empleados] = await Promise.all([
+    apiGet('/dashboard/años'), apiGet('/dashboard/sectores'), apiGet('/dashboard/empleados'),
+  ]);
+  state.sectores = sectores;
+  state.empleados = empleados;
+  const sel = document.getElementById('f-sector');
+  sectores.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
+  if (anios.length) {
+    const y = anios[anios.length - 1];
+    document.getElementById('f-desde').value = `${y}-01-01`;
+    document.getElementById('f-hasta').value = `${y}-12-31`;
+  }
+  renderPersonasList();
+  updatePersonasUI();
+  ['f-desde','f-hasta','f-sector'].forEach(id => document.getElementById(id).addEventListener('change', loadVacaciones));
+  document.getElementById('chart-clear').onclick = () => { state.sectorSeleccionado = null; document.getElementById('chart-clear').classList.add('hidden'); renderChart(); renderTable(); };
+  await loadVacaciones();
+}
+
+// ── Export ──
+document.getElementById('btn-export').onclick = () => document.getElementById('export-drop').classList.toggle('hidden');
+document.addEventListener('mousedown', e => {
+  if (!e.target.closest('.export-menu')) document.getElementById('export-drop').classList.add('hidden');
+});
+document.querySelector('[data-export="excel"]').onclick = () => {
+  const filtrado = getFiltrado().sort((a,b) => (b.dias_pendientes||0) - (a.dias_pendientes||0));
+  const desde = document.getElementById('f-desde').value;
+  const hasta = document.getElementById('f-hasta').value;
+  const periodo = desde && hasta ? `${desde} — ${hasta}` : 'Todos los períodos';
+  const total = filtrado.reduce((a,d) => a + (d.dias_pendientes||0), 0);
+  const conDeuda = filtrado.filter(d => (d.dias_pendientes||0) > 0).length;
+  const enRojo = filtrado.filter(d => (d.dias_pendientes||0) > 14).length;
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['VACACIONES ADEUDADAS'], ['Período', periodo], [],
+    ['Indicador','Valor'], ['Total Días Pendientes', total], ['Empleados con Deuda', conDeuda], ['Críticos (+14 días)', enRojo],
+  ]), 'Resumen');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['Sector','Días Pendientes'], ...state.resumenSector.map(r => [r.sector, r.pendientes]),
+  ]), 'Por Sector');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['Empleado','Sector','Año','Disponibles','Tomados (Planilla)','Tomados (Real)','Pendientes','Estado'],
+    ...filtrado.map(r => { const p = r.dias_pendientes||0; return [r.empleado,r.sector,r.anio,r.dias_disponibles,r.tomados_planilla,r.tomados_real,p, p===0?'Al día':p<=14?'Atención':'Crítico']; }),
+  ]), 'Detalle Empleados');
+  const fecha = new Date().toLocaleDateString('es-AR').replace(/\//g,'-');
+  XLSX.writeFile(wb, `Vacaciones_${fecha}.xlsx`);
+  document.getElementById('export-drop').classList.add('hidden');
+};
+
+// ── Importar ──
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('file-input');
+dropzone.onclick = () => fileInput.click();
+dropzone.ondragover = e => { e.preventDefault(); dropzone.classList.add('drag'); };
+dropzone.ondragleave = () => dropzone.classList.remove('drag');
+dropzone.ondrop = e => { e.preventDefault(); dropzone.classList.remove('drag'); setFile(e.dataTransfer.files[0]); };
+fileInput.onchange = () => setFile(fileInput.files[0]);
+
+function setFile(f) {
+  if (!f) return;
+  state.file = f;
+  document.getElementById('drop-title').textContent = f.name;
+  document.getElementById('drop-sub').textContent = `${(f.size/1024/1024).toFixed(2)} MB`;
+  document.getElementById('btn-import').classList.remove('hidden');
+}
+
+document.getElementById('btn-import').onclick = async () => {
+  if (!state.file) return;
+  const btn = document.getElementById('btn-import');
+  btn.disabled = true;
+  btn.textContent = 'Importando...';
+  const res = document.getElementById('import-result');
+  res.classList.add('hidden');
+  try {
+    const fd = new FormData();
+    fd.append('file', state.file);
+    const r = await fetch(`${API}/importar/excel`, { method: 'POST', body: fd });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Error al importar');
+    res.className = 'card result-ok';
+    res.innerHTML = `<h3 style="color:var(--green);margin-bottom:8px;">✓ Importación exitosa</h3><p style="font-size:.85rem;color:var(--muted);">${data.mensaje}</p>`;
+    if (data.detalle?.registros > 0) res.innerHTML += `<div class="grid3"><div class="stat-box"><div class="val">${data.detalle.registros}</div><div class="lbl">Registros</div></div><div class="stat-box"><div class="val" style="color:var(--blue)">${data.detalle.registros_nuevos}</div><div class="lbl">Nuevos</div></div><div class="stat-box"><div class="val" style="color:var(--yellow)">${data.detalle.registros_actualizados}</div><div class="lbl">Actualizados</div></div></div>`;
+    if (data.detalle?.vacaciones > 0) res.innerHTML += `<div class="grid3" style="margin-top:12px;"><div class="stat-box"><div class="val">${data.detalle.vacaciones}</div><div class="lbl">Vacaciones</div></div><div class="stat-box"><div class="val" style="color:var(--blue)">${data.detalle.vacaciones_nuevas}</div><div class="lbl">Nuevas</div></div><div class="stat-box"><div class="val" style="color:var(--yellow)">${data.detalle.vacaciones_actualizadas}</div><div class="lbl">Actualizadas</div></div></div>`;
+    res.classList.remove('hidden');
+  } catch (err) {
+    res.className = 'card result-err';
+    res.innerHTML = `<h3 style="color:var(--red);">Error al importar</h3><p style="font-size:.85rem;margin-top:8px;">${err.message}</p>`;
+    res.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Importar datos';
+  }
+};
+
+// ── Init ──
+const initialView = '{{ initial_view }}';
+if (initialView === 'vacaciones') initVacaciones();
+</script>
+</body>
+</html>

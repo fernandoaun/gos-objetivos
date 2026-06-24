@@ -60,15 +60,19 @@ def create_app(config_name: str | None = None) -> Flask:
         with app.app_context():
             from gos.modulos.hwo import module_descriptor as hwo_descriptor
             from gos.modulos.objetivos import module_descriptor as objetivos_descriptor
+            from gos.modulos.vacaciones import module_descriptor as vacaciones_descriptor
 
             modules.append(objetivos_descriptor())
             modules.append(hwo_descriptor())
+            modules.append(vacaciones_descriptor())
 
         current_module = ""
         if request.path.startswith("/gos/objetivos"):
             current_module = "objetivos"
         elif request.path.startswith("/gos/hwo"):
             current_module = "hwo"
+        elif request.path.startswith("/gos/vacaciones"):
+            current_module = "vacaciones"
 
         return {
             "gos_modules": modules,
@@ -101,9 +105,11 @@ def _register_core_blueprints(app: Flask) -> None:
 def _register_modules(app: Flask) -> None:
     from gos.modulos.hwo import register as register_hwo
     from gos.modulos.objetivos import register as register_objetivos
+    from gos.modulos.vacaciones import register as register_vacaciones
 
     register_objetivos(app)
     register_hwo(app)
+    register_vacaciones(app)
 
 
 def _register_auto_login(app: Flask) -> None:
