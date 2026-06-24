@@ -28,12 +28,40 @@ def health():
     return jsonify(payload)
 
 
+def _import_auth_ok() -> bool:
+    provided = (request.headers.get("X-Import-Secret") or request.args.get("secret") or "").strip()
+    if not provided:
+        return False
+    for key in ("GOS_IMPORT_SECRET", "GOS_ADMIN_PASSWORD"):
+        expected = os.environ.get(key, "").strip()
+        if expected and provided == expected:
+            return True
+    return False
+
+
+@bp.route("/admin/import-status")
+def import_status():
+    from app.models import FodaItem, KpiIndicador, Objetivo
+
+    return jsonify({
+        "ok": True,
+        "import_secret_configured": bool(os.environ.get("GOS_IMPORT_SECRET", "").strip()),
+        "db": {
+            "foda_items": FodaItem.query.count(),
+            "objetivos": Objetivo.query.count(),
+            "kpi_indicadores": KpiIndicador.query.count(),
+        },
+    })
+
+
 @bp.route("/admin/import-db", methods=["POST"])
 def import_db():
     """Restaura backup SQLite en la base PostgreSQL del servicio (misma que usa la web)."""
-    expected = os.environ.get("GOS_IMPORT_SECRET", "")
-    if not expected or request.headers.get("X-Import-Secret") != expected:
-        return jsonify({"ok": False, "error": "No autorizado"}), 403
+    if not _import_auth_ok():
+        return jsonify({
+            "ok": False,
+            "error": "No autorizado. Usa X-Import-Secret = GOS_IMPORT_SECRET o GOS_ADMIN_PASSWORD de Render.",
+        }), 403
 
     upload = request.files.get("database")
     if not upload or not upload.filename:

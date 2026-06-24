@@ -17,7 +17,11 @@ echo 2. Environment ^> agrega o revisa:
 echo      GOS_IMPORT_SECRET = gos-restaurar-datos
 echo 3. Guarda y espera que redeploye (Live)
 echo.
-set /p GOS_IMPORT_SECRET="Pega el valor de GOS_IMPORT_SECRET: "
+echo Pega la clave de importacion. Podes usar una de estas:
+echo   - gos-restaurar-datos  (GOS_IMPORT_SECRET en Render)
+echo   - admin123             (GOS_ADMIN_PASSWORD en Render)
+echo.
+set /p GOS_IMPORT_SECRET="Clave: "
 if "%GOS_IMPORT_SECRET%"=="" (
     echo ERROR: falta la clave.
     pause
