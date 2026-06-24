@@ -10,22 +10,14 @@ DEFAULT_ADMIN_PASSWORD = "admin123"
 
 
 def ensure_initial_admin() -> None:
-    """Crea o repara el usuario admin inicial (primer deploy o recuperación)."""
+    """Solo en Render: crea el admin si no existe. No modifica datos existentes."""
+    if os.environ.get("FLASK_ENV") != "production":
+        return
+
     email = os.environ.get("GOS_ADMIN_EMAIL", DEFAULT_ADMIN_EMAIL).strip().lower()
     password = os.environ.get("GOS_ADMIN_PASSWORD", DEFAULT_ADMIN_PASSWORD)
 
-    user = Usuario.query.filter_by(email=email).first()
-    if user:
-        changed = False
-        if not user.activo:
-            user.activo = True
-            changed = True
-        if not user.check_password(password):
-            user.set_password(password)
-            changed = True
-        if changed:
-            db.session.commit()
-            print(f"[bootstrap] Usuario admin actualizado: {email}")
+    if Usuario.query.filter_by(email=email).first():
         return
 
     empresa = Empresa.query.filter_by(activa=True).first()
@@ -58,4 +50,3 @@ def ensure_initial_admin() -> None:
         print(f"[bootstrap] Usuario admin creado: {email}")
     except IntegrityError:
         db.session.rollback()
-        print(f"[bootstrap] Usuario admin ya existía (concurrencia): {email}")

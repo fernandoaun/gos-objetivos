@@ -1,2 +1,2 @@
-APP_VERSION = "0.2.9"
-APP_VERSION_LABEL = "v0.2.9 — Login producción Render"
+APP_VERSION = "0.2.10"
+APP_VERSION_LABEL = "v0.2.10 — Restauración datos local/Render"
