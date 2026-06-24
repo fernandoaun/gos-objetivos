@@ -1,0 +1,23 @@
+<ul class="dafo-list">
+  {% for e in cuadrante.estrategias %}
+  <li class="dafo-task">
+    <span class="dafo-item-code">{{ e.codigo }}</span>
+    <span class="dafo-item-text">{{ e.tarea }}</span>
+    <span class="dafo-item-refs">
+      <span class="dafo-ref" title="{{ e.origen_a_label }}: {{ e.origen_a_desc }}">{{ e.origen_a_codigo }}</span>
+      <i class="bi bi-x"></i>
+      <span class="dafo-ref" title="{{ e.origen_b_label }}: {{ e.origen_b_desc }}">{{ e.origen_b_codigo }}</span>
+    </span>
+  </li>
+  {% else %}
+  <li class="dafo-list-empty">Sin tareas — completá ambos cuadrantes del FODA con puntos clave.</li>
+  {% endfor %}
+</ul>
+{% if cuadrante.usados_a or cuadrante.usados_b %}
+<p class="dafo-clave-note">
+  Combinaciones entre
+  {% for i in cuadrante.usados_a %}<strong>{{ i.codigo }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}
+  ×
+  {% for i in cuadrante.usados_b %}<strong>{{ i.codigo }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}
+</p>
+{% endif %}

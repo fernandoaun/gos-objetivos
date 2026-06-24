@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block page_title %}{{ vista.titulo }}{% endblock %}
+{% block title %}{{ vista.titulo }} — Dashboard{% endblock %}
+{% block extra_css %}
+<link href="{{ url_for('objetivos_static.static', filename='css/dashboard.css') }}?v={{ app_version }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="dash-header">
+  <div>
+    <a href="{{ url_for('objetivos_dashboard.index') }}" class="dash-back-link">
+      <i class="bi bi-arrow-left"></i> Volver al dashboard
+    </a>
+    <h2 class="dash-header-title mt-2">{{ vista.titulo }}</h2>
+    <p class="dash-header-sub mb-0">{{ vista.descripcion }}</p>
+  </div>
+  <div class="dash-detail-total dash-detail-total--neutral">
+    <span class="dash-detail-total-num">{{ vista.total }}</span>
+    <span class="dash-detail-total-label">registros</span>
+  </div>
+</div>
+
+{% if not vista.hay_datos %}
+<div class="pe-card dash-empty">
+  <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+  No hay datos para mostrar en esta vista.
+</div>
+{% else %}
+  {% for grupo in vista.grupos %}
+    {% if grupo.objetivos or grupo.kpis %}
+    <section class="dash-detail-section">
+      <h3 class="dash-detail-group-title dash-detail-group-title--{{ grupo.estilo }}">
+        {{ grupo.titulo }}
+        <span class="badge rounded-pill">
+          {% if grupo.objetivos %}{{ grupo.objetivos|length }}{% else %}{{ grupo.kpis|length }}{% endif %}
+        </span>
+      </h3>
+
+      {% if grupo.objetivos %}
+      <div class="dash-obj-grid">
+        {% for obj in grupo.objetivos %}
+        {% set estado_cls = 'vacio' if obj.total_kpis == 0 else ('ok' if obj.cumplido else ('parcial' if obj.kpis_cumplidos > 0 else 'bad')) %}
+        <article class="dash-obj-card dash-obj-card--{{ estado_cls }}">
+          <div class="dash-obj-top">
+            <span class="dash-obj-code">{{ obj.codigo }}</span>
+            {% if obj.total_kpis == 0 %}
+            <span class="dash-obj-badge dash-obj-badge--vacio">Sin KPI</span>
+            {% elif obj.cumplido %}
+            <span class="dash-obj-badge dash-obj-badge--ok">Cumple</span>
+            {% elif obj.kpis_cumplidos > 0 %}
+            <span class="dash-obj-badge dash-obj-badge--parcial">Parcial</span>
+            {% else %}
+            <span class="dash-obj-badge dash-obj-badge--bad">No cumple</span>
+            {% endif %}
+          </div>
+          <p class="dash-obj-nombre">{{ obj.nombre }}</p>
+          {% if obj.pct_cumplimiento is not none %}
+          <div class="dash-obj-pct-row">
+            <span class="dash-obj-pct-num dash-obj-pct-num--{{ estado_cls }}">{{ '%.0f'|format(obj.pct_cumplimiento) }}%</span>
+            <div class="dash-obj-bar">
+              <div class="dash-obj-bar-fill dash-obj-bar-fill--{{ estado_cls }}"
+                   style="width: {{ obj.pct_cumplimiento }}%"></div>
+            </div>
+          </div>
+          {% endif %}
+          <div class="dash-obj-stats">
+            <span class="dash-obj-stat dash-obj-stat--total">{{ obj.total_kpis }} KPI</span>
+            {% if obj.kpis_cumplidos %}<span class="dash-obj-stat dash-obj-stat--ok">{{ obj.kpis_cumplidos }} ✓</span>{% endif %}
+            {% if obj.kpis_fuera %}<span class="dash-obj-stat dash-obj-stat--bad">{{ obj.kpis_fuera }} ✗</span>{% endif %}
+          </div>
+          {% if obj.kpis %}
+          <div class="dash-kpi-chips">
+            {% for kpi in obj.kpis %}
+            <a href="{{ url_for('objetivos_kpis.index', ver=kpi.id) }}"
+               class="dash-kpi-chip {% if kpi.estado == 'En meta' %}dash-kpi-chip--ok{% elif kpi.estado == 'Fuera de meta' %}dash-kpi-chip--bad{% else %}dash-kpi-chip--muted{% endif %}">
+              {{ kpi.codigo }}
+            </a>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </article>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if grupo.kpis %}
+      <div class="dash-detail-kpi-list">
+        {% for item in grupo.kpis %}
+        <a href="{{ url_for('objetivos_kpis.index', ver=item.kpi.id) }}"
+           class="dash-detail-kpi-row {% if item.kpi.estado == 'En meta' %}dash-detail-kpi-row--ok{% elif item.kpi.estado == 'Fuera de meta' %}dash-detail-kpi-row--bad{% else %}dash-detail-kpi-row--muted{% endif %}">
+          <div class="dash-detail-kpi-main">
+            <span class="dash-detail-kpi-code">{{ item.kpi.codigo }}</span>
+            <span class="dash-detail-kpi-name">{{ item.kpi.indicador }}</span>
+          </div>
+          {% if item.objetivo_codigo %}
+          <span class="dash-detail-kpi-oe">{{ item.objetivo_codigo }}</span>
+          {% endif %}
+          <span class="dash-detail-kpi-estado">{{ item.kpi.estado }}</span>
+          <span class="dash-detail-kpi-avance">
+            {% if item.kpi.avance_pct is not none %}{{ '%.0f'|format(item.kpi.avance_pct) }}%{% else %}—{% endif %}
+          </span>
+        </a>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </section>
+    {% endif %}
+  {% endfor %}
+{% endif %}
+{% endblock %}

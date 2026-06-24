@@ -8,14 +8,16 @@ sys.path.insert(0, str(ROOT))
 
 def main() -> None:
     try:
-        from app import create_app
-        from app.extensions import db
-        from app.services.bootstrap_service import ensure_initial_admin
+        from gos import create_app
+        from gos.extensions import db
+        from gos.services.bootstrap_service import ensure_initial_admin
+        from gos.modulos.objetivos import ensure_planeamiento_config
 
         app = create_app("production")
         with app.app_context():
             db.create_all()
             ensure_initial_admin()
+            ensure_planeamiento_config()
             uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
             backend = "postgresql" if uri.startswith("postgres") else "sqlite"
             print(f"[render_start] Base OK ({backend})")

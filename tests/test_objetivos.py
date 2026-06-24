@@ -1,10 +1,10 @@
 """Tests módulo objetivos estratégicos."""
-from app.services.objetivo_service import cargar_plantilla_2026, crear_objetivo, listar_objetivos
+from gos.modulos.objetivos.services.objetivo_service import cargar_plantilla_2026, crear_objetivo, listar_objetivos
 
 
 def test_crear_objetivo(app):
     with app.app_context():
-        from app.models.usuario import Usuario
+        from gos.models.usuario import Usuario
 
         eid = Usuario.query.first().empresa_id
         obj = crear_objetivo(
@@ -19,7 +19,7 @@ def test_crear_objetivo(app):
 
 def test_cargar_plantilla_2026(app):
     with app.app_context():
-        from app.models.usuario import Usuario
+        from gos.models.usuario import Usuario
 
         eid = Usuario.query.first().empresa_id
         n = cargar_plantilla_2026(eid)
@@ -31,6 +31,6 @@ def test_cargar_plantilla_2026(app):
 
 
 def test_objetivos_index(auth_client):
-    r = auth_client.get("/objetivos/")
+    r = auth_client.get("/gos/objetivos/objetivos/")
     assert r.status_code == 200
     assert b"Cargar objetivos 2026" in r.data

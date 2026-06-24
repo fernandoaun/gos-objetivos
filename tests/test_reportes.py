@@ -1,5 +1,5 @@
-from app.models.objetivo import Objetivo
-from app.services import kpi_service, objetivo_service, reportes_service
+from gos.modulos.objetivos.models.objetivo import Objetivo
+from gos.modulos.objetivos.services import kpi_service, objetivo_service, reportes_service
 
 
 def _seed_objetivos(empresa_id: int, n: int = 2) -> None:
@@ -13,7 +13,7 @@ def _seed_objetivos(empresa_id: int, n: int = 2) -> None:
 
 def test_informe_cumplimiento(app):
     with app.app_context():
-        from app.models import Empresa
+        from gos.models import Empresa
 
         emp = Empresa.query.first()
         _seed_objetivos(emp.id, 2)
@@ -69,7 +69,7 @@ def test_informe_cumplimiento(app):
 
 
 def test_reportes_route(auth_client):
-    r = auth_client.get("/reportes/")
+    r = auth_client.get("/gos/objetivos/reportes/")
     assert r.status_code == 200
     assert b"Informe de cumplimiento" in r.data
     assert b"Objetivos estrat" in r.data

@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block page_title %}Configuración{% endblock %}
+{% block title %}Configuración — GOS Objetivos{% endblock %}
+{% block content %}
+<ul class="nav nav-tabs pe-tabs mb-4">
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'sectores' %}active{% endif %}"
+       href="{{ url_for('objetivos_configuracion.index', tab='sectores') }}">Sectores</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'areas' %}active{% endif %}"
+       href="{{ url_for('objetivos_configuracion.index', tab='areas') }}">Áreas</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'responsables' %}active{% endif %}"
+       href="{{ url_for('objetivos_configuracion.index', tab='responsables') }}">Responsables</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'umbrales' %}active{% endif %}"
+       href="{{ url_for('objetivos_configuracion.index', tab='umbrales') }}">Umbrales semáforo</a>
+  </li>
+</ul>
+
+{% if tab == 'sectores' %}
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="pe-card p-3">
+      <h3 class="h6 mb-3">Nuevo sector</h3>
+      <form method="post" action="{{ url_for('objetivos_configuracion.crear_sector') }}">
+        <div class="mb-2">
+          <label class="form-label">Código</label>
+          <input name="codigo" class="form-control form-control-sm" required placeholder="SEC-01">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Nombre</label>
+          <input name="nombre" class="form-control form-control-sm" required>
+        </div>
+        <button class="btn btn-primary btn-sm w-100">Guardar</button>
+      </form>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="pe-card">
+      <table class="table table-hover mb-0">
+        <thead><tr><th>Código</th><th>Nombre</th><th>Estado</th><th></th></tr></thead>
+        <tbody>
+          {% for s in sectores %}
+          <tr>
+            <td>{{ s.codigo }}</td>
+            <td>{{ s.nombre }}</td>
+            <td>{% if s.activo %}<span class="badge bg-success">Activo</span>{% else %}<span class="badge bg-secondary">Inactivo</span>{% endif %}</td>
+            <td class="text-end">
+              {% if s.activo and current_user.rol == 'admin' %}
+              <form method="post" action="{{ url_for('objetivos_configuracion.eliminar_sector', id=s.id) }}" class="d-inline"
+                    onsubmit="return confirm('¿Desactivar sector?');">
+                <button class="btn btn-link btn-sm text-danger">Desactivar</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="text-muted text-center py-4">Sin sectores. Creá el primero.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% elif tab == 'areas' %}
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="pe-card p-3">
+      <h3 class="h6 mb-3">Nueva área</h3>
+      <form method="post" action="{{ url_for('objetivos_configuracion.crear_area') }}">
+        <div class="mb-2">
+          <label class="form-label">Código</label>
+          <input name="codigo" class="form-control form-control-sm" required>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Nombre</label>
+          <input name="nombre" class="form-control form-control-sm" required>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Sector</label>
+          <select name="sector_id" class="form-select form-select-sm">
+            <option value="">— Sin sector —</option>
+            {% for s in sectores_select if s.activo %}
+            <option value="{{ s.id }}">{{ s.codigo }} — {{ s.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="btn btn-primary btn-sm w-100">Guardar</button>
+      </form>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="pe-card">
+      <table class="table table-hover mb-0">
+        <thead><tr><th>Código</th><th>Nombre</th><th>Sector</th></tr></thead>
+        <tbody>
+          {% for a in areas %}
+          <tr>
+            <td>{{ a.codigo }}</td>
+            <td>{{ a.nombre }}</td>
+            <td>{{ a.sector.nombre if a.sector else '—' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3" class="text-muted text-center py-4">Sin áreas.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% elif tab == 'responsables' %}
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="pe-card p-3">
+      <h3 class="h6 mb-3">Nuevo responsable</h3>
+      <form method="post" action="{{ url_for('objetivos_configuracion.crear_responsable') }}">
+        <div class="mb-2">
+          <label class="form-label">Código</label>
+          <input name="codigo" class="form-control form-control-sm" required>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Nombre</label>
+          <input name="nombre" class="form-control form-control-sm" required>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Email</label>
+          <input name="email" type="email" class="form-control form-control-sm">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Área</label>
+          <select name="area_id" class="form-select form-select-sm">
+            <option value="">— Sin área —</option>
+            {% for a in areas %}
+            <option value="{{ a.id }}">{{ a.codigo }} — {{ a.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="btn btn-primary btn-sm w-100">Guardar</button>
+      </form>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <div class="pe-card">
+      <table class="table table-hover mb-0">
+        <thead><tr><th>Código</th><th>Nombre</th><th>Email</th><th>Área</th></tr></thead>
+        <tbody>
+          {% for r in responsables %}
+          <tr>
+            <td>{{ r.codigo }}</td>
+            <td>{{ r.nombre }}</td>
+            <td>{{ r.email or '—' }}</td>
+            <td>{{ r.area.nombre if r.area else '—' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="text-muted text-center py-4">Sin responsables.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% elif tab == 'umbrales' %}
+<div class="col-lg-6">
+  <div class="pe-card p-4">
+    <h3 class="h6 mb-3">Semáforo de cumplimiento</h3>
+    <form method="post" action="{{ url_for('objetivos_configuracion.guardar_umbrales') }}">
+      <div class="mb-3">
+        <label class="form-label">Verde desde (%)</label>
+        <input type="number" name="umbral_verde" class="form-control" step="0.01"
+               value="{{ config.umbral_verde if config else 90 }}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Amarillo desde (%)</label>
+        <input type="number" name="umbral_amarillo" class="form-control" step="0.01"
+               value="{{ config.umbral_amarillo if config else 70 }}">
+      </div>
+      <div class="mb-3 form-check">
+        <input type="checkbox" class="form-check-input" name="auto_plan_accion" id="autoPlan"
+               {% if not config or config.auto_plan_accion %}checked{% endif %}>
+        <label class="form-check-label" for="autoPlan">Generar plan de acción automático (Etapa 6)</label>
+      </div>
+      <button class="btn btn-primary">Guardar</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

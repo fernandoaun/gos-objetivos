@@ -1,8 +1,9 @@
 import pytest
 
-from app import create_app
-from app.extensions import db
-from app.models import Empresa, PlaneamientoConfig, Usuario
+from gos import create_app
+from gos.extensions import db
+from gos.models import Empresa, Usuario
+from gos.modulos.objetivos.models.catalogos import PlaneamientoConfig
 
 
 @pytest.fixture

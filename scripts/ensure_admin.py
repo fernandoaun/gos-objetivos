@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app.services.bootstrap_service import ensure_initial_admin
+from gos.services.bootstrap_service import ensure_initial_admin
 from wsgi import app
 
 
@@ -16,7 +16,7 @@ def main() -> None:
 
     with app.app_context():
         ensure_initial_admin()
-        from app.models import Usuario
+        from gos.models import Usuario
 
         user = Usuario.query.filter_by(email=email).first()
         if user and user.check_password(password):

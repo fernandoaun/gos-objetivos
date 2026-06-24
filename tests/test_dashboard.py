@@ -1,10 +1,10 @@
-from app.models.objetivo import Objetivo
-from app.services import kpi_service, objetivo_service, reportes_service
+from gos.modulos.objetivos.models.objetivo import Objetivo
+from gos.modulos.objetivos.services import kpi_service, objetivo_service, reportes_service
 
 
 def _seed(app):
     with app.app_context():
-        from app.models import Empresa
+        from gos.models import Empresa
 
         emp = Empresa.query.first()
         objetivo_service.crear_objetivo(
@@ -64,9 +64,9 @@ def test_vista_detalle_filtros(app):
 def test_dashboard_detalle_routes(auth_client, app):
     _seed(app)
     for filtro in reportes_service.DASHBOARD_FILTROS:
-        r = auth_client.get(f"/dashboard/detalle/{filtro}")
+        r = auth_client.get(f"/gos/objetivos/dashboard/detalle/{filtro}")
         assert r.status_code == 200
         assert b"Volver al dashboard" in r.data
 
-    r404 = auth_client.get("/dashboard/detalle/no-existe")
+    r404 = auth_client.get("/gos/objetivos/dashboard/detalle/no-existe")
     assert r404.status_code == 404

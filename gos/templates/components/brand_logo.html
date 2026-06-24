@@ -1,0 +1,15 @@
+{# Logo GOS — Green Oil Services #}
+<a href="{{ url_for(brand_home_endpoint|default('main.index')) }}"
+   class="pe-brand-link" aria-label="GOS Green Oil Services">
+  <span class="pe-brand-logo-wrap">
+    <img src="{{ url_for('static', filename='img/gos-logo.png') }}"
+         alt="GOS Green Oil Services"
+         class="pe-brand-logo{% if compact is defined and compact %} pe-brand-logo--compact{% endif %}"
+         width="200" height="auto"
+         onerror="this.hidden=true; this.parentElement.classList.add('pe-brand-logo-missing');">
+    <span class="pe-brand-fallback" aria-hidden="true">GOS</span>
+  </span>
+  {% if show_module is defined and show_module %}
+  <span class="pe-brand-module">{% block brand_module_label %}Planeamiento Estratégico{% endblock %}</span>
+  {% endif %}
+</a>

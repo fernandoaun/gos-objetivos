@@ -1,7 +1,7 @@
 """Tests exportación PDF FODA."""
 from types import SimpleNamespace
 
-from app.services.foda_pdf_export import generar_pdf_foda
+from gos.modulos.objetivos.services.foda_pdf_export import generar_pdf_foda
 
 
 def test_generar_pdf_foda_bytes():

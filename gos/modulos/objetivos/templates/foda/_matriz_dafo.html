@@ -1,0 +1,37 @@
+<div class="dafo-section" id="matriz-dafo">
+  <div class="dafo-section-head pe-card mb-3">
+    <p class="dafo-section-desc mb-0">
+      Matriz DAFO: <strong>una sola tarea</strong> en cada cuadro (FO, FA, DO, DA),
+      generada a partir de los ítems del FODA. Usá <em>Editar</em> para modificarla.
+    </p>
+  </div>
+
+  <div class="dafo-master-table-wrap pe-card">
+    <table class="dafo-master-table dafo-master-table--editable">
+      <thead>
+        <tr>
+          <th class="dafo-master-corner"></th>
+          <th class="dafo-master-colhead">Oportunidades (O)</th>
+          <th class="dafo-master-colhead">Amenazas (A)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row" class="dafo-master-rowhead">Fortalezas (F)</th>
+          {% for tipo, css in [('FO', 'fo'), ('FA', 'fa')] %}
+          {% include "foda/_matriz_dafo_celda.html" %}
+          {% endfor %}
+        </tr>
+        <tr>
+          <th scope="row" class="dafo-master-rowhead">Debilidades (D)</th>
+          {% for tipo, css in [('DO', 'do'), ('DA', 'da')] %}
+          {% include "foda/_matriz_dafo_celda.html" %}
+          {% endfor %}
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="dafo-edit-hint mt-2 mb-0">
+    <i class="bi bi-pencil-square"></i> Una tarea por cuadro. Al guardar se vuelve a la vista de lectura.
+  </p>
+</div>

@@ -1,11 +1,11 @@
-from app.models.kpi import KpiIndicador
-from app.services import kpi_service
+from gos.modulos.objetivos.models.kpi import KpiIndicador
+from gos.modulos.objetivos.services import kpi_service
 
 
 def test_crear_y_actualizar_kpi(app):
     with app.app_context():
-        from app.extensions import db
-        from app.models import Empresa
+        from gos.extensions import db
+        from gos.models import Empresa
 
         emp = Empresa.query.first()
         if not emp:
@@ -56,8 +56,8 @@ def test_crear_y_actualizar_kpi(app):
 
 def test_calcular_metricas_por_tipo(app):
     with app.app_context():
-        from app.extensions import db
-        from app.models import Empresa
+        from gos.extensions import db
+        from gos.models import Empresa
 
         emp = Empresa.query.first()
         if not emp:
@@ -89,7 +89,7 @@ def test_calcular_metricas_por_tipo(app):
 def test_kpi_routes_post(auth_client):
     client = auth_client
     r = client.post(
-        "/kpis/nuevo",
+        "/gos/objetivos/kpis/nuevo",
         data={
             "codigo": "KPI-88-01",
             "indicador": "Desde test HTTP",
@@ -107,7 +107,7 @@ def test_kpi_routes_post(auth_client):
         assert kpi is not None
 
     r2 = client.post(
-        f"/kpis/{kpi.id}/actualizar",
+        f"/gos/objetivos/kpis/{kpi.id}/actualizar",
         data={
             "indicador": "Actualizado HTTP",
             "meta_2026": "20",
@@ -120,7 +120,7 @@ def test_kpi_routes_post(auth_client):
     assert b"guardado" in r2.data
 
     r_tipo = client.post(
-        f"/kpis/{kpi.id}/tipo",
+        f"/gos/objetivos/kpis/{kpi.id}/tipo",
         data={"tipo_agregacion": "ultimo"},
         follow_redirects=True,
     )
@@ -128,7 +128,7 @@ def test_kpi_routes_post(auth_client):
     with client.application.app_context():
         assert KpiIndicador.query.filter_by(codigo="KPI-88-01", activo=True).first().tipo_agregacion == "ultimo"
 
-    r3 = client.get(f"/kpis/?ver={kpi.id}")
+    r3 = client.get(f"/gos/objetivos/kpis/?ver={kpi.id}")
     assert r3.status_code == 200
     assert b"kpi-row-highlighted" in r3.data
     assert b"kpi-row-editing" not in r3.data

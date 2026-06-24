@@ -4,11 +4,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app import create_app
-from app.extensions import db
-from app.models import (  # noqa: F401 — registrar tablas
+from gos import create_app
+from gos.extensions import db
+from gos.models import Empresa, Usuario
+from gos.modulos.objetivos.models import (  # noqa: F401 — registrar tablas
     Area,
-    Empresa,
     FodaDocumento,
     FodaItem,
     DafoTarea,
@@ -16,7 +16,6 @@ from app.models import (  # noqa: F401 — registrar tablas
     PlaneamientoConfig,
     Responsable,
     Sector,
-    Usuario,
 )
 
 

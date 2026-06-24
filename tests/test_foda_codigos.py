@@ -1,11 +1,11 @@
 import pytest
 
-from app.services.foda_service import crear_item_manual, eliminar_item, renumerar_codigos_activos
+from gos.modulos.objetivos.services.foda_service import crear_item_manual, eliminar_item, renumerar_codigos_activos
 
 
 def test_codigos_empiezan_en_001(app):
     with app.app_context():
-        from app.models import Empresa
+        from gos.models import Empresa
 
         emp = Empresa.query.first()
         eid = emp.id
@@ -14,7 +14,7 @@ def test_codigos_empiezan_en_001(app):
         crear_item_manual(eid, "F", "Fortaleza dos")
         crear_item_manual(eid, "O", "Oportunidad uno")
 
-        from app.models import FodaItem
+        from gos.modulos.objetivos.models import FodaItem
 
         f_items = (
             FodaItem.query.filter_by(empresa_id=eid, tipo="F", activo=True)

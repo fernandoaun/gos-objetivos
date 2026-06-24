@@ -5,9 +5,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app import create_app
-from app.extensions import db
-from app.models import Area, Empresa, PlaneamientoConfig, Responsable, Sector, Usuario
+from gos import create_app
+from gos.extensions import db
+from gos.models import Empresa, Usuario
+from gos.modulos.objetivos.models import Area, PlaneamientoConfig, Responsable, Sector
 
 
 def seed():

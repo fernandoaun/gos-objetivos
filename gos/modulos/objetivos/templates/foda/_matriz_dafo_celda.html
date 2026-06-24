@@ -1,0 +1,35 @@
+{% set c = dafo[tipo].cuadrante %}
+<td class="dafo-master-slot dafo-master-slot--{{ css }}">
+  <div class="dafo-slot-head">
+    <span class="dafo-slot-code">{{ dafo[tipo].titulo }}</span>
+    <span class="dafo-slot-sub">{{ dafo[tipo].subtitulo }}</span>
+  </div>
+  {% if c.activo %}
+  <div class="dafo-tarea-block" data-tipo="{{ tipo }}">
+    <div class="dafo-tarea-view">
+      <div class="dafo-tarea-text{% if not c.tarea.strip() %} is-empty{% endif %}">{{ c.tarea if c.tarea.strip() else 'Sin tarea definida.' }}</div>
+      <button type="button" class="btn btn-sm btn-outline-secondary dafo-tarea-edit-btn">
+        <i class="bi bi-pencil"></i> Editar
+      </button>
+    </div>
+    <div class="dafo-tarea-edit d-none">
+      <label class="visually-hidden" for="dafo-tarea-{{ tipo }}">Tarea {{ tipo }}</label>
+      <textarea
+        id="dafo-tarea-{{ tipo }}"
+        class="form-control dafo-tarea-input"
+        rows="5"
+        data-tipo="{{ tipo }}"
+        placeholder="Escribí la tarea para {{ tipo }}…"
+      >{{ c.tarea }}</textarea>
+      <div class="dafo-tarea-edit-actions">
+        <button type="button" class="btn btn-sm btn-outline-secondary dafo-tarea-cancel-btn">Cancelar</button>
+      </div>
+      <span class="dafo-save-status" aria-live="polite"></span>
+    </div>
+  </div>
+  {% else %}
+  <p class="dafo-slot-empty mb-0">
+    Completá en el FODA: {{ dafo[tipo].subtitulo }}.
+  </p>
+  {% endif %}
+</td>

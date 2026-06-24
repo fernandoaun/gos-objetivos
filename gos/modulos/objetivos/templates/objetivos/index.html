@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block page_title %}Objetivos Estratégicos{% endblock %}
+{% block title %}Objetivos Estratégicos — GOS Objetivos{% endblock %}
+{% block extra_css %}
+<link href="{{ url_for('objetivos_static.static', filename='css/objetivos.css') }}?v={{ app_version }}" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="obj-header pe-card mb-3">
+  <div class="obj-header-row">
+    <div>
+      <h2 class="obj-title h5 mb-1">
+        <i class="bi bi-bullseye text-success"></i> Objetivos Estratégicos
+        {% if objetivos %}
+        <span class="badge text-bg-success ms-1">{{ objetivos|length }}</span>
+        {% endif %}
+      </h2>
+      <p class="obj-subtitle mb-0">Período 2026 · Gestión de objetivos de la organización</p>
+    </div>
+    <div class="obj-header-actions">
+      {% if objetivos %}
+      <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalObjetivo">
+        <i class="bi bi-plus-lg"></i> Agregar objetivo
+      </button>
+      {% else %}
+      <form method="post" action="{{ url_for('objetivos_estrategicos.cargar_plantilla_2026') }}" class="d-inline">
+        <button type="submit" class="btn btn-success btn-sm">
+          <i class="bi bi-download"></i> Cargar objetivos 2026
+        </button>
+      </form>
+      <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalObjetivo">
+        <i class="bi bi-plus-lg"></i> Agregar manualmente
+      </button>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% if objetivos %}
+<div class="obj-table-wrap pe-card">
+  <div class="table-responsive">
+    <table class="table obj-table mb-0">
+      <thead>
+        <tr>
+          <th class="obj-col-num">Nº</th>
+          <th class="obj-col-nombre">Objetivo</th>
+          <th class="obj-col-desc">Descripción</th>
+          <th class="obj-col-fecha">Fecha Ini</th>
+          <th class="obj-col-fecha">Fecha Fin</th>
+          <th class="obj-col-resp">Responsable</th>
+          <th class="obj-col-acciones">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in objetivos %}
+        <tr>
+          <td class="obj-col-num"><span class="obj-code">{{ o.codigo }}</span></td>
+          <td class="obj-col-nombre">{{ o.nombre }}</td>
+          <td class="obj-col-desc">{{ o.descripcion }}</td>
+          <td class="obj-col-fecha">{{ o.fecha_inicio.strftime('%d/%m/%Y') if o.fecha_inicio else '—' }}</td>
+          <td class="obj-col-fecha">{{ o.fecha_fin.strftime('%d/%m/%Y') if o.fecha_fin else '—' }}</td>
+          <td class="obj-col-resp">
+            {% if o.responsable_texto %}
+            {{ o.responsable_texto }}
+            {% elif o.responsable %}
+            {{ o.responsable.nombre }}
+            {% else %}
+            <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+          <td class="obj-col-acciones">
+            <a href="{{ url_for('objetivos_estrategicos.editar', id=o.id) }}" class="btn btn-sm btn-outline-secondary" title="Editar">
+              <i class="bi bi-pencil"></i>
+            </a>
+            <form method="post" action="{{ url_for('objetivos_estrategicos.eliminar', id=o.id) }}" class="d-inline"
+                  onsubmit="return confirm('¿Eliminar {{ o.codigo }}?');">
+              <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="pe-card p-5 text-center obj-empty">
+  <i class="bi bi-bullseye display-4 text-muted"></i>
+  <h3 class="h5 mt-3">Aún no hay objetivos estratégicos</h3>
+  <p class="text-muted mb-4">
+    Podés cargar los 10 objetivos 2026 de GOS con un clic, o agregar los tuyos manualmente.
+  </p>
+  <form method="post" action="{{ url_for('objetivos_estrategicos.cargar_plantilla_2026') }}" class="d-inline me-2">
+    <button type="submit" class="btn btn-success">
+      <i class="bi bi-download"></i> Cargar objetivos 2026
+    </button>
+  </form>
+  <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalObjetivo">
+    <i class="bi bi-plus-lg"></i> Agregar objetivo
+  </button>
+</div>
+{% endif %}
+
+{% include "objetivos/_modal_objetivo.html" %}
+{% endblock %}
+
+{% block extra_js %}
+{% if edit_objetivo %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var m = document.getElementById("modalObjetivo");
+    if (m) new bootstrap.Modal(m).show();
+  });
+</script>
+{% endif %}
+{% endblock %}

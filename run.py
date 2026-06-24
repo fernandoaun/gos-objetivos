@@ -9,7 +9,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-from app.version import APP_VERSION, APP_VERSION_LABEL
+from gos.modulos.objetivos.version import APP_VERSION, APP_VERSION_LABEL
 from wsgi import app
 
 if __name__ == "__main__":
@@ -22,10 +22,10 @@ if __name__ == "__main__":
         except Exception:
             pass
 
-    url = "http://127.0.0.1:5000"
+    url = "http://127.0.0.1:5000/gos/objetivos/dashboard/"
     print("=" * 52)
-    print("  GOS OBJETIVOS — Planeamiento Estrategico")
-    print(f"  {APP_VERSION_LABEL}")
+    print("  GOS — Plataforma modular")
+    print(f"  Modulo Objetivos — {APP_VERSION_LABEL}")
     print("=" * 52)
     print(f"  Navegador: {url}")
     print("  Entrada directa (sin login)")

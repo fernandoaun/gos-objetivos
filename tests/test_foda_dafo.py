@@ -1,7 +1,7 @@
 """Tests matriz DAFO 2×2 (una tarea por cuadrante)."""
 from types import SimpleNamespace
 
-from app.services.foda_dafo_service import (
+from gos.modulos.objetivos.services.foda_dafo_service import (
     CELDA_MATRIZ,
     generar_matriz_dafo,
     guardar_tarea_cuadrante,
@@ -38,8 +38,8 @@ def test_cuadrante_inactivo_sin_f_o():
 
 def test_guardar_una_tarea_por_cuadrante(app):
     with app.app_context():
-        from app.models.foda import DafoTarea
-        from app.models.usuario import Usuario
+        from gos.modulos.objetivos.models.foda import DafoTarea
+        from gos.models.usuario import Usuario
 
         u = Usuario.query.first()
         eid = u.empresa_id

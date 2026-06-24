@@ -5,10 +5,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app import create_app
-from app.extensions import db
-from app.models import Empresa
-from app.services.foda_service import renumerar_codigos_activos
+from gos import create_app
+from gos.extensions import db
+from gos.models import Empresa
+from gos.modulos.objetivos.services.foda_service import renumerar_codigos_activos
 
 
 def main():

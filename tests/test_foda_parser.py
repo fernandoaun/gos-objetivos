@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 from docx import Document
 
-from app.services.foda_word_parser import parse_foda_docx
+from gos.modulos.objetivos.services.foda_word_parser import parse_foda_docx
 
 
 def _make_docx(path: Path):

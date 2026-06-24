@@ -1,0 +1,83 @@
+<div class="modal fade" id="modalObjetivo" tabindex="-1" aria-labelledby="modalObjetivoLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="post"
+            action="{% if edit_objetivo %}{{ url_for('objetivos_estrategicos.editar', id=edit_objetivo.id) }}{% else %}{{ url_for('objetivos_estrategicos.nuevo') }}{% endif %}">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalObjetivoLabel">
+            {% if edit_objetivo %}Editar objetivo estratégico{% else %}Nuevo objetivo estratégico{% endif %}
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          {% if edit_objetivo %}
+          <div class="mb-3">
+            <label class="form-label">Código</label>
+            <input type="text" class="form-control" value="{{ edit_objetivo.codigo }}" readonly disabled>
+          </div>
+          {% endif %}
+          <div class="mb-3">
+            <label class="form-label" for="objNombre">Objetivo</label>
+            <input type="text" class="form-control" name="nombre" id="objNombre" required maxlength="200"
+              placeholder="Título del objetivo estratégico"
+              value="{% if edit_objetivo %}{{ edit_objetivo.nombre }}{% endif %}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="objDesc">Descripción</label>
+            <textarea class="form-control" name="descripcion" id="objDesc" rows="4" required
+              placeholder="Describí el objetivo en detalle...">{% if edit_objetivo %}{{ edit_objetivo.descripcion }}{% endif %}</textarea>
+          </div>
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label" for="objFechaIni">Fecha inicio</label>
+              <input type="date" class="form-control" name="fecha_inicio" id="objFechaIni"
+                value="{% if edit_objetivo and edit_objetivo.fecha_inicio %}{{ edit_objetivo.fecha_inicio.isoformat() }}{% endif %}">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="objFechaFin">Fecha fin</label>
+              <input type="date" class="form-control" name="fecha_fin" id="objFechaFin"
+                value="{% if edit_objetivo and edit_objetivo.fecha_fin %}{{ edit_objetivo.fecha_fin.isoformat() }}{% endif %}">
+            </div>
+          </div>
+          <div class="mb-3 mt-2">
+            <label class="form-label" for="objRespTexto">Responsable</label>
+            <input type="text" class="form-control" name="responsable_texto" id="objRespTexto" maxlength="250"
+              placeholder="Ej. Gerencia General / Operaciones"
+              value="{% if edit_objetivo and edit_objetivo.responsable_texto %}{{ edit_objetivo.responsable_texto }}{% endif %}">
+          </div>
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label" for="objResp">Responsable (catálogo)</label>
+              <select class="form-select" name="responsable_id" id="objResp">
+                <option value="">— Opcional —</option>
+                {% for r in responsables %}
+                <option value="{{ r.id }}"
+                  {% if edit_objetivo and edit_objetivo.responsable_id == r.id %}selected{% endif %}>
+                  {{ r.nombre }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="objEstado">Estado</label>
+              <select class="form-select" name="estado" id="objEstado">
+                {% for e in objetivo_estados %}
+                <option value="{{ e }}"
+                  {% if edit_objetivo and edit_objetivo.estado == e %}selected{% elif not edit_objetivo and e == 'activo' %}selected{% endif %}>
+                  {{ objetivo_estado_labels[e] }}
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">
+            {% if edit_objetivo %}Guardar cambios{% else %}Agregar{% endif %}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

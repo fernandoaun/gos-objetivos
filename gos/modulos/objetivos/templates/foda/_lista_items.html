@@ -1,0 +1,27 @@
+<ul class="foda-list">
+  {% for item in items %}
+  <li>
+    <span class="foda-item-code">{{ item.codigo }}</span>
+    <span class="foda-item-text">{{ item.descripcion }}</span>
+    {% if item.area or item.responsable %}
+    <span class="foda-item-meta">
+      {% if item.area %}{{ item.area.nombre }}{% endif %}
+      {% if item.responsable %} · {{ item.responsable.nombre }}{% endif %}
+    </span>
+    {% endif %}
+    <span class="foda-item-actions">
+      <a href="{{ url_for('objetivos_estrategicos.foda.item_editar', id=item.id) }}" class="btn btn-sm btn-link" title="Editar">
+        <i class="bi bi-pencil"></i>
+      </a>
+      <form method="post" action="{{ url_for('objetivos_estrategicos.foda.item_eliminar', id=item.id) }}" class="d-inline"
+            onsubmit="return confirm('¿Eliminar este ítem?');">
+        <button type="submit" class="btn btn-sm btn-link text-danger" title="Eliminar">
+          <i class="bi bi-trash"></i>
+        </button>
+      </form>
+    </span>
+  </li>
+  {% else %}
+  <li class="foda-list-empty">Sin ítems — <a href="#" data-bs-toggle="modal" data-bs-target="#modalFodaItem">agregar</a></li>
+  {% endfor %}
+</ul>
