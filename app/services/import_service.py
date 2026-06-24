@@ -50,15 +50,29 @@ def _ensure_schema(target_url: str) -> None:
 
 
 def _clear_tables(connection) -> None:
+    from sqlalchemy import inspect, text
+
     existing = set(inspect(connection).get_table_names())
     to_clear = [table for table in TABLES if table in existing]
     if not to_clear:
         return
-    tables_sql = ", ".join(f'"{table}"' for table in to_clear)
-    connection.execute(text(f"TRUNCATE TABLE {tables_sql} RESTART IDENTITY CASCADE"))
+
+    if connection.dialect.name == "postgresql":
+        tables_sql = ", ".join(f'"{table}"' for table in to_clear)
+        connection.execute(
+            text(f"TRUNCATE TABLE {tables_sql} RESTART IDENTITY CASCADE")
+        )
+        return
+
+    connection.execute(text("PRAGMA foreign_keys = OFF"))
+    for table in reversed(to_clear):
+        connection.execute(text(f'DELETE FROM "{table}"'))
+    connection.execute(text("PRAGMA foreign_keys = ON"))
 
 
 def _reset_sequences(connection, table: str) -> None:
+    if connection.dialect.name != "postgresql":
+        return
     seq = connection.execute(
         text("SELECT pg_get_serial_sequence(:table, 'id')"),
         {"table": f"public.{table}"},

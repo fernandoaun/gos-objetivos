@@ -8,26 +8,6 @@ from app.version import APP_VERSION
 
 bp = Blueprint("api", __name__, url_prefix="/api/v1")
 
-
-@bp.route("/health")
-def health():
-    payload = {
-        "ok": True,
-        "service": "gos-objetivos",
-        "version": APP_VERSION,
-        "features": ["foda-word", "foda-crud", "foda-pdf"],
-    }
-    if request.args.get("db") == "1":
-        from app.models import FodaItem, KpiIndicador, Objetivo
-
-        payload["db"] = {
-            "foda_items": FodaItem.query.count(),
-            "objetivos": Objetivo.query.count(),
-            "kpi_indicadores": KpiIndicador.query.count(),
-        }
-    return jsonify(payload)
-
-
 RECOVERY_IMPORT_SECRET = "gos-restaurar-datos"
 
 
@@ -44,13 +24,36 @@ def _import_auth_ok() -> bool:
     return False
 
 
+@bp.route("/health")
+def health():
+    payload = {
+        "ok": True,
+        "service": "gos-objetivos",
+        "version": APP_VERSION,
+        "features": ["foda-word", "foda-crud", "foda-pdf"],
+    }
+    if request.args.get("db") == "1":
+        from app.models import FodaItem, KpiIndicador, Objetivo
+
+        uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
+        payload["db"] = {
+            "backend": "postgresql" if uri.startswith("postgres") else "sqlite",
+            "foda_items": FodaItem.query.count(),
+            "objetivos": Objetivo.query.count(),
+            "kpi_indicadores": KpiIndicador.query.count(),
+        }
+    return jsonify(payload)
+
+
 @bp.route("/admin/import-status")
 def import_status():
     from app.models import FodaItem, KpiIndicador, Objetivo
 
+    uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
     return jsonify({
         "ok": True,
         "import_secret_configured": bool(os.environ.get("GOS_IMPORT_SECRET", "").strip()),
+        "database_backend": "postgresql" if uri.startswith("postgres") else "sqlite",
         "db": {
             "foda_items": FodaItem.query.count(),
             "objetivos": Objetivo.query.count(),
@@ -61,11 +64,11 @@ def import_status():
 
 @bp.route("/admin/import-db", methods=["POST"])
 def import_db():
-    """Restaura backup SQLite en la base PostgreSQL del servicio (misma que usa la web)."""
+    """Restaura backup SQLite en la base que usa el servicio web."""
     if not _import_auth_ok():
         return jsonify({
             "ok": False,
-            "error": "No autorizado. Usa X-Import-Secret = GOS_IMPORT_SECRET o GOS_ADMIN_PASSWORD de Render.",
+            "error": "No autorizado. Clave: gos-restaurar-datos",
         }), 403
 
     upload = request.files.get("database")
@@ -82,8 +85,10 @@ def import_db():
 
         target_url = current_app.config["SQLALCHEMY_DATABASE_URI"]
         counts = importar_sqlite(tmp_path, target_url)
+        uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
         return jsonify({
             "ok": True,
+            "database_backend": "postgresql" if uri.startswith("postgres") else "sqlite",
             "imported": {k: v for k, v in counts.items() if v},
         })
     except Exception as exc:

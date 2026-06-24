@@ -1,5 +1,7 @@
-# Blueprint de Render: https://render.com/docs/blueprint-spec
-# Conectar el repo en Render → New → Blueprint → seleccionar este archivo.
+# Render — PostgreSQL obligatorio en producción
+# En el servicio web "gos-objetivos" → Environment debe existir:
+#   DATABASE_URL = (linked to gos-objetivos-db)
+# Si falta, Render usa SQLite efímero y los datos no persisten.
 
 databases:
   - name: gos-objetivos-db
