@@ -17,6 +17,11 @@ from gos.modulos.objetivos.models import (  # noqa: F401 — registrar tablas
     Responsable,
     Sector,
 )
+from gos.modulos.capacitacion.models import (  # noqa: F401
+    Participante,
+    Curso,
+    Puesto,
+)
 
 
 def init_db():

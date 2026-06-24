@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Capacitación — GOS</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="{{ url_for('capacitacion_static.static', filename='css/capacitacion.css') }}" rel="stylesheet">
+</head>
+<body>
+<div class="cap-app">
+
+  <!-- PANEL / PROGRAMAS: Recursos + Calendario -->
+  <div data-cap-view="panel programas">
+    <div class="cap-grid-2">
+      <div class="cap-widget">
+        <div class="cap-widget-head">
+          <i class="bi bi-people-fill"></i>
+          <h2 class="cap-widget-title">Recursos</h2>
+        </div>
+        <div class="cap-widget-body">
+          <table class="cap-recursos-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th class="cap-col-status">Estado</th>
+              </tr>
+            </thead>
+            <tbody id="cap-recursos-body">
+              <tr><td colspan="2" class="cap-loading">Cargando...</td></tr>
+            </tbody>
+          </table>
+          <div class="cap-summary-row">
+            <div class="cap-summary-box cap-summary-box--ok">
+              <span class="cap-summary-icon"><i class="bi bi-hand-thumbs-up-fill"></i></span>
+              <div>
+                <div class="cap-summary-label">Habilitados</div>
+                <div class="cap-summary-pct" id="cap-habilitados-pct">—</div>
+              </div>
+            </div>
+            <div class="cap-summary-box cap-summary-box--bad">
+              <span class="cap-summary-icon"><i class="bi bi-hand-thumbs-down-fill"></i></span>
+              <div>
+                <div class="cap-summary-label">Inhabilitados</div>
+                <div class="cap-summary-pct" id="cap-inhabilitados-pct">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cap-widget">
+        <div class="cap-widget-head">
+          <i class="bi bi-calendar3"></i>
+          <h2 class="cap-widget-title">Calendario</h2>
+        </div>
+        <div class="cap-cal-toolbar">
+          <div class="cap-cal-nav">
+            <button type="button" class="cap-cal-btn" id="cap-cal-prev" aria-label="Mes anterior"><i class="bi bi-chevron-left"></i></button>
+            <button type="button" class="cap-cal-btn" id="cap-cal-next" aria-label="Mes siguiente"><i class="bi bi-chevron-right"></i></button>
+          </div>
+          <div class="cap-cal-month" id="cap-cal-month-label">—</div>
+          <div class="cap-cal-views">
+            <button type="button" class="cap-cal-view-btn active" data-view="mes">Mes</button>
+            <button type="button" class="cap-cal-view-btn" data-view="semana">Semana</button>
+            <button type="button" class="cap-cal-view-btn" data-view="dia">Día</button>
+          </div>
+        </div>
+        <div class="cap-cal-grid" id="cap-cal-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PERSONAS: analítico individual -->
+  <div data-cap-view="personas" class="cap-hidden">
+    <div class="cap-personas-layout">
+      <div class="cap-widget">
+        <div class="cap-widget-head">
+          <i class="bi bi-person-lines-fill"></i>
+          <h2 class="cap-widget-title">Personas</h2>
+        </div>
+        <ul class="cap-list" id="cap-personas-list"></ul>
+      </div>
+      <div class="cap-widget">
+        <div class="cap-widget-body" id="cap-persona-detail" style="padding:1rem">
+          <p class="cap-empty">Seleccioná una persona</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CATÁLOGOS -->
+  <div data-cap-view="catalogos" class="cap-hidden">
+    <div class="cap-widget">
+      <div class="cap-widget-head">
+        <i class="bi bi-journal-bookmark"></i>
+        <h2 class="cap-widget-title">Catálogos</h2>
+      </div>
+      <div class="cap-widget-body">
+        <p class="cap-empty">Cursos, puestos y tipos de certificación — próximamente.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+  window.CAP_INITIAL_VIEW = {{ initial_view|tojson }};
+  window.CAP_API_BASE = {{ api_base|tojson }};
+</script>
+<script src="{{ url_for('capacitacion_static.static', filename='js/capacitacion.js') }}"></script>
+</body>
+</html>

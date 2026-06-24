@@ -61,8 +61,10 @@ def create_app(config_name: str | None = None) -> Flask:
             from gos.modulos.hwo import module_descriptor as hwo_descriptor
             from gos.modulos.objetivos import module_descriptor as objetivos_descriptor
             from gos.modulos.vacaciones import module_descriptor as vacaciones_descriptor
+            from gos.modulos.capacitacion import module_descriptor as capacitacion_descriptor
 
             modules.append(objetivos_descriptor())
+            modules.append(capacitacion_descriptor())
             modules.append(hwo_descriptor())
             modules.append(vacaciones_descriptor())
 
@@ -73,6 +75,8 @@ def create_app(config_name: str | None = None) -> Flask:
             current_module = "hwo"
         elif request.path.startswith("/gos/vacaciones"):
             current_module = "vacaciones"
+        elif request.path.startswith("/gos/capacitacion"):
+            current_module = "capacitacion"
 
         return {
             "gos_modules": modules,
@@ -106,8 +110,10 @@ def _register_modules(app: Flask) -> None:
     from gos.modulos.hwo import register as register_hwo
     from gos.modulos.objetivos import register as register_objetivos
     from gos.modulos.vacaciones import register as register_vacaciones
+    from gos.modulos.capacitacion import register as register_capacitacion
 
     register_objetivos(app)
+    register_capacitacion(app)
     register_hwo(app)
     register_vacaciones(app)
 
@@ -123,7 +129,7 @@ def _register_auto_login(app: Flask) -> None:
 
     @app.before_request
     def _auto_login():
-        if request.endpoint in ("static", "objetivos_static.static"):
+        if request.endpoint in ("static", "objetivos_static.static", "capacitacion_static.static"):
             return
         if current_user.is_authenticated:
             return
