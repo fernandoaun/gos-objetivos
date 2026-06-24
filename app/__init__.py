@@ -46,6 +46,10 @@ def create_app(config_name: str | None = None) -> Flask:
     if not app.config.get("TESTING"):
         with app.app_context():
             db.create_all()
+            if not app.config.get("AUTO_LOGIN"):
+                from app.services.bootstrap_service import ensure_initial_admin
+
+                ensure_initial_admin()
 
     @login_manager.user_loader
     def load_user(user_id):
