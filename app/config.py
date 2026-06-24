@@ -8,15 +8,25 @@ def _database_url() -> str:
     url = os.environ.get("DATABASE_URL", "")
     if url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql://", 1)
+    if url and ".render.com" in url and "sslmode=" not in url:
+        url += "&sslmode=require" if "?" in url else "?sslmode=require"
     if url:
         return url
     return f"sqlite:///{BASE_DIR / 'instance' / 'gos_objetivos.db'}"
+
+
+def _engine_options() -> dict:
+    url = os.environ.get("DATABASE_URL", "")
+    if url.startswith("postgres"):
+        return {"pool_pre_ping": True}
+    return {}
 
 
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-change-me")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_DATABASE_URI = _database_url()
+    SQLALCHEMY_ENGINE_OPTIONS = _engine_options()
     INSTANCE_PATH = BASE_DIR / "instance"
 
 

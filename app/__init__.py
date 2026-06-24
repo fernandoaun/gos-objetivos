@@ -45,10 +45,15 @@ def create_app(config_name: str | None = None) -> Flask:
 
     if not app.config.get("TESTING"):
         with app.app_context():
-            db.create_all()
-            from app.services.bootstrap_service import ensure_initial_admin
+            try:
+                db.create_all()
+                from app.services.bootstrap_service import ensure_initial_admin
 
-            ensure_initial_admin()
+                ensure_initial_admin()
+            except Exception:
+                app.logger.exception(
+                    "No se pudo inicializar la base al arrancar; el servicio sigue activo."
+                )
 
     @login_manager.user_loader
     def load_user(user_id):

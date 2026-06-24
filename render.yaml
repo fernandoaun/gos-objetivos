@@ -15,7 +15,7 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT wsgi:app
+    startCommand: python scripts/render_start.py; gunicorn --bind 0.0.0.0:$PORT --timeout 120 wsgi:app
     envVars:
       - key: FLASK_ENV
         value: production
