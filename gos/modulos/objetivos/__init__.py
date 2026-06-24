@@ -94,8 +94,7 @@ def _register_context(app: Flask) -> None:
         from gos.modulos.objetivos.version import APP_VERSION, APP_VERSION_LABEL
 
         puede_editar_kpi = (
-            current_user.is_authenticated
-            and getattr(current_user, "rol", None) in ("admin", "gerente", "responsable")
+            current_user.is_authenticated and current_user.puede_editar_operativa()
         )
 
         return {

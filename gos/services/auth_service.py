@@ -25,7 +25,7 @@ def obtener_o_crear_usuario_default() -> Usuario:
         empresa_id=empresa.id,
         email=DEFAULT_EMAIL,
         nombre=DEFAULT_NOMBRE,
-        rol="admin",
+        rol="administrador",
     )
     user.set_password("gos")
     db.session.add(user)

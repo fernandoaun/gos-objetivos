@@ -112,7 +112,7 @@ def importar():
 
 @bp.route("/item/nuevo", methods=["POST"])
 @login_required
-@requiere_rol("admin", "gerente", "responsable")
+@requiere_rol("administrador", "angel")
 def item_nuevo():
     try:
         foda_service.crear_item_manual(
@@ -133,7 +133,7 @@ def item_nuevo():
 
 @bp.route("/item/<int:id>/editar", methods=["GET", "POST"])
 @login_required
-@requiere_rol("admin", "gerente", "responsable")
+@requiere_rol("administrador", "angel")
 def item_editar(id):
     item = foda_service.obtener_item(_empresa_id(), id)
     if not item:
@@ -165,7 +165,7 @@ def item_editar(id):
 
 @bp.route("/item/<int:id>/eliminar", methods=["POST"])
 @login_required
-@requiere_rol("admin", "gerente")
+@requiere_rol("administrador", "angel")
 def item_eliminar(id):
     try:
         foda_service.eliminar_item(_empresa_id(), id)
@@ -177,7 +177,7 @@ def item_eliminar(id):
 
 @bp.route("/dafo/tarea", methods=["POST"])
 @login_required
-@requiere_rol("admin", "gerente", "responsable")
+@requiere_rol("administrador", "angel")
 def dafo_guardar_tarea():
     payload = request.get_json(silent=True) or {}
     tipo = (payload.get("tipo") or request.form.get("tipo") or "").strip().upper()

@@ -54,7 +54,7 @@ def index():
 
 @bp.route("/nuevo", methods=["POST"])
 @login_required
-@requiere_rol("admin", "gerente", "responsable")
+@requiere_rol("administrador", "angel")
 def nuevo():
     try:
         objetivo_service.crear_objetivo(
@@ -77,7 +77,7 @@ def nuevo():
 
 @bp.route("/<int:id>/editar", methods=["GET", "POST"])
 @login_required
-@requiere_rol("admin", "gerente", "responsable")
+@requiere_rol("administrador", "angel")
 def editar(id):
     obj = objetivo_service.obtener_objetivo(_empresa_id(), id)
     if not obj:
@@ -110,7 +110,7 @@ def editar(id):
 
 @bp.route("/<int:id>/eliminar", methods=["POST"])
 @login_required
-@requiere_rol("admin", "gerente")
+@requiere_rol("administrador", "angel")
 def eliminar(id):
     try:
         objetivo_service.eliminar_objetivo(_empresa_id(), id)
@@ -122,7 +122,7 @@ def eliminar(id):
 
 @bp.route("/cargar-plantilla-2026", methods=["POST"])
 @login_required
-@requiere_rol("admin", "gerente")
+@requiere_rol("administrador", "angel")
 def cargar_plantilla_2026():
     try:
         n = objetivo_service.cargar_plantilla_2026(_empresa_id())

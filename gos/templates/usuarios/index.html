@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block page_title %}Usuarios{% endblock %}
+{% block title %}Usuarios — GOS{% endblock %}
+{% block content %}
+<div class="mb-4">
+  <h1 class="h3 mb-1">Usuarios de la plataforma</h1>
+  <p class="text-muted mb-0">Creá cuentas para que el personal ingrese a GOS con su email y contraseña.</p>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="pe-card p-3">
+      <h2 class="h6 mb-3"><i class="bi bi-person-plus me-1"></i> Nuevo usuario</h2>
+      <form method="post" action="{{ url_for('usuarios.crear') }}">
+        <div class="mb-2">
+          <label class="form-label" for="email">Email (usuario de acceso)</label>
+          <input type="email" class="form-control form-control-sm" id="email" name="email" required
+                 placeholder="nombre@empresa.com" autocomplete="off">
+        </div>
+        <div class="mb-2">
+          <label class="form-label" for="nombre">Nombre completo</label>
+          <input type="text" class="form-control form-control-sm" id="nombre" name="nombre" required>
+        </div>
+        <div class="mb-2">
+          <label class="form-label" for="password">Contraseña</label>
+          <input type="password" class="form-control form-control-sm" id="password" name="password" required
+                 minlength="6" autocomplete="new-password">
+          <div class="form-text">Mínimo 6 caracteres.</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="rol">Rol</label>
+          <select class="form-select form-select-sm" id="rol" name="rol" required>
+            {% for r in roles %}
+            <option value="{{ r }}" {% if r == 'usuario' %}selected{% endif %}>{{ rol_labels[r] }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm w-100">Crear usuario</button>
+      </form>
+    </div>
+
+    <div class="pe-card p-3 mt-3">
+      <h3 class="h6 mb-2">Roles</h3>
+      <ul class="small text-muted mb-0 ps-3">
+        <li><strong>Administrador</strong> — acceso total y gestión de usuarios.</li>
+        <li><strong>Ángel</strong> — equipo interno: carga y seguimiento operativo.</li>
+        <li><strong>Usuario (alumno)</strong> — acceso a su capacitación y avance personal.</li>
+        <li><strong>Cliente</strong> — visualización de información para presentación.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="pe-card">
+      <table class="table table-hover mb-0 align-middle">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Email</th>
+            <th>Rol</th>
+            <th>Estado</th>
+            <th class="text-end">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in usuarios %}
+          <tr>
+            <td>{{ u.nombre }}{% if u.id == current_user.id %} <span class="badge bg-primary">Vos</span>{% endif %}</td>
+            <td class="text-muted small">{{ u.email }}</td>
+            <td><span class="badge text-bg-light border">{{ u.etiqueta_rol() }}</span></td>
+            <td>
+              {% if u.activo %}
+              <span class="badge bg-success">Activo</span>
+              {% else %}
+              <span class="badge bg-secondary">Inactivo</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <button type="button" class="btn btn-outline-primary btn-sm"
+                      data-bs-toggle="modal" data-bs-target="#modal-editar-{{ u.id }}">
+                Editar
+              </button>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="5" class="text-muted text-center py-4">No hay usuarios. Creá el primero.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% for u in usuarios %}
+<div class="modal fade" id="modal-editar-{{ u.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('usuarios.editar', user_id=u.id) }}">
+        <div class="modal-header">
+          <h2 class="modal-title h5">Editar — {{ u.email }}</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2">
+            <label class="form-label">Nombre</label>
+            <input type="text" class="form-control form-control-sm" name="nombre" value="{{ u.nombre }}" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Rol</label>
+            <select class="form-select form-select-sm" name="rol" required
+                    {% if u.id == current_user.id %}disabled{% endif %}>
+              {% for r in roles %}
+              <option value="{{ r }}" {% if u.rol == r %}selected{% endif %}>{{ rol_labels[r] }}</option>
+              {% endfor %}
+            </select>
+            {% if u.id == current_user.id %}
+            <input type="hidden" name="rol" value="{{ u.rol }}">
+            <div class="form-text">No podés cambiar tu propio rol.</div>
+            {% endif %}
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Nueva contraseña</label>
+            <input type="password" class="form-control form-control-sm" name="password"
+                   minlength="6" autocomplete="new-password" placeholder="Dejar vacío para no cambiar">
+          </div>
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="activo-{{ u.id }}" name="activo"
+                   {% if u.activo %}checked{% endif %}
+                   {% if u.id == current_user.id %}disabled checked{% endif %}>
+            <label class="form-check-label" for="activo-{{ u.id }}">Usuario activo</label>
+            {% if u.id == current_user.id %}
+            <input type="hidden" name="activo" value="on">
+            {% endif %}
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary btn-sm">Guardar cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

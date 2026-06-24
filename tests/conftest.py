@@ -15,7 +15,7 @@ def app():
         db.session.add(emp)
         db.session.flush()
         db.session.add(PlaneamientoConfig(empresa_id=emp.id))
-        u = Usuario(empresa_id=emp.id, email="t@test.com", nombre="Test", rol="admin")
+        u = Usuario(empresa_id=emp.id, email="t@test.com", nombre="Test", rol="administrador")
         u.set_password("x")
         db.session.add(u)
         db.session.commit()
@@ -33,6 +33,21 @@ def client(app):
 def auth_client(client, app):
     with app.app_context():
         uid = str(Usuario.query.first().id)
+    with client.session_transaction() as sess:
+        sess["_user_id"] = uid
+        sess["_fresh"] = True
+    return client
+
+
+@pytest.fixture
+def alumno_client(client, app):
+    with app.app_context():
+        emp = Empresa.query.first()
+        u = Usuario(empresa_id=emp.id, email="alumno@test.com", nombre="Alumno", rol="usuario")
+        u.set_password("x")
+        db.session.add(u)
+        db.session.commit()
+        uid = str(u.id)
     with client.session_transaction() as sess:
         sess["_user_id"] = uid
         sess["_fresh"] = True

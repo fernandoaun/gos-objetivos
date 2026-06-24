@@ -50,7 +50,7 @@
             <td>{{ s.nombre }}</td>
             <td>{% if s.activo %}<span class="badge bg-success">Activo</span>{% else %}<span class="badge bg-secondary">Inactivo</span>{% endif %}</td>
             <td class="text-end">
-              {% if s.activo and current_user.rol == 'admin' %}
+              {% if s.activo and current_user.es_administrador() %}
               <form method="post" action="{{ url_for('objetivos_configuracion.eliminar_sector', id=s.id) }}" class="d-inline"
                     onsubmit="return confirm('¿Desactivar sector?');">
                 <button class="btn btn-link btn-sm text-danger">Desactivar</button>

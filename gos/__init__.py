@@ -53,7 +53,9 @@ def create_app(config_name: str | None = None) -> Flask:
     @app.context_processor
     def inject_platform():
         from flask import request
+        from flask_login import current_user
 
+        from gos.services.modulo_service import modulos_para_usuario
         from gos.version import APP_VERSION, APP_VERSION_LABEL
 
         modules = []
@@ -67,6 +69,8 @@ def create_app(config_name: str | None = None) -> Flask:
             modules.append(capacitacion_descriptor())
             modules.append(hwo_descriptor())
             modules.append(vacaciones_descriptor())
+
+        modules = modulos_para_usuario(current_user, modules)
 
         current_module = ""
         if request.path.startswith("/gos/objetivos"):
@@ -101,9 +105,11 @@ def _bootstrap_database() -> None:
 def _register_core_blueprints(app: Flask) -> None:
     from gos.blueprints.auth import bp as auth_bp
     from gos.blueprints.main import bp as main_bp
+    from gos.blueprints.usuarios import bp as usuarios_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix="/auth")
+    app.register_blueprint(usuarios_bp, url_prefix="/usuarios")
 
 
 def _register_modules(app: Flask) -> None:

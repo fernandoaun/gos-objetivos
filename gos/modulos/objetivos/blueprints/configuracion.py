@@ -36,7 +36,7 @@ def index():
 
 @bp.route("/sectores", methods=["POST"])
 @login_required
-@requiere_rol("admin", "gerente")
+@requiere_rol("administrador", "angel")
 def crear_sector():
     codigo = request.form.get("codigo", "").strip()
     nombre = request.form.get("nombre", "").strip()
@@ -54,7 +54,7 @@ def crear_sector():
 
 @bp.route("/sectores/<int:id>/eliminar", methods=["POST"])
 @login_required
-@requiere_rol("admin")
+@requiere_rol("administrador")
 def eliminar_sector(id):
     sector = Sector.query.filter_by(id=id, empresa_id=_empresa_id()).first_or_404()
     sector.activo = False
@@ -65,7 +65,7 @@ def eliminar_sector(id):
 
 @bp.route("/areas", methods=["POST"])
 @login_required
-@requiere_rol("admin", "gerente")
+@requiere_rol("administrador", "angel")
 def crear_area():
     codigo = request.form.get("codigo", "").strip()
     nombre = request.form.get("nombre", "").strip()
@@ -90,7 +90,7 @@ def crear_area():
 
 @bp.route("/responsables", methods=["POST"])
 @login_required
-@requiere_rol("admin", "gerente")
+@requiere_rol("administrador", "angel")
 def crear_responsable():
     codigo = request.form.get("codigo", "").strip()
     nombre = request.form.get("nombre", "").strip()
@@ -117,7 +117,7 @@ def crear_responsable():
 
 @bp.route("/umbrales", methods=["POST"])
 @login_required
-@requiere_rol("admin")
+@requiere_rol("administrador")
 def guardar_umbrales():
     config = PlaneamientoConfig.query.filter_by(empresa_id=_empresa_id()).first()
     if not config:

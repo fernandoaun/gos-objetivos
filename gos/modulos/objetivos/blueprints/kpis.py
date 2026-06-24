@@ -72,7 +72,7 @@ def index():
 
 @bp.route("/importar-excel", methods=["POST"])
 @login_required
-@requiere_rol("admin", "gerente", "responsable")
+@requiere_rol("administrador", "angel")
 def importar_excel():
     reemplazar = request.form.get("reemplazar") == "1"
     try:
@@ -85,7 +85,7 @@ def importar_excel():
 
 @bp.route("/nuevo", methods=["POST"])
 @login_required
-@requiere_rol("admin", "gerente", "responsable")
+@requiere_rol("administrador", "angel")
 def nuevo():
     try:
         kpi_service.crear_kpi(
@@ -109,7 +109,7 @@ def nuevo():
 
 @bp.route("/<int:id>/actualizar", methods=["POST"])
 @login_required
-@requiere_rol("admin", "gerente", "responsable")
+@requiere_rol("administrador", "angel")
 def actualizar(id):
     try:
         kpi = kpi_service.actualizar_kpi(
@@ -133,7 +133,7 @@ def actualizar(id):
 
 @bp.route("/<int:id>/tipo", methods=["POST"])
 @login_required
-@requiere_rol("admin", "gerente", "responsable")
+@requiere_rol("administrador", "angel")
 def actualizar_tipo(id):
     try:
         kpi = kpi_service.actualizar_kpi(
@@ -149,7 +149,7 @@ def actualizar_tipo(id):
 
 @bp.route("/<int:id>/eliminar", methods=["POST"])
 @login_required
-@requiere_rol("admin", "gerente", "responsable")
+@requiere_rol("administrador", "angel")
 def eliminar(id):
     try:
         codigo = kpi_service.eliminar_kpi(_empresa_id(), id)

@@ -33,7 +33,7 @@ def ensure_initial_admin() -> None:
         empresa_id=empresa.id,
         email=email,
         nombre=os.environ.get("GOS_ADMIN_NOMBRE", "Administrador"),
-        rol="admin",
+        rol="administrador",
     )
     admin.set_password(password)
     db.session.add(admin)

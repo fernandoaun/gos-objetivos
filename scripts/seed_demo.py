@@ -50,7 +50,7 @@ def seed():
             empresa_id=empresa.id,
             email="admin@demo.local",
             nombre="Administrador Demo",
-            rol="admin",
+            rol="administrador",
         )
         admin.set_password("admin123")
         db.session.add(admin)
