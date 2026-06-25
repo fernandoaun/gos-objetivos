@@ -13,14 +13,14 @@
         <i class="bi bi-plus-lg"></i> Agregar
       </button>
       {% if total > 0 %}
-      <a href="{{ url_for('objetivos_estrategicos.foda.exportar_pdf') }}" class="btn btn-outline-secondary btn-sm">
+      <a href="{{ url_for('objetivos_foda.exportar_pdf') }}" class="btn btn-outline-secondary btn-sm">
         <i class="bi bi-file-earmark-pdf"></i> PDF
       </a>
       <span class="foda-header-count">{{ total }} ítems</span>
       {% endif %}
     </div>
 
-    <form method="post" action="{{ url_for('objetivos_estrategicos.foda.importar') }}" enctype="multipart/form-data" class="foda-import-form">
+    <form method="post" action="{{ url_for('objetivos_foda.importar') }}" enctype="multipart/form-data" class="foda-import-form">
       <span class="foda-import-label" title="Importar FODA desde Word">
         <i class="bi bi-file-earmark-word"></i>
       </span>
@@ -148,7 +148,7 @@
 {% block extra_js %}
 {% if total > 0 %}
 <script>
-  document.body.setAttribute("data-dafo-save-url", "{{ url_for('objetivos_estrategicos.foda.dafo_guardar_tarea') }}");
+  document.body.setAttribute("data-dafo-save-url", "{{ url_for('objetivos_foda.dafo_guardar_tarea') }}");
 </script>
 {% endif %}
 <script src="{{ url_for('objetivos_static.static', filename='js/foda.js') }}?v={{ app_version }}"></script>

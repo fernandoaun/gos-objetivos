@@ -10,10 +10,10 @@
     </span>
     {% endif %}
     <span class="foda-item-actions">
-      <a href="{{ url_for('objetivos_estrategicos.foda.item_editar', id=item.id) }}" class="btn btn-sm btn-link" title="Editar">
+      <a href="{{ url_for('objetivos_foda.item_editar', id=item.id) }}" class="btn btn-sm btn-link" title="Editar">
         <i class="bi bi-pencil"></i>
       </a>
-      <form method="post" action="{{ url_for('objetivos_estrategicos.foda.item_eliminar', id=item.id) }}" class="d-inline"
+      <form method="post" action="{{ url_for('objetivos_foda.item_eliminar', id=item.id) }}" class="d-inline"
             onsubmit="return confirm('¿Eliminar este ítem?');">
         <button type="submit" class="btn btn-sm btn-link text-danger" title="Eliminar">
           <i class="bi bi-trash"></i>

@@ -2,7 +2,7 @@
   <div class="modal-dialog">
     <div class="modal-content">
       <form method="post"
-            action="{% if edit_item %}{{ url_for('objetivos_estrategicos.foda.item_editar', id=edit_item.id) }}{% else %}{{ url_for('objetivos_estrategicos.foda.item_nuevo') }}{% endif %}">
+            action="{% if edit_item %}{{ url_for('objetivos_foda.item_editar', id=edit_item.id) }}{% else %}{{ url_for('objetivos_foda.item_nuevo') }}{% endif %}">
         <div class="modal-header">
           <h5 class="modal-title" id="modalFodaItemLabel">
             {% if edit_item %}Editar ítem FODA{% else %}Nuevo ítem FODA{% endif %}

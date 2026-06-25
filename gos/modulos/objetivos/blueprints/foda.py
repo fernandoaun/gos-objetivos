@@ -85,7 +85,7 @@ def importar():
     archivo = request.files.get("archivo")
     if not archivo or not archivo.filename:
         flash("Seleccioná un archivo Word (.docx).", "warning")
-        return redirect(url_for("objetivos_estrategicos.foda.index"))
+        return redirect(url_for("objetivos_foda.index"))
 
     try:
         doc = foda_service.importar_word(
@@ -107,7 +107,7 @@ def importar():
             "danger",
         )
 
-    return redirect(url_for("objetivos_estrategicos.foda.index"))
+    return redirect(url_for("objetivos_foda.index"))
 
 
 @bp.route("/item/nuevo", methods=["POST"])
@@ -128,7 +128,7 @@ def item_nuevo():
         flash("Ítem FODA agregado.", "success")
     except ValueError as e:
         flash(str(e), "danger")
-    return redirect(url_for("objetivos_estrategicos.foda.index"))
+    return redirect(url_for("objetivos_foda.index"))
 
 
 @bp.route("/item/<int:id>/editar", methods=["GET", "POST"])
@@ -138,7 +138,7 @@ def item_editar(id):
     item = foda_service.obtener_item(_empresa_id(), id)
     if not item:
         flash("Ítem no encontrado.", "danger")
-        return redirect(url_for("objetivos_estrategicos.foda.index"))
+        return redirect(url_for("objetivos_foda.index"))
 
     if request.method == "POST":
         try:
@@ -156,7 +156,7 @@ def item_editar(id):
                 clear_responsable=not request.form.get("responsable_id"),
             )
             flash("Ítem actualizado.", "success")
-            return redirect(url_for("objetivos_estrategicos.foda.index"))
+            return redirect(url_for("objetivos_foda.index"))
         except ValueError as e:
             flash(str(e), "danger")
 
@@ -172,7 +172,7 @@ def item_eliminar(id):
         flash("Ítem eliminado.", "info")
     except ValueError as e:
         flash(str(e), "danger")
-    return redirect(url_for("objetivos_estrategicos.foda.index"))
+    return redirect(url_for("objetivos_foda.index"))
 
 
 @bp.route("/dafo/tarea", methods=["POST"])
@@ -200,7 +200,7 @@ def dafo_guardar_tarea():
             return jsonify({"ok": False, "error": str(e)}), 400
         flash(str(e), "danger")
 
-    return redirect(url_for("objetivos_estrategicos.foda.index") + "#matriz-dafo")
+    return redirect(url_for("objetivos_foda.index") + "#matriz-dafo")
 
 
 @bp.route("/exportar.pdf")
@@ -210,7 +210,7 @@ def exportar_pdf():
     total = sum(len(v) for v in matriz.values())
     if total == 0:
         flash("No hay ítems FODA para exportar.", "warning")
-        return redirect(url_for("objetivos_estrategicos.foda.index"))
+        return redirect(url_for("objetivos_foda.index"))
 
     nombre_empresa = current_user.empresa.nombre if current_user.empresa else "Empresa"
     try:
@@ -218,7 +218,7 @@ def exportar_pdf():
     except Exception:
         current_app.logger.exception("Error generando PDF FODA")
         flash("No se pudo generar el PDF. Intentá de nuevo.", "danger")
-        return redirect(url_for("objetivos_estrategicos.foda.index"))
+        return redirect(url_for("objetivos_foda.index"))
 
     filename = f"FODA_{datetime.now().strftime('%Y%m%d')}.pdf"
     return send_file(
