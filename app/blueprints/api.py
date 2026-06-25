@@ -1,27 +1,17 @@
-import os
 import tempfile
 from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, request
 
 from app.version import APP_VERSION
+from gos import env
 
 bp = Blueprint("api", __name__, url_prefix="/api/v1")
-
-RECOVERY_IMPORT_SECRET = "gos-restaurar-datos"
 
 
 def _import_auth_ok() -> bool:
     provided = (request.headers.get("X-Import-Secret") or request.args.get("secret") or "").strip()
-    if not provided:
-        return False
-    if provided == RECOVERY_IMPORT_SECRET:
-        return True
-    for key in ("GOS_IMPORT_SECRET", "GOS_ADMIN_PASSWORD"):
-        expected = os.environ.get(key, "").strip()
-        if expected and provided == expected:
-            return True
-    return False
+    return env.import_auth_ok(provided)
 
 
 @bp.route("/health")
@@ -52,7 +42,7 @@ def import_status():
     uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
     return jsonify({
         "ok": True,
-        "import_secret_configured": bool(os.environ.get("GOS_IMPORT_SECRET", "").strip()),
+        "import_secret_configured": bool(env.import_secret()),
         "database_backend": "postgresql" if uri.startswith("postgres") else "sqlite",
         "db": {
             "foda_items": FodaItem.query.count(),
@@ -68,7 +58,7 @@ def import_db():
     if not _import_auth_ok():
         return jsonify({
             "ok": False,
-            "error": "No autorizado. Clave: gos-restaurar-datos",
+            "error": "No autorizado. Configurá GOS_IMPORT_SECRET y enviá X-Import-Secret.",
         }), 403
 
     upload = request.files.get("database")

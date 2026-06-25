@@ -1,44 +1,49 @@
 ╔══════════════════════════════════════════════════════════╗
-║         COMO ABRIR GOS OBJETIVOS (MUY FACIL)             ║
+║         COMO ABRIR GOS (MUY FACIL)                       ║
 ╚══════════════════════════════════════════════════════════╝
 
-PASO 1 (solo una vez, opcional)
-────────────────────────────────
+PASO 1 (solo una vez)
+─────────────────────
   Doble clic en:
 
-      CREAR ICONO EN ESCRITORIO.vbs
+      ABRIR GOS Objetivos.bat
 
-  Eso pone un icono "GOS Objetivos" en tu Escritorio.
+  La primera vez crea el archivo .env con secretos seguros.
 
 
 PASO 2 (cada vez que quieras usar el sistema)
 ──────────────────────────────────────────────
-  Doble clic en UNO de estos:
+  Doble clic en:
 
-      ABRIR GOS Objetivos.bat        (en esta carpeta)
-      o el icono del Escritorio      (si lo creaste)
+      ABRIR GOS Objetivos.bat
+      o el icono del Escritorio (si lo creaste)
 
-  No aparecen ventanas negras: solo se abre el navegador.
-  Espera unos segundos (Chrome, Edge, etc.).
+  Se abre el navegador automaticamente (Chrome, Edge, etc.).
 
 
 PASO 3 - Ingresar
 ─────────────────
-  Email:      admin@demo.local
-  Clave:      admin123
+  En desarrollo local (GOS_AUTO_LOGIN=true):
+    Entras directo sin login.
+
+  Si pedis login manual:
+    Email:    admin@demo.local
+    Clave:    ver GOS_ADMIN_PASSWORD en el archivo .env
 
 
 IMPORTANTE
 ──────────
-  • El servidor corre en segundo plano (sin ventana negra).
+  • El servidor corre en segundo plano.
 
-  • Para apagar todo: Administrador de tareas → finalizar "pythonw"
+  • Para apagar: Administrador de tareas → finalizar "pythonw"
     o reiniciar la PC.
+
+  • Verificar configuracion: VERIFICAR ENV.bat
 
 
 SI NO ABRE EL NAVEGADOR
 ───────────────────────
-  Escribe en el navegador a mano:
+  Escribe en el navegador:
 
       http://127.0.0.1:5000
 
@@ -46,5 +51,5 @@ SI NO ABRE EL NAVEGADOR
 SI DICE QUE NO HAY PYTHON
 ─────────────────────────
   Instala desde: https://www.python.org/downloads/
-  Al instalar, marca: [x] Add python.exe to PATH
+  Marca: [x] Add python.exe to PATH
   Reinicia la PC y vuelve a intentar.

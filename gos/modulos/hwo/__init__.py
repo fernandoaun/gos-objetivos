@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from flask import Flask
+from flask import Blueprint, Flask
 from jinja2 import ChoiceLoader, FileSystemLoader
 
 MODULE_DIR = Path(__file__).resolve().parent
@@ -33,6 +33,14 @@ def _register_blueprints(app: Flask, url_prefix: str) -> None:
     from gos.modulos.hwo.blueprints.api import bp as api_bp
     from gos.modulos.hwo.blueprints.main import bp as main_bp
 
+    static_bp = Blueprint(
+        "hwo_static",
+        __name__,
+        static_folder=str(MODULE_DIR / "static"),
+        static_url_path=f"{url_prefix}/static",
+    )
+
+    app.register_blueprint(static_bp)
     app.register_blueprint(main_bp, url_prefix=url_prefix)
     app.register_blueprint(api_bp, url_prefix=f"{url_prefix}/api")
 

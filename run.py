@@ -13,7 +13,7 @@ from gos.modulos.objetivos.version import APP_VERSION, APP_VERSION_LABEL
 from wsgi import app
 
 if __name__ == "__main__":
-    logo = ROOT / "static" / "img" / "gos-logo.png"
+    logo = ROOT / "gos" / "static" / "img" / "gos-logo.png"
     if not logo.is_file():
         try:
             import subprocess
@@ -22,7 +22,7 @@ if __name__ == "__main__":
         except Exception:
             pass
 
-    url = "http://127.0.0.1:5000/gos/objetivos/dashboard/"
+    url = "http://127.0.0.1:5000/"
     print("=" * 52)
     print("  GOS — Plataforma modular")
     print(f"  Modulo Objetivos — {APP_VERSION_LABEL}")

@@ -6,10 +6,11 @@ from pathlib import Path
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, scoped_session, sessionmaker
 
+from gos import env
 from gos.config import BASE_DIR
 
-DATA_DIR = BASE_DIR / "instance" / "vacaciones"
-DB_PATH = DATA_DIR / "indicadores.db"
+DATA_DIR = env.vacaciones_db_path().parent
+DB_PATH = env.vacaciones_db_path()
 LEGACY_DB = BASE_DIR.parent / "LUZ GALLARDO" / "indicadores-app" / "data" / "indicadores.db"
 
 _engine = None

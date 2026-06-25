@@ -125,6 +125,21 @@
   flex: 1;
 }
 
+.pe-nav-modules {
+  border-bottom: 1px solid var(--pe-sidebar-border);
+  flex: 0 0 auto;
+}
+
+.pe-nav-section-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--pe-muted);
+  padding: 0.35rem 0.75rem 0.5rem;
+  margin-top: 0.25rem;
+}
+
 .pe-nav-link {
   display: flex;
   align-items: center;

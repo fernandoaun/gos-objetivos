@@ -1,21 +1,21 @@
-/* Capacitación — estética panel Recursos + Calendario */
+/* Capacitación — paleta GOS unificada */
 :root {
-  --cap-navy: #2c4a6e;
-  --cap-navy-dark: #1e3550;
-  --cap-navy-light: #3d5f87;
-  --cap-border: #dde3ea;
-  --cap-bg: #f7f9fb;
-  --cap-card: #ffffff;
-  --cap-text: #2c3e50;
-  --cap-muted: #7a8a9a;
-  --cap-green: #3d9a5f;
-  --cap-green-bg: #e8f5ec;
-  --cap-red: #c94c4c;
-  --cap-red-bg: #fceaea;
-  --cap-gray: #9aa8b6;
-  --cap-gray-bg: #eef1f4;
-  --cap-radius: 10px;
-  --cap-font: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --cap-navy: var(--gos-green-dark);
+  --cap-navy-dark: var(--gos-primary-hover);
+  --cap-navy-light: var(--gos-green);
+  --cap-border: var(--pe-border);
+  --cap-bg: var(--pe-bg);
+  --cap-card: var(--pe-card);
+  --cap-text: var(--pe-text);
+  --cap-muted: var(--pe-muted);
+  --cap-green: var(--gos-success);
+  --cap-green-bg: var(--gos-success-soft);
+  --cap-red: var(--gos-danger);
+  --cap-red-bg: var(--gos-danger-soft);
+  --cap-gray: var(--gos-grey-light);
+  --cap-gray-bg: var(--gos-neutral-soft);
+  --cap-radius: var(--gos-radius-md);
+  --cap-font: var(--gos-font);
 }
 
 .cap-app {
@@ -292,7 +292,7 @@
 }
 
 .cap-cal-cell--today {
-  background: #f0f6ff;
+  background: var(--gos-yellow-soft);
 }
 
 .cap-cal-daynum {
@@ -364,13 +364,13 @@
 }
 
 .cap-list-item:hover {
-  background: #f4f7fa;
+  background: var(--gos-yellow-soft);
 }
 
 .cap-list-item.active {
-  background: #e8eef5;
+  background: var(--gos-success-soft);
   font-weight: 600;
-  border-left: 3px solid var(--cap-navy);
+  border-left: 3px solid var(--gos-green);
 }
 
 .cap-analitico-section {

@@ -1,4 +1,4 @@
-"""Inicializa tablas antes de Gunicorn (Render). No aborta el deploy si falla."""
+"""Inicializa tablas antes de Gunicorn (Render)."""
 import sys
 from pathlib import Path
 
@@ -7,6 +7,18 @@ sys.path.insert(0, str(ROOT))
 
 
 def main() -> None:
+    from dotenv import load_dotenv
+
+    load_dotenv(ROOT / ".env")
+
+    from gos import env
+
+    report = env.audit_env("production")
+    if not report.passed:
+        for err in report.errors:
+            print(f"[render_start] ERROR env: {err}", file=sys.stderr)
+        sys.exit(1)
+
     try:
         from gos import create_app
         from gos.extensions import db

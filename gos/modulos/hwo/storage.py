@@ -6,9 +6,10 @@ import shutil
 import time
 from pathlib import Path
 
+from gos import env
 from gos.config import BASE_DIR
 
-DATA_DIR = BASE_DIR / "instance" / "hwo"
+DATA_DIR = env.hwo_data_dir()
 DATASETS_FILE = DATA_DIR / "datasets.json"
 MODALIDAD_FILE = DATA_DIR / "modalidad.json"
 LEGACY_DATA_DIR = BASE_DIR.parent / "Analisis HWO" / "data"

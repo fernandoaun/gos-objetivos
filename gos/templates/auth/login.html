@@ -24,8 +24,10 @@
     </div>
     <button type="submit" class="btn btn-primary w-100">Ingresar</button>
   </form>
+  {% if config.get('SHOW_LOGIN_DEMO_HINT') %}
   <p class="text-center text-muted small mt-3 mb-0">
-    Demo: admin@demo.local / admin123
+    Desarrollo: {{ config.get('GOS_ADMIN_EMAIL', 'admin@demo.local') }} — ver GOS_ADMIN_PASSWORD en .env
   </p>
+  {% endif %}
 </div>
 {% endblock %}

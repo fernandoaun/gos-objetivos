@@ -1,27 +1,22 @@
-import os
-import re
 from pathlib import Path
 
+import re
+
+from gos import env
 from gos.extensions import db
 from gos.modulos.objetivos.models.kpi import KPI_AGREGACION_TIPOS, KpiIndicador
 
-EXCEL_KPI_DEFAULT = Path(
-    r"c:\Users\ferna\OneDrive\GOS\Gestion de Indicadores"
-    r"\GESTION  INDICADORES GOS 2026 para ir completando.xlsx"
-)
 HOJA_AVANCE = "Avance KPI 2026"
 HOJA_DEFINICION = "KPI "
 
 
-def _excel_path() -> Path:
-    custom = os.environ.get("GOS_KPI_EXCEL_PATH")
-    if custom:
-        return Path(custom)
-    return EXCEL_KPI_DEFAULT
+def _excel_path() -> Path | None:
+    return env.kpi_excel_path()
 
 
 def excel_path() -> str:
-    return str(_excel_path())
+    path = _excel_path()
+    return str(path) if path else ""
 
 
 def _cell_str(value) -> str | None:
@@ -323,6 +318,10 @@ def eliminar_kpi(empresa_id: int, kpi_id: int) -> str:
 
 def importar_desde_excel(empresa_id: int, *, reemplazar: bool = False) -> int:
     path = _excel_path()
+    if path is None:
+        raise ValueError(
+            "Definí GOS_KPI_EXCEL_PATH en .env con la ruta al Excel maestro de KPIs."
+        )
     if not path.is_file():
         raise ValueError(f"No se encontró el archivo Excel: {path}")
 

@@ -4,158 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard HWO</title>
+<link href="{{ url_for('static', filename='css/tokens.css') }}?v={{ app_version }}" rel="stylesheet">
+<link href="{{ url_for('hwo_static.static', filename='css/hwo.css') }}?v={{ app_version }}" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<style>
-:root {
-  --green:#10b981;--yellow:#f59e0b;--red:#ef4444;
-  --blue:#3b82f6;--dark:#0f172a;--dark2:#1e293b;
-  --bg:#f1f5f9;--card:#ffffff;--border:#e2e8f0;
-  --text:#1e293b;--muted:#64748b;--sidebar-w:220px;
-}
-*{margin:0;padding:0;box-sizing:border-box;}
-html,body{height:100%;overflow:hidden;}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);}
-.hidden{display:none!important;}
-
-/* ══ UPLOAD OVERLAY ══ */
-#upload-zone{position:fixed;inset:0;z-index:300;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;padding:40px 20px;background:linear-gradient(135deg,#0f172a 0%,#1a3a5c 100%);}
-.upload-card{background:rgba(255,255,255,.06);border:2px dashed rgba(255,255,255,.25);border-radius:18px;padding:48px 72px;text-align:center;color:#fff;cursor:pointer;transition:all .25s;max-width:460px;width:90%;}
-.upload-card:hover,.upload-card.drag-over{border-color:var(--blue);background:rgba(59,130,246,.12);}
-.upload-icon{font-size:52px;margin-bottom:18px;}
-.upload-card h2{font-size:22px;font-weight:700;margin-bottom:8px;}
-.upload-card p{color:rgba(255,255,255,.55);font-size:14px;margin-bottom:24px;line-height:1.6;}
-.btn-primary{background:var(--blue);color:#fff;border:none;padding:10px 26px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;}
-.btn-primary:hover{background:#2563eb;}
-.upload-hint{margin-top:14px;font-size:12px;color:rgba(255,255,255,.35);}
-#saved-panel{max-width:660px;width:90%;color:#fff;}
-#saved-panel h3{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,.35);margin-bottom:10px;text-align:center;}
-.saved-list{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
-.saved-item{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:9px;padding:10px 14px;display:flex;align-items:center;gap:9px;cursor:pointer;transition:all .2s;max-width:280px;}
-.saved-item:hover{background:rgba(59,130,246,.2);border-color:var(--blue);}
-.saved-item-icon{font-size:18px;flex-shrink:0;}
-.saved-item-info{flex:1;min-width:0;}
-.saved-item-name{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.saved-item-date{font-size:11px;color:rgba(255,255,255,.4);margin-top:1px;}
-.saved-item-sub{font-size:10px;color:rgba(255,255,255,.25);margin-top:1px;}
-.saved-item-del{width:20px;height:20px;border-radius:4px;border:none;cursor:pointer;background:rgba(239,68,68,.15);color:#fca5a5;font-size:13px;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s;}
-.saved-item-del:hover{background:rgba(239,68,68,.4);color:#fff;}
-#btn-clear-all{background:transparent;border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.3);padding:4px 12px;border-radius:5px;font-size:11px;cursor:pointer;margin:10px auto 0;display:block;transition:all .2s;}
-#btn-clear-all:hover{border-color:rgba(239,68,68,.4);color:#fca5a5;}
-
-/* ══ APP ══ */
-#app{display:flex;height:100vh;width:100%;}
-
-/* ══ SIDEBAR ══ */
-#sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--dark);display:flex;flex-direction:column;overflow:hidden;border-right:1px solid rgba(255,255,255,.06);}
-.sidebar-brand{padding:16px 16px 12px;border-bottom:1px solid rgba(255,255,255,.07);}
-.brand-abbr{font-size:10px;font-weight:800;letter-spacing:.1em;color:var(--blue);margin-bottom:2px;}
-.brand-title{font-size:13px;font-weight:700;color:#fff;line-height:1.2;}
-.sidebar-conn{display:flex;align-items:center;gap:5px;margin-top:4px;font-size:10px;color:rgba(255,255,255,.3);}
-.conn-dot{width:6px;height:6px;border-radius:50%;background:#ef4444;flex-shrink:0;transition:background .3s;}
-.conn-dot.ok{background:#10b981;}
-.sidebar-period{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.07);font-size:11px;color:rgba(255,255,255,.4);line-height:1.6;}
-.sidebar-period strong{color:rgba(255,255,255,.7);}
-.sidebar-nav{padding:8px 8px 0;flex:1;}
-.nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;width:100%;background:transparent;border:none;border-radius:7px;font-size:12px;font-weight:600;color:rgba(255,255,255,.5);cursor:pointer;text-align:left;transition:all .15s;margin-bottom:2px;}
-.nav-item:hover{background:rgba(255,255,255,.07);color:rgba(255,255,255,.85);}
-.nav-item.active{background:rgba(59,130,246,.18);color:#93c5fd;}
-.nav-icon{font-size:15px;width:18px;text-align:center;flex-shrink:0;}
-.nav-badge{margin-left:auto;background:rgba(239,68,68,.25);color:#fca5a5;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;}
-.sidebar-section{padding:6px 8px 0;border-top:1px solid rgba(255,255,255,.06);margin-top:4px;}
-.sidebar-section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.25);padding:5px 10px 3px;}
-.file-item{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;cursor:pointer;transition:background .15s;}
-.file-item:hover{background:rgba(255,255,255,.06);}
-.file-item.active{background:rgba(59,130,246,.15);}
-.file-dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.15);flex-shrink:0;}
-.file-dot.active{background:var(--blue);}
-.file-name{font-size:11px;color:rgba(255,255,255,.45);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
-.file-item.active .file-name{color:rgba(255,255,255,.85);}
-.file-del{width:16px;height:16px;display:flex;align-items:center;justify-content:center;border-radius:3px;font-size:12px;color:rgba(255,255,255,.2);cursor:pointer;flex-shrink:0;transition:all .15s;}
-.file-del:hover{background:rgba(239,68,68,.25);color:#fca5a5;}
-.sidebar-add-btn{display:flex;align-items:center;gap:7px;width:calc(100% - 16px);margin:4px 8px;padding:7px 10px;background:transparent;border:1px dashed rgba(255,255,255,.15);border-radius:6px;font-size:11px;font-weight:600;color:rgba(255,255,255,.3);cursor:pointer;transition:all .15s;}
-.sidebar-add-btn:hover{border-color:rgba(255,255,255,.35);color:rgba(255,255,255,.7);}
-.sidebar-bottom{padding:10px 8px;border-top:1px solid rgba(255,255,255,.06);}
-.sidebar-action{display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;background:transparent;border:none;border-radius:6px;font-size:11px;font-weight:600;color:rgba(255,255,255,.3);cursor:pointer;transition:all .15s;}
-.sidebar-action:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.6);}
-
-/* ══ MAIN ══ */
-#main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0;}
-#topbar{background:var(--dark2);color:#fff;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.07);box-shadow:0 2px 6px rgba(0,0,0,.25);}
-.topbar-left{display:flex;flex-direction:column;gap:2px;}
-.topbar-title{font-size:13px;font-weight:700;}
-.topbar-period{font-size:11px;color:rgba(255,255,255,.45);}
-.topbar-right{display:flex;align-items:center;gap:10px;}
-.last-update{font-size:11px;color:rgba(255,255,255,.3);}
-.btn-closed{background:rgba(16,185,129,.15);color:#6ee7b7;border:1px solid rgba(16,185,129,.3);padding:5px 12px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;}
-.btn-closed:hover{background:rgba(16,185,129,.25);}
-.btn-closed.active{background:#10b981;color:#fff;border-color:#10b981;}
-.period-bar{background:rgba(15,23,42,.95);padding:6px 20px;display:flex;align-items:center;gap:12px;font-size:11px;color:rgba(255,255,255,.5);flex-shrink:0;}
-.period-track{flex:1;height:4px;background:rgba(255,255,255,.12);border-radius:2px;overflow:hidden;}
-.period-fill{height:100%;border-radius:2px;background:var(--blue);transition:width .5s;}
-#content{flex:1;overflow-y:auto;padding:20px 24px 36px;}
-.view{display:none;}
-.view.active{display:block;}
-
-/* ══ KPIs ══ */
-.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px;}
-.kpi-card{background:var(--card);border-radius:10px;padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,.07);border-left:4px solid var(--blue);display:flex;flex-direction:column;gap:5px;}
-.kpi-card.c-green{border-left-color:var(--green);}
-.kpi-card.c-yellow{border-left-color:var(--yellow);}
-.kpi-card.c-red{border-left-color:var(--red);}
-.kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:var(--muted);}
-.kpi-value{font-size:28px;font-weight:800;line-height:1;}
-.kpi-sub{font-size:11px;color:var(--muted);}
-
-/* ══ SECTIONS ══ */
-.section{background:var(--card);border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.07);margin-bottom:18px;overflow:hidden;}
-.section-head{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
-.section-title{font-size:13px;font-weight:700;}
-.section-sub{font-size:11px;color:var(--muted);}
-.chart-body{padding:14px 18px 18px;}
-.chart-wrap{position:relative;}
-.charts-grid{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:18px;}
-
-/* ══ TABLE ══ */
-table{width:100%;border-collapse:collapse;font-size:13px;}
-thead th{background:#f8fafc;padding:8px 13px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;}
-thead th.r{text-align:right;}
-tbody td{padding:8px 13px;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
-tbody tr:last-child td{border-bottom:none;}
-tbody tr:hover{background:#f8fafc;}
-.tfoot-row td{padding:8px 13px;border-top:2px solid var(--border);background:#f8fafc;font-weight:700;}
-.r{text-align:right;}
-.eq-name{font-weight:700;font-size:13px;}
-.cli-name{font-size:11px;color:var(--muted);}
-.dot{width:22px;height:22px;border-radius:50%;display:inline-block;border:2px solid rgba(0,0,0,.1);flex-shrink:0;}
-.dot-green{background:var(--green);box-shadow:0 0 6px rgba(16,185,129,.5);}
-.dot-yellow{background:var(--yellow);box-shadow:0 0 6px rgba(245,158,11,.5);}
-.dot-red{background:var(--red);box-shadow:0 0 6px rgba(239,68,68,.6),0 0 0 3px rgba(239,68,68,.15);}
-.badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:700;white-space:nowrap;}
-.b-green{background:#d1fae5;color:#065f46;}
-.b-yellow{background:#fef3c7;color:#92400e;}
-.b-red{background:#fee2e2;color:#991b1b;}
-.b-blue{background:#dbeafe;color:#1e40af;}
-.b-gray{background:#f1f5f9;color:#475569;}
-.b-neg{background:#fce7f3;color:#9d174d;font-weight:900;}
-.pbar-wrap{width:68px;height:4px;background:#e2e8f0;border-radius:2px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:4px;}
-.pbar-fill{height:100%;border-radius:2px;}
-.sched-sel{background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:4px;padding:2px 5px;font-size:11px;font-weight:600;cursor:pointer;max-width:115px;}
-.sched-sel:focus{outline:2px solid var(--blue);outline-offset:1px;}
-.leg{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);margin-right:12px;}
-.leg-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
-.obs-cell{max-width:300px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:var(--muted);cursor:help;}
-
-/* ══ BURNUP STATS ══ */
-.burnup-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;}
-.stat-card{background:var(--card);border-radius:8px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.06);}
-.stat-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:4px;}
-.stat-value{font-size:22px;font-weight:800;}
-.stat-sub{font-size:11px;color:var(--muted);margin-top:2px;}
-
-@media(max-width:1100px){.kpi-grid{grid-template-columns:repeat(2,1fr);}.charts-grid{grid-template-columns:1fr;}.burnup-stats{grid-template-columns:repeat(2,1fr);}}
-@media(max-width:700px){:root{--sidebar-w:0px;}#sidebar{display:none;}.kpi-grid{grid-template-columns:1fr;}#content{padding:12px;}}
-</style>
 </head>
 <body>
 
@@ -178,58 +30,43 @@ tbody tr:hover{background:#f8fafc;}
 
 <!-- ═══ APP ═══ -->
 <div id="app" class="hidden">
-  <aside id="sidebar">
-    <div class="sidebar-brand">
-      <div class="brand-abbr">HWO</div>
-      <div class="brand-title">Dashboard Operativo</div>
-      <div class="sidebar-conn">
-        <span class="conn-dot" id="conn-dot"></span>
-        <span id="conn-label">Conectando...</span>
-      </div>
-    </div>
-
-    <div class="sidebar-period" id="sidebar-period-info"></div>
-
-    <nav class="sidebar-nav">
-      <button class="nav-item active" data-view="dashboard" onclick="switchView('dashboard')">
-        <span class="nav-icon">📊</span><span>Dashboard</span>
-      </button>
-      <button class="nav-item" data-view="equipos" onclick="switchView('equipos')">
-        <span class="nav-icon">🔧</span><span>Equipos</span>
-        <span class="nav-badge" id="nav-badge-riesgo" style="display:none"></span>
-      </button>
-      <button class="nav-item" data-view="burnup" onclick="switchView('burnup')">
-        <span class="nav-icon">📈</span><span>Burn-Up</span>
-      </button>
-      <button class="nav-item" data-view="incidencias" onclick="switchView('incidencias')">
-        <span class="nav-icon">⚠️</span><span>Incidencias</span>
-        <span class="nav-badge" id="nav-badge-inc" style="display:none"></span>
-      </button>
-    </nav>
-
-    <div class="sidebar-section">
-      <div class="sidebar-section-label">Archivos</div>
-      <div id="sidebar-file-list"></div>
-      <button class="sidebar-add-btn" onclick="document.getElementById('file-input-add').click()">
-        <span style="font-size:16px">+</span> Agregar archivo
-      </button>
-    </div>
-
-    <div class="sidebar-bottom">
-      <button class="sidebar-action" onclick="goToUpload()">↻ &nbsp;Cargar otro archivo</button>
-    </div>
-  </aside>
-
   <div id="main">
     <div id="topbar">
       <div class="topbar-left">
         <div class="topbar-title" id="topbar-tab-name">—</div>
         <div class="topbar-period" id="topbar-period">—</div>
+        <div class="topbar-meta" id="topbar-period-meta"></div>
       </div>
       <div class="topbar-right">
+        <div class="hwo-conn">
+          <span class="conn-dot" id="conn-dot"></span>
+          <span id="conn-label">Conectando...</span>
+        </div>
         <span class="last-update" id="last-update"></span>
         <button class="btn-closed" id="btn-closed" onclick="toggleMesCerrado()">✓ Mes cerrado</button>
+        <button type="button" class="hwo-toolbar-btn" onclick="document.getElementById('file-input-add').click()">+ Archivo</button>
+        <button type="button" class="hwo-toolbar-btn" onclick="goToUpload()">↻ Cargar otro</button>
       </div>
+    </div>
+
+    <div class="hwo-toolbar">
+      <nav class="hwo-nav" aria-label="Vistas HWO">
+        <button type="button" class="hwo-nav-item active" data-view="dashboard" onclick="switchView('dashboard')">
+          <span class="hwo-nav-icon">📊</span><span>Dashboard</span>
+        </button>
+        <button type="button" class="hwo-nav-item" data-view="equipos" onclick="switchView('equipos')">
+          <span class="hwo-nav-icon">🔧</span><span>Equipos</span>
+          <span class="hwo-nav-badge" id="nav-badge-riesgo" style="display:none"></span>
+        </button>
+        <button type="button" class="hwo-nav-item" data-view="burnup" onclick="switchView('burnup')">
+          <span class="hwo-nav-icon">📈</span><span>Burn-Up</span>
+        </button>
+        <button type="button" class="hwo-nav-item" data-view="incidencias" onclick="switchView('incidencias')">
+          <span class="hwo-nav-icon">⚠️</span><span>Incidencias</span>
+          <span class="hwo-nav-badge" id="nav-badge-inc" style="display:none"></span>
+        </button>
+      </nav>
+      <div class="hwo-file-bar" id="hwo-file-list"></div>
     </div>
 
     <div class="period-bar">
@@ -248,8 +85,8 @@ tbody tr:hover{background:#f8fafc;}
             <div class="section-head">
               <div class="section-title">Burn-Up del período</div>
               <div>
-                <span class="leg"><span class="leg-dot" style="background:#10b981"></span>Real</span>
-                <span class="leg"><span class="leg-dot" style="background:#3b82f6;opacity:.7"></span>Proyectado</span>
+                <span class="leg"><span class="leg-dot" style="background:#76b947"></span>Real</span>
+                <span class="leg"><span class="leg-dot" style="background:#f9e29c;opacity:.9"></span>Proyectado</span>
                 <span class="leg"><span class="leg-dot" style="background:#94a3b8"></span>Scope</span>
               </div>
             </div>
@@ -298,8 +135,8 @@ tbody tr:hover{background:#f8fafc;}
           <div class="section-head">
             <div class="section-title">Burn-Up — Avance del período</div>
             <div>
-              <span class="leg"><span class="leg-dot" style="background:#10b981"></span>Real acumulado</span>
-              <span class="leg"><span class="leg-dot" style="background:#3b82f6;opacity:.7"></span>Proyectado por turno</span>
+              <span class="leg"><span class="leg-dot" style="background:#76b947"></span>Real acumulado</span>
+              <span class="leg"><span class="leg-dot" style="background:#f9e29c;opacity:.9"></span>Proyectado por turno</span>
               <span class="leg"><span class="leg-dot" style="background:#94a3b8"></span>Scope total período</span>
             </div>
           </div>
@@ -333,6 +170,7 @@ tbody tr:hover{background:#f8fafc;}
 
 <input type="file" id="file-input-add" accept=".xlsx,.xls" style="display:none" multiple>
 
+<script src="{{ url_for('static', filename='js/iframe-theme.js') }}?v={{ app_version }}"></script>
 <script>
 'use strict';
 
@@ -527,7 +365,7 @@ async function clearAllSaved() { if (!confirm('¿Borrar todos los datos guardado
 function switchView(name) {
   activeView = name;
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.hwo-nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('view-' + name).classList.add('active');
   document.querySelector(`[data-view="${name}"]`).classList.add('active');
   if (name === 'burnup') renderBurnupStats();
@@ -582,12 +420,11 @@ function goToUpload() {
   renderSavedPanel();
 }
 
-function renderSidebarFiles() {
-  document.getElementById('sidebar-file-list').innerHTML = datasets.map((ds, i) => `
-    <div class="file-item ${i === activeIdx ? 'active' : ''}" onclick="switchDataset(${i})">
-      <span class="file-dot ${i === activeIdx ? 'active' : ''}"></span>
-      <span class="file-name" title="${ds.name}">${ds.name}</span>
-      <span class="file-del" onclick="event.stopPropagation();closeDataset(${i})" title="Cerrar">×</span>
+function renderFileBar() {
+  document.getElementById('hwo-file-list').innerHTML = datasets.map((ds, i) => `
+    <div class="hwo-file-item ${i === activeIdx ? 'active' : ''}" onclick="switchDataset(${i})">
+      <span class="hwo-file-name" title="${ds.name}">${ds.name}</span>
+      <span class="hwo-file-del" onclick="event.stopPropagation();closeDataset(${i})" title="Cerrar">×</span>
     </div>`).join('');
 }
 
@@ -772,7 +609,7 @@ function toggleMesCerrado() {
 //  RENDER
 // ═══════════════════════════════════════════
 function renderAll() {
-  renderTopbar(); renderSidebarInfo(); renderSidebarFiles();
+  renderTopbar(); renderToolbarInfo(); renderFileBar();
   renderProgressBar(); renderKPIs(); renderEquipmentTable();
   renderIncidents(); renderBurnupStats(); renderChartsForView(activeView);
 }
@@ -786,17 +623,16 @@ function renderTopbar() {
   document.getElementById('topbar-period').textContent = p || '—';
 }
 
-function renderSidebarInfo() {
+function renderToolbarInfo() {
   const cfg = D.config; let html = '';
   if (cfg.periodStart && cfg.periodEnd) {
-    html += `<strong>Período</strong><br>${fmt(cfg.periodStart)} al ${fmt(cfg.periodEnd)}<br>`;
     if (D.maxDate) { const el = daysBetween(cfg.periodStart, D.maxDate) + 1; const rem = Math.max(0, daysBetween(D.maxDate, cfg.periodEnd)); html += `Día <strong>${el}</strong> de ${cfg.periodDays} · ${rem} restante${rem !== 1 ? 's' : ''}`; }
   }
   if (D.holidays && D.holidays.size > 0) {
     const names = [...D.holidays].sort().map(t => { const d = new Date(t); const k = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; return FERIADO_NOMBRES[k] || fmt(d); });
-    html += `<br><br>Feriados: ${names.join(', ')}`;
+    html += (html ? ' · ' : '') + `Feriados: ${names.join(', ')}`;
   }
-  document.getElementById('sidebar-period-info').innerHTML = html;
+  document.getElementById('topbar-period-meta').innerHTML = html;
   const eqList = Object.values(D.eqs);
   const enRiesgo = eqList.filter(e => e.semaforo !== 'green').length;
   const incTotal = eqList.reduce((s, e) => s + e.incidents.length, 0);
@@ -886,8 +722,8 @@ function renderBurnupChart(canvasId) {
     type: 'line',
     data: { labels: bu.labels, datasets: [
       { label: 'Scope total', data: scope, borderColor: '#94a3b8', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0, fill: false, order: 3 },
-      { label: 'Proyectado', data: bu.proj, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,.08)', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, fill: 'origin', order: 2 },
-      { label: 'Real acumulado', data: bu.real, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,.12)', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, fill: 'origin', tension: 0.25, order: 1 },
+      { label: 'Proyectado', data: bu.proj, borderColor: '#f9e29c', backgroundColor: 'rgba(249,226,156,.15)', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, fill: 'origin', order: 2 },
+      { label: 'Real acumulado', data: bu.real, borderColor: '#76b947', backgroundColor: 'rgba(118,185,71,.15)', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, fill: 'origin', tension: 0.25, order: 1 },
     ] },
     options: {
       responsive: true, maintainAspectRatio: false,
@@ -911,7 +747,7 @@ function renderStatesChart(canvasId) {
   const ctx = document.getElementById(canvasId); if (!ctx) return;
   charts[canvasId] = new Chart(ctx.getContext('2d'), {
     type: 'doughnut',
-    data: { labels: ['Operando', 'FDS', 'SBCC', 'SBSP'], datasets: [{ data: [totOp, totFDS, totSBCC, totSBSP], backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#3b82f6'], borderWidth: 3, borderColor: '#fff' }] },
+    data: { labels: ['Operando', 'FDS', 'SBCC', 'SBSP'], datasets: [{ data: [totOp, totFDS, totSBCC, totSBSP], backgroundColor: ['#76b947', '#dc3545', '#e6a800', '#5f9938'], borderWidth: 3, borderColor: '#fff' }] },
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 11, padding: 12, usePointStyle: true } }, tooltip: { callbacks: { label: ctx => { const pct = grand ? (ctx.parsed / grand * 100).toFixed(1) : 0; return `  ${ctx.label}: ${ctx.parsed} días (${pct}%)`; } } } }, cutout: '62%' },
   });
 }

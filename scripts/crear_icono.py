@@ -4,15 +4,15 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PNG = ROOT / "static" / "img" / "gos-logo.png"
-ICO = ROOT / "static" / "img" / "gos-logo.ico"
+PNG = ROOT / "gos" / "static" / "img" / "gos-logo.png"
+ICO = ROOT / "gos" / "static" / "img" / "gos-logo.ico"
 
 
 def main() -> int:
     if not PNG.is_file():
         subprocess.run([sys.executable, str(ROOT / "scripts" / "copiar_logo.py")], check=False)
     if not PNG.is_file():
-        print("ERROR: Falta static/img/gos-logo.png")
+        print("ERROR: Falta gos/static/img/gos-logo.png")
         return 1
 
     png = str(PNG).replace("'", "''")

@@ -1,38 +1,39 @@
-import os
-
 from sqlalchemy.exc import IntegrityError
 
+from gos import env
 from gos.extensions import db
 from gos.models import Empresa, Usuario
-
-DEFAULT_ADMIN_EMAIL = "admin@demo.local"
-DEFAULT_ADMIN_PASSWORD = "admin123"
+from gos.modulos.objetivos.models.catalogos import PlaneamientoConfig
 
 
 def ensure_initial_admin() -> None:
     """Solo en producción: crea el admin si no existe."""
-    if os.environ.get("FLASK_ENV") != "production":
+    if not env.is_production():
         return
 
-    email = os.environ.get("GOS_ADMIN_EMAIL", DEFAULT_ADMIN_EMAIL).strip().lower()
-    password = os.environ.get("GOS_ADMIN_PASSWORD", DEFAULT_ADMIN_PASSWORD)
+    email = env.admin_email()
+    password = env.admin_password()
 
     if Usuario.query.filter_by(email=email).first():
         return
 
     empresa = Empresa.query.filter_by(activa=True).first()
     if not empresa:
-        empresa = Empresa(
-            nombre=os.environ.get("GOS_EMPRESA_NOMBRE", "Empresa Demo S.A."),
-            activa=True,
-        )
+        empresa = Empresa(nombre=env.empresa_nombre(), activa=True)
         db.session.add(empresa)
         db.session.flush()
+        db.session.add(
+            PlaneamientoConfig(
+                empresa_id=empresa.id,
+                umbral_verde=90,
+                umbral_amarillo=70,
+            )
+        )
 
     admin = Usuario(
         empresa_id=empresa.id,
         email=email,
-        nombre=os.environ.get("GOS_ADMIN_NOMBRE", "Administrador"),
+        nombre=env.admin_nombre(),
         rol="administrador",
     )
     admin.set_password(password)

@@ -1,0 +1,164 @@
+/* GOS — componentes compartidos */
+
+/* Tarjetas de estadística unificadas */
+.gos-stat,
+.dash-box,
+.rep-stat {
+  border-radius: var(--gos-radius-lg);
+  padding: 1rem;
+  text-align: center;
+  border: 2px solid transparent;
+  box-shadow: var(--pe-shadow);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+}
+
+.gos-stat-value,
+.dash-box-value,
+.rep-stat-value {
+  font-size: 1.75rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.gos-stat-label,
+.dash-box-label,
+.rep-stat-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  color: var(--pe-muted);
+}
+
+.gos-stat--neutral,
+.dash-box--neutral {
+  background: var(--pe-card);
+  border-color: var(--pe-border);
+}
+
+.gos-stat--ok,
+.dash-box--ok {
+  background: linear-gradient(145deg, var(--gos-success-soft) 0%, color-mix(in srgb, var(--gos-success-soft) 70%, var(--pe-card)) 100%);
+  border-color: var(--gos-success-border);
+  color: var(--gos-success-text);
+}
+
+.gos-stat--warn,
+.dash-box--warn {
+  background: linear-gradient(145deg, var(--gos-warning-soft) 0%, color-mix(in srgb, var(--gos-warning-soft) 70%, var(--pe-card)) 100%);
+  border-color: var(--gos-warning-border);
+  color: var(--gos-warning-text);
+}
+
+.gos-stat--bad,
+.dash-box--bad {
+  background: linear-gradient(145deg, var(--gos-danger-soft) 0%, color-mix(in srgb, var(--gos-danger-soft) 70%, var(--pe-card)) 100%);
+  border-color: var(--gos-danger-border);
+  color: var(--gos-danger-text);
+}
+
+.gos-stat--muted,
+.dash-box--muted {
+  background: linear-gradient(145deg, var(--gos-neutral-soft) 0%, color-mix(in srgb, var(--gos-neutral-soft) 80%, var(--pe-card)) 100%);
+  border-color: var(--gos-neutral-border);
+  color: var(--pe-muted);
+}
+
+/* Badges semánticos */
+.gos-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--gos-radius-pill);
+  white-space: nowrap;
+}
+
+.gos-badge--ok {
+  background: var(--gos-success);
+  color: #fff;
+}
+
+.gos-badge--warn {
+  background: var(--gos-warning-border);
+  color: #fff;
+}
+
+.gos-badge--bad {
+  background: var(--gos-danger-border);
+  color: #fff;
+}
+
+.gos-badge--muted {
+  background: var(--gos-grey-light);
+  color: #fff;
+}
+
+.gos-badge--soft-ok {
+  background: var(--gos-success-soft);
+  color: var(--gos-success-dark);
+}
+
+.gos-badge--soft-warn {
+  background: var(--gos-warning-soft);
+  color: var(--gos-warning-text);
+}
+
+.gos-badge--soft-bad {
+  background: var(--gos-danger-soft);
+  color: var(--gos-danger);
+}
+
+/* Utilidades de color de marca */
+.text-gos-primary { color: var(--gos-primary) !important; }
+.text-gos-success { color: var(--gos-success-dark) !important; }
+.text-gos-warning { color: var(--gos-warning-text) !important; }
+.text-gos-danger { color: var(--gos-danger) !important; }
+
+.bg-gos-success-soft { background-color: var(--gos-success-soft) !important; }
+.bg-gos-warning-soft { background-color: var(--gos-warning-soft) !important; }
+.bg-gos-danger-soft { background-color: var(--gos-danger-soft) !important; }
+
+/* Encabezado de página */
+.gos-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.gos-page-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--gos-green-dark);
+}
+
+.gos-page-subtitle {
+  font-size: 0.82rem;
+  color: var(--pe-muted);
+  margin: 0.15rem 0 0;
+}
+
+/* Tarjetas de módulo (home) */
+.gos-module-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.gos-module-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(118, 185, 71, 0.15);
+}
+
+.gos-module-icon {
+  color: var(--gos-primary);
+}

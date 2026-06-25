@@ -30,7 +30,8 @@ if errorlevel 1 (
     pause
     exit /b 1
 )
-echo Importando desde instance\gos_objetivos.db ...
+echo Importando base local ...
+set RENDER_DATABASE_URL=%RENDER_DATABASE_URL%
 "%PY%" scripts\importar_local_a_render.py
 if errorlevel 1 (
     echo.
@@ -42,8 +43,7 @@ echo.
 echo ====================================================
 echo   Listo. Entra a:
 echo   https://gos-objetivos.onrender.com
-echo   Usuario: admin@demo.local
-echo   Contrasena: admin123
+echo   Usuario y clave: ver GOS_ADMIN_* en Render Environment
 echo ====================================================
 pause
-
+

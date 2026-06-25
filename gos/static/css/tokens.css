@@ -1,0 +1,94 @@
+/* GOS — tokens de diseño compartidos (todos los módulos) */
+
+:root,
+[data-theme="light"] {
+  /* Marca — Green Oil Services */
+  --gos-yellow: #f9e29c;
+  --gos-yellow-soft: #fdf6dc;
+  --gos-green: #76b947;
+  --gos-green-dark: #5f9938;
+  --gos-green-light: #a8d87a;
+  --gos-green-text: #2d5a1e;
+  --gos-grey: #808080;
+  --gos-grey-dark: #5c5c5c;
+  --gos-grey-light: #b0b0b0;
+
+  /* Semánticos */
+  --gos-primary: var(--gos-green);
+  --gos-primary-hover: var(--gos-green-dark);
+  --gos-success: var(--gos-green);
+  --gos-success-dark: var(--gos-green-dark);
+  --gos-success-text: var(--gos-green-text);
+  --gos-success-soft: #e8f5e0;
+  --gos-success-border: var(--gos-green);
+  --gos-warning: #d4a017;
+  --gos-warning-text: #7a5a00;
+  --gos-warning-soft: #fff8e6;
+  --gos-warning-border: #e6a800;
+  --gos-danger: #c82333;
+  --gos-danger-text: #7a1f28;
+  --gos-danger-soft: #fde8ea;
+  --gos-danger-border: #dc3545;
+  --gos-muted: var(--gos-grey);
+  --gos-neutral-soft: #f0f0f0;
+  --gos-neutral-border: var(--gos-grey-light);
+
+  /* Layout shell */
+  --pe-bg: #f4f4f4;
+  --pe-card: #ffffff;
+  --pe-sidebar: #ffffff;
+  --pe-sidebar-text: var(--gos-grey-dark);
+  --pe-sidebar-border: #e8e8e8;
+  --pe-sidebar-active: var(--gos-green);
+  --pe-sidebar-hover: var(--gos-yellow-soft);
+  --pe-text: #333333;
+  --pe-muted: var(--gos-grey);
+  --pe-border: #e0e0e0;
+  --pe-shadow: 0 1px 4px rgba(128, 128, 128, 0.12);
+  --pe-topbar-accent: var(--gos-yellow);
+  --pe-topbar-line: var(--gos-grey);
+
+  /* Escala */
+  --gos-radius-sm: 6px;
+  --gos-radius-md: 8px;
+  --gos-radius-lg: 12px;
+  --gos-radius-xl: 16px;
+  --gos-radius-pill: 999px;
+
+  --gos-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --gos-font-mono: ui-monospace, "Cascadia Code", monospace;
+
+  /* Puente Bootstrap */
+  --bs-primary: var(--gos-green);
+  --bs-primary-rgb: 118, 185, 71;
+  --bs-success: var(--gos-green);
+  --bs-success-rgb: 118, 185, 71;
+  --bs-warning: var(--gos-warning);
+  --bs-danger: var(--gos-danger);
+  --bs-body-font-family: var(--gos-font);
+  --bs-border-radius: var(--gos-radius-md);
+  --bs-border-radius-lg: var(--gos-radius-lg);
+}
+
+[data-theme="dark"] {
+  --gos-yellow-soft: rgba(249, 226, 156, 0.12);
+  --gos-green-text: #a8e07a;
+  --gos-success-soft: rgba(118, 185, 71, 0.18);
+  --gos-warning-soft: rgba(212, 160, 23, 0.18);
+  --gos-warning-text: #f0c96a;
+  --gos-danger-soft: rgba(200, 35, 51, 0.18);
+  --gos-danger-text: #f5a0a8;
+  --gos-neutral-soft: #2a2a2a;
+  --gos-neutral-border: #555555;
+
+  --pe-bg: #1a1a1a;
+  --pe-card: #242424;
+  --pe-sidebar: #1e1e1e;
+  --pe-sidebar-text: #d0d0d0;
+  --pe-sidebar-border: #333333;
+  --pe-sidebar-hover: rgba(118, 185, 71, 0.12);
+  --pe-text: #f0f0f0;
+  --pe-muted: #a0a0a0;
+  --pe-border: #3a3a3a;
+  --pe-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}

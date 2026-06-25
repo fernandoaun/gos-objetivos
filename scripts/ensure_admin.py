@@ -1,18 +1,22 @@
 """Asegura el usuario admin. Uso en Render: python scripts/ensure_admin.py"""
-import os
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
+from gos import env
 from gos.services.bootstrap_service import ensure_initial_admin
 from wsgi import app
 
 
 def main() -> None:
-    email = os.environ.get("GOS_ADMIN_EMAIL", "admin@demo.local").strip().lower()
-    password = os.environ.get("GOS_ADMIN_PASSWORD", "admin123")
+    email = env.admin_email()
+    password = env.admin_password()
 
     with app.app_context():
         ensure_initial_admin()

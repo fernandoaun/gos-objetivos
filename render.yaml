@@ -1,7 +1,6 @@
 # Render — PostgreSQL obligatorio en producción
-# En el servicio web "gos-objetivos" → Environment debe existir:
-#   DATABASE_URL = (linked to gos-objetivos-db)
-# Si falta, Render usa SQLite efímero y los datos no persisten.
+# Secretos (GOS_ADMIN_PASSWORD, GOS_IMPORT_SECRET): configurar en el dashboard
+# de Render → Environment, o dejar generateValue: true en el primer deploy.
 
 databases:
   - name: gos-objetivos-db
@@ -24,7 +23,7 @@ services:
       - key: GOS_ADMIN_EMAIL
         value: admin@demo.local
       - key: GOS_ADMIN_PASSWORD
-        value: admin123
+        generateValue: true
       - key: DATABASE_URL
         fromDatabase:
           name: gos-objetivos-db
@@ -32,6 +31,6 @@ services:
       - key: GOS_AUTO_LOGIN
         value: "false"
       - key: GOS_IMPORT_SECRET
-        value: gos-restaurar-datos
+        generateValue: true
       - key: PYTHON_VERSION
         value: 3.12.8

@@ -4,82 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Vacaciones — GOS</title>
+<link href="{{ url_for('static', filename='css/tokens.css') }}?v={{ app_version }}" rel="stylesheet">
+<link href="{{ url_for('vacaciones_static.static', filename='css/vacaciones.css') }}?v={{ app_version }}" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<style>
-:root {
-  --bg:#0f172a;--card:#1e293b;--border:#334155;
-  --text:#f1f5f9;--muted:#94a3b8;--blue:#3b82f6;
-  --green:#22c55e;--yellow:#f59e0b;--red:#ef4444;
-}
-*{margin:0;padding:0;box-sizing:border-box;}
-html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);}
-.hidden{display:none!important;}
-.app{padding:24px;max-width:1400px;margin:0 auto;}
-h1{font-size:1.5rem;font-weight:700;}
-.subtitle{color:var(--muted);font-size:.85rem;margin-top:4px;}
-.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:0 4px 24px rgba(0,0,0,.25);}
-.filters{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin:20px 0;}
-.filters label{display:block;font-size:.7rem;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em;}
-.filters input,.filters select{background:#0f172a;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 12px;font-size:.85rem;}
-.filters input:focus,.filters select:focus{outline:2px solid var(--blue);}
-.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px;}
-.kpi{border-left:3px solid var(--blue);}
-.kpi.warn{border-left-color:var(--yellow);}
-.kpi.danger{border-left-color:var(--red);}
-.kpi-label{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;}
-.kpi-value{font-size:2rem;font-weight:700;margin-top:4px;}
-.kpi.blue .kpi-value{color:var(--blue);}
-.kpi.warn .kpi-value{color:var(--yellow);}
-.kpi.danger .kpi-value{color:var(--red);}
-.table-wrap{overflow-x:auto;}
-table{width:100%;border-collapse:collapse;font-size:.8rem;}
-th{text-align:left;color:var(--muted);font-weight:600;padding:10px 8px;border-bottom:1px solid var(--border);font-size:.75rem;}
-th.num,td.num{text-align:right;}
-td{padding:8px;border-bottom:1px solid rgba(51,65,85,.5);}
-tr:hover td{background:rgba(30,41,59,.5);}
-.badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;font-size:.7rem;font-weight:600;border:1px solid;}
-.badge.ok{background:rgba(34,197,94,.15);color:var(--green);border-color:rgba(34,197,94,.3);}
-.badge.warn{background:rgba(245,158,11,.15);color:var(--yellow);border-color:rgba(245,158,11,.3);}
-.badge.bad{background:rgba(239,68,68,.15);color:var(--red);border-color:rgba(239,68,68,.3);}
-.btn{background:var(--blue);color:#fff;border:none;border-radius:10px;padding:10px 18px;font-size:.85rem;font-weight:600;cursor:pointer;}
-.btn:hover{background:#2563eb;}
-.btn:disabled{opacity:.5;cursor:not-allowed;}
-.btn-outline{background:transparent;border:1px solid var(--border);color:var(--muted);}
-.btn-outline:hover{border-color:var(--blue);color:var(--text);}
-.header-row{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:8px;}
-.spinner{text-align:center;padding:40px;color:var(--muted);}
-.chart-box{height:260px;margin-top:8px;}
-.multi-select{position:relative;min-width:260px;}
-.multi-btn{width:100%;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:8px;background:#0f172a;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 12px;font-size:.85rem;cursor:pointer;}
-.multi-panel{position:absolute;z-index:50;top:100%;left:0;margin-top:4px;width:320px;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.4);}
-.multi-search{padding:8px;border-bottom:1px solid var(--border);}
-.multi-search input{width:100%;background:#0f172a;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;font-size:.8rem;}
-.multi-list{max-height:240px;overflow-y:auto;}
-.multi-item{display:flex;align-items:center;gap:10px;padding:8px 12px;cursor:pointer;font-size:.8rem;}
-.multi-item:hover{background:rgba(51,65,85,.4);}
-.multi-footer{padding:8px 12px;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:.7rem;color:var(--muted);}
-.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
-.tag{background:rgba(59,130,246,.15);color:var(--blue);border:1px solid rgba(59,130,246,.3);border-radius:999px;padding:2px 8px;font-size:.7rem;display:inline-flex;align-items:center;gap:4px;}
-.tag button{background:none;border:none;color:inherit;cursor:pointer;opacity:.7;}
-.dropzone{border:2px dashed var(--border);border-radius:16px;padding:48px 24px;text-align:center;cursor:pointer;transition:border-color .2s;position:relative;}
-.dropzone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
-.dropzone:hover,.dropzone.drag{border-color:var(--blue);background:rgba(59,130,246,.08);}
-.dropzone h3{margin-top:12px;font-size:1rem;}
-.dropzone p{color:var(--muted);font-size:.85rem;margin-top:6px;}
-.result-ok{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.08);}
-.result-err{border-color:rgba(239,68,68,.4);background:rgba(239,68,68,.08);}
-.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px;}
-.stat-box{background:#0f172a;border-radius:12px;padding:16px;text-align:center;}
-.stat-box .val{font-size:1.5rem;font-weight:700;}
-.stat-box .lbl{font-size:.7rem;color:var(--muted);margin-top:4px;}
-.export-menu{position:relative;}
-.export-drop{position:absolute;right:0;top:100%;margin-top:6px;width:200px;background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;z-index:40;}
-.export-drop button{display:block;width:100%;text-align:left;padding:12px 16px;background:none;border:none;color:var(--text);font-size:.8rem;cursor:pointer;}
-.export-drop button:hover{background:rgba(51,65,85,.5);}
-.export-drop button+button{border-top:1px solid var(--border);}
-@media(max-width:768px){.kpis{grid-template-columns:1fr;}}
-</style>
 </head>
 <body>
 <div id="view-vacaciones" class="app {% if initial_view != 'vacaciones' %}hidden{% endif %}">
@@ -131,7 +59,7 @@ tr:hover td{background:rgba(30,41,59,.5);}
 
     <div class="card">
       <div class="header-row">
-        <h2 style="font-size:1rem;">Detalle por Empleado <span id="sector-filter-label" style="color:var(--blue);font-weight:400;"></span></h2>
+        <h2 style="font-size:1rem;">Detalle por Empleado <span id="sector-filter-label" style="color:var(--accent);font-weight:400;"></span></h2>
         <span class="subtitle" id="table-count">0 registros</span>
       </div>
       <div class="table-wrap">
@@ -172,6 +100,7 @@ tr:hover td{background:rgba(30,41,59,.5);}
   </div>
 </div>
 
+<script src="{{ url_for('static', filename='js/iframe-theme.js') }}?v={{ app_version }}"></script>
 <script>
 const API = '/gos/vacaciones/api';
 const state = {
@@ -270,7 +199,7 @@ function renderTable() {
     <tr>
       <td>${row.empleado}</td><td style="color:var(--muted)">${row.sector||''}</td>
       <td class="num">${row.anio}</td><td class="num">${row.dias_disponibles}</td>
-      <td class="num">${row.tomados_planilla}</td><td class="num" style="color:var(--blue)">${row.tomados_real}</td>
+      <td class="num">${row.tomados_planilla}</td><td class="num" style="color:var(--accent)">${row.tomados_real}</td>
       <td class="num" style="font-weight:700">${row.dias_pendientes}</td>
       <td style="text-align:center">${semaforo(row.dias_pendientes||0)}</td>
     </tr>`).join('');
@@ -283,7 +212,7 @@ function renderChart() {
   document.getElementById('chart-card').classList.remove('hidden');
   const colors = state.resumenSector.map(e => {
     if (state.sectorSeleccionado && e.sector !== state.sectorSeleccionado) return '#475569';
-    return e.pendientes > 50 ? '#ef4444' : e.pendientes > 20 ? '#f59e0b' : '#22c55e';
+    return e.pendientes > 50 ? '#dc3545' : e.pendientes > 20 ? '#e6a800' : '#76b947';
   });
   state.sectorChart = new Chart(ctx, {
     type: 'bar',
@@ -421,8 +350,8 @@ function showImportResult(data) {
   const res = document.getElementById('import-result');
   res.className = 'card result-ok';
   res.innerHTML = `<h3 style="color:var(--green);margin-bottom:8px;">✓ Importación exitosa</h3><p style="font-size:.85rem;color:var(--muted);">${data.mensaje}</p>`;
-  if (data.detalle?.registros > 0) res.innerHTML += `<div class="grid3"><div class="stat-box"><div class="val">${data.detalle.registros}</div><div class="lbl">Registros</div></div><div class="stat-box"><div class="val" style="color:var(--blue)">${data.detalle.registros_nuevos}</div><div class="lbl">Nuevos</div></div><div class="stat-box"><div class="val" style="color:var(--yellow)">${data.detalle.registros_actualizados}</div><div class="lbl">Actualizados</div></div></div>`;
-  if (data.detalle?.vacaciones > 0) res.innerHTML += `<div class="grid3" style="margin-top:12px;"><div class="stat-box"><div class="val">${data.detalle.vacaciones}</div><div class="lbl">Vacaciones</div></div><div class="stat-box"><div class="val" style="color:var(--blue)">${data.detalle.vacaciones_nuevas}</div><div class="lbl">Nuevas</div></div><div class="stat-box"><div class="val" style="color:var(--yellow)">${data.detalle.vacaciones_actualizadas}</div><div class="lbl">Actualizadas</div></div></div>`;
+  if (data.detalle?.registros > 0) res.innerHTML += `<div class="grid3"><div class="stat-box"><div class="val">${data.detalle.registros}</div><div class="lbl">Registros</div></div><div class="stat-box"><div class="val" style="color:var(--accent)">${data.detalle.registros_nuevos}</div><div class="lbl">Nuevos</div></div><div class="stat-box"><div class="val" style="color:var(--yellow)">${data.detalle.registros_actualizados}</div><div class="lbl">Actualizados</div></div></div>`;
+  if (data.detalle?.vacaciones > 0) res.innerHTML += `<div class="grid3" style="margin-top:12px;"><div class="stat-box"><div class="val">${data.detalle.vacaciones}</div><div class="lbl">Vacaciones</div></div><div class="stat-box"><div class="val" style="color:var(--accent)">${data.detalle.vacaciones_nuevas}</div><div class="lbl">Nuevas</div></div><div class="stat-box"><div class="val" style="color:var(--yellow)">${data.detalle.vacaciones_actualizadas}</div><div class="lbl">Actualizadas</div></div></div>`;
   res.innerHTML += `<p style="font-size:.8rem;color:var(--muted);margin-top:12px;">Los datos ya están disponibles en <strong>Vacaciones adeudadas</strong>.</p>`;
   res.classList.remove('hidden');
 }

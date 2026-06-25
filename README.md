@@ -8,10 +8,10 @@ Aplicación de gestión de **Objetivos Estratégicos**, **Metas** y **KPI** basa
 
 ### Inicio rápido (recomendado)
 
-1. **Doble clic en `ABRIR GOS Objetivos.bat`** → abre el navegador sin ventanas negras (servidor en segundo plano).
-2. (Opcional, una vez) **Doble clic en `CREAR ICONO EN ESCRITORIO.vbs`** → icono en el Escritorio con el logo GOS.
+1. **Doble clic en `ABRIR GOS Objetivos.bat`** → crea `.env` si falta y abre el navegador.
+2. (Opcional) **`VERIFICAR ENV.bat`** → valida variables de entorno.
 
-Login: `admin@demo.local` / `admin123` — Ver también `COMO ABRIR.txt`
+Desarrollo: entrada automática (`GOS_AUTO_LOGIN`). Login manual: ver `GOS_ADMIN_PASSWORD` en `.env` — Ver `COMO ABRIR.txt`
 
 ### Por consola
 

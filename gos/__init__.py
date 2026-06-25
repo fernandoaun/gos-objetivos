@@ -4,7 +4,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask
 
-from gos.config import config_by_name
+from gos import env
+from gos.config import apply_env_to_app, config_by_name
 from gos.extensions import db, login_manager, migrate
 
 GOS_DIR = Path(__file__).resolve().parent
@@ -14,6 +15,8 @@ TEMPLATES_DIR = GOS_DIR / "templates"
 
 def create_app(config_name: str | None = None) -> Flask:
     load_dotenv()
+    env_name = config_name or os.environ.get("FLASK_ENV", "development")
+    env.set_runtime_env(env_name)
     app = Flask(
         __name__,
         instance_relative_config=True,
@@ -22,8 +25,8 @@ def create_app(config_name: str | None = None) -> Flask:
         static_url_path="/static",
     )
 
-    env = config_name or os.environ.get("FLASK_ENV", "development")
-    app.config.from_object(config_by_name.get(env, config_by_name["development"]))
+    app.config.from_object(config_by_name.get(env_name, config_by_name["development"]))
+    apply_env_to_app(app)
 
     Path(app.instance_path).mkdir(parents=True, exist_ok=True)
 
@@ -135,7 +138,13 @@ def _register_auto_login(app: Flask) -> None:
 
     @app.before_request
     def _auto_login():
-        if request.endpoint in ("static", "objetivos_static.static", "capacitacion_static.static"):
+        if request.endpoint in (
+            "static",
+            "objetivos_static.static",
+            "capacitacion_static.static",
+            "hwo_static.static",
+            "vacaciones_static.static",
+        ):
             return
         if current_user.is_authenticated:
             return

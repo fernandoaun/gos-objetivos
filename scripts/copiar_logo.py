@@ -4,9 +4,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DEST = ROOT / "static" / "img" / "gos-logo.png"
+DEST = ROOT / "gos" / "static" / "img" / "gos-logo.png"
 
 SOURCES = [
+    DEST,
     ROOT / "static" / "img" / "gos-logo.png",
     Path(r"C:\Users\ferna\.cursor\projects\c-Users-ferna-OneDrive-GOS-GOS-Objetivos\assets")
     / "c__Users_ferna_AppData_Roaming_Cursor_User_workspaceStorage_empty-window_images_image-89db5d65-b96a-4e29-8953-02d2c00e004b.png",

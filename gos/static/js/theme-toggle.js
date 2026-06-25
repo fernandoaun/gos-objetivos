@@ -22,6 +22,11 @@
       root.setAttribute("data-theme", next);
       localStorage.setItem(KEY, next);
       syncIcon();
+      document.querySelectorAll("iframe").forEach(function (frame) {
+        try {
+          frame.contentWindow.postMessage({ type: "gos-theme", theme: next }, "*");
+        } catch (_) { /* iframe no listo */ }
+      });
     });
   });
 })();

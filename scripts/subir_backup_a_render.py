@@ -1,38 +1,46 @@
-"""Sube instance/gos_objetivos.db a Render para importar en la base del servicio web."""
+"""Sube un backup SQLite local a Render para importar en la base del servicio web."""
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
 import urllib.error
 import urllib.request
+from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parent.parent
-LOCAL_DB = ROOT / "instance" / "gos_objetivos.db"
-DEFAULT_URL = "https://gos-objetivos.onrender.com"
+sys.path.insert(0, str(ROOT))
+
+load_dotenv()
+
+from gos import env
+
+API_PATH = "/gos/objetivos/api/v1/admin/import-db"
 
 
 def main() -> None:
-    secret = os.environ.get("GOS_IMPORT_SECRET", "").strip()
-    base_url = os.environ.get("GOS_RENDER_URL", DEFAULT_URL).rstrip("/")
+    secret = env.import_secret()
+    base_url = env.render_service_url().rstrip("/")
+    local_db = env.local_backup_db_path()
+
     if not secret:
-        print("ERROR: definí GOS_IMPORT_SECRET (Render → gos-objetivos → Environment).")
+        print("ERROR: definí GOS_IMPORT_SECRET en .env o en Render → Environment.")
         sys.exit(1)
-    if not LOCAL_DB.is_file():
-        print(f"ERROR: no existe {LOCAL_DB}")
+    if not local_db.is_file():
+        print(f"ERROR: no existe {local_db}")
+        print("Tip: definí GOS_LOCAL_DB_PATH si el backup está en otra ruta.")
         sys.exit(1)
 
     boundary = "----GOSBoundary7MA4YWxkTrZu0gW"
-    db_bytes = LOCAL_DB.read_bytes()
+    db_bytes = local_db.read_bytes()
     body = (
         f"--{boundary}\r\n"
-        f'Content-Disposition: form-data; name="database"; filename="gos_objetivos.db"\r\n'
+        f'Content-Disposition: form-data; name="database"; filename="{local_db.name}"\r\n'
         f"Content-Type: application/octet-stream\r\n\r\n"
     ).encode("utf-8") + db_bytes + f"\r\n--{boundary}--\r\n".encode("utf-8")
 
     req = urllib.request.Request(
-        f"{base_url}/api/v1/admin/import-db",
+        f"{base_url}{API_PATH}",
         data=body,
         method="POST",
         headers={
@@ -41,7 +49,7 @@ def main() -> None:
         },
     )
 
-    print(f"Subiendo {LOCAL_DB.name} ({len(db_bytes) // 1024} KB) a {base_url} ...")
+    print(f"Subiendo {local_db.name} ({len(db_bytes) // 1024} KB) a {base_url} ...")
     try:
         with urllib.request.urlopen(req, timeout=300) as resp:
             print(resp.read().decode("utf-8", errors="replace"))
