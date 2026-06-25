@@ -11,8 +11,16 @@ URL_PREFIX = "/gos/capacitacion"
 def register(app: Flask, url_prefix: str = URL_PREFIX) -> None:
     _ensure_template_loader(app)
     _register_models()
+    with app.app_context():
+        _upgrade_schema()
     _register_blueprints(app, url_prefix)
     _register_context(app)
+
+
+def _upgrade_schema() -> None:
+    from gos.modulos.capacitacion.schema_upgrade import ensure_capacitacion_schema
+
+    ensure_capacitacion_schema()
 
 
 def _ensure_template_loader(app: Flask) -> None:
@@ -29,12 +37,15 @@ def _ensure_template_loader(app: Flask) -> None:
 
 def _register_models() -> None:
     from gos.modulos.capacitacion.models import (  # noqa: F401
+        AlertaCapacitacion,
         AsistenciaEncuentro,
+        CapacitacionConfig,
         CertificacionEmpleado,
         CertificacionTipo,
         Curso,
         EncuentroCapacitacion,
         EncuentroTema,
+        Instructor,
         InscripcionPrograma,
         Participante,
         PlanCapacitacion,
@@ -90,12 +101,22 @@ def module_descriptor() -> dict:
 def _nav_items():
     return [
         {
-            "label": "Panel",
+            "label": "Dashboard",
             "endpoint": "capacitacion_main.index",
             "icon": "bi-speedometer2",
         },
         {
-            "label": "Programas y encuentros",
+            "label": "Matriz analítica",
+            "endpoint": "capacitacion_main.matriz",
+            "icon": "bi-grid-3x3-gap",
+        },
+        {
+            "label": "Calendario",
+            "endpoint": "capacitacion_main.calendario",
+            "icon": "bi-calendar3",
+        },
+        {
+            "label": "Programas",
             "endpoint": "capacitacion_main.programas",
             "icon": "bi-calendar-event",
         },
@@ -105,8 +126,23 @@ def _nav_items():
             "icon": "bi-people",
         },
         {
-            "label": "Catálogos",
+            "label": "Cursos y catálogos",
             "endpoint": "capacitacion_main.catalogos",
             "icon": "bi-journal-bookmark",
+        },
+        {
+            "label": "Reportes ISO",
+            "endpoint": "capacitacion_main.reportes",
+            "icon": "bi-file-earmark-check",
+        },
+        {
+            "label": "Alertas",
+            "endpoint": "capacitacion_main.alertas",
+            "icon": "bi-bell",
+        },
+        {
+            "label": "Configuración",
+            "endpoint": "capacitacion_main.configuracion",
+            "icon": "bi-gear",
         },
     ]

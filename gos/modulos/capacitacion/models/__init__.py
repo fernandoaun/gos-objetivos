@@ -1,4 +1,7 @@
-from gos.modulos.capacitacion.models.catalogo import CertificacionTipo, Curso, Puesto
+from gos.modulos.capacitacion.models.alerta import AlertaCapacitacion
+from gos.modulos.capacitacion.models.catalogo import CertificacionTipo, Curso, Puesto, TIPOS_CAPACITACION
+from gos.modulos.capacitacion.models.config import CapacitacionConfig
+from gos.modulos.capacitacion.models.instructor import Instructor
 from gos.modulos.capacitacion.models.participante import Participante
 from gos.modulos.capacitacion.models.programa import (
     EncuentroCapacitacion,
@@ -17,7 +20,11 @@ from gos.modulos.capacitacion.models.registro import (
 __all__ = [
     "Puesto",
     "Curso",
+    "TIPOS_CAPACITACION",
     "CertificacionTipo",
+    "CapacitacionConfig",
+    "Instructor",
+    "AlertaCapacitacion",
     "Participante",
     "ProgramaCapacitacion",
     "EncuentroCapacitacion",

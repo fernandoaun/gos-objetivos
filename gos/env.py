@@ -210,6 +210,37 @@ def render_service_url() -> str:
     return _get("GOS_RENDER_URL", "https://gos-objetivos.onrender.com") or "https://gos-objetivos.onrender.com"
 
 
+# ── Correo (notificaciones) ───────────────────────────────────────────────
+
+
+def smtp_host() -> str | None:
+    return _get("GOS_SMTP_HOST")
+
+
+def smtp_port() -> int:
+    raw = _get("GOS_SMTP_PORT", "587")
+    try:
+        return int(raw or "587")
+    except ValueError:
+        return 587
+
+
+def smtp_user() -> str | None:
+    return _get("GOS_SMTP_USER")
+
+
+def smtp_password() -> str | None:
+    return _get("GOS_SMTP_PASSWORD")
+
+
+def smtp_from() -> str:
+    return _get("GOS_SMTP_FROM", "noreply@gos.local") or "noreply@gos.local"
+
+
+def smtp_tls() -> bool:
+    return _bool("GOS_SMTP_TLS", True)
+
+
 # ── IA (futuro) ─────────────────────────────────────────────────────────
 
 

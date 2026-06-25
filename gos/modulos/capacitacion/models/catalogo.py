@@ -20,6 +20,19 @@ class Puesto(db.Model, TimestampMixin):
     requisitos = db.relationship("RequisitoFormacion", back_populates="puesto", lazy="dynamic")
 
 
+TIPOS_CAPACITACION = (
+    "obligatoria",
+    "interna",
+    "externa",
+    "hse",
+    "tecnica",
+    "sgi",
+    "induccion",
+    "normativa",
+)
+MODALIDADES = ("presencial", "virtual", "mixta")
+
+
 class Curso(db.Model, TimestampMixin):
     """Definición de un curso o módulo de capacitación."""
 
@@ -31,12 +44,17 @@ class Curso(db.Model, TimestampMixin):
     codigo = db.Column(db.String(30), nullable=False)
     nombre = db.Column(db.String(200), nullable=False)
     descripcion = db.Column(db.Text, nullable=True)
+    tipo_capacitacion = db.Column(db.String(30), nullable=True)
     horas = db.Column(db.Numeric(6, 2), nullable=True)
     modalidad = db.Column(db.String(30), nullable=True)  # presencial, virtual, mixta
     vigencia_meses = db.Column(db.Integer, nullable=True)  # validez del conocimiento
+    requiere_evaluacion = db.Column(db.Boolean, default=False, nullable=False)
+    puntaje_minimo = db.Column(db.Numeric(5, 2), nullable=True)
+    instructor_id = db.Column(db.Integer, db.ForeignKey("cap_instructores.id"), nullable=True, index=True)
     activo = db.Column(db.Boolean, default=True, nullable=False)
 
     empresa = db.relationship("Empresa")
+    instructor = db.relationship("Instructor", back_populates="cursos")
     encuentros = db.relationship("EncuentroCapacitacion", back_populates="curso", lazy="dynamic")
     registros = db.relationship("RegistroCapacitacion", back_populates="curso", lazy="dynamic")
     requisitos = db.relationship("RequisitoFormacion", back_populates="curso", lazy="dynamic")

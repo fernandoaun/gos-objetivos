@@ -136,3 +136,60 @@ def test_api_alumno_no_puede_crear(alumno_client):
         json={"codigo": "X", "nombre": "Test"},
     )
     assert r.status_code == 403
+
+
+def test_api_crear_y_editar_sector_y_puesto(auth_client):
+    r = auth_client.post(
+        "/gos/capacitacion/api/sectores",
+        json={"codigo": "OP", "nombre": "Operaciones"},
+    )
+    assert r.status_code == 201
+    sector_id = r.get_json()["sector"]["id"]
+
+    r2 = auth_client.put(
+        f"/gos/capacitacion/api/sectores/{sector_id}",
+        json={"codigo": "OP", "nombre": "Operaciones y Logística"},
+    )
+    assert r2.status_code == 200
+    assert r2.get_json()["sector"]["nombre"] == "Operaciones y Logística"
+
+    r3 = auth_client.post(
+        "/gos/capacitacion/api/puestos",
+        json={"codigo": "TEC", "nombre": "Técnico"},
+    )
+    assert r3.status_code == 201
+    puesto_id = r3.get_json()["puesto"]["id"]
+
+    r4 = auth_client.put(
+        f"/gos/capacitacion/api/puestos/{puesto_id}",
+        json={"codigo": "TEC", "nombre": "Técnico senior"},
+    )
+    assert r4.status_code == 200
+    assert r4.get_json()["puesto"]["nombre"] == "Técnico senior"
+
+
+def test_api_editar_participante_sector_puesto(auth_client, app):
+    with app.app_context():
+        from gos.models import Empresa
+
+        emp = Empresa.query.first()
+        s1 = Sector(empresa_id=emp.id, codigo="A", nombre="Sector A")
+        s2 = Sector(empresa_id=emp.id, codigo="B", nombre="Sector B")
+        db.session.add_all([s1, s2])
+        db.session.flush()
+        puesto = Puesto(empresa_id=emp.id, codigo="P1", nombre="Puesto 1")
+        db.session.add(puesto)
+        db.session.flush()
+        participante = Participante(empresa_id=emp.id, sector_id=s1.id, puesto_id=puesto.id, nombre="Ana")
+        db.session.add(participante)
+        db.session.commit()
+        pid = participante.id
+        s2_id = s2.id
+        puesto_id = puesto.id
+
+    r = auth_client.put(
+        f"/gos/capacitacion/api/participantes/{pid}",
+        json={"nombre": "Ana", "sector_id": s2_id, "puesto_id": puesto_id},
+    )
+    assert r.status_code == 200
+    assert r.get_json()["participante"]["sector_id"] == s2_id

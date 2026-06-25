@@ -101,6 +101,7 @@ def analitico_participante(participante_id: int, empresa_id: int | None = None) 
         curso = reg.curso or Curso.query.get(reg.curso_id)
         realizados_cursos.append(
             {
+                "registro_id": reg.id,
                 "curso_id": reg.curso_id,
                 "curso_codigo": curso.codigo if curso else None,
                 "curso_nombre": curso.nombre if curso else None,
@@ -109,6 +110,7 @@ def analitico_participante(participante_id: int, empresa_id: int | None = None) 
                 "aprobado": reg.aprobado,
                 "vigente_hasta": reg.vigente_hasta.isoformat() if reg.vigente_hasta else None,
                 "observaciones": reg.observaciones,
+                "tiene_certificado": bool(reg.certificado_path),
             }
         )
 
@@ -124,6 +126,7 @@ def analitico_participante(participante_id: int, empresa_id: int | None = None) 
         )
         realizados_certs.append(
             {
+                "certificacion_id": cert.id,
                 "tipo_id": cert.tipo_id,
                 "tipo_codigo": tipo.codigo if tipo else None,
                 "tipo_nombre": tipo.nombre if tipo else None,
@@ -134,6 +137,7 @@ def analitico_participante(participante_id: int, empresa_id: int | None = None) 
                 else None,
                 "vigente": vigente,
                 "observaciones": cert.observaciones,
+                "tiene_documento": bool(cert.documento_path),
             }
         )
 

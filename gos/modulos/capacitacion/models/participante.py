@@ -20,8 +20,13 @@ class Participante(db.Model, TimestampMixin):
     sector_id = db.Column(db.Integer, db.ForeignKey("sectores.id"), nullable=True, index=True)
     puesto_id = db.Column(db.Integer, db.ForeignKey("cap_puestos.id"), nullable=True, index=True)
     legajo = db.Column(db.String(30), nullable=True)
+    dni = db.Column(db.String(20), nullable=True)
     nombre = db.Column(db.String(150), nullable=False)
+    apellido = db.Column(db.String(150), nullable=True)
     email = db.Column(db.String(150), nullable=True)
+    telefono = db.Column(db.String(40), nullable=True)
+    fecha_ingreso = db.Column(db.Date, nullable=True)
+    observaciones = db.Column(db.Text, nullable=True)
     activo = db.Column(db.Boolean, default=True, nullable=False)
 
     empresa = db.relationship("Empresa")
@@ -34,3 +39,9 @@ class Participante(db.Model, TimestampMixin):
     certificaciones = db.relationship("CertificacionEmpleado", back_populates="participante", lazy="dynamic")
     planes = db.relationship("PlanCapacitacion", back_populates="participante", lazy="dynamic")
     requisitos = db.relationship("RequisitoFormacion", back_populates="participante", lazy="dynamic")
+
+    @property
+    def nombre_completo(self) -> str:
+        if self.apellido:
+            return f"{self.nombre} {self.apellido}".strip()
+        return self.nombre

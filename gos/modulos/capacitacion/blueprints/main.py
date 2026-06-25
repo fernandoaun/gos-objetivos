@@ -28,6 +28,36 @@ def catalogos():
     return render_template("capacitacion/shell.html", view="catalogos")
 
 
+@bp.route("/matriz")
+@login_required
+def matriz():
+    return render_template("capacitacion/shell.html", view="matriz")
+
+
+@bp.route("/alertas")
+@login_required
+def alertas():
+    return render_template("capacitacion/shell.html", view="alertas")
+
+
+@bp.route("/calendario")
+@login_required
+def calendario():
+    return render_template("capacitacion/shell.html", view="calendario")
+
+
+@bp.route("/reportes")
+@login_required
+def reportes():
+    return render_template("capacitacion/shell.html", view="reportes")
+
+
+@bp.route("/configuracion")
+@login_required
+def configuracion():
+    return render_template("capacitacion/shell.html", view="configuracion")
+
+
 @bp.route("/app/")
 @login_required
 def app():

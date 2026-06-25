@@ -7,13 +7,30 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <link href="{{ url_for('static', filename='css/tokens.css') }}?v={{ app_version }}" rel="stylesheet">
   <link href="{{ url_for('capacitacion_static.static', filename='css/capacitacion.css') }}?v={{ app_version }}" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <div class="cap-app">
 
-  <!-- PANEL / PROGRAMAS: Recursos + Calendario -->
-  <div data-cap-view="panel programas">
-    <div class="cap-grid-2">
+  <div class="cap-global-search" id="cap-global-search-wrap">
+    <i class="bi bi-search"></i>
+    <input type="search" class="cap-input cap-global-search-input" id="cap-global-search" placeholder="Buscar personas, cursos, programas…" autocomplete="off">
+    <div class="cap-global-search-results cap-hidden" id="cap-global-search-results"></div>
+  </div>
+
+  <!-- PANEL / DASHBOARD -->
+  <div data-cap-view="panel">
+    <div class="cap-kpi-grid" id="cap-kpi-grid">
+      <div class="cap-kpi-card"><span class="cap-kpi-label">Personas activas</span><span class="cap-kpi-value" id="kpi-personas">—</span></div>
+      <div class="cap-kpi-card"><span class="cap-kpi-label">Cursos cargados</span><span class="cap-kpi-value" id="kpi-cursos">—</span></div>
+      <div class="cap-kpi-card cap-kpi-card--ok"><span class="cap-kpi-label">Realizadas (mes)</span><span class="cap-kpi-value" id="kpi-realizadas">—</span></div>
+      <div class="cap-kpi-card cap-kpi-card--warn"><span class="cap-kpi-label">Pendientes</span><span class="cap-kpi-value" id="kpi-pendientes">—</span></div>
+      <div class="cap-kpi-card cap-kpi-card--bad"><span class="cap-kpi-label">Vencidas</span><span class="cap-kpi-value" id="kpi-vencidas">—</span></div>
+      <div class="cap-kpi-card"><span class="cap-kpi-label">Cumplimiento</span><span class="cap-kpi-value" id="kpi-cumplimiento">—</span></div>
+      <div class="cap-kpi-card"><span class="cap-kpi-label">Horas hombre (mes)</span><span class="cap-kpi-value" id="kpi-horas">—</span></div>
+      <div class="cap-kpi-card"><span class="cap-kpi-label">Tasa aprobación</span><span class="cap-kpi-value" id="kpi-aprobacion">—</span></div>
+    </div>
+    <div class="cap-grid-2 cap-mt">
       <div class="cap-widget">
         <div class="cap-widget-head">
           <i class="bi bi-people-fill"></i>
@@ -47,6 +64,10 @@
               </div>
             </div>
           </div>
+          <div class="cap-donut-row cap-mt">
+            <canvas id="cap-donut-personal" height="140"></canvas>
+            <canvas id="cap-donut-cert" height="140"></canvas>
+          </div>
         </div>
       </div>
 
@@ -70,6 +91,205 @@
         <div class="cap-cal-grid" id="cap-cal-grid"></div>
       </div>
     </div>
+    <div class="cap-grid-2 cap-mt">
+      <div class="cap-widget">
+        <div class="cap-widget-head"><i class="bi bi-bar-chart"></i><h2 class="cap-widget-title">Cumplimiento por sector</h2></div>
+        <div class="cap-widget-body" id="cap-chart-sectores"></div>
+        <div class="cap-donut-single cap-mt"><canvas id="cap-donut-sector" height="180"></canvas></div>
+      </div>
+      <div class="cap-widget">
+        <div class="cap-widget-head"><i class="bi bi-graph-up"></i><h2 class="cap-widget-title">Evolución mensual</h2></div>
+        <div class="cap-widget-body" id="cap-chart-evolucion"></div>
+      </div>
+    </div>
+    <div class="cap-grid-2 cap-mt">
+      <div class="cap-widget">
+        <div class="cap-widget-head"><i class="bi bi-pie-chart"></i><h2 class="cap-widget-title">Cumplimiento por tipo de curso</h2></div>
+        <div class="cap-widget-body cap-donut-single"><canvas id="cap-donut-tipo" height="200"></canvas></div>
+      </div>
+      <div class="cap-widget">
+        <div class="cap-widget-head"><i class="bi bi-list-check"></i><h2 class="cap-widget-title">Detalle por tipo</h2></div>
+        <div class="cap-widget-body" id="cap-chart-tipos"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CALENDARIO -->
+  <div data-cap-view="calendario" class="cap-hidden">
+    <div class="cap-widget">
+      <div class="cap-widget-head cap-widget-head--split">
+        <div class="cap-widget-head-left"><i class="bi bi-calendar3"></i><h2 class="cap-widget-title">Calendario de capacitaciones</h2></div>
+        <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-nuevo-encuentro"><i class="bi bi-plus-lg"></i> Programar</button>
+      </div>
+      <div class="cap-cal-toolbar">
+        <div class="cap-cal-nav">
+          <button type="button" class="cap-cal-btn" id="cap-cal-prev-2"><i class="bi bi-chevron-left"></i></button>
+          <button type="button" class="cap-cal-btn" id="cap-cal-next-2"><i class="bi bi-chevron-right"></i></button>
+        </div>
+        <div class="cap-cal-month" id="cap-cal-month-label-2">—</div>
+      </div>
+      <div class="cap-cal-grid" id="cap-cal-grid-2"></div>
+    </div>
+    <div class="cap-form-panel cap-hidden cap-mt" id="cap-encuentro-form-panel">
+      <form id="cap-encuentro-form" class="cap-form">
+        <div class="cap-form-row cap-form-row--2">
+          <div><label class="cap-label">Título *</label><input class="cap-input" name="titulo" required></div>
+          <div><label class="cap-label">Fecha *</label><input class="cap-input" name="fecha" type="date" required></div>
+        </div>
+        <div class="cap-form-row cap-form-row--2">
+          <div><label class="cap-label">Hora inicio</label><input class="cap-input" name="hora_inicio" type="time"></div>
+          <div><label class="cap-label">Instructor</label><input class="cap-input" name="instructor"></div>
+        </div>
+        <div class="cap-form-row cap-form-row--2">
+          <div><label class="cap-label">Lugar</label><input class="cap-input" name="lugar"></div>
+          <div><label class="cap-label">Link virtual</label><input class="cap-input" name="link_virtual"></div>
+        </div>
+        <p class="cap-form-hint cap-form-hint--error" id="cap-encuentro-form-error"></p>
+        <div class="cap-form-actions">
+          <button type="button" class="cap-btn cap-btn--ghost" id="cap-encuentro-cancel">Cancelar</button>
+          <button type="submit" class="cap-btn cap-btn--primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- PROGRAMAS -->
+  <div data-cap-view="programas" class="cap-hidden">
+    <div class="cap-widget">
+      <div class="cap-widget-head"><i class="bi bi-calendar-event"></i><h2 class="cap-widget-title">Programas</h2></div>
+      <div class="cap-widget-body" id="cap-programas-list"><p class="cap-loading">Cargando...</p></div>
+    </div>
+  </div>
+
+  <!-- MATRIZ -->
+  <div data-cap-view="matriz" class="cap-hidden">
+    <div class="cap-widget">
+      <div class="cap-widget-head cap-widget-head--split">
+        <div class="cap-widget-head-left"><i class="bi bi-grid-3x3-gap"></i><h2 class="cap-widget-title">Matriz analítica</h2></div>
+        <div class="cap-toolbar-actions">
+          <select class="cap-input cap-input--sm" id="cap-matriz-sector"><option value="">Todos los sectores</option></select>
+          <select class="cap-input cap-input--sm" id="cap-matriz-estado">
+            <option value="">Todos</option>
+            <option value="aprobada">Aprobada</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="programada">Programada</option>
+            <option value="vencida">Vencida</option>
+          </select>
+          <a class="cap-btn cap-btn--ghost" id="cap-matriz-export" href="#"><i class="bi bi-download"></i> Excel</a>
+        </div>
+      </div>
+      <div class="cap-matriz-wrap">
+        <table class="cap-matriz-table" id="cap-matriz-table">
+          <thead id="cap-matriz-head"><tr><th>Persona</th></tr></thead>
+          <tbody id="cap-matriz-body"><tr><td class="cap-loading">Cargando...</td></tr></tbody>
+        </table>
+      </div>
+      <div class="cap-leyenda">
+        <span class="cap-leyenda-item cap-leyenda--verde">Vigente</span>
+        <span class="cap-leyenda-item cap-leyenda--amarillo">Próximo a vencer</span>
+        <span class="cap-leyenda-item cap-leyenda--rojo">Vencido</span>
+        <span class="cap-leyenda-item cap-leyenda--azul">Programado</span>
+        <span class="cap-leyenda-item cap-leyenda--gris">No aplica</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ALERTAS -->
+  <div data-cap-view="alertas" class="cap-hidden">
+    <div class="cap-widget cap-mb">
+      <div class="cap-widget-head cap-widget-head--split">
+        <div class="cap-widget-head-left"><i class="bi bi-bell"></i><h2 class="cap-widget-title">Alertas</h2></div>
+        <div class="cap-toolbar-actions">
+          <button type="button" class="cap-btn cap-btn--ghost" id="cap-btn-enviar-notif"><i class="bi bi-envelope"></i> Enviar email</button>
+          <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-generar-alertas"><i class="bi bi-arrow-repeat"></i> Actualizar</button>
+        </div>
+      </div>
+      <p class="cap-form-hint cap-px" id="cap-alertas-notif-msg"></p>
+      <div class="cap-widget-body cap-widget-body--flush">
+        <table class="cap-data-table cap-data-table--clickable">
+          <thead><tr><th>Nivel</th><th>Título</th><th>Mensaje</th><th>Fecha</th></tr></thead>
+          <tbody id="cap-alertas-body"><tr><td colspan="4" class="cap-loading">Cargando...</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIGURACIÓN -->
+  <div data-cap-view="configuracion" class="cap-hidden">
+    <div class="cap-widget cap-mb">
+      <div class="cap-widget-head"><i class="bi bi-sliders"></i><h2 class="cap-widget-title">Umbrales de alerta</h2></div>
+      <div class="cap-widget-body">
+        <form id="cap-config-form" class="cap-form">
+          <div class="cap-form-row cap-form-row--3">
+            <div>
+              <label class="cap-label" for="cap-cfg-dias-vencer">Días próximo a vencer</label>
+              <input class="cap-input" id="cap-cfg-dias-vencer" name="dias_proximo_vencer" type="number" min="1" max="365" value="30">
+            </div>
+            <div>
+              <label class="cap-label" for="cap-cfg-dias-encuentro">Días aviso encuentros</label>
+              <input class="cap-input" id="cap-cfg-dias-encuentro" name="dias_encuentro_proximo" type="number" min="1" max="90" value="7">
+            </div>
+            <div>
+              <label class="cap-label" for="cap-cfg-pct-cumplimiento">% cumplimiento mínimo</label>
+              <input class="cap-input" id="cap-cfg-pct-cumplimiento" name="pct_cumplimiento_minimo" type="number" min="0" max="100" value="80">
+            </div>
+          </div>
+          <h3 class="cap-subtitle">Notificaciones por email</h3>
+          <div class="cap-form-row cap-form-row--2">
+            <label class="cap-check"><input type="checkbox" id="cap-cfg-notif-activo"> Activar envío automático al actualizar alertas</label>
+            <label class="cap-check"><input type="checkbox" id="cap-cfg-notif-vencimiento" checked> Vencimientos próximos</label>
+            <label class="cap-check"><input type="checkbox" id="cap-cfg-notif-obligatorio" checked> Obligatorias pendientes</label>
+            <label class="cap-check"><input type="checkbox" id="cap-cfg-notif-curso" checked> Cursos programados</label>
+          </div>
+          <div class="cap-form-row">
+            <label class="cap-label" for="cap-cfg-emails">Destinatarios globales (uno por línea)</label>
+            <textarea class="cap-input" id="cap-cfg-emails" rows="3" placeholder="rrhh@empresa.com"></textarea>
+          </div>
+          <div class="cap-form-row">
+            <label class="cap-label" for="cap-cfg-emails-sector">Emails por sector (JSON: {"1":["a@x.com"]})</label>
+            <textarea class="cap-input" id="cap-cfg-emails-sector" rows="2" placeholder='{"1":["sector@empresa.com"]}'></textarea>
+          </div>
+          <div class="cap-form-row">
+            <label class="cap-label" for="cap-cfg-emails-rol">Emails por rol (JSON: {"administrador":["admin@x.com"]})</label>
+            <textarea class="cap-input" id="cap-cfg-emails-rol" rows="2" placeholder='{"administrador":["admin@empresa.com"]}'></textarea>
+          </div>
+          <p class="cap-form-hint" id="cap-config-ultimo-envio"></p>
+          <p class="cap-form-hint" id="cap-config-error"></p>
+          <div class="cap-form-actions">
+            <button type="submit" class="cap-btn cap-btn--primary">Guardar configuración</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- REPORTES ISO -->
+  <div data-cap-view="reportes" class="cap-hidden">
+    <div class="cap-widget">
+      <div class="cap-widget-head cap-widget-head--split">
+        <div class="cap-widget-head-left"><i class="bi bi-file-earmark-check"></i><h2 class="cap-widget-title">Reportes ISO (auditoría)</h2></div>
+        <div class="cap-toolbar-actions">
+          <a class="cap-btn cap-btn--ghost" id="cap-reporte-general-pdf" href="#"><i class="bi bi-file-earmark-pdf"></i> Reporte general PDF</a>
+        </div>
+      </div>
+      <div class="cap-widget-body">
+        <div class="cap-tabs" id="cap-iso-tabs">
+          <button type="button" class="cap-tab active" data-norma="9001">ISO 9001</button>
+          <button type="button" class="cap-tab" data-norma="14001">ISO 14001</button>
+          <button type="button" class="cap-tab" data-norma="45001">ISO 45001</button>
+        </div>
+        <div id="cap-iso-resumen" class="cap-iso-resumen cap-mt"></div>
+        <div class="cap-toolbar-actions cap-mt">
+          <a class="cap-btn cap-btn--primary" id="cap-iso-pdf" href="#"><i class="bi bi-download"></i> Exportar PDF</a>
+        </div>
+        <div class="cap-matriz-wrap cap-mt">
+          <table class="cap-data-table" id="cap-iso-table">
+            <thead><tr><th>Persona</th><th>Legajo</th><th>Sector</th><th>Cumplimiento</th><th>Detalle</th></tr></thead>
+            <tbody id="cap-iso-body"><tr><td colspan="5" class="cap-loading">Seleccioná una norma</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- PERSONAS: analítico individual -->
@@ -84,9 +304,18 @@
           <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-nueva-persona">
             <i class="bi bi-plus-lg"></i> Agregar
           </button>
+          <button type="button" class="cap-btn cap-btn--ghost" id="cap-btn-importar-personas"><i class="bi bi-upload"></i> Importar</button>
+          <button type="button" class="cap-btn cap-btn--ghost" id="cap-btn-sync-vacaciones" title="Importar legajos desde Vacaciones"><i class="bi bi-arrow-left-right"></i> Sync Vacaciones</button>
         </div>
+        <div class="cap-toolbar-actions cap-px cap-pb">
+          <input type="search" class="cap-input cap-input--sm" id="cap-personas-q" placeholder="Filtrar por nombre o legajo…">
+          <select class="cap-input cap-input--sm" id="cap-personas-sector"><option value="">Todos los sectores</option></select>
+        </div>
+        <input type="file" id="cap-import-personas-file" accept=".xlsx,.xls" class="cap-hidden">
+        <input type="file" id="cap-cert-upload-file" accept=".pdf" class="cap-hidden">
         <div class="cap-form-panel cap-hidden" id="cap-persona-form-panel">
           <form id="cap-persona-form" class="cap-form">
+            <input type="hidden" id="cap-p-id" name="id" value="">
             <div class="cap-form-row">
               <label class="cap-label" for="cap-p-nombre">Nombre *</label>
               <input class="cap-input" id="cap-p-nombre" name="nombre" required maxlength="150">
@@ -104,20 +333,53 @@
             <div class="cap-form-row cap-form-row--2">
               <div>
                 <label class="cap-label" for="cap-p-sector">Sector</label>
-                <select class="cap-input" id="cap-p-sector" name="sector_id">
-                  <option value="">— Sin sector —</option>
-                </select>
+                <div class="cap-input-group">
+                  <select class="cap-input" id="cap-p-sector" name="sector_id">
+                    <option value="">— Sin sector —</option>
+                  </select>
+                  <button type="button" class="cap-btn cap-btn--icon" id="cap-p-sector-add" title="Agregar sector">
+                    <i class="bi bi-plus-lg"></i>
+                  </button>
+                </div>
               </div>
               <div>
                 <label class="cap-label" for="cap-p-puesto">Puesto</label>
-                <select class="cap-input" id="cap-p-puesto" name="puesto_id">
-                  <option value="">— Sin puesto —</option>
-                </select>
+                <div class="cap-input-group">
+                  <select class="cap-input" id="cap-p-puesto" name="puesto_id">
+                    <option value="">— Sin puesto —</option>
+                  </select>
+                  <button type="button" class="cap-btn cap-btn--icon" id="cap-p-puesto-add" title="Agregar puesto">
+                    <i class="bi bi-plus-lg"></i>
+                  </button>
+                </div>
               </div>
             </div>
             <p class="cap-form-hint" id="cap-persona-form-error"></p>
+            <div class="cap-quick-form cap-hidden" id="cap-sector-quick">
+              <p class="cap-quick-form-title">Nuevo sector</p>
+              <div class="cap-form-row cap-form-row--2">
+                <input class="cap-input" id="cap-sector-quick-codigo" placeholder="Código" maxlength="20">
+                <input class="cap-input" id="cap-sector-quick-nombre" placeholder="Nombre" maxlength="100">
+              </div>
+              <div class="cap-form-actions">
+                <button type="button" class="cap-btn cap-btn--ghost" id="cap-sector-quick-cancel">Cancelar</button>
+                <button type="button" class="cap-btn cap-btn--primary" id="cap-sector-quick-save">Guardar sector</button>
+              </div>
+            </div>
+            <div class="cap-quick-form cap-hidden" id="cap-puesto-quick">
+              <p class="cap-quick-form-title">Nuevo puesto</p>
+              <div class="cap-form-row cap-form-row--2">
+                <input class="cap-input" id="cap-puesto-quick-codigo" placeholder="Código" maxlength="20">
+                <input class="cap-input" id="cap-puesto-quick-nombre" placeholder="Nombre" maxlength="150">
+              </div>
+              <div class="cap-form-actions">
+                <button type="button" class="cap-btn cap-btn--ghost" id="cap-puesto-quick-cancel">Cancelar</button>
+                <button type="button" class="cap-btn cap-btn--primary" id="cap-puesto-quick-save">Guardar puesto</button>
+              </div>
+            </div>
             <div class="cap-form-actions">
               <button type="button" class="cap-btn cap-btn--ghost" id="cap-persona-cancel">Cancelar</button>
+              <button type="button" class="cap-btn cap-btn--danger cap-hidden" id="cap-persona-baja">Dar de baja</button>
               <button type="submit" class="cap-btn cap-btn--primary">Guardar</button>
             </div>
           </form>
@@ -135,18 +397,23 @@
   <!-- CATÁLOGOS -->
   <div data-cap-view="catalogos" class="cap-hidden">
     <div class="cap-catalogos-grid">
-      <div class="cap-widget">
+      <div class="cap-widget cap-widget--full">
         <div class="cap-widget-head cap-widget-head--split">
           <div class="cap-widget-head-left">
             <i class="bi bi-book"></i>
             <h2 class="cap-widget-title">Cursos</h2>
           </div>
-          <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-nuevo-curso">
-            <i class="bi bi-plus-lg"></i> Agregar
-          </button>
+          <div class="cap-toolbar-actions">
+            <button type="button" class="cap-btn cap-btn--ghost" id="cap-btn-importar-cursos"><i class="bi bi-upload"></i> Importar Excel</button>
+            <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-nuevo-curso">
+              <i class="bi bi-plus-lg"></i> Agregar
+            </button>
+          </div>
         </div>
+        <input type="file" id="cap-import-cursos-file" accept=".xlsx,.xls" class="cap-hidden">
         <div class="cap-form-panel cap-hidden" id="cap-curso-form-panel">
           <form id="cap-curso-form" class="cap-form">
+            <input type="hidden" id="cap-c-id" name="id" value="">
             <div class="cap-form-row cap-form-row--2">
               <div>
                 <label class="cap-label" for="cap-c-codigo">Código *</label>
@@ -163,6 +430,20 @@
             </div>
             <div class="cap-form-row cap-form-row--3">
               <div>
+                <label class="cap-label" for="cap-c-tipo">Tipo</label>
+                <select class="cap-input" id="cap-c-tipo" name="tipo_capacitacion">
+                  <option value="">—</option>
+                  <option value="obligatoria">Obligatoria</option>
+                  <option value="interna">Interna</option>
+                  <option value="externa">Externa</option>
+                  <option value="hse">HSE</option>
+                  <option value="tecnica">Técnica</option>
+                  <option value="sgi">SGI</option>
+                  <option value="induccion">Inducción</option>
+                  <option value="normativa">Normativa</option>
+                </select>
+              </div>
+              <div>
                 <label class="cap-label" for="cap-c-horas">Horas</label>
                 <input class="cap-input" id="cap-c-horas" name="horas" type="number" min="0" step="0.5">
               </div>
@@ -175,15 +456,25 @@
                   <option value="mixta">Mixta</option>
                 </select>
               </div>
+            </div>
+            <div class="cap-form-row cap-form-row--3">
               <div>
                 <label class="cap-label" for="cap-c-vigencia">Vigencia (meses)</label>
                 <input class="cap-input" id="cap-c-vigencia" name="vigencia_meses" type="number" min="1" step="1">
+              </div>
+              <div>
+                <label class="cap-label" for="cap-c-puntaje">Puntaje mínimo</label>
+                <input class="cap-input" id="cap-c-puntaje" name="puntaje_minimo" type="number" min="0" max="10" step="0.1">
+              </div>
+              <div class="cap-form-row" style="align-self:end">
+                <label class="cap-label"><input type="checkbox" id="cap-c-eval" name="requiere_evaluacion" value="1"> Requiere evaluación</label>
               </div>
             </div>
             <p class="cap-form-hint cap-form-hint--error" id="cap-curso-form-error"></p>
             <div class="cap-form-actions">
               <button type="button" class="cap-btn cap-btn--ghost" id="cap-curso-cancel">Cancelar</button>
-              <button type="submit" class="cap-btn cap-btn--primary">Guardar</button>
+              <button type="button" class="cap-btn cap-btn--danger cap-hidden" id="cap-curso-baja">Dar de baja</button>
+              <button type="submit" class="cap-btn cap-btn--primary" id="cap-curso-submit">Guardar</button>
             </div>
           </form>
         </div>
@@ -193,12 +484,59 @@
               <tr>
                 <th>Código</th>
                 <th>Nombre</th>
+                <th>Tipo</th>
                 <th>Horas</th>
-                <th>Modalidad</th>
+                <th class="cap-col-actions"></th>
               </tr>
             </thead>
             <tbody id="cap-cursos-body">
-              <tr><td colspan="4" class="cap-loading">Cargando...</td></tr>
+              <tr><td colspan="5" class="cap-loading">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="cap-widget">
+        <div class="cap-widget-head cap-widget-head--split">
+          <div class="cap-widget-head-left">
+            <i class="bi bi-diagram-3"></i>
+            <h2 class="cap-widget-title">Sectores</h2>
+          </div>
+          <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-nuevo-sector">
+            <i class="bi bi-plus-lg"></i> Agregar
+          </button>
+        </div>
+        <div class="cap-form-panel cap-hidden" id="cap-sector-form-panel">
+          <form id="cap-sector-form" class="cap-form">
+            <input type="hidden" id="cap-s-id" name="id" value="">
+            <div class="cap-form-row cap-form-row--2">
+              <div>
+                <label class="cap-label" for="cap-s-codigo">Código *</label>
+                <input class="cap-input" id="cap-s-codigo" name="codigo" required maxlength="20">
+              </div>
+              <div>
+                <label class="cap-label" for="cap-s-nombre">Nombre *</label>
+                <input class="cap-input" id="cap-s-nombre" name="nombre" required maxlength="100">
+              </div>
+            </div>
+            <p class="cap-form-hint cap-form-hint--error" id="cap-sector-form-error"></p>
+            <div class="cap-form-actions">
+              <button type="button" class="cap-btn cap-btn--ghost" id="cap-sector-cancel">Cancelar</button>
+              <button type="submit" class="cap-btn cap-btn--primary" id="cap-sector-submit">Guardar</button>
+            </div>
+          </form>
+        </div>
+        <div class="cap-widget-body cap-widget-body--flush">
+          <table class="cap-data-table" id="cap-sectores-table">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th class="cap-col-actions"></th>
+              </tr>
+            </thead>
+            <tbody id="cap-sectores-body">
+              <tr><td colspan="3" class="cap-loading">Cargando...</td></tr>
             </tbody>
           </table>
         </div>
@@ -216,6 +554,7 @@
         </div>
         <div class="cap-form-panel cap-hidden" id="cap-puesto-form-panel">
           <form id="cap-puesto-form" class="cap-form">
+            <input type="hidden" id="cap-u-id" name="id" value="">
             <div class="cap-form-row cap-form-row--2">
               <div>
                 <label class="cap-label" for="cap-u-codigo">Código *</label>
@@ -229,7 +568,7 @@
             <p class="cap-form-hint cap-form-hint--error" id="cap-puesto-form-error"></p>
             <div class="cap-form-actions">
               <button type="button" class="cap-btn cap-btn--ghost" id="cap-puesto-cancel">Cancelar</button>
-              <button type="submit" class="cap-btn cap-btn--primary">Guardar</button>
+              <button type="submit" class="cap-btn cap-btn--primary" id="cap-puesto-submit">Guardar</button>
             </div>
           </form>
         </div>
@@ -239,13 +578,67 @@
               <tr>
                 <th>Código</th>
                 <th>Nombre</th>
+                <th class="cap-col-actions"></th>
               </tr>
             </thead>
             <tbody id="cap-puestos-body">
-              <tr><td colspan="2" class="cap-loading">Cargando...</td></tr>
+              <tr><td colspan="3" class="cap-loading">Cargando...</td></tr>
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div class="cap-widget cap-widget--full">
+        <div class="cap-widget-head cap-widget-head--split">
+          <div class="cap-widget-head-left">
+            <i class="bi bi-list-check"></i>
+            <h2 class="cap-widget-title">Requisitos por puesto</h2>
+          </div>
+        </div>
+        <div class="cap-widget-body">
+          <div class="cap-form-row cap-form-row--2">
+            <div>
+              <label class="cap-label" for="cap-req-puesto">Puesto</label>
+              <select class="cap-input" id="cap-req-puesto"><option value="">— Seleccionar puesto —</option></select>
+            </div>
+            <div>
+              <label class="cap-label" for="cap-req-curso">Curso a agregar</label>
+              <div class="cap-input-group">
+                <select class="cap-input" id="cap-req-curso"><option value="">— Seleccionar curso —</option></select>
+                <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-agregar-requisito"><i class="bi bi-plus-lg"></i></button>
+              </div>
+            </div>
+          </div>
+          <p class="cap-form-hint cap-form-hint--error" id="cap-requisito-error"></p>
+          <table class="cap-data-table cap-mt">
+            <thead><tr><th>Curso</th><th>Obligatorio</th><th></th></tr></thead>
+            <tbody id="cap-requisitos-body"><tr><td colspan="3" class="cap-empty">Seleccioná un puesto</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal asistencia -->
+  <div class="cap-modal cap-hidden" id="cap-asistencia-modal">
+    <div class="cap-modal-backdrop" id="cap-asistencia-backdrop"></div>
+    <div class="cap-modal-panel">
+      <div class="cap-widget-head cap-widget-head--split">
+        <div class="cap-widget-head-left">
+          <i class="bi bi-clipboard-check"></i>
+          <h2 class="cap-widget-title" id="cap-asistencia-titulo">Asistencia y evaluación</h2>
+        </div>
+        <button type="button" class="cap-btn cap-btn--icon" id="cap-asistencia-cerrar"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div class="cap-widget-body cap-widget-body--flush">
+        <table class="cap-data-table">
+          <thead><tr><th>Persona</th><th>Asistencia</th><th>Nota</th><th>Aprobado</th></tr></thead>
+          <tbody id="cap-asistencia-body"></tbody>
+        </table>
+      </div>
+      <div class="cap-form-actions" style="padding:1rem">
+        <button type="button" class="cap-btn cap-btn--ghost" id="cap-asistencia-cancel">Cancelar</button>
+        <button type="button" class="cap-btn cap-btn--primary" id="cap-asistencia-guardar">Guardar asistencias</button>
       </div>
     </div>
   </div>

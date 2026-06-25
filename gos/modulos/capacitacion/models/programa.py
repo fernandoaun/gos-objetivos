@@ -51,6 +51,7 @@ class EncuentroCapacitacion(db.Model, TimestampMixin):
     hora_inicio = db.Column(db.Time, nullable=True)
     hora_fin = db.Column(db.Time, nullable=True)
     lugar = db.Column(db.String(200), nullable=True)
+    link_virtual = db.Column(db.String(500), nullable=True)
     instructor = db.Column(db.String(150), nullable=True)
     estado = db.Column(db.String(20), default="programado", nullable=False)
     observaciones = db.Column(db.Text, nullable=True)
