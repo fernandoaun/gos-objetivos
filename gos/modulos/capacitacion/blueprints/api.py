@@ -3,19 +3,43 @@ from datetime import date
 from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required
 
+from gos.models.usuario import usuario_cumple_rol
 from gos.modulos.capacitacion.models import Participante
 from gos.modulos.capacitacion.services import (
     analitico_participante,
+    crear_curso,
+    crear_participante,
+    crear_puesto,
     encuentros_calendario,
+    listar_cursos,
+    listar_puestos,
+    listar_sectores,
     resumen_dashboard,
 )
 
 bp = Blueprint("capacitacion_api", __name__)
 
 
-@bp.route("/participantes")
+def _puede_editar() -> bool:
+    return usuario_cumple_rol(current_user, "administrador", "angel")
+
+
+def _json_body() -> dict:
+    return request.get_json(silent=True) or {}
+
+
+@bp.route("/participantes", methods=["GET", "POST"])
 @login_required
-def listar_participantes():
+def participantes():
+    if request.method == "POST":
+        if not _puede_editar():
+            return jsonify({"error": "No tenés permiso para esta acción."}), 403
+        try:
+            item = crear_participante(current_user.empresa_id, _json_body())
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"participante": item}), 201
+
     q = Participante.query.filter_by(empresa_id=current_user.empresa_id, activo=True)
     sector_id = request.args.get("sector_id", type=int)
     puesto_id = request.args.get("puesto_id", type=int)
@@ -45,6 +69,40 @@ def analitico(participante_id: int):
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 403
     return jsonify(data)
+
+
+@bp.route("/cursos", methods=["GET", "POST"])
+@login_required
+def cursos():
+    if request.method == "POST":
+        if not _puede_editar():
+            return jsonify({"error": "No tenés permiso para esta acción."}), 403
+        try:
+            item = crear_curso(current_user.empresa_id, _json_body())
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"curso": item}), 201
+    return jsonify({"cursos": listar_cursos(current_user.empresa_id)})
+
+
+@bp.route("/puestos", methods=["GET", "POST"])
+@login_required
+def puestos():
+    if request.method == "POST":
+        if not _puede_editar():
+            return jsonify({"error": "No tenés permiso para esta acción."}), 403
+        try:
+            item = crear_puesto(current_user.empresa_id, _json_body())
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"puesto": item}), 201
+    return jsonify({"puestos": listar_puestos(current_user.empresa_id)})
+
+
+@bp.route("/sectores")
+@login_required
+def sectores():
+    return jsonify({"sectores": listar_sectores(current_user.empresa_id)})
 
 
 @bp.route("/dashboard")

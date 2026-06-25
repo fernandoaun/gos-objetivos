@@ -75,3 +75,64 @@ def test_analitico_participante_pendientes_y_plan(app):
         assert data["resumen"]["total_sin_planificar"] == 0
         assert len(data["planificacion"]) == 1
         assert data["planificacion"][0]["fecha_planificada"] == "2026-07-15"
+
+
+def test_api_crear_curso_y_participante(auth_client, app):
+    with app.app_context():
+        from gos.models import Empresa
+
+        emp = Empresa.query.first()
+        sector = Sector(empresa_id=emp.id, codigo="RH", nombre="RRHH")
+        db.session.add(sector)
+        db.session.commit()
+        sector_id = sector.id
+
+    r = auth_client.post(
+        "/gos/capacitacion/api/cursos",
+        json={"codigo": "SEG-01", "nombre": "Seguridad", "horas": 8, "modalidad": "presencial"},
+    )
+    assert r.status_code == 201
+    assert r.get_json()["curso"]["codigo"] == "SEG-01"
+
+    r2 = auth_client.post(
+        "/gos/capacitacion/api/puestos",
+        json={"codigo": "OP", "nombre": "Operario"},
+    )
+    assert r2.status_code == 201
+    puesto_id = r2.get_json()["puesto"]["id"]
+
+    r3 = auth_client.post(
+        "/gos/capacitacion/api/participantes",
+        json={
+            "nombre": "María López",
+            "legajo": "2002",
+            "sector_id": sector_id,
+            "puesto_id": puesto_id,
+        },
+    )
+    assert r3.status_code == 201
+    assert r3.get_json()["participante"]["nombre"] == "María López"
+
+    lista = auth_client.get("/gos/capacitacion/api/participantes")
+    assert len(lista.get_json()["participantes"]) == 1
+
+
+def test_api_crear_curso_duplicado(auth_client):
+    auth_client.post(
+        "/gos/capacitacion/api/cursos",
+        json={"codigo": "DUP", "nombre": "Uno"},
+    )
+    r = auth_client.post(
+        "/gos/capacitacion/api/cursos",
+        json={"codigo": "DUP", "nombre": "Dos"},
+    )
+    assert r.status_code == 400
+    assert "código" in r.get_json()["error"].lower()
+
+
+def test_api_alumno_no_puede_crear(alumno_client):
+    r = alumno_client.post(
+        "/gos/capacitacion/api/cursos",
+        json={"codigo": "X", "nombre": "Test"},
+    )
+    assert r.status_code == 403

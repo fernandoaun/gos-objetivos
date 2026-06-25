@@ -76,9 +76,51 @@
   <div data-cap-view="personas" class="cap-hidden">
     <div class="cap-personas-layout">
       <div class="cap-widget">
-        <div class="cap-widget-head">
-          <i class="bi bi-person-lines-fill"></i>
-          <h2 class="cap-widget-title">Personas</h2>
+        <div class="cap-widget-head cap-widget-head--split">
+          <div class="cap-widget-head-left">
+            <i class="bi bi-person-lines-fill"></i>
+            <h2 class="cap-widget-title">Personas</h2>
+          </div>
+          <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-nueva-persona">
+            <i class="bi bi-plus-lg"></i> Agregar
+          </button>
+        </div>
+        <div class="cap-form-panel cap-hidden" id="cap-persona-form-panel">
+          <form id="cap-persona-form" class="cap-form">
+            <div class="cap-form-row">
+              <label class="cap-label" for="cap-p-nombre">Nombre *</label>
+              <input class="cap-input" id="cap-p-nombre" name="nombre" required maxlength="150">
+            </div>
+            <div class="cap-form-row cap-form-row--2">
+              <div>
+                <label class="cap-label" for="cap-p-legajo">Legajo</label>
+                <input class="cap-input" id="cap-p-legajo" name="legajo" maxlength="30">
+              </div>
+              <div>
+                <label class="cap-label" for="cap-p-email">Email</label>
+                <input class="cap-input" id="cap-p-email" name="email" type="email" maxlength="150">
+              </div>
+            </div>
+            <div class="cap-form-row cap-form-row--2">
+              <div>
+                <label class="cap-label" for="cap-p-sector">Sector</label>
+                <select class="cap-input" id="cap-p-sector" name="sector_id">
+                  <option value="">— Sin sector —</option>
+                </select>
+              </div>
+              <div>
+                <label class="cap-label" for="cap-p-puesto">Puesto</label>
+                <select class="cap-input" id="cap-p-puesto" name="puesto_id">
+                  <option value="">— Sin puesto —</option>
+                </select>
+              </div>
+            </div>
+            <p class="cap-form-hint" id="cap-persona-form-error"></p>
+            <div class="cap-form-actions">
+              <button type="button" class="cap-btn cap-btn--ghost" id="cap-persona-cancel">Cancelar</button>
+              <button type="submit" class="cap-btn cap-btn--primary">Guardar</button>
+            </div>
+          </form>
         </div>
         <ul class="cap-list" id="cap-personas-list"></ul>
       </div>
@@ -92,13 +134,118 @@
 
   <!-- CATÁLOGOS -->
   <div data-cap-view="catalogos" class="cap-hidden">
-    <div class="cap-widget">
-      <div class="cap-widget-head">
-        <i class="bi bi-journal-bookmark"></i>
-        <h2 class="cap-widget-title">Catálogos</h2>
+    <div class="cap-catalogos-grid">
+      <div class="cap-widget">
+        <div class="cap-widget-head cap-widget-head--split">
+          <div class="cap-widget-head-left">
+            <i class="bi bi-book"></i>
+            <h2 class="cap-widget-title">Cursos</h2>
+          </div>
+          <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-nuevo-curso">
+            <i class="bi bi-plus-lg"></i> Agregar
+          </button>
+        </div>
+        <div class="cap-form-panel cap-hidden" id="cap-curso-form-panel">
+          <form id="cap-curso-form" class="cap-form">
+            <div class="cap-form-row cap-form-row--2">
+              <div>
+                <label class="cap-label" for="cap-c-codigo">Código *</label>
+                <input class="cap-input" id="cap-c-codigo" name="codigo" required maxlength="30">
+              </div>
+              <div>
+                <label class="cap-label" for="cap-c-nombre">Nombre *</label>
+                <input class="cap-input" id="cap-c-nombre" name="nombre" required maxlength="200">
+              </div>
+            </div>
+            <div class="cap-form-row">
+              <label class="cap-label" for="cap-c-descripcion">Descripción</label>
+              <textarea class="cap-input cap-textarea" id="cap-c-descripcion" name="descripcion" rows="2"></textarea>
+            </div>
+            <div class="cap-form-row cap-form-row--3">
+              <div>
+                <label class="cap-label" for="cap-c-horas">Horas</label>
+                <input class="cap-input" id="cap-c-horas" name="horas" type="number" min="0" step="0.5">
+              </div>
+              <div>
+                <label class="cap-label" for="cap-c-modalidad">Modalidad</label>
+                <select class="cap-input" id="cap-c-modalidad" name="modalidad">
+                  <option value="">—</option>
+                  <option value="presencial">Presencial</option>
+                  <option value="virtual">Virtual</option>
+                  <option value="mixta">Mixta</option>
+                </select>
+              </div>
+              <div>
+                <label class="cap-label" for="cap-c-vigencia">Vigencia (meses)</label>
+                <input class="cap-input" id="cap-c-vigencia" name="vigencia_meses" type="number" min="1" step="1">
+              </div>
+            </div>
+            <p class="cap-form-hint cap-form-hint--error" id="cap-curso-form-error"></p>
+            <div class="cap-form-actions">
+              <button type="button" class="cap-btn cap-btn--ghost" id="cap-curso-cancel">Cancelar</button>
+              <button type="submit" class="cap-btn cap-btn--primary">Guardar</button>
+            </div>
+          </form>
+        </div>
+        <div class="cap-widget-body cap-widget-body--flush">
+          <table class="cap-data-table" id="cap-cursos-table">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Horas</th>
+                <th>Modalidad</th>
+              </tr>
+            </thead>
+            <tbody id="cap-cursos-body">
+              <tr><td colspan="4" class="cap-loading">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-      <div class="cap-widget-body">
-        <p class="cap-empty">Cursos, puestos y tipos de certificación — próximamente.</p>
+
+      <div class="cap-widget">
+        <div class="cap-widget-head cap-widget-head--split">
+          <div class="cap-widget-head-left">
+            <i class="bi bi-briefcase"></i>
+            <h2 class="cap-widget-title">Puestos</h2>
+          </div>
+          <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-nuevo-puesto">
+            <i class="bi bi-plus-lg"></i> Agregar
+          </button>
+        </div>
+        <div class="cap-form-panel cap-hidden" id="cap-puesto-form-panel">
+          <form id="cap-puesto-form" class="cap-form">
+            <div class="cap-form-row cap-form-row--2">
+              <div>
+                <label class="cap-label" for="cap-u-codigo">Código *</label>
+                <input class="cap-input" id="cap-u-codigo" name="codigo" required maxlength="20">
+              </div>
+              <div>
+                <label class="cap-label" for="cap-u-nombre">Nombre *</label>
+                <input class="cap-input" id="cap-u-nombre" name="nombre" required maxlength="150">
+              </div>
+            </div>
+            <p class="cap-form-hint cap-form-hint--error" id="cap-puesto-form-error"></p>
+            <div class="cap-form-actions">
+              <button type="button" class="cap-btn cap-btn--ghost" id="cap-puesto-cancel">Cancelar</button>
+              <button type="submit" class="cap-btn cap-btn--primary">Guardar</button>
+            </div>
+          </form>
+        </div>
+        <div class="cap-widget-body cap-widget-body--flush">
+          <table class="cap-data-table" id="cap-puestos-table">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Nombre</th>
+              </tr>
+            </thead>
+            <tbody id="cap-puestos-body">
+              <tr><td colspan="2" class="cap-loading">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>

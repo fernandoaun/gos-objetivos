@@ -415,3 +415,177 @@
 .cap-hidden {
   display: none !important;
 }
+
+/* —— Formularios y tablas de catálogo —— */
+.cap-widget-head--split {
+  justify-content: space-between;
+}
+
+.cap-widget-head-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cap-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--cap-border);
+  background: #fff;
+  color: var(--cap-navy-dark);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.cap-btn:hover {
+  background: var(--gos-yellow-soft);
+}
+
+.cap-btn--primary {
+  background: var(--cap-navy);
+  border-color: var(--cap-navy);
+  color: #fff;
+}
+
+.cap-btn--primary:hover {
+  background: var(--cap-navy-dark);
+}
+
+.cap-btn--ghost {
+  background: transparent;
+}
+
+.cap-form-panel {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--cap-border);
+  background: #fafbfc;
+}
+
+.cap-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.cap-form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.cap-form-row--2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+}
+
+.cap-form-row--3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.65rem;
+}
+
+@media (max-width: 700px) {
+  .cap-form-row--2,
+  .cap-form-row--3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cap-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--cap-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.cap-input {
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.88rem;
+  border: 1px solid var(--cap-border);
+  border-radius: 6px;
+  font-family: inherit;
+  color: var(--cap-text);
+  background: #fff;
+}
+
+.cap-input:focus {
+  outline: none;
+  border-color: var(--cap-navy-light);
+  box-shadow: 0 0 0 2px var(--gos-success-soft);
+}
+
+.cap-textarea {
+  resize: vertical;
+  min-height: 2.5rem;
+}
+
+.cap-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.cap-form-hint {
+  font-size: 0.8rem;
+  color: var(--cap-muted);
+  margin: 0;
+  min-height: 1rem;
+}
+
+.cap-form-hint--error {
+  color: var(--cap-red);
+}
+
+.cap-widget-body--flush {
+  padding: 0;
+}
+
+.cap-catalogos-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 1000px) {
+  .cap-catalogos-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cap-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.cap-data-table th {
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--cap-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid var(--cap-border);
+  background: #fafbfc;
+}
+
+.cap-data-table td {
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid #eef2f6;
+  color: var(--cap-navy-dark);
+}
+
+.cap-data-table tr:last-child td {
+  border-bottom: none;
+}
