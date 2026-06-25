@@ -86,6 +86,65 @@ def test_calcular_metricas_por_tipo(app):
             assert metricas["estado"] == ("En meta" if avance >= 1 else "Fuera de meta")
 
 
+def test_kpi_meta_cero_con_valor_cero(app):
+    """Meta 0 + valor 0 = cumplido (ej. incidentes ambientales)."""
+    with app.app_context():
+        from gos.extensions import db
+        from gos.models import Empresa
+
+        emp = Empresa.query.first()
+        if not emp:
+            emp = Empresa(nombre="KPI Meta Cero", activa=True)
+            db.session.add(emp)
+            db.session.commit()
+
+        kpi = kpi_service.crear_kpi(
+            emp.id,
+            codigo="KPI-Z-01",
+            indicador="Incidentes ambientales",
+            meta_2026="0",
+            tipo_agregacion="suma",
+            valores_mes={"1": 0, "2": 0, "3": 0, "4": 0},
+        )
+        metricas = kpi_service.calcular_metricas(kpi)
+        assert metricas["agregado"] == 0
+        assert metricas["avance"] == 1.0
+        assert metricas["estado"] == "En meta"
+
+
+def test_kpi_menor_es_mejor(app):
+    """Consumo / no conformidades: valor por debajo de la meta = en meta."""
+    with app.app_context():
+        from gos.extensions import db
+        from gos.models import Empresa
+
+        emp = Empresa.query.first()
+        if not emp:
+            emp = Empresa(nombre="KPI Menor", activa=True)
+            db.session.add(emp)
+            db.session.commit()
+
+        reduccion = kpi_service.crear_kpi(
+            emp.id,
+            codigo="KPI-Z-02",
+            indicador="Reduccion Consumo energético por operación",
+            meta_2026="0.1",
+            tipo_agregacion="promedio",
+            valores_mes={"1": 0, "2": 0, "3": 0, "4": 0},
+        )
+        assert kpi_service.calcular_metricas(reduccion)["estado"] == "En meta"
+
+        nc = kpi_service.crear_kpi(
+            emp.id,
+            codigo="KPI-Z-03",
+            indicador="No conformidades",
+            meta_2026="2",
+            tipo_agregacion="promedio",
+            valores_mes={"1": 0, "2": 0, "3": 0, "4": 1},
+        )
+        assert kpi_service.calcular_metricas(nc)["estado"] == "En meta"
+
+
 def test_kpi_routes_post(auth_client):
     client = auth_client
     r = client.post(

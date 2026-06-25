@@ -110,6 +110,66 @@ def _valores_mes_ordenados(kpi: KpiIndicador) -> list[float]:
     ]
 
 
+_MENOR_ES_MEJOR_KEYWORDS = (
+    "no conformidad",
+    "incidente",
+    "accidente",
+    "relación costos",
+    "relacion costos",
+    "reducción consumo",
+    "reduccion consumo",
+    "consumo energético",
+    "consumo energetico",
+    "emisión",
+    "emision",
+    "desperdicio",
+    "multa",
+    "reclamo",
+    "siniestro",
+    "derrame",
+    "fuga",
+)
+
+
+def _menor_es_mejor(kpi: KpiIndicador) -> bool:
+    """Indicadores donde la meta es un tope máximo (menos es mejor)."""
+    texto = (kpi.indicador or "").lower()
+    if any(palabra in texto for palabra in _MENOR_ES_MEJOR_KEYWORDS):
+        return True
+    return "consumo" in texto and "reutiliz" not in texto
+
+
+def _calcular_avance_estado(
+    agregado: float | None,
+    meta: float | None,
+    *,
+    menor_es_mejor: bool,
+    tiene_datos: bool,
+) -> tuple[float | None, str]:
+    if not tiene_datos and meta is None:
+        return None, "Sin datos"
+    if agregado is None:
+        return None, "Sin datos"
+    if meta is None:
+        return None, "Sin datos"
+
+    if meta == 0:
+        if agregado <= 0:
+            return 1.0, "En meta"
+        return 0.0, "Fuera de meta"
+
+    if menor_es_mejor:
+        if agregado <= meta:
+            avance = (meta / agregado) if agregado > 0 else 1.0
+            return avance, "En meta"
+        return meta / agregado, "Fuera de meta"
+
+    avance = agregado / meta
+    if avance >= 1.0:
+        return avance, "En meta"
+    return avance, "Fuera de meta"
+
+
 def _calcular_agregado(tipo: str, nums: list[float]) -> float | None:
     if not nums:
         return None
@@ -126,19 +186,13 @@ def calcular_metricas(kpi: KpiIndicador) -> dict:
     nums = _valores_mes_ordenados(kpi)
     tipo = _normalizar_tipo_agregacion(kpi.tipo_agregacion)
     agregado = _calcular_agregado(tipo, nums)
-
-    avance = None
-    if agregado is not None and kpi.meta_2026_num not in (None, 0):
-        avance = agregado / kpi.meta_2026_num
-
-    if not nums and kpi.meta_2026_num is None:
-        estado = "Sin datos"
-    elif avance is None:
-        estado = "Sin datos"
-    elif avance >= 1.0:
-        estado = "En meta"
-    else:
-        estado = "Fuera de meta"
+    meta = kpi.meta_2026_num
+    avance, estado = _calcular_avance_estado(
+        agregado,
+        meta,
+        menor_es_mejor=_menor_es_mejor(kpi),
+        tiene_datos=bool(nums),
+    )
 
     return {
         "agregado": agregado,
