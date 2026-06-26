@@ -245,6 +245,28 @@ function expectedRange(schedule,from,to,holidays){let n=0;const d=new Date(from.
 // ════════════════════════════════════════════════════════════════
 let _modalidadCache = {};
 
+function eqKey(name) { return (name || '').toString().trim(); }
+
+function modalidadStorageKey(equipo, datasetName) {
+  const eq = eqKey(equipo);
+  const ds = (datasetName || '').trim();
+  return ds ? `${ds}|${eq}` : eq;
+}
+
+function lookupSavedSchedule(equipo, datasetName) {
+  const saved = loadModalidad();
+  const eq = eqKey(equipo);
+  const ds = (datasetName || datasets[activeIdx]?.name || '').trim();
+  const candidates = [];
+  if (ds) candidates.push(`${ds}|${eq}`);
+  candidates.push(eq);
+  for (const k of candidates) {
+    const sched = saved[k];
+    if (sched && SCHEDULES.includes(sched)) return sched;
+  }
+  return null;
+}
+
 async function initModalidad() {
   try {
     const resp = await fetch('/gos/hwo/api/modalidad');
@@ -254,35 +276,37 @@ async function initModalidad() {
 
 function loadModalidad() { return _modalidadCache; }
 
-async function saveModalidad() {
-  const prefs = {};
-  for (const [k, e] of Object.entries(D.eqs)) prefs[k] = e.schedule;
-  Object.assign(_modalidadCache, prefs);
+async function saveModalidadFor(equipo, schedule) {
+  if (!equipo || !schedule || !SCHEDULES.includes(schedule)) return;
+  const eq = eqKey(equipo);
+  const storageKey = modalidadStorageKey(eq, datasets[activeIdx]?.name);
+  _modalidadCache[storageKey] = schedule;
   try {
     await fetch('/gos/hwo/api/modalidad', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(prefs),
+      body: JSON.stringify({ [storageKey]: schedule }),
     });
   } catch(e) { console.warn('No se pudo guardar modalidad:', e); }
 }
 
-function applyModalidad() {
-  const saved = loadModalidad();
+function applyModalidad(datasetName) {
+  const dsName = datasetName || datasets[activeIdx]?.name || '';
   for (const [k, e] of Object.entries(D.eqs)) {
-    if (saved[k] && SCHEDULES.includes(saved[k])) {
-      e.schedule = saved[k];
+    const saved = lookupSavedSchedule(k, dsName);
+    if (saved && e.schedule !== saved) {
+      e.schedule = saved;
+      e.fdsTolerado = calcFdsTol(saved, e._fdsTolBase);
       reCountEquipment(k);
     }
   }
 }
 
 function setSchedule(sel) {
-  const eq = sel.dataset.eq; const e = D.eqs[eq]; if (!e) return;
+  const eq = eqKey(sel.dataset.eq); const e = D.eqs[eq]; if (!e) return;
   e.schedule = sel.value;
-  _modalidadCache[eq] = sel.value;
   reCountEquipment(eq);
-  saveModalidad();
+  saveModalidadFor(eq, sel.value);
   D.burnup = calcBurnup();
   D.dailyStates = calcDailyStates();
   renderEquipmentTable(); renderKPIs(); renderChartsForView(activeView);
@@ -373,7 +397,7 @@ function mergeConfigs(existing, incoming) {
   return cfg;
 }
 
-function finalizeDataset(ds) {
+function finalizeDataset(ds, datasetName) {
   D = {};
   D.config = { ...ds.config, eqs: { ...(ds.config?.eqs || {}) } };
   D.rows = ds.rows || [];
@@ -389,12 +413,12 @@ function finalizeDataset(ds) {
     let wdHol = 0; for (const t of hSet) { const dow = new Date(t).getDay(); if (dow !== 0 && dow !== 6) wdHol++; }
     D.config.feriados = wdHol; D.config.weekdaysNoHol = Math.max(0, D.config.weekdays - wdHol);
   }
-  D.eqs = calcEquipments(); D.holidays = detectHolidays();
-  applyModalidad(); addExpectedToDate(); D.burnup = calcBurnup(); D.dailyStates = calcDailyStates();
+  D.eqs = calcEquipments(datasetName); D.holidays = detectHolidays();
+  applyModalidad(datasetName); addExpectedToDate(); D.burnup = calcBurnup(); D.dailyStates = calcDailyStates();
   return { ...D };
 }
 
-function mergeIntoDataset(existing, incoming) {
+function mergeIntoDataset(existing, incoming, datasetName) {
   const map = new Map();
   let updated = 0, added = 0;
   for (const r of existing.rows) map.set(rowKey(r), r);
@@ -406,13 +430,13 @@ function mergeIntoDataset(existing, incoming) {
   }
   const rows = [...map.values()].sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
   const config = mergeConfigs(existing.config, incoming.config);
-  const D = finalizeDataset({ config, rows });
+  const D = finalizeDataset({ config, rows }, datasetName);
   return { D, added, updated, total: rows.length };
 }
 
-function rebuildDataset(raw) {
+function rebuildDataset(raw, datasetName) {
   const { config, rows } = deserializeDataset(raw);
-  return finalizeDataset({ config, rows });
+  return finalizeDataset({ config, rows }, datasetName || raw.name);
 }
 
 async function renderSavedPanel() {
@@ -433,7 +457,7 @@ async function loadAllFromAPI() {
       console.warn('No se pudo cargar dataset:', item.name);
       continue;
     }
-    loaded.push({ name: item.name, D: rebuildDataset(raw), savedAt: raw.savedAt || item.saved_at });
+    loaded.push({ name: item.name, D: rebuildDataset(raw, item.name), savedAt: raw.savedAt || item.saved_at });
   }
   if (!loaded.length) return false;
   datasets = loaded;
@@ -448,7 +472,7 @@ async function loadAllFromAPI() {
 async function loadFromAPI(name) {
   const raw = await apiLoadDataset(name);
   if (!raw) { console.warn('Dataset no encontrado:', name); return; }
-  const ds = rebuildDataset(raw);
+  const ds = rebuildDataset(raw, name);
   const existing = datasets.findIndex(d => d.name === name);
   if (existing >= 0) { datasets[existing].D = ds; activeIdx = existing; }
   else { datasets.push({ name, D: ds, savedAt: raw.savedAt }); activeIdx = datasets.length - 1; }
@@ -510,22 +534,22 @@ function loadFile(file) {
     const reader = new FileReader();
     reader.onload = async ev => {
       try {
+        await initModalidad();
         const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array', cellDates: true });
         const filename = file.name.replace(/\.[^.]+$/, '');
-        const results = processWorkbook(wb);
+        const results = processWorkbook(wb, filename);
         if (!results.length) { alert(`No se encontraron hojas de datos en "${file.name}".`); resolve(); return; }
         const messages = [];
-        for (const { sheetName, D: newDs } of results) {
-          const tabName = results.length === 1 ? filename : `${filename} · ${sheetName}`;
+        for (const { sheetName, tabName, D: newDs } of results) {
           const memIdx = datasets.findIndex(d => d.name === tabName);
           let existingDs = memIdx >= 0 ? datasets[memIdx].D : null;
           if (!existingDs) {
             const raw = await apiLoadDataset(tabName);
-            if (raw) existingDs = rebuildDataset(raw);
+            if (raw) existingDs = rebuildDataset(raw, tabName);
           }
           let finalDs, msg;
           if (existingDs?.rows?.length) {
-            const merged = mergeIntoDataset(existingDs, newDs);
+            const merged = mergeIntoDataset(existingDs, newDs, tabName);
             finalDs = merged.D;
             msg = formatMergeMessage(merged.added, merged.updated, merged.total);
           } else {
@@ -579,12 +603,82 @@ function goToUpload() {
   }
 }
 
+function escHtml(s) {
+  return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+}
+
 function renderFileBar() {
   document.getElementById('hwo-file-list').innerHTML = datasets.map((ds, i) => `
     <div class="hwo-file-item ${i === activeIdx ? 'active' : ''}" onclick="switchDataset(${i})">
-      <span class="hwo-file-name" title="${ds.name}">${ds.name}</span>
+      <span class="hwo-file-name" title="${escHtml(ds.name)} (doble clic para renombrar)" ondblclick="event.stopPropagation();startRenameTab(${i})">${escHtml(ds.name)}</span>
+      <span class="hwo-file-ren" onclick="event.stopPropagation();startRenameTab(${i})" title="Renombrar">✎</span>
       <span class="hwo-file-del" onclick="event.stopPropagation();closeDataset(${i})" title="Cerrar">×</span>
     </div>`).join('');
+}
+
+function startRenameTab(idx) {
+  const container = document.getElementById('hwo-file-list');
+  const item = container.children[idx];
+  if (!item || !datasets[idx]) return;
+  const nameEl = item.querySelector('.hwo-file-name');
+  if (!nameEl) return;
+  const ds = datasets[idx];
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'hwo-file-rename-input';
+  input.value = ds.name;
+  input.onclick = e => e.stopPropagation();
+  input.onmousedown = e => e.stopPropagation();
+  let done = false;
+  const finish = async (save) => {
+    if (done) return;
+    done = true;
+    const val = input.value.trim();
+    if (save && val && val !== ds.name) await renameDataset(idx, val);
+    else renderFileBar();
+  };
+  input.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  };
+  input.onblur = () => finish(true);
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
+async function renameDataset(idx, newName) {
+  const oldName = datasets[idx]?.name;
+  newName = (newName || '').trim();
+  if (!oldName || !newName || newName === oldName) { renderFileBar(); return; }
+  if (datasets.some((d, i) => i !== idx && d.name === newName)) {
+    alert('Ya existe una pestaña con ese nombre.');
+    renderFileBar();
+    return;
+  }
+  try {
+    const r = await fetch('/gos/hwo/api/datasets/rename', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ oldName, newName }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'No se pudo renombrar');
+    const prefix = `${oldName}|`;
+    const newPrefix = `${newName}|`;
+    for (const [k, v] of Object.entries({ ..._modalidadCache })) {
+      if (k.startsWith(prefix)) {
+        const eq = k.slice(prefix.length);
+        delete _modalidadCache[k];
+        _modalidadCache[`${newPrefix}${eq}`] = v;
+      }
+    }
+    datasets[idx].name = newName;
+    renderAll();
+  } catch (err) {
+    alert(err.message || 'No se pudo renombrar la pestaña.');
+    renderFileBar();
+  }
 }
 
 function switchDataset(idx) {
@@ -602,28 +696,25 @@ function closeDataset(idx) {
 }
 
 // ── Workbook ─────────────────────────────────
-function processWorkbook(wb) {
-  const baseCfg = readConfig(wb); const results = [];
+function processWorkbook(wb, filename) {
+  const baseCfg = readConfig(wb);
+  const dataSheets = [];
   for (const shName of wb.SheetNames) {
     const raw = XLSX.utils.sheet_to_json(wb.Sheets[shName], { header: 1, raw: true, defval: '' });
     if (!isDataSheet(shName, raw)) continue;
-    const rows = parseDataRows(raw); if (!rows.length) continue;
-    D = {}; D.config = { ...baseCfg, eqs: { ...baseCfg.eqs } }; D.rows = rows;
-    D.maxDate = new Date(Math.max(...rows.map(r => r.fecha.getTime())));
-    if (!D.config.periodStart) {
-      const minT = Math.min(...rows.map(r => r.fecha.getTime())); const minD = new Date(minT);
-      let yr = minD.getFullYear(), mo = minD.getMonth();
-      if (minD.getDate() < 21) { mo--; if (mo < 0) { mo = 11; yr--; } }
-      D.config.periodStart = new Date(yr, mo, 21); D.config.periodEnd = new Date(yr, mo + 1, 20);
-      D.config.periodDays = daysBetween(D.config.periodStart, D.config.periodEnd) + 1;
-      D.config.weekdays = countWeekdays(D.config.periodStart, D.config.periodEnd);
-      const hSet = buildHolidaySet(D.config.periodStart, D.config.periodEnd);
-      let wdHol = 0; for (const t of hSet) { const dow = new Date(t).getDay(); if (dow !== 0 && dow !== 6) wdHol++; }
-      D.config.feriados = wdHol; D.config.weekdaysNoHol = Math.max(0, D.config.weekdays - wdHol);
-    }
-    D.eqs = calcEquipments(); D.holidays = detectHolidays();
-    applyModalidad(); addExpectedToDate(); D.burnup = calcBurnup(); D.dailyStates = calcDailyStates();
-    results.push({ sheetName: shName, D });
+    const rows = parseDataRows(raw);
+    if (!rows.length) continue;
+    dataSheets.push({ shName, rows });
+  }
+  const multi = dataSheets.length > 1;
+  const results = [];
+  for (const { shName, rows } of dataSheets) {
+    const tabName = multi ? `${filename} · ${shName}` : filename;
+    const D = finalizeDataset({
+      config: { ...baseCfg, eqs: { ...baseCfg.eqs } },
+      rows,
+    }, tabName);
+    results.push({ sheetName: shName, tabName, D });
   }
   return results;
 }
@@ -679,15 +770,20 @@ function parseDataRows(raw) {
 // ── Calculations ─────────────────────────────
 function stateOf(row) { const s = row.sitRealUC; if (s.includes('FUERA')) return 'fds'; if (s.includes('STAND BY C')) return 'sbcc'; if (s.includes('STAND BY')) return 'sbsp'; if (s.includes('OPERANDO')) return 'op'; return 'other'; }
 
-function calcEquipments() {
+function calcEquipments(datasetName) {
   const eqs = {}, cfg = D.config;
+  const dsName = datasetName || datasets[activeIdx]?.name || '';
   for (const [k, c] of Object.entries(cfg.eqs)) {
-    const sched = detectSchedule(c.totalCompleto, cfg);
-    eqs[k] = { ...c, schedule: sched, _fdsTolBase: c.fdsTolerado || 0, fdsTolerado: calcFdsTol(sched, c.fdsTolerado), dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
+    const key = eqKey(k);
+    const sched = lookupSavedSchedule(key, dsName) || detectSchedule(c.totalCompleto, cfg);
+    eqs[key] = { ...c, equipo: key, schedule: sched, _fdsTolBase: c.fdsTolerado || 0, fdsTolerado: calcFdsTol(sched, c.fdsTolerado), dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
   }
   for (const row of D.rows) {
-    const k = row.centro;
-    if (!eqs[k]) eqs[k] = { equipo: k, cliente: row.cliente, totalCompleto: cfg.periodDays, _fdsTolBase: 2, fdsTolerado: 2, proyectado: cfg.periodDays - 2, schedule: 'lun-lun', dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
+    const k = eqKey(row.centro);
+    if (!eqs[k]) {
+      const sched = lookupSavedSchedule(k, dsName) || 'lun-lun';
+      eqs[k] = { equipo: k, cliente: row.cliente, totalCompleto: cfg.periodDays, _fdsTolBase: 2, fdsTolerado: calcFdsTol(sched, 2), proyectado: cfg.periodDays - 2, schedule: sched, dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
+    }
     const e = eqs[k], st = stateOf(row), j = jpd(e.schedule);
     e.totalServ += row.cantServ;
     if (st === 'op') { e.op += j; e.dias += j; }
@@ -701,11 +797,13 @@ function calcEquipments() {
 }
 
 function reCountEquipment(eq) {
-  const e = D.eqs[eq], j = jpd(e.schedule);
+  const key = eqKey(eq);
+  const e = D.eqs[key]; if (!e) return;
+  const j = jpd(e.schedule);
   e.dias = 0; e.op = 0; e.fds = 0; e.sbsp = 0; e.sbcc = 0; e.totalServ = 0; e.incidents = [];
   e.fdsTolerado = calcFdsTol(e.schedule, e._fdsTolBase);
   for (const row of D.rows) {
-    if (row.centro !== eq) continue; const st = stateOf(row); e.totalServ += row.cantServ;
+    if (row.centro !== key) continue; const st = stateOf(row); e.totalServ += row.cantServ;
     if (st === 'op') { e.op += j; e.dias += j; }
     else if (st === 'fds') { e.fds += j; e.dias += j; e.incidents.push({ fecha: row.fecha, estado: row.sitReal, sitProg: row.sitProg, ubicacion: row.ubicacion, obs: row.obs, cliente: row.cliente, st }); }
     else if (st === 'sbsp') { e.sbsp += j; e.dias += j; }

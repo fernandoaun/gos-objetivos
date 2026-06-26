@@ -64,6 +64,14 @@ def test_hwo_modalidad_persiste(app):
         assert prefs == {"EQ-1": "24hs", "EQ-2": "lun-vie"}
 
 
+def test_hwo_modalidad_actualiza_sin_borrar_otros(app):
+    with app.app_context():
+        storage.save_modalidad({"EQ-1": "24hs", "EQ-2": "lun-vie"})
+        storage.save_modalidad({"EQ-1": "12hs"})
+        prefs = storage.get_all_modalidad()
+        assert prefs == {"EQ-1": "12hs", "EQ-2": "lun-vie"}
+
+
 def test_hwo_migra_json_legacy_a_db(app, tmp_path):
     with app.app_context():
         storage.reset_for_tests()
@@ -123,6 +131,32 @@ def test_hwo_api_datasets(auth_client):
     r = auth_client.get("/gos/hwo/api/datasets/by-name?name=api-test")
     assert r.status_code == 200
     assert r.get_json()["rowsRaw"] == payload["rowsRaw"]
+
+
+def test_hwo_api_rename_dataset(app, auth_client):
+    with app.app_context():
+        storage.save_dataset("tab-vieja", {"eqs": {}}, [{"fecha": 1}])
+        storage.save_modalidad({"tab-vieja|EQ-1": "24hs", "EQ-2": "lun-vie"})
+
+    r = auth_client.put(
+        "/gos/hwo/api/datasets/rename",
+        json={"oldName": "tab-vieja", "newName": "tab-nueva"},
+    )
+    assert r.status_code == 200
+    assert r.get_json()["name"] == "tab-nueva"
+
+    with app.app_context():
+        assert storage.get_dataset("tab-vieja") is None
+        assert storage.get_dataset("tab-nueva") is not None
+        prefs = storage.get_all_modalidad()
+        assert prefs.get("tab-nueva|EQ-1") == "24hs"
+        assert prefs.get("EQ-2") == "lun-vie"
+
+    r2 = auth_client.put(
+        "/gos/hwo/api/datasets/rename",
+        json={"oldName": "tab-nueva", "newName": "tab-nueva"},
+    )
+    assert r2.status_code == 200
 
 
 def test_hwo_api_dataset_nombre_con_caracteres_especiales(auth_client):

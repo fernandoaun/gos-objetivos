@@ -471,6 +471,45 @@ body {
 .hwo-file-name {
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.hwo-file-ren {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: all 0.15s;
+}
+
+.hwo-file-item:hover .hwo-file-ren,
+.hwo-file-item.active .hwo-file-ren {
+  opacity: 1;
+}
+
+.hwo-file-ren:hover {
+  background: var(--gos-yellow-soft);
+  color: var(--gos-green-dark);
+}
+
+.hwo-file-rename-input {
+  width: 140px;
+  max-width: 40vw;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border: 1px solid var(--green);
+  border-radius: 4px;
+  background: var(--card);
+  color: var(--text);
+  outline: none;
 }
 
 .hwo-file-del {

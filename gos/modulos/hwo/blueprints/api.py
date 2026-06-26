@@ -75,6 +75,23 @@ def get_dataset(name: str):
         return jsonify({"error": str(exc)}), 500
 
 
+@bp.route("/datasets/rename", methods=["PUT"])
+@login_required
+def rename_dataset():
+    try:
+        payload = request.get_json(silent=True) or {}
+        old_name = (payload.get("oldName") or "").strip()
+        new_name = (payload.get("newName") or "").strip()
+        if not old_name or not new_name:
+            return jsonify({"error": "Faltan campos: oldName, newName"}), 400
+        storage.rename_dataset(old_name, new_name)
+        return jsonify({"ok": True, "name": new_name})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
 @bp.route("/datasets", methods=["POST"])
 @login_required
 def save_dataset():

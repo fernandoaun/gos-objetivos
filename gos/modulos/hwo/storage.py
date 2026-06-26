@@ -181,6 +181,34 @@ def save_dataset(name: str, config_raw: dict, rows_raw: list) -> None:
     db.session.commit()
 
 
+def rename_dataset(old_name: str, new_name: str) -> None:
+    old_name = (old_name or "").strip()
+    new_name = (new_name or "").strip()
+    if not old_name or not new_name:
+        raise ValueError("Nombre inválido")
+    if old_name == new_name:
+        return
+    row = HwoDataset.query.filter_by(name=old_name).first()
+    if not row:
+        raise ValueError("Dataset no encontrado")
+    if HwoDataset.query.filter_by(name=new_name).first():
+        raise ValueError("Ya existe un dataset con ese nombre")
+    row.name = new_name
+    prefix = f"{old_name}|"
+    new_prefix = f"{new_name}|"
+    for mod in list(HwoModalidad.query.all()):
+        if not mod.equipo.startswith(prefix):
+            continue
+        suffix = mod.equipo[len(prefix) :]
+        new_key = f"{new_prefix}{suffix}"
+        existing = HwoModalidad.query.filter_by(equipo=new_key).first()
+        if existing and existing.equipo != mod.equipo:
+            db.session.delete(mod)
+        else:
+            mod.equipo = new_key
+    db.session.commit()
+
+
 def delete_dataset(name: str) -> None:
     HwoDataset.query.filter_by(name=name).delete()
     db.session.commit()
