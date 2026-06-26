@@ -539,7 +539,10 @@ function loadFile(file) {
           messages.push(`${tabName}: ${msg}`);
         }
         D = datasets[activeIdx].D;
-        showApp(messages.length === 1 ? messages[0] : messages.join(' · '));
+        showApp(
+          summarizeLoadMessages(messages),
+          messages.length > 1 ? messages.join(' · ') : undefined
+        );
         resolve();
       } catch (err) { alert('Error al leer "' + file.name + '": ' + err.message); reject(err); }
     };
@@ -548,10 +551,19 @@ function loadFile(file) {
   });
 }
 
-function showApp(updateText) {
+function summarizeLoadMessages(messages) {
+  if (!messages.length) return '';
+  if (messages.length === 1) return messages[0];
+  const totalRegs = datasets.reduce((s, d) => s + (d.D.rows?.length || 0), 0);
+  return `${messages.length} hojas procesadas · ${totalRegs} registros en total`;
+}
+
+function showApp(updateText, detailText) {
   document.getElementById('upload-zone').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
-  document.getElementById('last-update').textContent = updateText;
+  const el = document.getElementById('last-update');
+  el.textContent = updateText;
+  el.title = detailText || updateText;
   mesCerrado = false;
   document.getElementById('btn-closed').classList.remove('active');
   renderAll();

@@ -248,6 +248,7 @@ body {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  flex-wrap: wrap;
   flex-shrink: 0;
   border-bottom: 2px solid var(--gos-grey);
   border-top: 3px solid var(--gos-yellow);
@@ -258,13 +259,18 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  min-width: 0;
+  flex: 1 1 240px;
+  min-width: 200px;
+  max-width: 100%;
 }
 
 .topbar-title {
   font-size: 14px;
   font-weight: 700;
   color: var(--gos-green-dark);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .topbar-period {
@@ -286,9 +292,10 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-shrink: 0;
+  flex: 0 1 auto;
   flex-wrap: wrap;
   justify-content: flex-end;
+  max-width: 100%;
 }
 
 .hwo-conn {
@@ -315,6 +322,10 @@ body {
 .last-update {
   font-size: 11px;
   color: var(--muted);
+  max-width: min(420px, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .btn-closed {
