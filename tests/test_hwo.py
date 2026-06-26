@@ -91,6 +91,7 @@ def test_hwo_migra_json_legacy_a_db(app, tmp_path):
             st.DATA_DIR = data_dir
             st.DATASETS_FILE = data_dir / "datasets.json"
             st.MODALIDAD_FILE = data_dir / "modalidad.json"
+            app.config["TESTING"] = False
             st.migrate_legacy_data_if_empty()
 
             listed = st.get_all_datasets()
@@ -98,6 +99,7 @@ def test_hwo_migra_json_legacy_a_db(app, tmp_path):
             assert listed[0]["name"] == "legacy"
             assert st.get_all_modalidad() == {"EQ-X": "12hs"}
         finally:
+            app.config["TESTING"] = True
             st.DATA_DIR = old_data
             st.DATASETS_FILE = old_datasets
             st.MODALIDAD_FILE = old_modalidad

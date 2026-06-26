@@ -10,10 +10,10 @@ URL_PREFIX = "/gos/vacaciones"
 
 def register(app: Flask, url_prefix: str = URL_PREFIX) -> None:
     _ensure_template_loader(app)
-    from gos.modulos.vacaciones.database import init_db, migrate_legacy_data_if_empty
+    with app.app_context():
+        from gos.modulos.vacaciones.storage import migrate_legacy_data_if_empty
 
-    init_db()
-    migrate_legacy_data_if_empty()
+        migrate_legacy_data_if_empty()
     _register_blueprints(app, url_prefix)
     _register_context(app)
 

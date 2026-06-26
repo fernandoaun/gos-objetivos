@@ -1,6 +1,5 @@
 import pandas as pd
 from sqlalchemy import select
-from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.orm import Session
 
 from gos.modulos.vacaciones.models import Registro, Vacacion
@@ -12,6 +11,17 @@ COLS_TOTAL = [
     "feriados", "enfermedad", "traslado", "vacaciones", "licencia",
     "suspension", "accidente", "francos_comp",
 ]
+
+
+def _upsert(model, session: Session):
+    bind = session.get_bind()
+    if bind.dialect.name == "postgresql":
+        from sqlalchemy.dialects.postgresql import insert
+
+        return insert(model)
+    from sqlalchemy.dialects.sqlite import insert
+
+    return insert(model)
 
 
 def import_excel(filepath: str, db: Session) -> dict:
@@ -57,7 +67,7 @@ def import_excel(filepath: str, db: Session) -> dict:
             chunk_size = 500
             for i in range(0, len(records), chunk_size):
                 chunk = records[i : i + chunk_size]
-                stmt = insert(Registro).values(chunk)
+                stmt = _upsert(Registro, db).values(chunk)
                 stmt = stmt.on_conflict_do_update(
                     index_elements=["fecha", "empleado"],
                     set_={
@@ -143,7 +153,7 @@ def import_excel(filepath: str, db: Session) -> dict:
             for rec in all_vac:
                 if not rec["empleado"]:
                     continue
-                stmt = insert(Vacacion).values(rec)
+                stmt = _upsert(Vacacion, db).values(rec)
                 stmt = stmt.on_conflict_do_update(
                     index_elements=["legajo", "anio"],
                     set_={

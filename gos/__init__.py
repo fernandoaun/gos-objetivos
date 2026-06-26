@@ -36,6 +36,9 @@ def create_app(config_name: str | None = None) -> Flask:
 
     from gos.models import Empresa, Usuario  # noqa: F401
 
+    with app.app_context():
+        _ensure_schema()
+
     if not app.config.get("TESTING"):
         with app.app_context():
             try:
@@ -95,13 +98,18 @@ def create_app(config_name: str | None = None) -> Flask:
     return app
 
 
-def _bootstrap_database() -> None:
+def _ensure_schema() -> None:
     from gos.models import Empresa, Usuario  # noqa: F401
     from gos.modulos.hwo.models import HwoDataset, HwoModalidad  # noqa: F401
+    from gos.modulos.vacaciones.models import Registro, Vacacion  # noqa: F401
+
+    db.create_all()
+
+
+def _bootstrap_database() -> None:
     from gos.services.bootstrap_service import ensure_initial_admin
     from gos.modulos.objetivos import ensure_planeamiento_config
 
-    db.create_all()
     ensure_initial_admin()
     ensure_planeamiento_config()
 

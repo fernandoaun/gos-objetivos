@@ -2,36 +2,36 @@ from __future__ import annotations
 
 from typing import Optional
 
-from sqlalchemy import text
+from sqlalchemy import extract, func, select, text
 from sqlalchemy.orm import Session
+
+from gos.modulos.vacaciones.models import Registro, Vacacion
 
 
 def get_anios(db: Session) -> list[int]:
     rows = db.execute(
-        text("SELECT DISTINCT strftime('%Y', fecha) as anio FROM registros ORDER BY anio")
-    ).fetchall()
-    return [int(r[0]) for r in rows if r[0]]
+        select(func.distinct(extract("year", Registro.fecha))).order_by(
+            extract("year", Registro.fecha)
+        )
+    ).scalars().all()
+    return [int(r) for r in rows if r is not None]
 
 
 def get_sectores(db: Session) -> list[str]:
     rows = db.execute(
-        text(
-            "SELECT DISTINCT sector FROM registros "
-            "WHERE sector IS NOT NULL AND sector != 'SIN DATO' ORDER BY sector"
-        )
-    ).fetchall()
-    return [r[0] for r in rows]
+        select(func.distinct(Registro.sector))
+        .where(Registro.sector.isnot(None), Registro.sector != "SIN DATO")
+        .order_by(Registro.sector)
+    ).scalars().all()
+    return [r for r in rows if r]
 
 
 def get_empleados(db: Session, sector: Optional[str] = None) -> list[str]:
-    q = "SELECT DISTINCT empleado FROM registros WHERE empleado IS NOT NULL"
-    params: dict = {}
+    q = select(func.distinct(Registro.empleado)).where(Registro.empleado.isnot(None))
     if sector:
-        q += " AND sector = :sector"
-        params["sector"] = sector
-    q += " ORDER BY empleado"
-    rows = db.execute(text(q), params).fetchall()
-    return [r[0] for r in rows]
+        q = q.where(Registro.sector == sector)
+    q = q.order_by(Registro.empleado)
+    return list(db.execute(q).scalars().all())
 
 
 def get_deuda_vacaciones(
@@ -43,42 +43,36 @@ def get_deuda_vacaciones(
     year_desde = int(desde[:4]) if desde else None
     year_hasta = int(hasta[:4]) if hasta else None
 
-    q_planilla = """
-        SELECT v.legajo, v.empleado, v.sector, v.anio,
-               v.dias_disponibles, v.dias_tomados as tomados_planilla, v.dias_pendientes
-        FROM vacaciones v
-        WHERE 1=1
-    """
-    params: dict = {}
+    q_planilla = select(
+        Vacacion.legajo,
+        Vacacion.empleado,
+        Vacacion.sector,
+        Vacacion.anio,
+        Vacacion.dias_disponibles,
+        Vacacion.dias_tomados,
+        Vacacion.dias_pendientes,
+    )
     if year_desde:
-        q_planilla += " AND v.anio >= :year_desde"
-        params["year_desde"] = year_desde
+        q_planilla = q_planilla.where(Vacacion.anio >= year_desde)
     if year_hasta:
-        q_planilla += " AND v.anio <= :year_hasta"
-        params["year_hasta"] = year_hasta
+        q_planilla = q_planilla.where(Vacacion.anio <= year_hasta)
     if sector:
-        q_planilla += " AND v.sector = :sector"
-        params["sector"] = sector
-    q_planilla += " ORDER BY v.empleado, v.anio"
+        q_planilla = q_planilla.where(Vacacion.sector == sector)
+    q_planilla = q_planilla.order_by(Vacacion.empleado, Vacacion.anio)
+    planilla_rows = db.execute(q_planilla).all()
 
-    planilla_rows = db.execute(text(q_planilla), params).fetchall()
-
-    q_real = """
-        SELECT empleado, CAST(strftime('%Y', fecha) AS INTEGER) as anio_r, SUM(vacaciones) as dias_reales
-        FROM registros
-        WHERE 1=1
-    """
-    real_params: dict = {}
+    q_real = select(
+        Registro.empleado,
+        extract("year", Registro.fecha).label("anio_r"),
+        func.sum(Registro.vacaciones).label("dias_reales"),
+    )
     if desde:
-        q_real += " AND fecha >= :desde"
-        real_params["desde"] = desde
+        q_real = q_real.where(Registro.fecha >= desde)
     if hasta:
-        q_real += " AND fecha <= :hasta"
-        real_params["hasta"] = hasta
-    q_real += " GROUP BY empleado, strftime('%Y', fecha)"
-
-    real_rows = db.execute(text(q_real), real_params).fetchall()
-    reales = {(r[0], r[1]): r[2] for r in real_rows}
+        q_real = q_real.where(Registro.fecha <= hasta)
+    q_real = q_real.group_by(Registro.empleado, extract("year", Registro.fecha))
+    real_rows = db.execute(q_real).all()
+    reales = {(r.empleado, int(r.anio_r)): r.dias_reales for r in real_rows if r.anio_r}
 
     result = []
     for row in planilla_rows:
@@ -109,20 +103,18 @@ def get_resumen_sector(
     year_desde = int(desde[:4]) if desde else None
     year_hasta = int(hasta[:4]) if hasta else None
 
-    q = (
-        "SELECT sector, SUM(dias_disponibles), SUM(dias_tomados), SUM(dias_pendientes) "
-        "FROM vacaciones WHERE sector IS NOT NULL"
-    )
-    params: dict = {}
+    q = select(
+        Vacacion.sector,
+        func.sum(Vacacion.dias_disponibles),
+        func.sum(Vacacion.dias_tomados),
+        func.sum(Vacacion.dias_pendientes),
+    ).where(Vacacion.sector.isnot(None))
     if year_desde:
-        q += " AND anio >= :year_desde"
-        params["year_desde"] = year_desde
+        q = q.where(Vacacion.anio >= year_desde)
     if year_hasta:
-        q += " AND anio <= :year_hasta"
-        params["year_hasta"] = year_hasta
-    q += " GROUP BY sector ORDER BY SUM(dias_pendientes) DESC"
-
-    rows = db.execute(text(q), params).fetchall()
+        q = q.where(Vacacion.anio <= year_hasta)
+    q = q.group_by(Vacacion.sector).order_by(func.sum(Vacacion.dias_pendientes).desc())
+    rows = db.execute(q).all()
     return [
         {"sector": r[0], "disponibles": r[1] or 0, "tomados": r[2] or 0, "pendientes": r[3] or 0}
         for r in rows

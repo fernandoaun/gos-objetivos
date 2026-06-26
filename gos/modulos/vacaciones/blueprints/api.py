@@ -4,15 +4,11 @@ import tempfile
 from flask import Blueprint, jsonify, request
 from flask_login import login_required
 
-from gos.modulos.vacaciones.database import get_session
+from gos.extensions import db
 from gos.modulos.vacaciones.importer import import_excel
 from gos.modulos.vacaciones import services
 
 bp = Blueprint("vacaciones_api", __name__)
-
-
-def _db():
-    return get_session()
 
 
 @bp.route("/health")
@@ -24,65 +20,45 @@ def health():
 @bp.route("/dashboard/años")
 @login_required
 def dashboard_anios():
-    db = _db()
-    try:
-        return jsonify(services.get_anios(db))
-    finally:
-        db.close()
+    return jsonify(services.get_anios(db.session))
 
 
 @bp.route("/dashboard/sectores")
 @login_required
 def dashboard_sectores():
-    db = _db()
-    try:
-        return jsonify(services.get_sectores(db))
-    finally:
-        db.close()
+    return jsonify(services.get_sectores(db.session))
 
 
 @bp.route("/dashboard/empleados")
 @login_required
 def dashboard_empleados():
-    db = _db()
-    try:
-        sector = request.args.get("sector")
-        return jsonify(services.get_empleados(db, sector=sector or None))
-    finally:
-        db.close()
+    sector = request.args.get("sector")
+    return jsonify(services.get_empleados(db.session, sector=sector or None))
 
 
 @bp.route("/vacaciones/deuda")
 @login_required
 def vacaciones_deuda():
-    db = _db()
-    try:
-        return jsonify(
-            services.get_deuda_vacaciones(
-                db,
-                desde=request.args.get("desde"),
-                hasta=request.args.get("hasta"),
-                sector=request.args.get("sector"),
-            )
+    return jsonify(
+        services.get_deuda_vacaciones(
+            db.session,
+            desde=request.args.get("desde"),
+            hasta=request.args.get("hasta"),
+            sector=request.args.get("sector"),
         )
-    finally:
-        db.close()
+    )
 
 
 @bp.route("/vacaciones/resumen-por-sector")
 @login_required
 def vacaciones_resumen_sector():
-    db = _db()
-    try:
-        return jsonify(
-            services.get_resumen_sector(
-                db,
-                desde=request.args.get("desde"),
-                hasta=request.args.get("hasta"),
-            )
+    return jsonify(
+        services.get_resumen_sector(
+            db.session,
+            desde=request.args.get("desde"),
+            hasta=request.args.get("hasta"),
         )
-    finally:
-        db.close()
+    )
 
 
 @bp.route("/importar/excel", methods=["POST"])
@@ -100,11 +76,7 @@ def importar_excel():
             upload.save(tmp)
             tmp_path = tmp.name
 
-        db = _db()
-        try:
-            result = import_excel(tmp_path, db)
-        finally:
-            db.close()
+        result = import_excel(tmp_path, db.session)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
     finally:

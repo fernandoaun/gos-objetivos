@@ -28,6 +28,10 @@ def _read_json(path: Path) -> dict:
 
 def migrate_legacy_data_if_empty() -> None:
     """Migra JSON o SQLite local si la tabla principal está vacía."""
+    from flask import current_app
+
+    if current_app.config.get("TESTING"):
+        return
     _ensure_data_dir()
     if HwoDataset.query.limit(1).first() is not None:
         return

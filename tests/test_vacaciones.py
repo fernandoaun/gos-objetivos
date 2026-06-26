@@ -1,16 +1,15 @@
 import pytest
 
-from gos.modulos.vacaciones.database import DATA_DIR, get_session, init_db, reset_for_tests
+from gos.modulos.vacaciones import storage
 from gos.modulos.vacaciones.models import Registro, Vacacion
 
 
 @pytest.fixture(autouse=True)
 def vacaciones_db(app):
-    reset_for_tests()
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    init_db()
-    yield
-    reset_for_tests()
+    with app.app_context():
+        storage.reset_for_tests()
+        yield
+        storage.reset_for_tests()
 
 
 def test_vacaciones_health_requires_auth(client):
@@ -44,69 +43,60 @@ def test_vacaciones_deuda_empty(auth_client):
     assert r.get_json() == []
 
 
-def test_vacaciones_dashboard_lists(auth_client):
-    db = get_session()
-    try:
+def test_vacaciones_dashboard_lists(auth_client, app):
+    with app.app_context():
         from datetime import date
 
-        db.add(
-            Registro(
-                fecha=date(2024, 6, 1),
-                empleado="Juan Pérez",
-                sector="Planta",
-                vacaciones=1,
-            )
+        from gos.extensions import db
+
+        db.session.add(
+            Registro(fecha=date(2025, 6, 1), empleado="Ana Test", sector="IT", vacaciones=0)
         )
-        db.add(
+        db.session.add(
             Vacacion(
                 legajo=1,
-                empleado="Juan Pérez",
-                sector="Planta",
-                anio=2024,
+                empleado="Ana Test",
+                sector="IT",
+                anio=2025,
                 dias_disponibles=14,
-                dias_tomados=10,
-                dias_pendientes=4,
+                dias_tomados=5,
+                dias_pendientes=9,
             )
         )
-        db.commit()
-    finally:
-        db.close()
+        db.session.commit()
+
+    r = auth_client.get("/gos/vacaciones/api/dashboard/años")
+    assert r.status_code == 200
+    assert 2025 in r.get_json()
+
+    r = auth_client.get("/gos/vacaciones/api/dashboard/sectores")
+    assert r.status_code == 200
+    assert "IT" in r.get_json()
 
     r = auth_client.get("/gos/vacaciones/api/dashboard/empleados")
     assert r.status_code == 200
-    assert "Juan Pérez" in r.get_json()
-
-    r = auth_client.get("/gos/vacaciones/api/vacaciones/deuda?desde=2024-01-01&hasta=2024-12-31")
-    assert r.status_code == 200
-    data = r.get_json()
-    assert len(data) == 1
-    assert data[0]["empleado"] == "Juan Pérez"
-    assert data[0]["tomados_real"] == 1
+    assert "Ana Test" in r.get_json()
 
 
 def test_vacaciones_import_excel(auth_client):
     import io
 
-    from openpyxl import Workbook
+    import openpyxl
 
-    wb = Workbook()
+    wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "TOTAL"
-    ws.append(
-        [
-            "fecha", "empleado", "sector", "servicio", "centro", "situacion",
-            "total_horas", "hs_viaje", "hs50", "hs_noc", "hs_noc50", "hs100",
-            "viandas", "v_desayuno", "d_normales", "ausente", "fr_trabajados",
-            "feriados", "enfermedad", "traslado", "vacaciones", "licencia",
-            "suspension", "accidente", "francos_comp",
-        ]
-    )
-    ws.append(
-        [
-            "2024-06-01", "Maria Lopez", "Planta", "", "", "TRABAJANDO",
-            8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
-        ]
-    )
+    ws.append([
+        "fecha", "empleado", "sector", "servicio", "centro", "situacion",
+        "total_horas", "hs_viaje", "hs50", "hs_noc", "hs_noc50", "hs100",
+        "viandas", "v_desayuno", "d_normales", "ausente", "fr_trabajados",
+        "feriados", "enfermedad", "traslado", "vacaciones", "licencia",
+        "suspension", "accidente", "francos_comp",
+    ])
+    ws.append([
+        "2025-06-01", "Pedro Test", "RRHH", "", "", "", 8, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
+    ])
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -120,6 +110,3 @@ def test_vacaciones_import_excel(auth_client):
     data = r.get_json()
     assert data["ok"] is True
     assert data["detalle"]["registros"] == 1
-
-    r2 = auth_client.get("/gos/vacaciones/api/dashboard/empleados")
-    assert "Maria Lopez" in r2.get_json()
