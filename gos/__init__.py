@@ -97,6 +97,7 @@ def create_app(config_name: str | None = None) -> Flask:
 
 def _bootstrap_database() -> None:
     from gos.models import Empresa, Usuario  # noqa: F401
+    from gos.modulos.hwo.models import HwoDataset, HwoModalidad  # noqa: F401
     from gos.services.bootstrap_service import ensure_initial_admin
     from gos.modulos.objetivos import ensure_planeamiento_config
 

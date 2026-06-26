@@ -1,21 +1,19 @@
-from sqlalchemy import Column, Integer, String, Text, UniqueConstraint
-
-from gos.modulos.hwo.database import Base
+from gos.extensions import db
 
 
-class HwoDataset(Base):
+class HwoDataset(db.Model):
     __tablename__ = "hwo_datasets"
-    __table_args__ = (UniqueConstraint("name", name="uq_hwo_dataset_name"),)
+    __table_args__ = (db.UniqueConstraint("name", name="uq_hwo_dataset_name"),)
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False, index=True)
-    saved_at = Column(Integer, nullable=False)
-    config_raw = Column(Text, nullable=False)
-    rows_raw = Column(Text, nullable=False)
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(512), nullable=False, index=True)
+    saved_at = db.Column(db.BigInteger, nullable=False)
+    config_raw = db.Column(db.Text, nullable=False)
+    rows_raw = db.Column(db.Text, nullable=False)
 
 
-class HwoModalidad(Base):
+class HwoModalidad(db.Model):
     __tablename__ = "hwo_modalidad"
 
-    equipo = Column(String, primary_key=True)
-    schedule = Column(String, nullable=False)
+    equipo = db.Column(db.String(255), primary_key=True)
+    schedule = db.Column(db.String(32), nullable=False)

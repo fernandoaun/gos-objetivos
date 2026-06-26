@@ -21,6 +21,41 @@ def list_datasets():
         return jsonify({"error": str(exc)}), 500
 
 
+@bp.route("/datasets/by-name", methods=["GET"])
+@login_required
+def get_dataset_by_name():
+    name = (request.args.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "Falta el parámetro name"}), 400
+    try:
+        row = storage.get_dataset(name)
+        if not row:
+            return jsonify({"error": "No encontrado"}), 404
+        return jsonify(
+            {
+                "name": row["name"],
+                "savedAt": row.get("savedAt"),
+                "configRaw": row.get("configRaw"),
+                "rowsRaw": row.get("rowsRaw"),
+            }
+        )
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@bp.route("/datasets/by-name", methods=["DELETE"])
+@login_required
+def delete_dataset_by_name():
+    name = (request.args.get("name") or "").strip()
+    if not name:
+        return jsonify({"error": "Falta el parámetro name"}), 400
+    try:
+        storage.delete_dataset(name)
+        return jsonify({"ok": True})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
 @bp.route("/datasets/<path:name>", methods=["GET"])
 @login_required
 def get_dataset(name: str):

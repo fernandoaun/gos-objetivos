@@ -322,13 +322,16 @@ async function apiLoadAll() {
 }
 
 async function apiLoadDataset(name) {
-  try { const r = await fetch('/gos/hwo/api/datasets/' + encodeURIComponent(name)); return r.ok ? await r.json() : null; }
-  catch { return null; }
+  try {
+    const r = await fetch('/gos/hwo/api/datasets/by-name?' + new URLSearchParams({ name }));
+    return r.ok ? await r.json() : null;
+  } catch { return null; }
 }
 
 async function apiDeleteDataset(name) {
-  try { await fetch('/gos/hwo/api/datasets/' + encodeURIComponent(name), { method: 'DELETE' }); }
-  catch(e) { console.warn('No se pudo borrar dataset:', e); }
+  try {
+    await fetch('/gos/hwo/api/datasets/by-name?' + new URLSearchParams({ name }), { method: 'DELETE' });
+  } catch(e) { console.warn('No se pudo borrar dataset:', e); }
 }
 
 async function apiClearAll() {
@@ -425,13 +428,17 @@ async function renderSavedPanel() {
 async function loadAllFromAPI() {
   const all = await apiLoadAll();
   if (!all.length) return false;
-  const loaded = await Promise.all(all.map(async item => {
+  const loaded = [];
+  for (const item of all) {
     const raw = await apiLoadDataset(item.name);
-    if (!raw) return null;
-    return { name: item.name, D: rebuildDataset(raw), savedAt: raw.savedAt || item.saved_at };
-  }));
-  datasets = loaded.filter(Boolean);
-  if (!datasets.length) return false;
+    if (!raw) {
+      console.warn('No se pudo cargar dataset:', item.name);
+      continue;
+    }
+    loaded.push({ name: item.name, D: rebuildDataset(raw), savedAt: raw.savedAt || item.saved_at });
+  }
+  if (!loaded.length) return false;
+  datasets = loaded;
   activeIdx = 0;
   D = datasets[activeIdx].D;
   const n = datasets.length;
@@ -442,7 +449,7 @@ async function loadAllFromAPI() {
 
 async function loadFromAPI(name) {
   const raw = await apiLoadDataset(name);
-  if (!raw) { alert('No se encontró el dataset.'); return; }
+  if (!raw) { console.warn('Dataset no encontrado:', name); return; }
   const ds = rebuildDataset(raw);
   const existing = datasets.findIndex(d => d.name === name);
   if (existing >= 0) { datasets[existing].D = ds; activeIdx = existing; }

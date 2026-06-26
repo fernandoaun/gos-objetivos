@@ -1,19 +1,18 @@
-"""Persistencia SQLite del módulo HWO (datasets y modalidad)."""
+"""Persistencia HWO en la base principal de GOS (PostgreSQL / SQLite)."""
 from __future__ import annotations
 
 import json
 import shutil
+import sqlite3
 import time
 from pathlib import Path
 
-from gos import env
-from gos.config import BASE_DIR
-from gos.modulos.hwo.database import DATA_DIR, get_session, init_db
+from gos.extensions import db
+from gos.modulos.hwo.database import DATA_DIR, DB_PATH, LEGACY_DATA_DIR
 from gos.modulos.hwo.models import HwoDataset, HwoModalidad
 
 DATASETS_FILE = DATA_DIR / "datasets.json"
 MODALIDAD_FILE = DATA_DIR / "modalidad.json"
-LEGACY_DATA_DIR = BASE_DIR.parent / "Analisis HWO" / "data"
 
 
 def _ensure_data_dir() -> None:
@@ -28,11 +27,14 @@ def _read_json(path: Path) -> dict:
 
 
 def migrate_legacy_data_if_empty() -> None:
-    """Inicializa SQLite y migra JSON legacy si la base está vacía."""
+    """Migra JSON o SQLite local si la tabla principal está vacía."""
     _ensure_data_dir()
-    init_db()
+    if HwoDataset.query.limit(1).first() is not None:
+        return
     _copy_legacy_json_if_missing()
-    _migrate_json_to_db_if_empty()
+    if _migrate_json_to_db():
+        return
+    _migrate_local_sqlite_to_db()
 
 
 def _copy_legacy_json_if_missing() -> None:
@@ -47,13 +49,30 @@ def _copy_legacy_json_if_missing() -> None:
             shutil.copy2(src, dst)
 
 
-def _migrate_json_to_db_if_empty() -> None:
-    session = get_session()
-    try:
-        if session.query(HwoDataset).limit(1).first() is not None:
-            return
+def _insert_dataset(name: str, saved_at: int, config_raw: dict, rows_raw: list) -> None:
+    db.session.add(
+        HwoDataset(
+            name=name,
+            saved_at=saved_at,
+            config_raw=json.dumps(config_raw, ensure_ascii=False),
+            rows_raw=json.dumps(rows_raw, ensure_ascii=False),
+        )
+    )
 
-        datasets = _read_json(DATASETS_FILE)
+
+def _insert_modalidad(prefs: dict) -> None:
+    for equipo, schedule in prefs.items():
+        if not equipo or not schedule:
+            continue
+        db.session.add(HwoModalidad(equipo=str(equipo), schedule=str(schedule)))
+
+
+def _migrate_json_to_db() -> bool:
+    datasets = _read_json(DATASETS_FILE)
+    modalidad = _read_json(MODALIDAD_FILE)
+    if not datasets and not modalidad:
+        return False
+    try:
         for name, row in datasets.items():
             if not isinstance(row, dict):
                 continue
@@ -61,139 +80,131 @@ def _migrate_json_to_db_if_empty() -> None:
             rows_raw = row.get("rowsRaw")
             if config_raw is None or rows_raw is None:
                 continue
-            session.add(
-                HwoDataset(
-                    name=name,
-                    saved_at=int(row.get("savedAt") or time.time() * 1000),
-                    config_raw=json.dumps(config_raw, ensure_ascii=False),
-                    rows_raw=json.dumps(rows_raw, ensure_ascii=False),
-                )
+            _insert_dataset(
+                name,
+                int(row.get("savedAt") or time.time() * 1000),
+                config_raw,
+                rows_raw,
             )
-
-        modalidad = _read_json(MODALIDAD_FILE)
-        for equipo, schedule in modalidad.items():
-            if not equipo or not schedule:
-                continue
-            session.add(HwoModalidad(equipo=str(equipo), schedule=str(schedule)))
-
-        session.commit()
+        _insert_modalidad(modalidad)
+        db.session.commit()
+        return True
     except Exception:
-        session.rollback()
+        db.session.rollback()
         raise
-    finally:
-        session.close()
+
+
+def _migrate_local_sqlite_to_db() -> bool:
+    if not DB_PATH.is_file():
+        return False
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            ds_rows = conn.execute(
+                "SELECT name, saved_at, config_raw, rows_raw FROM hwo_datasets"
+            ).fetchall()
+            if not ds_rows:
+                return False
+            for row in ds_rows:
+                _insert_dataset(
+                    row["name"],
+                    int(row["saved_at"]),
+                    json.loads(row["config_raw"]),
+                    json.loads(row["rows_raw"]),
+                )
+            mod_rows = conn.execute(
+                "SELECT equipo, schedule FROM hwo_modalidad"
+            ).fetchall()
+            for row in mod_rows:
+                db.session.add(
+                    HwoModalidad(equipo=row["equipo"], schedule=row["schedule"])
+                )
+            db.session.commit()
+            return True
+        finally:
+            conn.close()
+    except Exception:
+        db.session.rollback()
+        raise
 
 
 def get_all_datasets() -> list[dict]:
-    session = get_session()
-    try:
-        rows = session.query(HwoDataset).order_by(HwoDataset.saved_at.desc()).all()
-        items = []
-        for row in rows:
-            rows_raw = json.loads(row.rows_raw)
-            items.append(
-                {
-                    "name": row.name,
-                    "saved_at": row.saved_at,
-                    "row_count": len(rows_raw) if isinstance(rows_raw, list) else 0,
-                }
-            )
-        return items
-    finally:
-        session.close()
+    rows = HwoDataset.query.order_by(HwoDataset.saved_at.desc()).all()
+    items = []
+    for row in rows:
+        rows_raw = json.loads(row.rows_raw)
+        items.append(
+            {
+                "name": row.name,
+                "saved_at": row.saved_at,
+                "row_count": len(rows_raw) if isinstance(rows_raw, list) else 0,
+            }
+        )
+    return items
 
 
 def get_dataset(name: str) -> dict | None:
-    session = get_session()
-    try:
-        row = session.query(HwoDataset).filter_by(name=name).first()
-        if not row:
-            return None
-        return {
-            "name": row.name,
-            "savedAt": row.saved_at,
-            "configRaw": json.loads(row.config_raw),
-            "rowsRaw": json.loads(row.rows_raw),
-        }
-    finally:
-        session.close()
+    row = HwoDataset.query.filter_by(name=name).first()
+    if not row:
+        return None
+    return {
+        "name": row.name,
+        "savedAt": row.saved_at,
+        "configRaw": json.loads(row.config_raw),
+        "rowsRaw": json.loads(row.rows_raw),
+    }
 
 
 def save_dataset(name: str, config_raw: dict, rows_raw: list) -> None:
-    session = get_session()
-    try:
-        saved_at = int(time.time() * 1000)
-        config_text = json.dumps(config_raw, ensure_ascii=False)
-        rows_text = json.dumps(rows_raw, ensure_ascii=False)
-        row = session.query(HwoDataset).filter_by(name=name).first()
-        if row:
-            row.saved_at = saved_at
-            row.config_raw = config_text
-            row.rows_raw = rows_text
-        else:
-            session.add(
-                HwoDataset(
-                    name=name,
-                    saved_at=saved_at,
-                    config_raw=config_text,
-                    rows_raw=rows_text,
-                )
+    saved_at = int(time.time() * 1000)
+    config_text = json.dumps(config_raw, ensure_ascii=False)
+    rows_text = json.dumps(rows_raw, ensure_ascii=False)
+    row = HwoDataset.query.filter_by(name=name).first()
+    if row:
+        row.saved_at = saved_at
+        row.config_raw = config_text
+        row.rows_raw = rows_text
+    else:
+        db.session.add(
+            HwoDataset(
+                name=name,
+                saved_at=saved_at,
+                config_raw=config_text,
+                rows_raw=rows_text,
             )
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
+        )
+    db.session.commit()
 
 
 def delete_dataset(name: str) -> None:
-    session = get_session()
-    try:
-        session.query(HwoDataset).filter_by(name=name).delete()
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
+    HwoDataset.query.filter_by(name=name).delete()
+    db.session.commit()
 
 
 def clear_datasets() -> None:
-    session = get_session()
-    try:
-        session.query(HwoDataset).delete()
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
+    HwoDataset.query.delete()
+    db.session.commit()
 
 
 def get_all_modalidad() -> dict:
-    session = get_session()
-    try:
-        rows = session.query(HwoModalidad).all()
-        return {row.equipo: row.schedule for row in rows}
-    finally:
-        session.close()
+    return {row.equipo: row.schedule for row in HwoModalidad.query.all()}
 
 
 def save_modalidad(prefs: dict) -> None:
-    session = get_session()
-    try:
-        for equipo, schedule in prefs.items():
-            if not equipo or not schedule:
-                continue
-            row = session.query(HwoModalidad).filter_by(equipo=str(equipo)).first()
-            if row:
-                row.schedule = str(schedule)
-            else:
-                session.add(HwoModalidad(equipo=str(equipo), schedule=str(schedule)))
-        session.commit()
-    except Exception:
-        session.rollback()
-        raise
-    finally:
-        session.close()
+    for equipo, schedule in prefs.items():
+        if not equipo or not schedule:
+            continue
+        row = HwoModalidad.query.filter_by(equipo=str(equipo)).first()
+        if row:
+            row.schedule = str(schedule)
+        else:
+            db.session.add(HwoModalidad(equipo=str(equipo), schedule=str(schedule)))
+    db.session.commit()
+
+
+def reset_for_tests() -> None:
+    """Limpia tablas HWO (solo tests)."""
+    HwoModalidad.query.delete()
+    HwoDataset.query.delete()
+    db.session.commit()
