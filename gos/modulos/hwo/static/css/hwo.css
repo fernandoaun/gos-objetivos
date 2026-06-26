@@ -608,6 +608,10 @@ body {
   margin-bottom: 18px;
 }
 
+.charts-grid--daily {
+  grid-template-columns: 1fr 1fr;
+}
+
 /* Tables */
 table {
   width: 100%;

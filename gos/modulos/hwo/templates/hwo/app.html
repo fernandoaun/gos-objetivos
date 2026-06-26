@@ -83,7 +83,7 @@
         <div class="charts-grid">
           <div class="section">
             <div class="section-head">
-              <div class="section-title">Burn-Up del período</div>
+              <div class="section-title">Burn-Up acumulado</div>
               <div>
                 <span class="leg"><span class="leg-dot" style="background:#76b947"></span>Real</span>
                 <span class="leg"><span class="leg-dot" style="background:#f9e29c;opacity:.9"></span>Proyectado</span>
@@ -93,8 +93,32 @@
             <div class="chart-body"><div class="chart-wrap" style="height:260px"><canvas id="chart-burnup-dash"></canvas></div></div>
           </div>
           <div class="section">
-            <div class="section-head"><div class="section-title">Estados (días)</div></div>
+            <div class="section-head"><div class="section-title">Estados del período (total)</div></div>
             <div class="chart-body"><div class="chart-wrap" style="height:260px"><canvas id="chart-states-dash"></canvas></div></div>
+          </div>
+        </div>
+        <div class="charts-grid charts-grid--daily">
+          <div class="section">
+            <div class="section-head">
+              <div class="section-title">Servicios por día</div>
+              <div>
+                <span class="leg"><span class="leg-dot" style="background:#76b947"></span>Real</span>
+                <span class="leg"><span class="leg-dot" style="background:#f9e29c;opacity:.9"></span>Proyectado</span>
+              </div>
+            </div>
+            <div class="chart-body"><div class="chart-wrap" style="height:240px"><canvas id="chart-daily-dash"></canvas></div></div>
+          </div>
+          <div class="section">
+            <div class="section-head">
+              <div class="section-title">Estados por día (jornadas)</div>
+              <div>
+                <span class="leg"><span class="leg-dot" style="background:#76b947"></span>Operando</span>
+                <span class="leg"><span class="leg-dot" style="background:#dc3545"></span>FDS</span>
+                <span class="leg"><span class="leg-dot" style="background:#e6a800"></span>SBCC</span>
+                <span class="leg"><span class="leg-dot" style="background:#5f9938"></span>SBSP</span>
+              </div>
+            </div>
+            <div class="chart-body"><div class="chart-wrap" style="height:240px"><canvas id="chart-daily-states-dash"></canvas></div></div>
           </div>
         </div>
       </div>
@@ -133,7 +157,7 @@
         <div class="burnup-stats" id="burnup-stats"></div>
         <div class="section">
           <div class="section-head">
-            <div class="section-title">Burn-Up — Avance del período</div>
+            <div class="section-title">Burn-Up acumulado — Avance del período</div>
             <div>
               <span class="leg"><span class="leg-dot" style="background:#76b947"></span>Real acumulado</span>
               <span class="leg"><span class="leg-dot" style="background:#f9e29c;opacity:.9"></span>Proyectado por turno</span>
@@ -141,6 +165,16 @@
             </div>
           </div>
           <div class="chart-body"><div class="chart-wrap" style="height:380px"><canvas id="chart-burnup-full"></canvas></div></div>
+        </div>
+        <div class="section">
+          <div class="section-head">
+            <div class="section-title">Servicios por día — Real vs proyectado</div>
+            <div>
+              <span class="leg"><span class="leg-dot" style="background:#76b947"></span>Real</span>
+              <span class="leg"><span class="leg-dot" style="background:#f9e29c;opacity:.9"></span>Proyectado</span>
+            </div>
+          </div>
+          <div class="chart-body"><div class="chart-wrap" style="height:320px"><canvas id="chart-daily-full"></canvas></div></div>
         </div>
       </div>
 
@@ -252,6 +286,7 @@ function setSchedule(sel) {
   reCountEquipment(eq);
   saveModalidad();
   D.burnup = calcBurnup();
+  D.dailyStates = calcDailyStates();
   renderEquipmentTable(); renderKPIs(); renderChartsForView(activeView);
 }
 // ════════════════════════════════════════════════════════════════
@@ -329,7 +364,7 @@ function rebuildDataset(raw) {
     D.config.feriados = wdHol; D.config.weekdaysNoHol = Math.max(0, D.config.weekdays - wdHol);
   }
   D.eqs = calcEquipments(); D.holidays = detectHolidays();
-  applyModalidad(); addExpectedToDate(); D.burnup = calcBurnup();
+  applyModalidad(); addExpectedToDate(); D.burnup = calcBurnup(); D.dailyStates = calcDailyStates();
   return { ...D };
 }
 
@@ -463,7 +498,7 @@ function processWorkbook(wb) {
       D.config.feriados = wdHol; D.config.weekdaysNoHol = Math.max(0, D.config.weekdays - wdHol);
     }
     D.eqs = calcEquipments(); D.holidays = detectHolidays();
-    applyModalidad(); addExpectedToDate(); D.burnup = calcBurnup();
+    applyModalidad(); addExpectedToDate(); D.burnup = calcBurnup(); D.dailyStates = calcDailyStates();
     results.push({ sheetName: shName, D });
   }
   return results;
@@ -580,21 +615,53 @@ function addExpectedToDate() {
 
 function calcBurnup() {
   const cfg = D.config;
-  if (!cfg.periodStart || !D.maxDate) return { labels: [], real: [], proj: [], scope: 0 };
+  if (!cfg.periodStart || !D.maxDate) return { labels: [], real: [], proj: [], dailyReal: [], dailyProj: [], scope: 0 };
   const totalScope = Object.values(D.eqs).reduce((s, e) => s + (e.jornadasPeriodo || 0), 0);
   const actualByDate = {};
   for (const row of D.rows) { const t = row.fecha.getTime(); actualByDate[t] = (actualByDate[t] || 0) + row.cantServ; }
-  const labels = [], real = [], proj = [];
+  const labels = [], real = [], proj = [], dailyReal = [], dailyProj = [];
   let cumReal = 0, cumProj = 0;
   const d = new Date(cfg.periodStart.getTime());
   while (d <= D.maxDate) {
     const t = d.getTime();
-    cumReal += actualByDate[t] || 0;
-    cumProj += Object.values(D.eqs).reduce((s, e) => s + expectedOnDay(d, e.schedule, D.holidays), 0);
-    labels.push(fmtShort(d)); real.push(+(cumReal.toFixed(1))); proj.push(+(cumProj.toFixed(1)));
+    const dayReal = actualByDate[t] || 0;
+    const dayProj = Object.values(D.eqs).reduce((s, e) => s + expectedOnDay(d, e.schedule, D.holidays), 0);
+    cumReal += dayReal;
+    cumProj += dayProj;
+    labels.push(fmtShort(d));
+    dailyReal.push(+(dayReal.toFixed(1)));
+    dailyProj.push(+(dayProj.toFixed(1)));
+    real.push(+(cumReal.toFixed(1)));
+    proj.push(+(cumProj.toFixed(1)));
     d.setDate(d.getDate() + 1);
   }
-  return { labels, real, proj, scope: totalScope };
+  return { labels, real, proj, dailyReal, dailyProj, scope: totalScope };
+}
+
+function calcDailyStates() {
+  const cfg = D.config;
+  if (!cfg.periodStart || !D.maxDate) return { labels: [], op: [], fds: [], sbcc: [], sbsp: [] };
+  const byDate = {};
+  for (const row of D.rows) {
+    const t = row.fecha.getTime();
+    if (!byDate[t]) byDate[t] = { op: 0, fds: 0, sbcc: 0, sbsp: 0 };
+    const e = D.eqs[row.centro];
+    const j = e ? jpd(e.schedule) : 1;
+    const st = stateOf(row);
+    if (st === 'op') byDate[t].op += j;
+    else if (st === 'fds') byDate[t].fds += j;
+    else if (st === 'sbcc') byDate[t].sbcc += j;
+    else if (st === 'sbsp') byDate[t].sbsp += j;
+  }
+  const labels = [], op = [], fds = [], sbcc = [], sbsp = [];
+  const d = new Date(cfg.periodStart.getTime());
+  while (d <= D.maxDate) {
+    const day = byDate[d.getTime()] || { op: 0, fds: 0, sbcc: 0, sbsp: 0 };
+    labels.push(fmtShort(d));
+    op.push(day.op); fds.push(day.fds); sbcc.push(day.sbcc); sbsp.push(day.sbsp);
+    d.setDate(d.getDate() + 1);
+  }
+  return { labels, op, fds, sbcc, sbsp };
 }
 
 function toggleMesCerrado() {
@@ -710,8 +777,72 @@ function renderBurnupStats() {
 
 function renderChartsForView(name) {
   Object.values(charts).forEach(c => c.destroy()); charts = {};
-  if (name === 'dashboard') { renderBurnupChart('chart-burnup-dash'); renderStatesChart('chart-states-dash'); }
-  else if (name === 'burnup') renderBurnupChart('chart-burnup-full');
+  if (name === 'dashboard') {
+    renderBurnupChart('chart-burnup-dash');
+    renderStatesChart('chart-states-dash');
+    renderDailyBurnupChart('chart-daily-dash');
+    renderDailyStatesChart('chart-daily-states-dash');
+  } else if (name === 'burnup') {
+    renderBurnupChart('chart-burnup-full');
+    renderDailyBurnupChart('chart-daily-full');
+  }
+}
+
+const CHART_AXIS_X = { grid: { color: '#f1f5f9', display: false }, ticks: { font: { size: 10 }, maxRotation: 45, maxTicksLimit: 31 } };
+const CHART_AXIS_Y = { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } }, beginAtZero: true };
+
+function renderDailyBurnupChart(canvasId) {
+  const bu = D.burnup; if (!bu || !bu.labels.length) return;
+  const ctx = document.getElementById(canvasId); if (!ctx) return;
+  charts[canvasId] = new Chart(ctx.getContext('2d'), {
+    type: 'bar',
+    data: { labels: bu.labels, datasets: [
+      { label: 'Proyectado', data: bu.dailyProj, backgroundColor: 'rgba(249,226,156,.8)', borderColor: '#e6c45c', borderWidth: 1, borderRadius: 3, order: 1 },
+      { label: 'Real', data: bu.dailyReal, backgroundColor: 'rgba(118,185,71,.9)', borderColor: '#76b947', borderWidth: 1, borderRadius: 3, order: 2 },
+    ] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12, usePointStyle: true } },
+        tooltip: { callbacks: { afterBody: ctx => {
+          const real = ctx.find(c => c.dataset.label === 'Real')?.raw ?? 0;
+          const proj = ctx.find(c => c.dataset.label === 'Proyectado')?.raw ?? 0;
+          return [`Desvío del día: ${(real - proj) >= 0 ? '+' : ''}${(real - proj).toFixed(1)}`];
+        } } },
+      },
+      scales: { x: CHART_AXIS_X, y: CHART_AXIS_Y },
+    },
+  });
+}
+
+function renderDailyStatesChart(canvasId) {
+  const ds = D.dailyStates; if (!ds || !ds.labels.length) return;
+  const ctx = document.getElementById(canvasId); if (!ctx) return;
+  charts[canvasId] = new Chart(ctx.getContext('2d'), {
+    type: 'bar',
+    data: { labels: ds.labels, datasets: [
+      { label: 'Operando', data: ds.op, backgroundColor: '#76b947', stack: 'estados', borderRadius: 2 },
+      { label: 'SBSP', data: ds.sbsp, backgroundColor: '#5f9938', stack: 'estados', borderRadius: 2 },
+      { label: 'SBCC', data: ds.sbcc, backgroundColor: '#e6a800', stack: 'estados', borderRadius: 2 },
+      { label: 'FDS', data: ds.fds, backgroundColor: '#dc3545', stack: 'estados', borderRadius: 2 },
+    ] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12, usePointStyle: true } },
+        tooltip: { callbacks: { footer: items => {
+          const total = items.reduce((s, i) => s + (i.parsed.y ?? 0), 0);
+          return total ? `Total jornadas: ${total}` : '';
+        } } },
+      },
+      scales: {
+        x: { ...CHART_AXIS_X, stacked: true },
+        y: { ...CHART_AXIS_Y, stacked: true, ticks: { ...CHART_AXIS_Y.ticks, stepSize: 1 } },
+      },
+    },
+  });
 }
 
 function renderBurnupChart(canvasId) {
