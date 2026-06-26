@@ -175,6 +175,13 @@ def hwo_data_dir() -> Path:
     return BASE_DIR / "instance" / "hwo"
 
 
+def hwo_db_path() -> Path:
+    custom = _get("GOS_HWO_DB_PATH")
+    if custom:
+        return Path(custom).resolve()
+    return hwo_data_dir() / "hwo.db"
+
+
 def vacaciones_db_path() -> Path:
     custom = _get("GOS_VACACIONES_DB_PATH")
     if custom:

@@ -258,7 +258,7 @@ function setSchedule(sel) {
 
 
 // ════════════════════════════════════════════════════════════════
-//  API — Persistencia en backend (Node.js + SQLite)
+//  API — Persistencia en base de datos (SQLite en el servidor)
 // ════════════════════════════════════════════════════════════════
 function serializeDataset(name, ds) {
   return {
@@ -758,6 +758,8 @@ async function initApp() {
   await renderSavedPanel();
   checkConnection();
   setInterval(checkConnection, 30000);
+  const all = await apiLoadAll();
+  if (all.length) await loadFromAPI(all[0].name);
 }
 initApp();
 </script>
