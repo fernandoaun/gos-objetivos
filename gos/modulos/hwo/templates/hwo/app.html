@@ -16,9 +16,9 @@
   <div class="upload-card" id="drop-zone">
     <div class="upload-icon">📊</div>
     <h2>Dashboard HWO</h2>
-    <p>Arrastrá uno o más archivos Excel (.xlsx) o hacé clic para seleccionarlos.</p>
+    <p>Arrastrá un Excel para cargar o actualizar. Podés subir <strong>solo las fechas nuevas</strong>: se suman al archivo guardado.</p>
     <button class="btn-primary" onclick="document.getElementById('file-input').click()">Seleccionar archivo(s)</button>
-    <div class="upload-hint">Compatible con Hoja3 · Podés cargar varios archivos a la vez</div>
+    <div class="upload-hint">La primera vez cargá el archivo completo · después solo las fechas que falten</div>
     <input type="file" id="file-input" accept=".xlsx,.xls" style="display:none" multiple>
   </div>
   <div id="saved-panel" class="hidden">
@@ -85,8 +85,8 @@
             <div class="section-head">
               <div class="section-title">Burn-Up acumulado</div>
               <div>
-                <span class="leg"><span class="leg-dot" style="background:#76b947"></span>Real</span>
-                <span class="leg"><span class="leg-dot" style="background:#f9e29c;opacity:.9"></span>Proyectado</span>
+                <span class="leg"><span class="leg-dot" style="background:#76b947"></span>Real acumulado</span>
+                <span class="leg"><span class="leg-dot" style="background:#f9e29c;opacity:.9"></span>Proyectado acumulado</span>
                 <span class="leg"><span class="leg-dot" style="background:#94a3b8"></span>Scope</span>
               </div>
             </div>
@@ -97,18 +97,18 @@
             <div class="chart-body"><div class="chart-wrap" style="height:260px"><canvas id="chart-states-dash"></canvas></div></div>
           </div>
         </div>
-        <div class="charts-grid charts-grid--daily">
-          <div class="section">
-            <div class="section-head">
-              <div class="section-title">Servicios por día</div>
-              <div>
-                <span class="leg"><span class="leg-dot" style="background:#76b947"></span>Real</span>
-                <span class="leg"><span class="leg-dot" style="background:#f9e29c;opacity:.9"></span>Proyectado</span>
-              </div>
+        <div class="section section--wide">
+          <div class="section-head">
+            <div class="section-title">Servicios realizados y proyectados — día a día</div>
+            <div>
+              <span class="leg"><span class="leg-dot" style="background:#76b947"></span>Servicios realizados</span>
+              <span class="leg"><span class="leg-dot" style="background:#f9e29c;opacity:.9"></span>Servicios proyectados</span>
             </div>
-            <div class="chart-body"><div class="chart-wrap" style="height:240px"><canvas id="chart-daily-dash"></canvas></div></div>
           </div>
-          <div class="section">
+          <div class="chart-body"><div class="chart-wrap" style="height:280px"><canvas id="chart-daily-dash"></canvas></div></div>
+        </div>
+        <div class="charts-grid charts-grid--daily">
+          <div class="section section--wide">
             <div class="section-head">
               <div class="section-title">Estados por día (jornadas)</div>
               <div>
@@ -168,13 +168,13 @@
         </div>
         <div class="section">
           <div class="section-head">
-            <div class="section-title">Servicios por día — Real vs proyectado</div>
+            <div class="section-title">Servicios realizados y proyectados — día a día</div>
             <div>
-              <span class="leg"><span class="leg-dot" style="background:#76b947"></span>Real</span>
-              <span class="leg"><span class="leg-dot" style="background:#f9e29c;opacity:.9"></span>Proyectado</span>
+              <span class="leg"><span class="leg-dot" style="background:#76b947"></span>Servicios realizados</span>
+              <span class="leg"><span class="leg-dot" style="background:#f9e29c;opacity:.9"></span>Servicios proyectados</span>
             </div>
           </div>
-          <div class="chart-body"><div class="chart-wrap" style="height:320px"><canvas id="chart-daily-full"></canvas></div></div>
+          <div class="chart-body"><div class="chart-wrap" style="height:360px"><canvas id="chart-daily-full"></canvas></div></div>
         </div>
       </div>
 
@@ -348,12 +348,37 @@ async function checkConnection() {
   }
 }
 
-function rebuildDataset(raw) {
-  const { config, rows } = deserializeDataset(raw);
-  D = {}; D.config = config; D.rows = rows;
-  D.maxDate = rows.length ? new Date(Math.max(...rows.map(r => r.fecha.getTime()))) : null;
-  if (!D.config.periodStart && rows.length) {
-    const minT = Math.min(...rows.map(r => r.fecha.getTime())); const minD = new Date(minT);
+function rowKey(r) {
+  return `${r.fecha.getTime()}|${(r.centro || '').trim()}`;
+}
+
+function mergeConfigs(existing, incoming) {
+  const cfg = {
+    ...existing,
+    ...incoming,
+    eqs: { ...(existing.eqs || {}), ...(incoming.eqs || {}) },
+  };
+  if (!incoming.periodStart) cfg.periodStart = existing.periodStart;
+  if (!incoming.periodEnd) cfg.periodEnd = existing.periodEnd;
+  if (cfg.periodStart && cfg.periodEnd) {
+    cfg.periodDays = daysBetween(cfg.periodStart, cfg.periodEnd) + 1;
+    cfg.weekdays = countWeekdays(cfg.periodStart, cfg.periodEnd);
+    const hSet = buildHolidaySet(cfg.periodStart, cfg.periodEnd);
+    let wdHol = 0;
+    for (const t of hSet) { const dow = new Date(t).getDay(); if (dow !== 0 && dow !== 6) wdHol++; }
+    cfg.feriados = wdHol;
+    cfg.weekdaysNoHol = Math.max(0, cfg.weekdays - wdHol);
+  }
+  return cfg;
+}
+
+function finalizeDataset(ds) {
+  D = {};
+  D.config = { ...ds.config, eqs: { ...(ds.config?.eqs || {}) } };
+  D.rows = ds.rows || [];
+  D.maxDate = D.rows.length ? new Date(Math.max(...D.rows.map(r => r.fecha.getTime()))) : null;
+  if (!D.config.periodStart && D.rows.length) {
+    const minT = Math.min(...D.rows.map(r => r.fecha.getTime())); const minD = new Date(minT);
     let yr = minD.getFullYear(), mo = minD.getMonth();
     if (minD.getDate() < 21) { mo--; if (mo < 0) { mo = 11; yr--; } }
     D.config.periodStart = new Date(yr, mo, 21); D.config.periodEnd = new Date(yr, mo + 1, 20);
@@ -368,16 +393,51 @@ function rebuildDataset(raw) {
   return { ...D };
 }
 
+function mergeIntoDataset(existing, incoming) {
+  const map = new Map();
+  let updated = 0, added = 0;
+  for (const r of existing.rows) map.set(rowKey(r), r);
+  for (const r of incoming.rows) {
+    const k = rowKey(r);
+    if (map.has(k)) updated++;
+    else added++;
+    map.set(k, r);
+  }
+  const rows = [...map.values()].sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+  const config = mergeConfigs(existing.config, incoming.config);
+  const D = finalizeDataset({ config, rows });
+  return { D, added, updated, total: rows.length };
+}
+
+function rebuildDataset(raw) {
+  const { config, rows } = deserializeDataset(raw);
+  return finalizeDataset({ config, rows });
+}
+
 async function renderSavedPanel() {
   const all = await apiLoadAll();
   const panel = document.getElementById('saved-panel'); const list = document.getElementById('saved-list');
   if (!all.length) { panel.classList.add('hidden'); return; }
   panel.classList.remove('hidden');
-  list.innerHTML = all.map(item => {
-    const date = new Date(item.saved_at).toLocaleString('es-AR');
-    const sn = item.name.replace(/"/g, '&quot;');
-    return `<div class="saved-item" onclick="loadFromAPI('${sn}')"><span class="saved-item-icon">📁</span><div class="saved-item-info"><div class="saved-item-name" title="${sn}">${item.name}</div><div class="saved-item-date">Guardado: ${date}</div><div class="saved-item-sub">${item.row_count} registros</div></div><button class="saved-item-del" title="Eliminar" onclick="event.stopPropagation();deleteSavedItem('${sn}')">×</button></div>`;
-  }).join('');
+  list.innerHTML = `<p class="saved-hint">Hay <strong>${all.length}</strong> archivo(s) en la base de datos. Se cargan automáticamente al abrir el dashboard.</p>`;
+}
+
+async function loadAllFromAPI() {
+  const all = await apiLoadAll();
+  if (!all.length) return false;
+  const loaded = await Promise.all(all.map(async item => {
+    const raw = await apiLoadDataset(item.name);
+    if (!raw) return null;
+    return { name: item.name, D: rebuildDataset(raw), savedAt: raw.savedAt || item.saved_at };
+  }));
+  datasets = loaded.filter(Boolean);
+  if (!datasets.length) return false;
+  activeIdx = 0;
+  D = datasets[activeIdx].D;
+  const n = datasets.length;
+  const when = new Date(datasets[0].savedAt || all[0].saved_at).toLocaleString('es-AR');
+  showApp(n === 1 ? `Datos cargados · ${when}` : `${n} archivos cargados · último: ${when}`);
+  return true;
 }
 
 async function loadFromAPI(name) {
@@ -386,13 +446,25 @@ async function loadFromAPI(name) {
   const ds = rebuildDataset(raw);
   const existing = datasets.findIndex(d => d.name === name);
   if (existing >= 0) { datasets[existing].D = ds; activeIdx = existing; }
-  else { datasets.push({ name, D: ds }); activeIdx = datasets.length - 1; }
+  else { datasets.push({ name, D: ds, savedAt: raw.savedAt }); activeIdx = datasets.length - 1; }
   D = datasets[activeIdx].D;
   showApp('Datos guardados · ' + new Date(raw.savedAt).toLocaleString('es-AR'));
 }
 
-async function deleteSavedItem(name) { await apiDeleteDataset(name); renderSavedPanel(); }
-async function clearAllSaved() { if (!confirm('¿Borrar todos los datos guardados?')) return; await apiClearAll(); renderSavedPanel(); }
+async function deleteSavedItem(name) {
+  await apiDeleteDataset(name);
+  const idx = datasets.findIndex(d => d.name === name);
+  if (idx >= 0) closeDataset(idx);
+  if (!datasets.length) { await renderSavedPanel(); goToUpload(); }
+  else renderSavedPanel();
+}
+async function clearAllSaved() {
+  if (!confirm('¿Borrar todos los datos guardados?')) return;
+  await apiClearAll();
+  datasets = []; activeIdx = -1; D = {};
+  goToUpload();
+  await renderSavedPanel();
+}
 // ════════════════════════════════════════════════════════════════
 
 
@@ -408,7 +480,9 @@ function switchView(name) {
 }
 
 // ── File handling ────────────────────────────
-function onFilesPicked(files) { Array.from(files).forEach(f => loadFile(f)); }
+async function onFilesPicked(files) {
+  for (const f of Array.from(files)) await loadFile(f);
+}
 document.getElementById('file-input').addEventListener('change', e => { onFilesPicked(e.target.files); e.target.value = ''; });
 document.getElementById('file-input-add').addEventListener('change', e => { onFilesPicked(e.target.files); e.target.value = ''; });
 const dropZone = document.getElementById('drop-zone');
@@ -418,26 +492,55 @@ dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.
 document.getElementById('app').addEventListener('dragover', e => e.preventDefault());
 document.getElementById('app').addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files.length) onFilesPicked(e.dataTransfer.files); });
 
+function formatMergeMessage(added, updated, total) {
+  const parts = [];
+  if (added) parts.push(`${added} fecha${added !== 1 ? 's' : ''} nueva${added !== 1 ? 's' : ''}`);
+  if (updated) parts.push(`${updated} actualizada${updated !== 1 ? 's' : ''}`);
+  if (!parts.length) return `Sin cambios · ${total} registros en total`;
+  return `Sumado al archivo · ${parts.join(' · ')} · ${total} registros`;
+}
+
 function loadFile(file) {
-  const reader = new FileReader();
-  reader.onload = ev => {
-    try {
-      const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array', cellDates: true });
-      const filename = file.name.replace(/\.[^.]+$/, '');
-      const results = processWorkbook(wb);
-      if (!results.length) { alert(`No se encontraron hojas de datos en "${file.name}".`); return; }
-      for (const { sheetName, D: ds } of results) {
-        const tabName = results.length === 1 ? filename : `${filename} · ${sheetName}`;
-        const existing = datasets.findIndex(d => d.name === tabName);
-        if (existing >= 0) { datasets[existing].D = ds; activeIdx = existing; }
-        else { datasets.push({ name: tabName, D: ds }); activeIdx = datasets.length - 1; }
-        apiSaveDataset(tabName, ds);
-      }
-      D = datasets[activeIdx].D;
-      showApp('Actualizado: ' + new Date().toLocaleString('es-AR'));
-    } catch (err) { alert('Error al leer "' + file.name + '": ' + err.message); }
-  };
-  reader.readAsArrayBuffer(file);
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async ev => {
+      try {
+        const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array', cellDates: true });
+        const filename = file.name.replace(/\.[^.]+$/, '');
+        const results = processWorkbook(wb);
+        if (!results.length) { alert(`No se encontraron hojas de datos en "${file.name}".`); resolve(); return; }
+        const messages = [];
+        for (const { sheetName, D: newDs } of results) {
+          const tabName = results.length === 1 ? filename : `${filename} · ${sheetName}`;
+          const memIdx = datasets.findIndex(d => d.name === tabName);
+          let existingDs = memIdx >= 0 ? datasets[memIdx].D : null;
+          if (!existingDs) {
+            const raw = await apiLoadDataset(tabName);
+            if (raw) existingDs = rebuildDataset(raw);
+          }
+          let finalDs, msg;
+          if (existingDs?.rows?.length) {
+            const merged = mergeIntoDataset(existingDs, newDs);
+            finalDs = merged.D;
+            msg = formatMergeMessage(merged.added, merged.updated, merged.total);
+          } else {
+            finalDs = newDs;
+            msg = `Cargado · ${finalDs.rows.length} registros`;
+          }
+          const idx = datasets.findIndex(d => d.name === tabName);
+          if (idx >= 0) { datasets[idx].D = finalDs; activeIdx = idx; }
+          else { datasets.push({ name: tabName, D: finalDs }); activeIdx = datasets.length - 1; }
+          await apiSaveDataset(tabName, finalDs);
+          messages.push(`${tabName}: ${msg}`);
+        }
+        D = datasets[activeIdx].D;
+        showApp(messages.length === 1 ? messages[0] : messages.join(' · '));
+        resolve();
+      } catch (err) { alert('Error al leer "' + file.name + '": ' + err.message); reject(err); }
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsArrayBuffer(file);
+  });
 }
 
 function showApp(updateText) {
@@ -452,7 +555,11 @@ function showApp(updateText) {
 function goToUpload() {
   document.getElementById('upload-zone').classList.remove('hidden');
   document.getElementById('app').classList.add('hidden');
-  renderSavedPanel();
+  if (datasets.length) {
+    document.getElementById('saved-panel').classList.add('hidden');
+  } else {
+    renderSavedPanel();
+  }
 }
 
 function renderFileBar() {
@@ -797,21 +904,52 @@ function renderDailyBurnupChart(canvasId) {
   charts[canvasId] = new Chart(ctx.getContext('2d'), {
     type: 'bar',
     data: { labels: bu.labels, datasets: [
-      { label: 'Proyectado', data: bu.dailyProj, backgroundColor: 'rgba(249,226,156,.8)', borderColor: '#e6c45c', borderWidth: 1, borderRadius: 3, order: 1 },
-      { label: 'Real', data: bu.dailyReal, backgroundColor: 'rgba(118,185,71,.9)', borderColor: '#76b947', borderWidth: 1, borderRadius: 3, order: 2 },
+      {
+        label: 'Servicios proyectados',
+        data: bu.dailyProj,
+        backgroundColor: 'rgba(249,226,156,.85)',
+        borderColor: '#e6c45c',
+        borderWidth: 1,
+        borderRadius: 4,
+        barPercentage: 0.9,
+        categoryPercentage: 0.72,
+      },
+      {
+        label: 'Servicios realizados',
+        data: bu.dailyReal,
+        backgroundColor: 'rgba(118,185,71,.92)',
+        borderColor: '#5f9938',
+        borderWidth: 1,
+        borderRadius: 4,
+        barPercentage: 0.9,
+        categoryPercentage: 0.72,
+      },
     ] },
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12, usePointStyle: true } },
-        tooltip: { callbacks: { afterBody: ctx => {
-          const real = ctx.find(c => c.dataset.label === 'Real')?.raw ?? 0;
-          const proj = ctx.find(c => c.dataset.label === 'Proyectado')?.raw ?? 0;
-          return [`Desvío del día: ${(real - proj) >= 0 ? '+' : ''}${(real - proj).toFixed(1)}`];
-        } } },
+        tooltip: {
+          callbacks: {
+            label: c => `  ${c.dataset.label}: ${c.parsed.y}`,
+            afterBody: items => {
+              const real = items.find(c => c.dataset.label === 'Servicios realizados')?.parsed.y ?? 0;
+              const proj = items.find(c => c.dataset.label === 'Servicios proyectados')?.parsed.y ?? 0;
+              const diff = real - proj;
+              return [`Desvío del día: ${diff >= 0 ? '+' : ''}${diff.toFixed(1)}`];
+            },
+          },
+        },
       },
-      scales: { x: CHART_AXIS_X, y: CHART_AXIS_Y },
+      scales: {
+        x: { ...CHART_AXIS_X, title: { display: true, text: 'Fecha', font: { size: 11 } } },
+        y: {
+          ...CHART_AXIS_Y,
+          title: { display: true, text: 'Servicios del día', font: { size: 11 } },
+          ticks: { ...CHART_AXIS_Y.ticks, stepSize: 1 },
+        },
+      },
     },
   });
 }
@@ -853,7 +991,7 @@ function renderBurnupChart(canvasId) {
     type: 'line',
     data: { labels: bu.labels, datasets: [
       { label: 'Scope total', data: scope, borderColor: '#94a3b8', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0, fill: false, order: 3 },
-      { label: 'Proyectado', data: bu.proj, borderColor: '#f9e29c', backgroundColor: 'rgba(249,226,156,.15)', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, fill: 'origin', order: 2 },
+      { label: 'Proyectado acumulado', data: bu.proj, borderColor: '#f9e29c', backgroundColor: 'rgba(249,226,156,.15)', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, fill: 'origin', order: 2 },
       { label: 'Real acumulado', data: bu.real, borderColor: '#76b947', backgroundColor: 'rgba(118,185,71,.15)', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, fill: 'origin', tension: 0.25, order: 1 },
     ] },
     options: {
@@ -861,7 +999,7 @@ function renderBurnupChart(canvasId) {
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12, usePointStyle: true } },
-        tooltip: { callbacks: { afterBody: ctx => { const real = ctx.find(c => c.dataset.label === 'Real acumulado')?.raw ?? 0; const proj = ctx.find(c => c.dataset.label === 'Proyectado')?.raw ?? 0; const sc = ctx.find(c => c.dataset.label === 'Scope total')?.raw ?? 0; return [`Desvío vs proy: ${(real - proj) >= 0 ? '+' : ''}${(real - proj).toFixed(1)}`, `Restante: ${(sc - real).toFixed(1)}`]; } } },
+        tooltip: { callbacks: { afterBody: ctx => { const real = ctx.find(c => c.dataset.label === 'Real acumulado')?.raw ?? 0; const proj = ctx.find(c => c.dataset.label === 'Proyectado acumulado')?.raw ?? 0; const sc = ctx.find(c => c.dataset.label === 'Scope total')?.raw ?? 0; return [`Desvío vs proy: ${(real - proj) >= 0 ? '+' : ''}${(real - proj).toFixed(1)}`, `Restante: ${(sc - real).toFixed(1)}`]; } } },
       },
       scales: {
         x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, maxRotation: 45, maxTicksLimit: 20 } },
@@ -886,11 +1024,10 @@ function renderStatesChart(canvasId) {
 // ── Init ────────────────────────────────────
 async function initApp() {
   await initModalidad();
-  await renderSavedPanel();
   checkConnection();
   setInterval(checkConnection, 30000);
-  const all = await apiLoadAll();
-  if (all.length) await loadFromAPI(all[0].name);
+  const loaded = await loadAllFromAPI();
+  if (!loaded) await renderSavedPanel();
 }
 initApp();
 </script>

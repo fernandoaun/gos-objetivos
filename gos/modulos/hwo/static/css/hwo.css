@@ -129,6 +129,15 @@ body {
   justify-content: center;
 }
 
+.saved-hint {
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.65);
+  text-align: center;
+  margin: 0;
+  padding: 8px 12px;
+}
+
 .saved-item {
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -609,7 +618,11 @@ body {
 }
 
 .charts-grid--daily {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
+}
+
+.section--wide {
+  margin-bottom: 18px;
 }
 
 /* Tables */
