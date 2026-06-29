@@ -2,9 +2,14 @@
 {% block page_title %}Usuarios{% endblock %}
 {% block title %}Usuarios — GOS{% endblock %}
 {% block content %}
-<div class="mb-4">
-  <h1 class="h3 mb-1">Usuarios de la plataforma</h1>
-  <p class="text-muted mb-0">Creá cuentas para que el personal ingrese a GOS con su email y contraseña.</p>
+<div class="mb-4 d-flex flex-wrap justify-content-between align-items-start gap-2">
+  <div>
+    <h1 class="h3 mb-1">Usuarios de la plataforma</h1>
+    <p class="text-muted mb-0">Creá cuentas para que el personal ingrese a GOS con su email y contraseña.</p>
+  </div>
+  <a href="{{ url_for('perfiles.index') }}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-shield-lock me-1"></i> Perfiles
+  </a>
 </div>
 
 <div class="row g-4">
@@ -35,6 +40,16 @@
             {% endfor %}
           </select>
         </div>
+        <div class="mb-3">
+          <label class="form-label" for="perfil_id">Perfil de módulos</label>
+          <select class="form-select form-select-sm" id="perfil_id" name="perfil_id">
+            <option value="">Por defecto del rol</option>
+            {% for p in perfiles %}
+            <option value="{{ p.id }}">{{ p.nombre }}</option>
+            {% endfor %}
+          </select>
+          <div class="form-text">Opcional. Define qué módulos ve el usuario.</div>
+        </div>
         <button type="submit" class="btn btn-primary btn-sm w-100">Crear usuario</button>
       </form>
     </div>
@@ -46,6 +61,7 @@
         <li><strong>Ángel</strong> — equipo interno: carga y seguimiento operativo.</li>
         <li><strong>Usuario (alumno)</strong> — acceso a su capacitación y avance personal.</li>
         <li><strong>Cliente</strong> — visualización de información para presentación.</li>
+        <li>Asigná un <strong>perfil</strong> para restringir qué módulos ve cada usuario.</li>
       </ul>
     </div>
   </div>
@@ -58,6 +74,7 @@
             <th>Nombre</th>
             <th>Email</th>
             <th>Rol</th>
+            <th>Perfil</th>
             <th>Estado</th>
             <th class="text-end">Acciones</th>
           </tr>
@@ -68,6 +85,9 @@
             <td>{{ u.nombre }}{% if u.id == current_user.id %} <span class="badge bg-primary">Vos</span>{% endif %}</td>
             <td class="text-muted small">{{ u.email }}</td>
             <td><span class="badge text-bg-light border">{{ u.etiqueta_rol() }}</span></td>
+            <td class="small text-muted">
+              {% if u.perfil %}{{ u.perfil.nombre }}{% else %}<span class="text-muted">—</span>{% endif %}
+            </td>
             <td>
               {% if u.activo %}
               <span class="badge bg-success">Activo</span>
@@ -84,7 +104,7 @@
           </tr>
           {% else %}
           <tr>
-            <td colspan="5" class="text-muted text-center py-4">No hay usuarios. Creá el primero.</td>
+            <td colspan="6" class="text-muted text-center py-4">No hay usuarios. Creá el primero.</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -119,6 +139,15 @@
             <input type="hidden" name="rol" value="{{ u.rol }}">
             <div class="form-text">No podés cambiar tu propio rol.</div>
             {% endif %}
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Perfil de módulos</label>
+            <select class="form-select form-select-sm" name="perfil_id">
+              <option value="" {% if not u.perfil_id %}selected{% endif %}>Por defecto del rol</option>
+              {% for p in perfiles %}
+              <option value="{{ p.id }}" {% if u.perfil_id == p.id %}selected{% endif %}>{{ p.nombre }}</option>
+              {% endfor %}
+            </select>
           </div>
           <div class="mb-2">
             <label class="form-label">Nueva contraseña</label>

@@ -1,5 +1,5 @@
 from gos.extensions import db
-from gos.models import Usuario
+from gos.models import Perfil, Usuario
 from gos.models.usuario import ROLES
 
 MIN_PASSWORD_LEN = 6
@@ -13,6 +13,15 @@ def listar_usuarios_empresa(empresa_id: int) -> list[Usuario]:
     )
 
 
+def _resolver_perfil_id(empresa_id: int, perfil_id: int | None) -> tuple[int | None, str | None]:
+    if not perfil_id:
+        return None, None
+    perfil = Perfil.query.filter_by(id=perfil_id, empresa_id=empresa_id).first()
+    if not perfil:
+        return None, "Perfil inválido."
+    return perfil.id, None
+
+
 def crear_usuario(
     *,
     empresa_id: int,
@@ -20,6 +29,7 @@ def crear_usuario(
     nombre: str,
     password: str,
     rol: str,
+    perfil_id: int | None = None,
 ) -> tuple[Usuario | None, str | None]:
     email = email.strip().lower()
     nombre = nombre.strip()
@@ -34,7 +44,17 @@ def crear_usuario(
     if Usuario.query.filter_by(email=email).first():
         return None, f"Ya existe un usuario con el email {email}."
 
-    user = Usuario(empresa_id=empresa_id, email=email, nombre=nombre, rol=rol)
+    perfil_resuelto, error_perfil = _resolver_perfil_id(empresa_id, perfil_id)
+    if error_perfil:
+        return None, error_perfil
+
+    user = Usuario(
+        empresa_id=empresa_id,
+        email=email,
+        nombre=nombre,
+        rol=rol,
+        perfil_id=perfil_resuelto,
+    )
     user.set_password(password)
     db.session.add(user)
     db.session.commit()
@@ -48,6 +68,8 @@ def actualizar_usuario(
     rol: str,
     activo: bool,
     password: str | None = None,
+    perfil_id: int | None = None,
+    limpiar_perfil: bool = False,
 ) -> str | None:
     nombre = nombre.strip()
     if not nombre:
@@ -58,6 +80,14 @@ def actualizar_usuario(
         if len(password) < MIN_PASSWORD_LEN:
             return f"La contraseña debe tener al menos {MIN_PASSWORD_LEN} caracteres."
         user.set_password(password)
+
+    if limpiar_perfil:
+        user.perfil_id = None
+    elif perfil_id is not None:
+        perfil_resuelto, error_perfil = _resolver_perfil_id(user.empresa_id, perfil_id)
+        if error_perfil:
+            return error_perfil
+        user.perfil_id = perfil_resuelto
 
     user.nombre = nombre
     user.rol = rol

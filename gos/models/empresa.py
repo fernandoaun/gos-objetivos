@@ -10,6 +10,7 @@ class Empresa(db.Model, TimestampMixin):
     activa = db.Column(db.Boolean, default=True, nullable=False)
 
     usuarios = db.relationship("Usuario", back_populates="empresa", lazy="dynamic")
+    perfiles = db.relationship("Perfil", back_populates="empresa", lazy="dynamic")
 
     def __repr__(self):
         return f"<Empresa {self.nombre}>"

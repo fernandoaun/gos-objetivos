@@ -3,7 +3,7 @@ from flask_login import current_user
 
 from gos.models import Usuario
 from gos.models.usuario import ROL_LABELS, ROLES
-from gos.services import usuario_service
+from gos.services import perfil_service, usuario_service
 from gos.utils.auth_decorators import requiere_admin
 
 bp = Blueprint("usuarios", __name__)
@@ -13,9 +13,11 @@ bp = Blueprint("usuarios", __name__)
 @requiere_admin
 def index():
     usuarios = usuario_service.listar_usuarios_empresa(current_user.empresa_id)
+    perfiles = perfil_service.listar_perfiles_empresa(current_user.empresa_id)
     return render_template(
         "usuarios/index.html",
         usuarios=usuarios,
+        perfiles=perfiles,
         roles=ROLES,
         rol_labels=ROL_LABELS,
     )
@@ -24,12 +26,15 @@ def index():
 @bp.route("/", methods=["POST"])
 @requiere_admin
 def crear():
+    perfil_raw = request.form.get("perfil_id", "").strip()
+    perfil_id = int(perfil_raw) if perfil_raw else None
     user, error = usuario_service.crear_usuario(
         empresa_id=current_user.empresa_id,
         email=request.form.get("email", ""),
         nombre=request.form.get("nombre", ""),
         password=request.form.get("password", ""),
         rol=request.form.get("rol", "usuario"),
+        perfil_id=perfil_id,
     )
     if error:
         flash(error, "danger")
@@ -54,6 +59,8 @@ def editar(user_id: int):
         rol=request.form.get("rol", user.rol),
         activo=activo,
         password=request.form.get("password") or None,
+        perfil_id=int(request.form.get("perfil_id")) if request.form.get("perfil_id") else None,
+        limpiar_perfil=request.form.get("perfil_id") == "",
     )
     if error:
         flash(error, "danger")

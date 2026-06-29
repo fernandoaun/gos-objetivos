@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block page_title %}Perfiles{% endblock %}
+{% block title %}Perfiles — GOS{% endblock %}
+{% block content %}
+<div class="mb-4 d-flex flex-wrap justify-content-between align-items-start gap-2">
+  <div>
+    <h1 class="h3 mb-1">Perfiles de acceso</h1>
+    <p class="text-muted mb-0">Definí qué módulos puede ver cada perfil y asignalo a los usuarios.</p>
+  </div>
+  <a href="{{ url_for('usuarios.index') }}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-people me-1"></i> Usuarios
+  </a>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="pe-card p-3">
+      <h2 class="h6 mb-3"><i class="bi bi-shield-plus me-1"></i> Nuevo perfil</h2>
+      <form method="post" action="{{ url_for('perfiles.crear') }}">
+        <div class="mb-2">
+          <label class="form-label" for="nombre">Nombre del perfil</label>
+          <input type="text" class="form-control form-control-sm" id="nombre" name="nombre" required
+                 placeholder="Ej. Operaciones, Consultoría">
+        </div>
+        <div class="mb-3">
+          <div class="form-label">Módulos visibles</div>
+          {% for code in modulo_codes %}
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="modulos" value="{{ code }}"
+                   id="crear-mod-{{ code }}">
+            <label class="form-check-label" for="crear-mod-{{ code }}">{{ modulo_labels[code] }}</label>
+          </div>
+          {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm w-100">Crear perfil</button>
+      </form>
+    </div>
+
+    <div class="pe-card p-3 mt-3">
+      <h3 class="h6 mb-2">Cómo funciona</h3>
+      <ul class="small text-muted mb-0 ps-3">
+        <li>Los <strong>administradores</strong> siempre ven todos los módulos.</li>
+        <li>Si un usuario tiene perfil asignado, solo ve esos módulos.</li>
+        <li>Sin perfil, se aplican los permisos por defecto del rol.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="pe-card">
+      <table class="table table-hover mb-0 align-middle">
+        <thead>
+          <tr>
+            <th>Perfil</th>
+            <th>Módulos</th>
+            <th>Usuarios</th>
+            <th class="text-end">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in perfiles %}
+          <tr>
+            <td>{{ p.nombre }}</td>
+            <td class="small text-muted">{{ p.etiqueta_modulos(modulo_labels) }}</td>
+            <td>
+              {% if p.usuarios %}
+              <span class="badge text-bg-light border">{{ p.usuarios|length }}</span>
+              {% else %}
+              <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+            <td class="text-end">
+              <button type="button" class="btn btn-outline-primary btn-sm"
+                      data-bs-toggle="modal" data-bs-target="#modal-editar-{{ p.id }}">
+                Editar
+              </button>
+              <form method="post" action="{{ url_for('perfiles.eliminar', perfil_id=p.id) }}"
+                    class="d-inline" onsubmit="return confirm('¿Eliminar el perfil «{{ p.nombre }}»?');">
+                <button type="submit" class="btn btn-outline-danger btn-sm"
+                        {% if p.usuarios %}disabled title="Tiene usuarios asignados"{% endif %}>
+                  Eliminar
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="4" class="text-muted text-center py-4">No hay perfiles. Creá el primero.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% for p in perfiles %}
+<div class="modal fade" id="modal-editar-{{ p.id }}" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('perfiles.editar', perfil_id=p.id) }}">
+        <div class="modal-header">
+          <h2 class="modal-title h5">Editar — {{ p.nombre }}</h2>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2">
+            <label class="form-label">Nombre</label>
+            <input type="text" class="form-control form-control-sm" name="nombre" value="{{ p.nombre }}" required>
+          </div>
+          <div class="mb-2">
+            <div class="form-label">Módulos visibles</div>
+            {% for code in modulo_codes %}
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="modulos" value="{{ code }}"
+                     id="editar-{{ p.id }}-mod-{{ code }}"
+                     {% if code in p.modulos %}checked{% endif %}>
+              <label class="form-check-label" for="editar-{{ p.id }}-mod-{{ code }}">
+                {{ modulo_labels[code] }}
+              </label>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary btn-sm">Guardar cambios</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

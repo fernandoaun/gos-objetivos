@@ -34,7 +34,7 @@ def create_app(config_name: str | None = None) -> Flask:
     migrate.init_app(app, db)
     login_manager.init_app(app)
 
-    from gos.models import Empresa, Usuario  # noqa: F401
+    from gos.models import Empresa, Perfil, Usuario  # noqa: F401
 
     with app.app_context():
         _ensure_schema()
@@ -54,6 +54,7 @@ def create_app(config_name: str | None = None) -> Flask:
 
     _register_core_blueprints(app)
     _register_modules(app)
+    _register_module_access_guard(app)
     _register_auto_login(app)
 
     @app.context_processor
@@ -99,11 +100,12 @@ def create_app(config_name: str | None = None) -> Flask:
 
 
 def _ensure_schema() -> None:
-    from gos.models import Empresa, Usuario  # noqa: F401
+    from gos.models import Empresa, Perfil, Usuario  # noqa: F401
     from gos.modulos.hwo.models import HwoDataset, HwoModalidad  # noqa: F401
     from gos.modulos.vacaciones.models import Registro, Vacacion  # noqa: F401
+    from gos.schema_upgrade import ensure_core_schema
 
-    db.create_all()
+    ensure_core_schema()
 
 
 def _bootstrap_database() -> None:
@@ -117,10 +119,12 @@ def _bootstrap_database() -> None:
 def _register_core_blueprints(app: Flask) -> None:
     from gos.blueprints.auth import bp as auth_bp
     from gos.blueprints.main import bp as main_bp
+    from gos.blueprints.perfiles import bp as perfiles_bp
     from gos.blueprints.usuarios import bp as usuarios_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix="/auth")
+    app.register_blueprint(perfiles_bp, url_prefix="/perfiles")
     app.register_blueprint(usuarios_bp, url_prefix="/usuarios")
 
 
@@ -134,6 +138,30 @@ def _register_modules(app: Flask) -> None:
     register_capacitacion(app)
     register_hwo(app)
     register_vacaciones(app)
+
+
+def _register_module_access_guard(app: Flask) -> None:
+    from flask import abort, request
+    from flask_login import current_user
+
+    from gos.services.modulo_service import modulo_desde_ruta, usuario_puede_acceder_modulo
+
+    @app.before_request
+    def _verificar_acceso_modulo():
+        if not current_user.is_authenticated:
+            return
+        if request.endpoint in (
+            "static",
+            "objetivos_static.static",
+            "capacitacion_static.static",
+            "hwo_static.static",
+            "vacaciones_static.static",
+        ):
+            return
+
+        module_code = modulo_desde_ruta(request.path)
+        if module_code and not usuario_puede_acceder_modulo(current_user, module_code):
+            abort(403)
 
 
 def _register_auto_login(app: Flask) -> None:

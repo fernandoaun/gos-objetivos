@@ -43,8 +43,10 @@ class Usuario(UserMixin, db.Model, TimestampMixin):
     password_hash = db.Column(db.String(256), nullable=False)
     rol = db.Column(db.String(30), default="administrador", nullable=False)
     activo = db.Column(db.Boolean, default=True, nullable=False)
+    perfil_id = db.Column(db.Integer, db.ForeignKey("perfiles.id"), nullable=True, index=True)
 
     empresa = db.relationship("Empresa", back_populates="usuarios")
+    perfil = db.relationship("Perfil", back_populates="usuarios")
 
     def set_password(self, password: str) -> None:
         self.password_hash = generate_password_hash(password)

@@ -71,6 +71,7 @@
             <li><span class="dropdown-item-text small text-muted">{{ current_user.email }}</span></li>
             {% if current_user.es_administrador() %}
             <li><a class="dropdown-item" href="{{ url_for('usuarios.index') }}"><i class="bi bi-people me-2"></i>Usuarios</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('perfiles.index') }}"><i class="bi bi-shield-lock me-2"></i>Perfiles</a></li>
             <li><hr class="dropdown-divider"></li>
             {% endif %}
             <li><a class="dropdown-item" href="{{ url_for('auth.logout') }}">Cerrar sesión</a></li>
