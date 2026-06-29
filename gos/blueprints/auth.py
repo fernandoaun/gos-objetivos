@@ -1,7 +1,8 @@
 from flask import Blueprint, flash, redirect, render_template, request, url_for
-from flask_login import current_user, login_user, logout_user
+from flask_login import current_user, login_required, login_user, logout_user
 
 from gos.models import Usuario
+from gos.services import auth_service
 
 bp = Blueprint("auth", __name__)
 
@@ -27,6 +28,25 @@ def login():
         flash("Email o contraseña incorrectos.", "danger")
 
     return render_template("auth/login.html")
+
+
+@bp.route("/cambiar-contrasena", methods=["GET", "POST"])
+@login_required
+def cambiar_contrasena():
+    if request.method == "POST":
+        error = auth_service.cambiar_contraseña(
+            current_user,
+            actual=request.form.get("actual", ""),
+            nueva=request.form.get("nueva", ""),
+            confirmacion=request.form.get("confirmacion", ""),
+        )
+        if error:
+            flash(error, "danger")
+        else:
+            flash("Contraseña actualizada correctamente.", "success")
+            return redirect(url_for("main.index"))
+
+    return render_template("auth/cambiar_contrasena.html")
 
 
 @bp.route("/logout")

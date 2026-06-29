@@ -1,6 +1,7 @@
 from gos import env
 from gos.extensions import db
 from gos.models import Empresa, Usuario
+from gos.services.usuario_service import MIN_PASSWORD_LEN
 
 
 def obtener_o_crear_usuario_default() -> Usuario:
@@ -29,3 +30,24 @@ def obtener_o_crear_usuario_default() -> Usuario:
     db.session.add(user)
     db.session.commit()
     return user
+
+
+def cambiar_contraseña(
+    user: Usuario,
+    *,
+    actual: str,
+    nueva: str,
+    confirmacion: str,
+) -> str | None:
+    if not user.check_password(actual):
+        return "La contraseña actual no es correcta."
+    if len(nueva) < MIN_PASSWORD_LEN:
+        return f"La nueva contraseña debe tener al menos {MIN_PASSWORD_LEN} caracteres."
+    if nueva != confirmacion:
+        return "La confirmación no coincide con la nueva contraseña."
+    if user.check_password(nueva):
+        return "La nueva contraseña debe ser distinta a la actual."
+
+    user.set_password(nueva)
+    db.session.commit()
+    return None
