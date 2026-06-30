@@ -651,9 +651,15 @@
 
 .cap-taxonomia-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(155px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
-  min-width: 680px;
+  min-width: 0;
+}
+
+@media (min-width: 1050px) {
+  .cap-taxonomia-grid {
+    grid-template-columns: repeat(4, minmax(140px, 1fr));
+  }
 }
 
 .cap-taxonomia-col.cap-tax-col-hint {

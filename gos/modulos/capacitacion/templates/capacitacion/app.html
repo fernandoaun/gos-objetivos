@@ -551,13 +551,17 @@
             <i class="bi bi-diagram-2"></i>
             <h2 class="cap-widget-title">Clasificación de cursos</h2>
           </div>
-          <p class="cap-form-hint cap-mb-0">Empezá por <strong>Categoría</strong> (deslizá si no la ves) → Tipo → Origen → Modalidad · Clic en un ítem para ver el siguiente nivel · <i class="bi bi-pencil"></i> para renombrar</p>
+          <p class="cap-form-hint cap-mb-0">Categoría → Tipo → Origen → Modalidad · Clic en un ítem para ver hijos · <strong>+</strong> abre el formulario de alta</p>
         </div>
         <div class="cap-form-panel cap-hidden" id="cap-tax-form-panel">
           <form id="cap-tax-form" class="cap-form">
             <input type="hidden" id="cap-tax-id" value="">
             <input type="hidden" id="cap-tax-nivel" name="nivel" value="">
             <input type="hidden" id="cap-tax-parent-id" name="parent_id" value="">
+            <div class="cap-form-row cap-hidden" id="cap-tax-parent-wrap">
+              <label class="cap-label" for="cap-tax-parent-select" id="cap-tax-parent-label">Ítem padre *</label>
+              <select class="cap-input" id="cap-tax-parent-select"></select>
+            </div>
             <div class="cap-form-row cap-form-row--2">
               <div id="cap-tax-codigo-wrap">
                 <label class="cap-label" for="cap-tax-codigo">Código</label>

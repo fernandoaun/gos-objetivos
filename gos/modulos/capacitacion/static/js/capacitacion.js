@@ -363,6 +363,8 @@
 
   const TAX_PARENT_NIVEL = { tipo: "categoria", origen: "tipo", modalidad: "origen" };
 
+  const TAX_PARENT_LABELS = { tipo: "Categoría", origen: "Tipo", modalidad: "Origen" };
+
 
 
   async function fetchTaxItems(nivel, parentId) {
@@ -631,6 +633,22 @@
 
     renderTaxList("modalidad", taxItemsCache.modalidad, taxSelected.modalidad?.id);
 
+    const scroll = document.querySelector(".cap-taxonomia-scroll");
+
+    const activeNivel = [...TAX_NIVELES].reverse().find((n) => taxSelected[n]);
+
+    if (activeNivel) {
+
+      document.getElementById(`cap-tax-col-${activeNivel}`)?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+
+      document.querySelector(`#cap-tax-list-${activeNivel} li.cap-tax-selected`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+    } else if (scroll) {
+
+      scroll.scrollLeft = 0;
+
+    }
+
   }
 
 
@@ -659,6 +677,102 @@
 
 
 
+  async function findTaxItemById(id) {
+
+    const idNum = Number(id);
+
+    if (!idNum) return null;
+
+
+
+    for (const nivel of TAX_NIVELES) {
+
+      const cached = taxItemsCache[nivel];
+
+      if (Array.isArray(cached)) {
+
+        const found = cached.find((x) => x.id === idNum);
+
+        if (found) return found;
+
+      }
+
+    }
+
+
+
+    const cats = await fetchTaxItems("categoria");
+
+    for (const cat of cats) {
+
+      if (cat.id === idNum) return cat;
+
+      const tipos = await fetchTaxItems("tipo", cat.id);
+
+      for (const tipo of tipos) {
+
+        if (tipo.id === idNum) return tipo;
+
+        const origenes = await fetchTaxItems("origen", tipo.id);
+
+        for (const origen of origenes) {
+
+          if (origen.id === idNum) return origen;
+
+        }
+
+      }
+
+    }
+
+    return null;
+
+  }
+
+
+
+  async function applyTaxSelectionAfterCreate(createdItem) {
+
+    if (!createdItem?.nivel) return;
+
+
+
+    taxSelected[createdItem.nivel] = createdItem;
+
+    const idx = TAX_NIVELES.indexOf(createdItem.nivel);
+
+    for (let i = idx + 1; i < TAX_NIVELES.length; i += 1) taxSelected[TAX_NIVELES[i]] = null;
+
+
+
+    let childNivel = createdItem.nivel;
+
+    let parentId = createdItem.parent_id;
+
+
+
+    while (parentId) {
+
+      const parentNivel = TAX_PARENT_NIVEL[childNivel];
+
+      if (!parentNivel) break;
+
+      const parent = await findTaxItemById(parentId);
+
+      if (!parent) break;
+
+      taxSelected[parentNivel] = parent;
+
+      parentId = parent.parent_id;
+
+      childNivel = parentNivel;
+
+    }
+
+  }
+
+
+
   function taxContextLabel(nivel, parentItem) {
 
     if (nivel === "categoria") return "Nueva categoría de curso";
@@ -675,17 +789,169 @@
 
   function taxParentRequiredMessage(nivel) {
 
-    const msgs = {
+    const label = TAX_PARENT_LABELS[nivel];
 
-      tipo: "Seleccioná primero una categoría (columna «Categoría», a la izquierda). Si no la ves, deslizá horizontalmente.",
+    if (label) return `Seleccioná ${label.toLowerCase()} en el formulario.`;
 
-      origen: "Seleccioná primero un tipo en la columna «Tipo».",
+    return "Seleccioná el ítem padre en el formulario.";
 
-      modalidad: "Seleccioná primero un origen en la columna «Origen».",
+  }
+
+
+
+  async function fetchTaxParentOptions(nivel) {
+
+    if (nivel === "tipo") {
+
+      return (await fetchTaxItems("categoria")).map((c) => ({ id: c.id, label: c.nombre }));
+
+    }
+
+    if (nivel === "origen") {
+
+      const options = [];
+
+      const cats = await fetchTaxItems("categoria");
+
+      for (const cat of cats) {
+
+        const tipos = await fetchTaxItems("tipo", cat.id);
+
+        tipos.forEach((t) => options.push({ id: t.id, label: `${cat.nombre} → ${t.nombre}` }));
+
+      }
+
+      return options;
+
+    }
+
+    if (nivel === "modalidad") {
+
+      const options = [];
+
+      const cats = await fetchTaxItems("categoria");
+
+      for (const cat of cats) {
+
+        const tipos = await fetchTaxItems("tipo", cat.id);
+
+        for (const tipo of tipos) {
+
+          const origenes = await fetchTaxItems("origen", tipo.id);
+
+          origenes.forEach((o) => options.push({ id: o.id, label: `${cat.nombre} → ${tipo.nombre} → ${o.nombre}` }));
+
+        }
+
+      }
+
+      return options;
+
+    }
+
+    return [];
+
+  }
+
+
+
+  async function syncTaxParentPicker(nivel, parentItem) {
+
+    const wrap = document.getElementById("cap-tax-parent-wrap");
+
+    const sel = document.getElementById("cap-tax-parent-select");
+
+    const hidden = document.getElementById("cap-tax-parent-id");
+
+    const label = document.getElementById("cap-tax-parent-label");
+
+    if (!wrap || !sel || !hidden) return;
+
+
+
+    if (nivel === "categoria" || parentItem) {
+
+      wrap.classList.add("cap-hidden");
+
+      hidden.value = parentItem?.id || "";
+
+      hidden.setAttribute("name", "parent_id");
+
+      sel.innerHTML = "";
+
+      sel.removeAttribute("name");
+
+      return;
+
+    }
+
+
+
+    const parentNivel = TAX_PARENT_NIVEL[nivel];
+
+    const options = await fetchTaxParentOptions(nivel);
+
+    const preselected = taxSelected[parentNivel]?.id;
+
+
+
+    if (label) {
+
+      label.textContent = `${TAX_PARENT_LABELS[nivel] || "Ítem padre"} *`;
+
+    }
+
+
+
+    sel.innerHTML = `<option value="">— Seleccionar —</option>${options
+
+      .map((o) => `<option value="${o.id}">${o.label}</option>`)
+
+      .join("")}`;
+
+
+
+    wrap.classList.remove("cap-hidden");
+
+    hidden.value = "";
+
+    hidden.removeAttribute("name");
+
+    sel.setAttribute("name", "parent_id");
+
+
+
+    if (!options.length) {
+
+      document.getElementById("cap-tax-context").textContent = `No hay ${(TAX_PARENT_LABELS[nivel] || "padre").toLowerCase()}s cargados. Creá uno en la columna correspondiente primero.`;
+
+    } else if (preselected && options.some((o) => String(o.id) === String(preselected))) {
+
+      sel.value = String(preselected);
+
+    } else if (options.length === 1) {
+
+      sel.value = String(options[0].id);
+
+    }
+
+
+
+    const syncContext = () => {
+
+      const opt = sel.selectedOptions[0];
+
+      document.getElementById("cap-tax-context").textContent = opt?.value
+
+        ? `Bajo ${(TAX_PARENT_LABELS[nivel] || "padre").toLowerCase()} «${opt.textContent}»`
+
+        : `Elegí la ${(TAX_PARENT_LABELS[nivel] || "padre").toLowerCase()} a la que pertenece`;
 
     };
 
-    return msgs[nivel] || "Seleccioná primero el nivel anterior.";
+    sel.onchange = syncContext;
+
+    if (options.length) syncContext();
 
   }
 
@@ -717,15 +983,21 @@
 
     btn.disabled = false;
 
-    btn.classList.toggle("cap-btn--needs-parent", !enabled);
+    btn.classList.remove("cap-btn--needs-parent");
 
-    btn.setAttribute("aria-disabled", enabled ? "false" : "true");
+    btn.setAttribute("aria-disabled", "false");
+
+    btn.title = btn.id?.includes("categoria")
+
+      ? "Agregar categoría"
+
+      : `Agregar ${btn.closest(".cap-taxonomia-col-head")?.querySelector("span")?.textContent?.toLowerCase() || "ítem"}`;
 
   }
 
 
 
-  function openTaxForm(nivel, parentItem) {
+  async function openTaxForm(nivel, parentItem) {
 
     document.getElementById("cap-tax-id").value = "";
 
@@ -739,39 +1011,43 @@
 
     document.getElementById("cap-tax-codigo-wrap")?.classList.remove("cap-hidden");
 
-    document.getElementById("cap-tax-context").textContent = taxContextLabel(nivel, parentItem);
-
     setFormError("cap-tax-form-error", "");
+
+    await syncTaxParentPicker(nivel, parentItem);
+
+    if (parentItem) {
+
+      document.getElementById("cap-tax-context").textContent = taxContextLabel(nivel, parentItem);
+
+    }
+
+
 
     togglePanel("cap-tax-form-panel", true);
 
     document.getElementById("cap-tax-form-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
-    document.getElementById("cap-tax-nombre")?.focus();
+
+
+    const focusEl = document.getElementById("cap-tax-parent-wrap")?.classList.contains("cap-hidden")
+
+      ? document.getElementById("cap-tax-nombre")
+
+      : document.getElementById("cap-tax-parent-select");
+
+    focusEl?.focus();
 
   }
 
 
 
-  function openTaxAdd(nivel) {
+  async function openTaxAdd(nivel) {
 
-    const parentMap = { tipo: "categoria", origen: "tipo", modalidad: "origen" };
-
-    const parentNivel = parentMap[nivel];
+    const parentNivel = TAX_PARENT_NIVEL[nivel];
 
     const parent = parentNivel ? taxSelected[parentNivel] : null;
 
-    if (parentNivel && !parent) {
-
-      highlightTaxColumn(parentNivel);
-
-      alert(taxParentRequiredMessage(nivel));
-
-      return;
-
-    }
-
-    openTaxForm(nivel, parent);
+    await openTaxForm(nivel, parent);
 
   }
 
@@ -784,6 +1060,12 @@
     document.getElementById("cap-tax-nivel").value = nivel;
 
     document.getElementById("cap-tax-parent-id").value = "";
+
+    document.getElementById("cap-tax-parent-wrap")?.classList.add("cap-hidden");
+
+    document.getElementById("cap-tax-parent-select")?.removeAttribute("name");
+
+    document.getElementById("cap-tax-parent-id")?.setAttribute("name", "parent_id");
 
     document.getElementById("cap-tax-codigo").value = "";
 
@@ -881,9 +1163,19 @@
 
     try {
 
-      const parent = await resolveParentForQuickAdd(nivel);
+      let parent = null;
 
-      openTaxForm(nivel, parent);
+      try {
+
+        parent = await resolveParentForQuickAdd(nivel);
+
+      } catch {
+
+        parent = null;
+
+      }
+
+      await openTaxForm(nivel, parent);
 
     } catch (err) {
 
@@ -919,6 +1211,12 @@
 
       document.getElementById("cap-tax-codigo-wrap")?.classList.remove("cap-hidden");
 
+      document.getElementById("cap-tax-parent-wrap")?.classList.add("cap-hidden");
+
+      document.getElementById("cap-tax-parent-select")?.removeAttribute("name");
+
+      document.getElementById("cap-tax-parent-id")?.setAttribute("name", "parent_id");
+
       setFormError("cap-tax-form-error", "");
 
     });
@@ -933,7 +1231,29 @@
 
       const id = document.getElementById("cap-tax-id")?.value;
 
+      const nivel = document.getElementById("cap-tax-nivel")?.value;
+
       const payload = formToObject(form);
+
+      const parentFromSelect = document.getElementById("cap-tax-parent-select")?.value;
+
+      const parentFromHidden = document.getElementById("cap-tax-parent-id")?.value;
+
+      if (!payload.parent_id) {
+
+        payload.parent_id = parentFromSelect || parentFromHidden || "";
+
+      }
+
+      if (!id && nivel !== "categoria" && !payload.parent_id) {
+
+        setFormError("cap-tax-form-error", taxParentRequiredMessage(nivel));
+
+        document.getElementById("cap-tax-parent-select")?.focus();
+
+        return;
+
+      }
 
       if (!payload.parent_id) delete payload.parent_id;
 
@@ -943,19 +1263,31 @@
 
           await putJson(`${API}/taxonomia/items/${id}`, { nombre: payload.nombre });
 
+          await reloadTaxonomia();
+
         } else {
 
-          await postJson(`${API}/taxonomia/items`, payload);
+          const data = await postJson(`${API}/taxonomia/items`, payload);
+
+          await applyTaxSelectionAfterCreate(data.item);
+
+          await reloadTaxonomia();
 
         }
+
+
 
         togglePanel("cap-tax-form-panel", false);
 
         document.getElementById("cap-tax-codigo-wrap")?.classList.remove("cap-hidden");
 
-        form.reset();
+        document.getElementById("cap-tax-parent-wrap")?.classList.add("cap-hidden");
 
-        await reloadTaxonomia();
+        document.getElementById("cap-tax-parent-select")?.removeAttribute("name");
+
+        document.getElementById("cap-tax-parent-id")?.setAttribute("name", "parent_id");
+
+        form.reset();
 
       } catch (err) {
 
