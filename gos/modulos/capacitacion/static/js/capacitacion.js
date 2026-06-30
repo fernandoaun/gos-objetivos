@@ -387,6 +387,32 @@
 
 
 
+  function taxEmptyHint(nivel) {
+
+    const parentNivel = TAX_PARENT_NIVEL[nivel];
+
+    if (parentNivel && !taxSelected[parentNivel]) {
+
+      const hints = {
+
+        tipo: "Seleccioná una categoría",
+
+        origen: "Seleccioná un tipo",
+
+        modalidad: "Seleccioná un origen",
+
+      };
+
+      return hints[nivel] || "Sin ítems";
+
+    }
+
+    return "Sin ítems";
+
+  }
+
+
+
   function renderTaxList(nivel, items, selectedId) {
 
     const ul = document.getElementById(`cap-tax-list-${nivel}`);
@@ -395,7 +421,7 @@
 
     if (!items.length) {
 
-      ul.innerHTML = '<li class="cap-taxonomia-empty">Sin ítems</li>';
+      ul.innerHTML = `<li class="cap-taxonomia-empty">${taxEmptyHint(nivel)}</li>`;
 
       return;
 
@@ -434,6 +460,16 @@
         const item = items.find((x) => String(x.id) === li.dataset.id);
 
         if (item) selectTaxItem(nivel, item);
+
+      });
+
+      li.addEventListener("dblclick", (ev) => {
+
+        if (ev.target.closest(".cap-tax-actions")) return;
+
+        const item = items.find((x) => String(x.id) === li.dataset.id);
+
+        if (item) openTaxFormEdit(nivel, item.id, item.nombre);
 
       });
 

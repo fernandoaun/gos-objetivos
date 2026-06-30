@@ -19,62 +19,91 @@ def _slug_codigo(value: str) -> str:
     return (s.strip("_") or "item")[:30]
 
 
-def ensure_taxonomia_defaults(empresa_id: int) -> None:
-    if TaxonomiaItem.query.filter_by(empresa_id=empresa_id).first():
-        return
+def _crear_o_obtener_item(
+    empresa_id: int,
+    *,
+    nivel: str,
+    parent_id: int | None,
+    codigo: str,
+    nombre: str,
+    orden: int,
+) -> TaxonomiaItem:
+    item = TaxonomiaItem.query.filter_by(
+        empresa_id=empresa_id,
+        nivel=nivel,
+        parent_id=parent_id,
+        codigo=codigo,
+        activo=True,
+    ).first()
+    if item:
+        return item
+    item = TaxonomiaItem(
+        empresa_id=empresa_id,
+        nivel=nivel,
+        parent_id=parent_id,
+        codigo=codigo,
+        nombre=nombre,
+        orden=orden,
+    )
+    db.session.add(item)
+    db.session.flush()
+    return item
+
+
+def _sembrar_cascada(empresa_id: int) -> None:
     orden_cat = 0
     for cat_codigo, cat in CASCADA_CAPACITACION.items():
-        cat_row = TaxonomiaItem(
-            empresa_id=empresa_id,
+        cat_row = _crear_o_obtener_item(
+            empresa_id,
             nivel="categoria",
             parent_id=None,
             codigo=cat_codigo,
             nombre=cat["label"],
             orden=orden_cat,
         )
-        db.session.add(cat_row)
-        db.session.flush()
         orden_cat += 1
         orden_tipo = 0
         for tipo_codigo, tipo in cat.get("tipos", {}).items():
-            tipo_row = TaxonomiaItem(
-                empresa_id=empresa_id,
+            tipo_row = _crear_o_obtener_item(
+                empresa_id,
                 nivel="tipo",
                 parent_id=cat_row.id,
                 codigo=tipo_codigo,
                 nombre=tipo["label"],
                 orden=orden_tipo,
             )
-            db.session.add(tipo_row)
-            db.session.flush()
             orden_tipo += 1
             orden_origen = 0
             for origen_codigo, origen in tipo.get("origenes", {}).items():
-                origen_row = TaxonomiaItem(
-                    empresa_id=empresa_id,
+                origen_row = _crear_o_obtener_item(
+                    empresa_id,
                     nivel="origen",
                     parent_id=tipo_row.id,
                     codigo=origen_codigo,
                     nombre=origen["label"],
                     orden=orden_origen,
                 )
-                db.session.add(origen_row)
-                db.session.flush()
                 orden_origen += 1
                 orden_mod = 0
                 for mod_codigo in origen.get("modalidades", ()):
                     labels = {"presencial": "Presencial", "virtual": "Virtual", "mixta": "Mixta"}
-                    db.session.add(
-                        TaxonomiaItem(
-                            empresa_id=empresa_id,
-                            nivel="modalidad",
-                            parent_id=origen_row.id,
-                            codigo=mod_codigo,
-                            nombre=labels.get(mod_codigo, mod_codigo.replace("_", " ").title()),
-                            orden=orden_mod,
-                        )
+                    _crear_o_obtener_item(
+                        empresa_id,
+                        nivel="modalidad",
+                        parent_id=origen_row.id,
+                        codigo=mod_codigo,
+                        nombre=labels.get(mod_codigo, mod_codigo.replace("_", " ").title()),
+                        orden=orden_mod,
                     )
                     orden_mod += 1
+
+
+def ensure_taxonomia_defaults(empresa_id: int) -> None:
+    if not TaxonomiaItem.query.filter_by(empresa_id=empresa_id).first():
+        _sembrar_cascada(empresa_id)
+        db.session.commit()
+        return
+    _sembrar_cascada(empresa_id)
     db.session.commit()
 
 

@@ -692,12 +692,21 @@
 .cap-taxonomia-list li .cap-tax-actions {
   display: flex;
   gap: 0.15rem;
-  opacity: 0;
+  flex-shrink: 0;
+  opacity: 0.7;
 }
 
 .cap-taxonomia-list li:hover .cap-tax-actions,
 .cap-taxonomia-list li.cap-tax-selected .cap-tax-actions {
   opacity: 1;
+}
+
+.cap-taxonomia-list li > span:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cap-taxonomia-empty {
