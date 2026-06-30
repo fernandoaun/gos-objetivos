@@ -677,15 +677,35 @@
 
     const msgs = {
 
-      tipo: "Seleccioná primero una categoría en la columna de la izquierda.",
+      tipo: "Seleccioná primero una categoría (columna «Categoría», a la izquierda). Si no la ves, deslizá horizontalmente.",
 
-      origen: "Seleccioná primero un tipo.",
+      origen: "Seleccioná primero un tipo en la columna «Tipo».",
 
-      modalidad: "Seleccioná primero un origen.",
+      modalidad: "Seleccioná primero un origen en la columna «Origen».",
 
     };
 
     return msgs[nivel] || "Seleccioná primero el nivel anterior.";
+
+  }
+
+
+
+  function highlightTaxColumn(nivel) {
+
+    const col = document.getElementById(`cap-tax-col-${nivel}`);
+
+    if (!col) return;
+
+    col.classList.remove("cap-tax-col-hint");
+
+    void col.offsetWidth;
+
+    col.classList.add("cap-tax-col-hint");
+
+    col.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+
+    window.setTimeout(() => col.classList.remove("cap-tax-col-hint"), 2800);
 
   }
 
@@ -742,6 +762,8 @@
     const parent = parentNivel ? taxSelected[parentNivel] : null;
 
     if (parentNivel && !parent) {
+
+      highlightTaxColumn(parentNivel);
 
       alert(taxParentRequiredMessage(nivel));
 
