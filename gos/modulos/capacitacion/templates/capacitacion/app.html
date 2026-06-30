@@ -476,7 +476,7 @@
                   <label class="cap-label" for="cap-c-tipo">Tipo</label>
                   <button type="button" class="cap-btn cap-btn--xs cap-btn--ghost cap-tax-quick-add" data-nivel="tipo" title="Agregar tipo"><i class="bi bi-plus-lg"></i></button>
                 </div>
-                <select class="cap-input" id="cap-c-tipo" name="tipo" disabled>
+                <select class="cap-input" id="cap-c-tipo" name="tipo">
                   <option value="">—</option>
                 </select>
               </div>
@@ -485,7 +485,7 @@
                   <label class="cap-label" for="cap-c-origen">Origen</label>
                   <button type="button" class="cap-btn cap-btn--xs cap-btn--ghost cap-tax-quick-add" data-nivel="origen" title="Agregar origen"><i class="bi bi-plus-lg"></i></button>
                 </div>
-                <select class="cap-input" id="cap-c-origen" name="origen" disabled>
+                <select class="cap-input" id="cap-c-origen" name="origen">
                   <option value="">—</option>
                 </select>
               </div>
@@ -494,7 +494,7 @@
                   <label class="cap-label" for="cap-c-modalidad">Modalidad</label>
                   <button type="button" class="cap-btn cap-btn--xs cap-btn--ghost cap-tax-quick-add" data-nivel="modalidad" title="Agregar modalidad"><i class="bi bi-plus-lg"></i></button>
                 </div>
-                <select class="cap-input" id="cap-c-modalidad" name="modalidad" disabled>
+                <select class="cap-input" id="cap-c-modalidad" name="modalidad">
                   <option value="">—</option>
                 </select>
               </div>
@@ -551,17 +551,13 @@
             <i class="bi bi-diagram-2"></i>
             <h2 class="cap-widget-title">Clasificación de cursos</h2>
           </div>
-          <p class="cap-form-hint cap-mb-0">Categoría → Tipo → Origen → Modalidad · Clic en un ítem para ver hijos · <strong>+</strong> abre el formulario de alta</p>
+          <p class="cap-form-hint cap-mb-0">Listas independientes — cada columna muestra todos sus ítems · Al crear un curso combinás libremente Categoría, Tipo, Origen y Modalidad</p>
         </div>
         <div class="cap-form-panel cap-hidden" id="cap-tax-form-panel">
           <form id="cap-tax-form" class="cap-form">
             <input type="hidden" id="cap-tax-id" value="">
             <input type="hidden" id="cap-tax-nivel" name="nivel" value="">
-            <input type="hidden" id="cap-tax-parent-id" name="parent_id" value="">
-            <div class="cap-form-row cap-hidden" id="cap-tax-parent-wrap">
-              <label class="cap-label" for="cap-tax-parent-select" id="cap-tax-parent-label">Ítem padre *</label>
-              <select class="cap-input" id="cap-tax-parent-select"></select>
-            </div>
+            <input type="hidden" id="cap-tax-parent-id" value="">
             <div class="cap-form-row cap-form-row--2">
               <div id="cap-tax-codigo-wrap">
                 <label class="cap-label" for="cap-tax-codigo">Código</label>
@@ -592,23 +588,23 @@
           <div class="cap-taxonomia-col" id="cap-tax-col-tipo">
             <div class="cap-taxonomia-col-head">
               <span>Tipo</span>
-              <button type="button" class="cap-btn cap-btn--xs cap-btn--primary cap-btn--needs-parent" id="cap-tax-btn-add-tipo" title="Agregar tipo" aria-disabled="true"><i class="bi bi-plus-lg"></i></button>
+              <button type="button" class="cap-btn cap-btn--xs cap-btn--primary" id="cap-tax-btn-add-tipo" title="Agregar tipo"><i class="bi bi-plus-lg"></i></button>
             </div>
-            <ul class="cap-taxonomia-list" id="cap-tax-list-tipo"><li class="cap-taxonomia-empty">Seleccioná una categoría</li></ul>
+            <ul class="cap-taxonomia-list" id="cap-tax-list-tipo"><li class="cap-taxonomia-empty">Cargando...</li></ul>
           </div>
           <div class="cap-taxonomia-col" id="cap-tax-col-origen">
             <div class="cap-taxonomia-col-head">
               <span>Origen</span>
-              <button type="button" class="cap-btn cap-btn--xs cap-btn--primary cap-btn--needs-parent" id="cap-tax-btn-add-origen" title="Agregar origen" aria-disabled="true"><i class="bi bi-plus-lg"></i></button>
+              <button type="button" class="cap-btn cap-btn--xs cap-btn--primary" id="cap-tax-btn-add-origen" title="Agregar origen"><i class="bi bi-plus-lg"></i></button>
             </div>
-            <ul class="cap-taxonomia-list" id="cap-tax-list-origen"><li class="cap-taxonomia-empty">Seleccioná un tipo</li></ul>
+            <ul class="cap-taxonomia-list" id="cap-tax-list-origen"><li class="cap-taxonomia-empty">Cargando...</li></ul>
           </div>
           <div class="cap-taxonomia-col" id="cap-tax-col-modalidad">
             <div class="cap-taxonomia-col-head">
               <span>Modalidad</span>
-              <button type="button" class="cap-btn cap-btn--xs cap-btn--primary cap-btn--needs-parent" id="cap-tax-btn-add-modalidad" title="Agregar modalidad" aria-disabled="true"><i class="bi bi-plus-lg"></i></button>
+              <button type="button" class="cap-btn cap-btn--xs cap-btn--primary" id="cap-tax-btn-add-modalidad" title="Agregar modalidad"><i class="bi bi-plus-lg"></i></button>
             </div>
-            <ul class="cap-taxonomia-list" id="cap-tax-list-modalidad"><li class="cap-taxonomia-empty">Seleccioná un origen</li></ul>
+            <ul class="cap-taxonomia-list" id="cap-tax-list-modalidad"><li class="cap-taxonomia-empty">Cargando...</li></ul>
           </div>
         </div>
         </div>

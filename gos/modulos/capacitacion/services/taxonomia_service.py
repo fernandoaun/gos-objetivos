@@ -116,6 +116,35 @@ def _items_activos(empresa_id: int) -> list[TaxonomiaItem]:
     )
 
 
+def listas_taxonomia_planas(empresa_id: int) -> dict:
+    """Listas independientes por nivel (cualquier combinación al clasificar cursos)."""
+    ensure_taxonomia_defaults(empresa_id)
+    keys = {
+        "categoria": "categorias",
+        "tipo": "tipos",
+        "origen": "origenes",
+        "modalidad": "modalidades",
+    }
+    out: dict[str, list[dict]] = {}
+    for nivel, lista_key in keys.items():
+        items = (
+            TaxonomiaItem.query.filter_by(empresa_id=empresa_id, nivel=nivel, activo=True)
+            .order_by(TaxonomiaItem.orden, TaxonomiaItem.nombre)
+            .all()
+        )
+        seen: dict[str, dict] = {}
+        for item in items:
+            if item.codigo not in seen:
+                seen[item.codigo] = {
+                    "id": item.id,
+                    "codigo": item.codigo,
+                    "label": item.nombre,
+                    "nombre": item.nombre,
+                }
+        out[lista_key] = list(seen.values())
+    return out
+
+
 def arbol_taxonomia(empresa_id: int) -> dict:
     items = _items_activos(empresa_id)
     by_parent: dict[int | None, list[TaxonomiaItem]] = defaultdict(list)
@@ -178,8 +207,8 @@ def crear_taxonomia_item(empresa_id: int, data: dict) -> dict:
 
     if nivel == "categoria":
         parent_id = None
-    elif not parent_id:
-        raise ValueError("Debe indicar el ítem padre")
+    else:
+        parent_id = int(parent_id) if parent_id not in (None, "", 0) else None
 
     if parent_id:
         parent = TaxonomiaItem.query.filter_by(
@@ -188,11 +217,11 @@ def crear_taxonomia_item(empresa_id: int, data: dict) -> dict:
         if not parent:
             raise ValueError("Ítem padre no encontrado")
         esperado = _PADRE_NIVEL.get(nivel)
-        if parent.nivel != esperado:
+        if esperado and parent.nivel != esperado:
             raise ValueError(f"El padre debe ser de nivel «{esperado}»")
 
     dup = TaxonomiaItem.query.filter_by(
-        empresa_id=empresa_id, nivel=nivel, parent_id=parent_id, codigo=codigo, activo=True
+        empresa_id=empresa_id, nivel=nivel, codigo=codigo, activo=True
     ).first()
     if dup:
         raise ValueError(f"Ya existe un ítem con el código «{codigo}» en este nivel")
@@ -234,11 +263,23 @@ def baja_taxonomia_item(empresa_id: int, item_id: int) -> dict:
 
     hijos = TaxonomiaItem.query.filter_by(parent_id=item.id, activo=True).count()
     if hijos:
-        raise ValueError("No se puede eliminar: tiene ítems dependientes. Eliminá primero los hijos.")
+        TaxonomiaItem.query.filter_by(parent_id=item.id, activo=True).update(
+            {"parent_id": None}, synchronize_session=False
+        )
 
     item.activo = False
     db.session.commit()
     return {"id": item.id, "activo": False}
+
+
+def _item_por_codigo(empresa_id: int, nivel: str, codigo: str) -> TaxonomiaItem | None:
+    return (
+        TaxonomiaItem.query.filter_by(
+            empresa_id=empresa_id, nivel=nivel, codigo=codigo, activo=True
+        )
+        .order_by(TaxonomiaItem.orden, TaxonomiaItem.nombre)
+        .first()
+    )
 
 
 def validar_clasificacion(
@@ -260,48 +301,32 @@ def validar_clasificacion(
             raise ValueError("Debe completar Categoría, Tipo, Origen y Modalidad")
         return None, None, None, None
 
-    if not categoria:
-        if tipo or origen:
-            raise ValueError("Debe indicar la categoría")
-        return None, None, None, None
+    if requerido and not all((categoria, tipo, origen, modalidad)):
+        raise ValueError("Debe completar Categoría, Tipo, Origen y Modalidad")
 
-    arbol = arbol_taxonomia(empresa_id)
-    if categoria not in arbol:
-        raise ValueError("Categoría inválida")
-    if not tipo or tipo not in arbol[categoria]["tipos"]:
-        raise ValueError("Tipo inválido para la categoría seleccionada")
-    origenes = arbol[categoria]["tipos"][tipo]["origenes"]
-    if not origen or origen not in origenes:
-        raise ValueError("Origen inválido para el tipo seleccionado")
-    permitidas = origenes[origen]["modalidades"]
-    if not modalidad or modalidad not in permitidas:
-        raise ValueError("Modalidad inválida para el origen seleccionado")
+    labels = {
+        "categoria": "Categoría",
+        "tipo": "Tipo",
+        "origen": "Origen",
+        "modalidad": "Modalidad",
+    }
+    for nivel, valor in (
+        ("categoria", categoria),
+        ("tipo", tipo),
+        ("origen", origen),
+        ("modalidad", modalidad),
+    ):
+        if valor and not _item_por_codigo(empresa_id, nivel, valor):
+            raise ValueError(f"{labels[nivel]} inválida")
     return categoria, tipo, origen, modalidad
 
 
 def etiqueta_taxonomia(empresa_id: int, nivel: str, codigo: str | None) -> str | None:
     if not codigo:
         return None
-    arbol = arbol_taxonomia(empresa_id)
-    codigo = codigo.strip().lower()
-    if nivel == "categoria":
-        return arbol.get(codigo, {}).get("label", codigo.replace("_", " ").title())
-    if nivel == "tipo":
-        for cat in arbol.values():
-            if codigo in cat.get("tipos", {}):
-                return cat["tipos"][codigo]["label"]
-    if nivel == "origen":
-        for cat in arbol.values():
-            for t in cat.get("tipos", {}).values():
-                if codigo in t.get("origenes", {}):
-                    return t["origenes"][codigo]["label"]
-    if nivel == "modalidad":
-        for cat in arbol.values():
-            for t in cat.get("tipos", {}).values():
-                for o in t.get("origenes", {}).values():
-                    labels = o.get("modalidad_labels", {})
-                    if codigo in labels:
-                        return labels[codigo]
+    item = _item_por_codigo(empresa_id, nivel, codigo.strip().lower())
+    if item:
+        return item.nombre
     return codigo.replace("_", " ").title()
 
 

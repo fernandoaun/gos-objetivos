@@ -5,6 +5,7 @@ from gos.modulos.capacitacion.models import Curso, Participante, Puesto
 from gos.modulos.capacitacion.services.taxonomia_service import (
     arbol_taxonomia,
     etiqueta_taxonomia,
+    listas_taxonomia_planas,
     tipo_capacitacion_legacy,
     validar_clasificacion,
 )
@@ -12,7 +13,10 @@ from gos.modulos.objetivos.models.catalogos import Sector
 
 
 def obtener_taxonomia_cursos(empresa_id: int) -> dict:
-    return {"cascada": arbol_taxonomia(empresa_id)}
+    return {
+        "cascada": arbol_taxonomia(empresa_id),
+        "listas": listas_taxonomia_planas(empresa_id),
+    }
 
 
 def listar_cursos(empresa_id: int) -> list[dict]:
