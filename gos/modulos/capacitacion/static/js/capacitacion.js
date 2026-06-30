@@ -579,13 +579,13 @@
 
       taxItemsCache.tipo = await fetchTaxItems("tipo", taxSelected.categoria.id);
 
-      if (btnTipo) btnTipo.disabled = false;
+      setTaxAddButtonState(btnTipo, true);
 
     } else {
 
       taxItemsCache.tipo = [];
 
-      if (btnTipo) btnTipo.disabled = true;
+      setTaxAddButtonState(btnTipo, false);
 
     }
 
@@ -599,13 +599,13 @@
 
       taxItemsCache.origen = await fetchTaxItems("origen", taxSelected.tipo.id);
 
-      if (btnOrigen) btnOrigen.disabled = false;
+      setTaxAddButtonState(btnOrigen, true);
 
     } else {
 
       taxItemsCache.origen = [];
 
-      if (btnOrigen) btnOrigen.disabled = true;
+      setTaxAddButtonState(btnOrigen, false);
 
     }
 
@@ -619,13 +619,13 @@
 
       taxItemsCache.modalidad = await fetchTaxItems("modalidad", taxSelected.origen.id);
 
-      if (btnMod) btnMod.disabled = false;
+      setTaxAddButtonState(btnMod, true);
 
     } else {
 
       taxItemsCache.modalidad = [];
 
-      if (btnMod) btnMod.disabled = true;
+      setTaxAddButtonState(btnMod, false);
 
     }
 
@@ -673,6 +673,38 @@
 
 
 
+  function taxParentRequiredMessage(nivel) {
+
+    const msgs = {
+
+      tipo: "Seleccioná primero una categoría en la columna de la izquierda.",
+
+      origen: "Seleccioná primero un tipo.",
+
+      modalidad: "Seleccioná primero un origen.",
+
+    };
+
+    return msgs[nivel] || "Seleccioná primero el nivel anterior.";
+
+  }
+
+
+
+  function setTaxAddButtonState(btn, enabled) {
+
+    if (!btn) return;
+
+    btn.disabled = false;
+
+    btn.classList.toggle("cap-btn--needs-parent", !enabled);
+
+    btn.setAttribute("aria-disabled", enabled ? "false" : "true");
+
+  }
+
+
+
   function openTaxForm(nivel, parentItem) {
 
     document.getElementById("cap-tax-id").value = "";
@@ -685,13 +717,39 @@
 
     document.getElementById("cap-tax-nombre").value = "";
 
+    document.getElementById("cap-tax-codigo-wrap")?.classList.remove("cap-hidden");
+
     document.getElementById("cap-tax-context").textContent = taxContextLabel(nivel, parentItem);
 
     setFormError("cap-tax-form-error", "");
 
     togglePanel("cap-tax-form-panel", true);
 
+    document.getElementById("cap-tax-form-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
     document.getElementById("cap-tax-nombre")?.focus();
+
+  }
+
+
+
+  function openTaxAdd(nivel) {
+
+    const parentMap = { tipo: "categoria", origen: "tipo", modalidad: "origen" };
+
+    const parentNivel = parentMap[nivel];
+
+    const parent = parentNivel ? taxSelected[parentNivel] : null;
+
+    if (parentNivel && !parent) {
+
+      alert(taxParentRequiredMessage(nivel));
+
+      return;
+
+    }
+
+    openTaxForm(nivel, parent);
 
   }
 
@@ -716,6 +774,10 @@
     setFormError("cap-tax-form-error", "");
 
     togglePanel("cap-tax-form-panel", true);
+
+    document.getElementById("cap-tax-form-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+    document.getElementById("cap-tax-nombre")?.focus();
 
   }
 
@@ -819,13 +881,13 @@
 
 
 
-    document.getElementById("cap-tax-btn-add-categoria")?.addEventListener("click", () => openTaxForm("categoria", null));
+    document.getElementById("cap-tax-btn-add-categoria")?.addEventListener("click", () => openTaxAdd("categoria"));
 
-    document.getElementById("cap-tax-btn-add-tipo")?.addEventListener("click", () => openTaxForm("tipo", taxSelected.categoria));
+    document.getElementById("cap-tax-btn-add-tipo")?.addEventListener("click", () => openTaxAdd("tipo"));
 
-    document.getElementById("cap-tax-btn-add-origen")?.addEventListener("click", () => openTaxForm("origen", taxSelected.tipo));
+    document.getElementById("cap-tax-btn-add-origen")?.addEventListener("click", () => openTaxAdd("origen"));
 
-    document.getElementById("cap-tax-btn-add-modalidad")?.addEventListener("click", () => openTaxForm("modalidad", taxSelected.origen));
+    document.getElementById("cap-tax-btn-add-modalidad")?.addEventListener("click", () => openTaxAdd("modalidad"));
 
 
 
@@ -2110,7 +2172,23 @@
 
     row.querySelectorAll(".cap-persona-card").forEach((btn) => {
 
-      btn.addEventListener("click", () => selectPersona(btn.dataset.id, btn));
+      btn.addEventListener("click", () => {
+
+        const id = btn.dataset.id;
+
+        const legajoPanel = document.getElementById("cap-legajo-panel");
+
+        if (personaSeleccionadaId === id && legajoPanel && !legajoPanel.classList.contains("cap-hidden")) {
+
+          deselectPersona();
+
+          return;
+
+        }
+
+        selectPersona(id, btn);
+
+      });
 
     });
 
@@ -2143,6 +2221,22 @@
       }
 
     }
+
+    deselectPersona();
+
+  }
+
+
+
+  function deselectPersona() {
+
+    document.querySelectorAll(".cap-persona-card").forEach((b) => b.classList.remove("active"));
+
+    personaSeleccionadaId = null;
+
+    const legajoPanel = document.getElementById("cap-legajo-panel");
+
+    const detail = document.getElementById("cap-persona-detail");
 
     legajoPanel?.classList.add("cap-hidden");
 

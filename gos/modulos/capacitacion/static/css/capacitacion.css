@@ -582,6 +582,15 @@
   background: var(--cap-navy-dark);
 }
 
+.cap-btn--primary.cap-btn--needs-parent {
+  opacity: 0.55;
+  cursor: help;
+}
+
+.cap-btn--primary.cap-btn--needs-parent:hover {
+  background: var(--cap-navy);
+}
+
 .cap-btn--ghost {
   background: transparent;
 }
