@@ -520,7 +520,13 @@ def programas():
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         return jsonify({"programa": item}), 201
-    return jsonify({"programas": listar_programas(current_user.empresa_id)})
+    return jsonify({
+        "programas": listar_programas(
+            current_user.empresa_id,
+            puesto_id=request.args.get("puesto_id", type=int),
+            participante_id=request.args.get("participante_id", type=int),
+        )
+    })
 
 
 @bp.route("/programas/<int:programa_id>/inscripciones", methods=["POST"])

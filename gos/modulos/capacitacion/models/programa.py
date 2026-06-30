@@ -4,6 +4,7 @@ from gos.models.base import TimestampMixin
 ESTADOS_PROGRAMA = ("borrador", "programado", "en_curso", "finalizado", "cancelado")
 ESTADOS_ENCUENTRO = ("programado", "realizado", "cancelado", "reprogramado")
 ESTADOS_INSCRIPCION = ("inscripto", "en_curso", "completado", "abandonado")
+ALCANCES_PROGRAMA = ("general", "puesto", "persona")
 
 
 class ProgramaCapacitacion(db.Model, TimestampMixin):
@@ -14,7 +15,9 @@ class ProgramaCapacitacion(db.Model, TimestampMixin):
     id = db.Column(db.Integer, primary_key=True)
     empresa_id = db.Column(db.Integer, db.ForeignKey("empresas.id"), nullable=False, index=True)
     sector_id = db.Column(db.Integer, db.ForeignKey("sectores.id"), nullable=True, index=True)
+    puesto_id = db.Column(db.Integer, db.ForeignKey("cap_puestos.id"), nullable=True, index=True)
     curso_id = db.Column(db.Integer, db.ForeignKey("cap_cursos.id"), nullable=True, index=True)
+    alcance = db.Column(db.String(20), default="general", nullable=False)
     codigo = db.Column(db.String(30), nullable=False)
     nombre = db.Column(db.String(200), nullable=False)
     descripcion = db.Column(db.Text, nullable=True)
@@ -26,6 +29,7 @@ class ProgramaCapacitacion(db.Model, TimestampMixin):
 
     empresa = db.relationship("Empresa")
     sector = db.relationship("Sector")
+    puesto = db.relationship("Puesto")
     curso = db.relationship("Curso")
     encuentros = db.relationship(
         "EncuentroCapacitacion",

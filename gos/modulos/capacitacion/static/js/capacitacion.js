@@ -1325,9 +1325,55 @@
 
     if (!el) return;
 
-    const data = await fetchJson(`${API}/programas`);
+    const modo = document.getElementById("cap-prog-modo")?.value || "puesto";
 
-    el.innerHTML = (data.programas || []).map((p) => `
+    const puestoId = document.getElementById("cap-prog-puesto")?.value;
+
+    const personaId = document.getElementById("cap-prog-persona")?.value;
+
+    if (modo === "puesto" && !puestoId) {
+
+      el.innerHTML = "<p class='cap-empty'>Seleccioná un puesto para ver sus programas</p>";
+
+      return;
+
+    }
+
+    if (modo === "persona" && !personaId) {
+
+      el.innerHTML = "<p class='cap-empty'>Seleccioná una persona para ver sus programas</p>";
+
+      return;
+
+    }
+
+    const url = modo === "puesto"
+
+      ? `${API}/programas?puesto_id=${puestoId}`
+
+      : `${API}/programas?participante_id=${personaId}`;
+
+    const data = await fetchJson(url);
+
+    const alcanceLabel = { puesto: "Por puesto", persona: "Por persona", general: "General" };
+
+    el.innerHTML = (data.programas || []).map((p) => {
+
+      const alcance = alcanceLabel[p.alcance] || p.alcance;
+
+      const destino = p.alcance === "puesto" && p.puesto_nombre
+
+        ? ` · ${p.puesto_nombre}`
+
+        : p.alcance === "persona" && p.inscriptos
+
+          ? ` · ${p.inscriptos} inscripto${p.inscriptos === 1 ? "" : "s"}`
+
+          : "";
+
+      const curso = p.curso_nombre ? `<div class="cap-muted">${p.curso_nombre}</div>` : "";
+
+      return `
 
       <div class="cap-programa-card">
 
@@ -1335,9 +1381,79 @@
 
         <span class="cap-badge cap-badge--blue">${p.estado}</span>
 
-        <div class="cap-muted">${p.fecha_inicio || ""} → ${p.fecha_fin || ""}</div>
+        <span class="cap-badge cap-badge--gray">${alcance}${destino}</span>
 
-      </div>`).join("") || "<p class='cap-empty'>No hay programas</p>";
+        <div class="cap-muted">${p.fecha_inicio || "—"} → ${p.fecha_fin || "—"}</div>
+
+        ${curso}
+
+      </div>`;
+
+    }).join("") || "<p class='cap-empty'>No hay programas para este filtro</p>";
+
+  }
+
+
+
+  function toggleProgramasFiltro() {
+
+    const modo = document.getElementById("cap-prog-modo")?.value || "puesto";
+
+    const selPuesto = document.getElementById("cap-prog-puesto");
+
+    const selPersona = document.getElementById("cap-prog-persona");
+
+    if (selPuesto) selPuesto.classList.toggle("cap-hidden", modo !== "puesto");
+
+    if (selPersona) selPersona.classList.toggle("cap-hidden", modo !== "persona");
+
+  }
+
+
+
+  async function loadProgramasParticipantesOptions() {
+
+    const sel = document.getElementById("cap-prog-persona");
+
+    if (!sel) return;
+
+    const items = (await fetchJson(`${API}/participantes`)).participantes || [];
+
+    const current = sel.value;
+
+    sel.innerHTML = '<option value="">— Seleccionar persona —</option>';
+
+    items.forEach((item) => {
+
+      const opt = document.createElement("option");
+
+      opt.value = item.id;
+
+      opt.textContent = item.legajo ? `${item.nombre} (${item.legajo})` : item.nombre;
+
+      sel.appendChild(opt);
+
+    });
+
+    if (current) sel.value = current;
+
+  }
+
+
+
+  function bindProgramas() {
+
+    document.getElementById("cap-prog-modo")?.addEventListener("change", () => {
+
+      toggleProgramasFiltro();
+
+      loadProgramas().catch(console.error);
+
+    });
+
+    document.getElementById("cap-prog-puesto")?.addEventListener("change", () => loadProgramas().catch(console.error));
+
+    document.getElementById("cap-prog-persona")?.addEventListener("change", () => loadProgramas().catch(console.error));
 
   }
 
@@ -2498,15 +2614,13 @@
 
   async function loadPuestosOptions() {
 
-    const sel = document.getElementById("cap-req-puesto");
-
-    if (!sel) return;
-
     const items = (await fetchJson(`${API}/puestos`)).puestos || [];
 
     metaPuestos = items;
 
     fillSelect("cap-req-puesto", items, "— Seleccionar puesto —");
+
+    fillSelect("cap-prog-puesto", items, "— Seleccionar puesto —");
 
   }
 
@@ -3223,6 +3337,8 @@
 
     bindRequisitos();
 
+    bindProgramas();
+
     bindAsistenciaModal();
 
     bindImportPersonas();
@@ -3243,9 +3359,13 @@
 
     if (view === "programas") {
 
-      try { await loadProgramas(); } catch (e) { console.error(e); }
+      toggleProgramasFiltro();
 
       try { await loadPuestosOptions(); } catch (e) { console.error(e); }
+
+      try { await loadProgramasParticipantesOptions(); } catch (e) { console.error(e); }
+
+      try { await loadProgramas(); } catch (e) { console.error(e); }
 
       try { await loadCursos(); } catch (e) { console.error(e); }
 

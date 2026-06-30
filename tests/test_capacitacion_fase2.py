@@ -127,4 +127,52 @@ def test_registrar_asistencias(auth_client, app):
     assert r.get_json()["guardados"] == 1
 
     det = auth_client.get(f"/gos/capacitacion/api/encuentros/{enc_id}")
+    assert det.status_code == 200
     assert det.get_json()["estado"] == "realizado"
+
+
+def test_api_programas_por_puesto_y_persona(auth_client, app):
+    with app.app_context():
+        from gos.models import Empresa
+        from gos.modulos.capacitacion.models import InscripcionPrograma, ProgramaCapacitacion
+
+        emp = Empresa.query.first()
+        puesto_op = Puesto(empresa_id=emp.id, codigo="OP2", nombre="Operario II")
+        puesto_sup = Puesto(empresa_id=emp.id, codigo="SUP2", nombre="Supervisor II")
+        persona = Participante(empresa_id=emp.id, nombre="Lucía", legajo="5001", puesto_id=None)
+        db.session.add_all([puesto_op, puesto_sup, persona])
+        db.session.flush()
+        persona.puesto_id = puesto_op.id
+
+        prog_puesto = ProgramaCapacitacion(
+            empresa_id=emp.id,
+            codigo="PRG-P",
+            nombre="Programa operarios",
+            alcance="puesto",
+            puesto_id=puesto_op.id,
+        )
+        prog_persona = ProgramaCapacitacion(
+            empresa_id=emp.id,
+            codigo="PRG-I",
+            nombre="Programa individual",
+            alcance="persona",
+        )
+        db.session.add_all([prog_puesto, prog_persona])
+        db.session.flush()
+        db.session.add(
+            InscripcionPrograma(programa_id=prog_persona.id, participante_id=persona.id, estado="inscripto")
+        )
+        db.session.commit()
+        puesto_id, persona_id = puesto_op.id, persona.id
+
+    por_puesto = auth_client.get(f"/gos/capacitacion/api/programas?puesto_id={puesto_id}")
+    assert por_puesto.status_code == 200
+    codigos_puesto = [p["codigo"] for p in por_puesto.get_json()["programas"]]
+    assert "PRG-P" in codigos_puesto
+    assert "PRG-I" not in codigos_puesto
+
+    por_persona = auth_client.get(f"/gos/capacitacion/api/programas?participante_id={persona_id}")
+    assert por_persona.status_code == 200
+    codigos_persona = [p["codigo"] for p in por_persona.get_json()["programas"]]
+    assert "PRG-I" in codigos_persona
+    assert "PRG-P" in codigos_persona

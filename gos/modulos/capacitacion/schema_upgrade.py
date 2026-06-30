@@ -19,6 +19,8 @@ _COLUMN_UPGRADES = [
     ("cap_cursos", "puntaje_minimo", "NUMERIC(5,2)"),
     ("cap_cursos", "instructor_id", "INTEGER"),
     ("cap_encuentros", "link_virtual", "VARCHAR(500)"),
+    ("cap_programas", "puesto_id", "INTEGER"),
+    ("cap_programas", "alcance", "VARCHAR(20) DEFAULT 'general'"),
     ("cap_config", "pct_cumplimiento_minimo", "INTEGER DEFAULT 80"),
     ("cap_config", "notif_email_activo", "BOOLEAN DEFAULT FALSE"),
     ("cap_config", "notif_vencimiento", "BOOLEAN DEFAULT TRUE"),

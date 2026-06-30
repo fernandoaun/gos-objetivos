@@ -156,7 +156,24 @@
   <!-- PROGRAMAS -->
   <div data-cap-view="programas" class="cap-hidden">
     <div class="cap-widget cap-mb">
-      <div class="cap-widget-head"><i class="bi bi-calendar-event"></i><h2 class="cap-widget-title">Programas</h2></div>
+      <div class="cap-widget-head cap-widget-head--split">
+        <div class="cap-widget-head-left">
+          <i class="bi bi-calendar-event"></i>
+          <h2 class="cap-widget-title">Programas</h2>
+        </div>
+        <div class="cap-toolbar-actions">
+          <select class="cap-input cap-input--sm" id="cap-prog-modo" aria-label="Ver programas por">
+            <option value="puesto">Por puesto</option>
+            <option value="persona">Por persona</option>
+          </select>
+          <select class="cap-input cap-input--sm" id="cap-prog-puesto" aria-label="Puesto">
+            <option value="">— Seleccionar puesto —</option>
+          </select>
+          <select class="cap-input cap-input--sm cap-hidden" id="cap-prog-persona" aria-label="Persona">
+            <option value="">— Seleccionar persona —</option>
+          </select>
+        </div>
+      </div>
       <div class="cap-widget-body" id="cap-programas-list"><p class="cap-loading">Cargando...</p></div>
     </div>
     <div class="cap-widget cap-widget--full">

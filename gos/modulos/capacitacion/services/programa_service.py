@@ -9,19 +9,54 @@ from gos.modulos.capacitacion.models import (
     InscripcionPrograma,
     Participante,
     ProgramaCapacitacion,
+    Puesto,
     RegistroCapacitacion,
 )
-from gos.modulos.capacitacion.models.programa import ESTADOS_ENCUENTRO, ESTADOS_PROGRAMA
+from gos.modulos.capacitacion.models.programa import (
+    ALCANCES_PROGRAMA,
+    ESTADOS_ENCUENTRO,
+    ESTADOS_PROGRAMA,
+)
 
 RESULTADOS_ASISTENCIA = ("presente", "ausente", "justificado")
 
 
-def listar_programas(empresa_id: int) -> list[dict]:
-    items = (
-        ProgramaCapacitacion.query.filter_by(empresa_id=empresa_id, activo=True)
-        .order_by(ProgramaCapacitacion.fecha_inicio.desc())
-        .all()
-    )
+def listar_programas(
+    empresa_id: int,
+    *,
+    puesto_id: int | None = None,
+    participante_id: int | None = None,
+) -> list[dict]:
+    q = ProgramaCapacitacion.query.filter_by(empresa_id=empresa_id, activo=True)
+
+    if puesto_id:
+        q = q.filter(
+            db.and_(
+                ProgramaCapacitacion.alcance == "puesto",
+                ProgramaCapacitacion.puesto_id == puesto_id,
+            )
+        )
+    elif participante_id:
+        participante = Participante.query.filter_by(
+            id=participante_id, empresa_id=empresa_id, activo=True
+        ).first()
+        if not participante:
+            return []
+
+        inscritos = db.session.query(InscripcionPrograma.programa_id).filter_by(
+            participante_id=participante_id
+        )
+        condiciones = [ProgramaCapacitacion.id.in_(inscritos)]
+        if participante.puesto_id:
+            condiciones.append(
+                db.and_(
+                    ProgramaCapacitacion.alcance == "puesto",
+                    ProgramaCapacitacion.puesto_id == participante.puesto_id,
+                )
+            )
+        q = q.filter(db.or_(*condiciones))
+
+    items = q.order_by(ProgramaCapacitacion.fecha_inicio.desc()).all()
     return [_programa_dict(p) for p in items]
 
 
@@ -35,13 +70,28 @@ def crear_programa(empresa_id: int, data: dict) -> dict:
     if estado not in ESTADOS_PROGRAMA:
         raise ValueError("Estado de programa inválido")
 
+    alcance = (data.get("alcance") or "general").strip().lower()
+    if alcance not in ALCANCES_PROGRAMA:
+        raise ValueError("Alcance de programa inválido")
+
+    puesto_id = data.get("puesto_id") or None
+    if alcance == "puesto":
+        if not puesto_id:
+            raise ValueError("El puesto es obligatorio para programas por puesto")
+        if not Puesto.query.filter_by(id=puesto_id, empresa_id=empresa_id, activo=True).first():
+            raise ValueError("Puesto no encontrado")
+    else:
+        puesto_id = None
+
     programa = ProgramaCapacitacion(
         empresa_id=empresa_id,
         codigo=codigo,
         nombre=nombre,
         descripcion=(data.get("descripcion") or "").strip() or None,
         sector_id=data.get("sector_id") or None,
+        puesto_id=puesto_id,
         curso_id=data.get("curso_id") or None,
+        alcance=alcance,
         fecha_inicio=_parse_date(data.get("fecha_inicio")),
         fecha_fin=_parse_date(data.get("fecha_fin")),
         instructor=(data.get("instructor") or "").strip() or None,
@@ -255,13 +305,19 @@ def detalle_encuentro(empresa_id: int, encuentro_id: int) -> dict:
 
 
 def _programa_dict(p: ProgramaCapacitacion) -> dict:
+    inscriptos = p.inscripciones.count() if p.inscripciones else 0
     return {
         "id": p.id,
         "codigo": p.codigo,
         "nombre": p.nombre,
         "descripcion": p.descripcion,
         "sector_id": p.sector_id,
+        "puesto_id": p.puesto_id,
+        "puesto_nombre": p.puesto.nombre if p.puesto else None,
         "curso_id": p.curso_id,
+        "curso_nombre": p.curso.nombre if p.curso else None,
+        "alcance": p.alcance or "general",
+        "inscriptos": inscriptos,
         "fecha_inicio": p.fecha_inicio.isoformat() if p.fecha_inicio else None,
         "fecha_fin": p.fecha_fin.isoformat() if p.fecha_fin else None,
         "instructor": p.instructor,
