@@ -74,7 +74,7 @@
       <div class="cap-widget">
         <div class="cap-widget-head">
           <i class="bi bi-calendar3"></i>
-          <h2 class="cap-widget-title">Calendario</h2>
+          <h2 class="cap-widget-title">Cronograma</h2>
         </div>
         <div class="cap-cal-toolbar">
           <div class="cap-cal-nav">
@@ -114,11 +114,11 @@
     </div>
   </div>
 
-  <!-- CALENDARIO -->
-  <div data-cap-view="calendario" class="cap-hidden">
+  <!-- CRONOGRAMA -->
+  <div data-cap-view="cronograma" class="cap-hidden">
     <div class="cap-widget">
       <div class="cap-widget-head cap-widget-head--split">
-        <div class="cap-widget-head-left"><i class="bi bi-calendar3"></i><h2 class="cap-widget-title">Calendario de capacitaciones</h2></div>
+        <div class="cap-widget-head-left"><i class="bi bi-calendar3"></i><h2 class="cap-widget-title">Cronograma de capacitaciones</h2></div>
         <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-nuevo-encuentro"><i class="bi bi-plus-lg"></i> Programar</button>
       </div>
       <div class="cap-cal-toolbar">
@@ -294,102 +294,107 @@
 
   <!-- PERSONAS: analítico individual -->
   <div data-cap-view="personas" class="cap-hidden">
-    <div class="cap-personas-layout">
-      <div class="cap-widget">
-        <div class="cap-widget-head cap-widget-head--split">
-          <div class="cap-widget-head-left">
-            <i class="bi bi-person-lines-fill"></i>
-            <h2 class="cap-widget-title">Personas</h2>
-          </div>
+    <div class="cap-widget cap-mb">
+      <div class="cap-widget-head cap-widget-head--split">
+        <div class="cap-widget-head-left">
+          <i class="bi bi-person-lines-fill"></i>
+          <h2 class="cap-widget-title">Personas</h2>
+        </div>
+        <div class="cap-toolbar-actions">
           <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-nueva-persona">
             <i class="bi bi-plus-lg"></i> Agregar
           </button>
           <button type="button" class="cap-btn cap-btn--ghost" id="cap-btn-importar-personas"><i class="bi bi-upload"></i> Importar</button>
           <button type="button" class="cap-btn cap-btn--ghost" id="cap-btn-sync-vacaciones" title="Importar legajos desde Vacaciones"><i class="bi bi-arrow-left-right"></i> Sync Vacaciones</button>
         </div>
-        <div class="cap-toolbar-actions cap-px cap-pb">
-          <input type="search" class="cap-input cap-input--sm" id="cap-personas-q" placeholder="Filtrar por nombre o legajo…">
-          <select class="cap-input cap-input--sm" id="cap-personas-sector"><option value="">Todos los sectores</option></select>
-        </div>
-        <input type="file" id="cap-import-personas-file" accept=".xlsx,.xls" class="cap-hidden">
-        <input type="file" id="cap-cert-upload-file" accept=".pdf" class="cap-hidden">
-        <div class="cap-form-panel cap-hidden" id="cap-persona-form-panel">
-          <form id="cap-persona-form" class="cap-form">
-            <input type="hidden" id="cap-p-id" name="id" value="">
-            <div class="cap-form-row">
-              <label class="cap-label" for="cap-p-nombre">Nombre *</label>
-              <input class="cap-input" id="cap-p-nombre" name="nombre" required maxlength="150">
+      </div>
+      <div class="cap-toolbar-actions cap-px cap-pb">
+        <input type="search" class="cap-input cap-input--sm" id="cap-personas-q" placeholder="Filtrar por nombre o legajo…">
+        <select class="cap-input cap-input--sm" id="cap-personas-sector"><option value="">Todos los sectores</option></select>
+      </div>
+      <input type="file" id="cap-import-personas-file" accept=".xlsx,.xls" class="cap-hidden">
+      <input type="file" id="cap-cert-upload-file" accept=".pdf" class="cap-hidden">
+      <input type="file" id="cap-foto-upload-file" accept="image/jpeg,image/png,image/webp" class="cap-hidden">
+      <div class="cap-form-panel cap-hidden" id="cap-persona-form-panel">
+        <form id="cap-persona-form" class="cap-form">
+          <input type="hidden" id="cap-p-id" name="id" value="">
+          <div class="cap-form-row">
+            <label class="cap-label" for="cap-p-nombre">Nombre *</label>
+            <input class="cap-input" id="cap-p-nombre" name="nombre" required maxlength="150">
+          </div>
+          <div class="cap-form-row cap-form-row--2">
+            <div>
+              <label class="cap-label" for="cap-p-legajo">Legajo *</label>
+              <input class="cap-input" id="cap-p-legajo" name="legajo" required maxlength="30">
             </div>
+            <div>
+              <label class="cap-label" for="cap-p-email">Email</label>
+              <input class="cap-input" id="cap-p-email" name="email" type="email" maxlength="150">
+            </div>
+          </div>
+          <div class="cap-form-row cap-form-row--2">
+            <div>
+              <label class="cap-label" for="cap-p-sector">Sector</label>
+              <div class="cap-input-group">
+                <select class="cap-input" id="cap-p-sector" name="sector_id">
+                  <option value="">— Sin sector —</option>
+                </select>
+                <button type="button" class="cap-btn cap-btn--icon" id="cap-p-sector-add" title="Agregar sector">
+                  <i class="bi bi-plus-lg"></i>
+                </button>
+              </div>
+            </div>
+            <div>
+              <label class="cap-label" for="cap-p-puesto">Puesto</label>
+              <div class="cap-input-group">
+                <select class="cap-input" id="cap-p-puesto" name="puesto_id">
+                  <option value="">— Sin puesto —</option>
+                </select>
+                <button type="button" class="cap-btn cap-btn--icon" id="cap-p-puesto-add" title="Agregar puesto">
+                  <i class="bi bi-plus-lg"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+          <p class="cap-form-hint" id="cap-persona-form-error"></p>
+          <div class="cap-quick-form cap-hidden" id="cap-sector-quick">
+            <p class="cap-quick-form-title">Nuevo sector</p>
             <div class="cap-form-row cap-form-row--2">
-              <div>
-                <label class="cap-label" for="cap-p-legajo">Legajo</label>
-                <input class="cap-input" id="cap-p-legajo" name="legajo" maxlength="30">
-              </div>
-              <div>
-                <label class="cap-label" for="cap-p-email">Email</label>
-                <input class="cap-input" id="cap-p-email" name="email" type="email" maxlength="150">
-              </div>
-            </div>
-            <div class="cap-form-row cap-form-row--2">
-              <div>
-                <label class="cap-label" for="cap-p-sector">Sector</label>
-                <div class="cap-input-group">
-                  <select class="cap-input" id="cap-p-sector" name="sector_id">
-                    <option value="">— Sin sector —</option>
-                  </select>
-                  <button type="button" class="cap-btn cap-btn--icon" id="cap-p-sector-add" title="Agregar sector">
-                    <i class="bi bi-plus-lg"></i>
-                  </button>
-                </div>
-              </div>
-              <div>
-                <label class="cap-label" for="cap-p-puesto">Puesto</label>
-                <div class="cap-input-group">
-                  <select class="cap-input" id="cap-p-puesto" name="puesto_id">
-                    <option value="">— Sin puesto —</option>
-                  </select>
-                  <button type="button" class="cap-btn cap-btn--icon" id="cap-p-puesto-add" title="Agregar puesto">
-                    <i class="bi bi-plus-lg"></i>
-                  </button>
-                </div>
-              </div>
-            </div>
-            <p class="cap-form-hint" id="cap-persona-form-error"></p>
-            <div class="cap-quick-form cap-hidden" id="cap-sector-quick">
-              <p class="cap-quick-form-title">Nuevo sector</p>
-              <div class="cap-form-row cap-form-row--2">
-                <input class="cap-input" id="cap-sector-quick-codigo" placeholder="Código" maxlength="20">
-                <input class="cap-input" id="cap-sector-quick-nombre" placeholder="Nombre" maxlength="100">
-              </div>
-              <div class="cap-form-actions">
-                <button type="button" class="cap-btn cap-btn--ghost" id="cap-sector-quick-cancel">Cancelar</button>
-                <button type="button" class="cap-btn cap-btn--primary" id="cap-sector-quick-save">Guardar sector</button>
-              </div>
-            </div>
-            <div class="cap-quick-form cap-hidden" id="cap-puesto-quick">
-              <p class="cap-quick-form-title">Nuevo puesto</p>
-              <div class="cap-form-row cap-form-row--2">
-                <input class="cap-input" id="cap-puesto-quick-codigo" placeholder="Código" maxlength="20">
-                <input class="cap-input" id="cap-puesto-quick-nombre" placeholder="Nombre" maxlength="150">
-              </div>
-              <div class="cap-form-actions">
-                <button type="button" class="cap-btn cap-btn--ghost" id="cap-puesto-quick-cancel">Cancelar</button>
-                <button type="button" class="cap-btn cap-btn--primary" id="cap-puesto-quick-save">Guardar puesto</button>
-              </div>
+              <input class="cap-input" id="cap-sector-quick-codigo" placeholder="Código" maxlength="20">
+              <input class="cap-input" id="cap-sector-quick-nombre" placeholder="Nombre" maxlength="100">
             </div>
             <div class="cap-form-actions">
-              <button type="button" class="cap-btn cap-btn--ghost" id="cap-persona-cancel">Cancelar</button>
-              <button type="button" class="cap-btn cap-btn--danger cap-hidden" id="cap-persona-baja">Dar de baja</button>
-              <button type="submit" class="cap-btn cap-btn--primary">Guardar</button>
+              <button type="button" class="cap-btn cap-btn--ghost" id="cap-sector-quick-cancel">Cancelar</button>
+              <button type="button" class="cap-btn cap-btn--primary" id="cap-sector-quick-save">Guardar sector</button>
             </div>
-          </form>
-        </div>
-        <ul class="cap-list" id="cap-personas-list"></ul>
+          </div>
+          <div class="cap-quick-form cap-hidden" id="cap-puesto-quick">
+            <p class="cap-quick-form-title">Nuevo puesto</p>
+            <div class="cap-form-row cap-form-row--2">
+              <input class="cap-input" id="cap-puesto-quick-codigo" placeholder="Código" maxlength="20">
+              <input class="cap-input" id="cap-puesto-quick-nombre" placeholder="Nombre" maxlength="150">
+            </div>
+            <div class="cap-form-actions">
+              <button type="button" class="cap-btn cap-btn--ghost" id="cap-puesto-quick-cancel">Cancelar</button>
+              <button type="button" class="cap-btn cap-btn--primary" id="cap-puesto-quick-save">Guardar puesto</button>
+            </div>
+          </div>
+          <div class="cap-form-actions">
+            <button type="button" class="cap-btn cap-btn--ghost" id="cap-persona-cancel">Cancelar</button>
+            <button type="button" class="cap-btn cap-btn--danger cap-hidden" id="cap-persona-baja">Dar de baja</button>
+            <button type="submit" class="cap-btn cap-btn--primary">Guardar</button>
+          </div>
+        </form>
       </div>
-      <div class="cap-widget">
-        <div class="cap-widget-body" id="cap-persona-detail" style="padding:1rem">
-          <p class="cap-empty">Seleccioná una persona</p>
+      <div class="cap-personas-row-wrap cap-px cap-pb">
+        <div class="cap-personas-row" id="cap-personas-row">
+          <p class="cap-empty">Cargando...</p>
         </div>
+      </div>
+    </div>
+    <div class="cap-widget cap-hidden" id="cap-legajo-panel">
+      <div class="cap-widget-body" id="cap-persona-detail">
+        <p class="cap-empty">Seleccioná una persona para ver su legajo</p>
       </div>
     </div>
   </div>
@@ -428,36 +433,37 @@
               <label class="cap-label" for="cap-c-descripcion">Descripción</label>
               <textarea class="cap-input cap-textarea" id="cap-c-descripcion" name="descripcion" rows="2"></textarea>
             </div>
-            <div class="cap-form-row cap-form-row--3">
+            <div class="cap-form-row cap-form-row--4">
               <div>
-                <label class="cap-label" for="cap-c-tipo">Tipo</label>
-                <select class="cap-input" id="cap-c-tipo" name="tipo_capacitacion">
+                <label class="cap-label" for="cap-c-categoria">Categoría</label>
+                <select class="cap-input" id="cap-c-categoria" name="categoria">
                   <option value="">—</option>
-                  <option value="obligatoria">Obligatoria</option>
-                  <option value="interna">Interna</option>
-                  <option value="externa">Externa</option>
-                  <option value="hse">HSE</option>
-                  <option value="tecnica">Técnica</option>
-                  <option value="sgi">SGI</option>
-                  <option value="induccion">Inducción</option>
-                  <option value="normativa">Normativa</option>
                 </select>
               </div>
               <div>
-                <label class="cap-label" for="cap-c-horas">Horas</label>
-                <input class="cap-input" id="cap-c-horas" name="horas" type="number" min="0" step="0.5">
+                <label class="cap-label" for="cap-c-tipo">Tipo</label>
+                <select class="cap-input" id="cap-c-tipo" name="tipo" disabled>
+                  <option value="">—</option>
+                </select>
+              </div>
+              <div>
+                <label class="cap-label" for="cap-c-origen">Origen</label>
+                <select class="cap-input" id="cap-c-origen" name="origen" disabled>
+                  <option value="">—</option>
+                </select>
               </div>
               <div>
                 <label class="cap-label" for="cap-c-modalidad">Modalidad</label>
-                <select class="cap-input" id="cap-c-modalidad" name="modalidad">
+                <select class="cap-input" id="cap-c-modalidad" name="modalidad" disabled>
                   <option value="">—</option>
-                  <option value="presencial">Presencial</option>
-                  <option value="virtual">Virtual</option>
-                  <option value="mixta">Mixta</option>
                 </select>
               </div>
             </div>
             <div class="cap-form-row cap-form-row--3">
+              <div>
+                <label class="cap-label" for="cap-c-horas">Horas</label>
+                <input class="cap-input" id="cap-c-horas" name="horas" type="number" min="0" step="0.5">
+              </div>
               <div>
                 <label class="cap-label" for="cap-c-vigencia">Vigencia (meses)</label>
                 <input class="cap-input" id="cap-c-vigencia" name="vigencia_meses" type="number" min="1" step="1">
@@ -484,13 +490,16 @@
               <tr>
                 <th>Código</th>
                 <th>Nombre</th>
+                <th>Categoría</th>
                 <th>Tipo</th>
+                <th>Origen</th>
+                <th>Modalidad</th>
                 <th>Horas</th>
                 <th class="cap-col-actions"></th>
               </tr>
             </thead>
             <tbody id="cap-cursos-body">
-              <tr><td colspan="5" class="cap-loading">Cargando...</td></tr>
+              <tr><td colspan="8" class="cap-loading">Cargando...</td></tr>
             </tbody>
           </table>
         </div>

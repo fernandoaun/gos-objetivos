@@ -36,7 +36,15 @@ def test_api_actualizar_y_baja_curso(auth_client):
 
     r2 = auth_client.put(
         f"/gos/capacitacion/api/cursos/{curso_id}",
-        json={"codigo": "CUR-1", "nombre": "Curso actualizado", "horas": 8, "tipo_capacitacion": "hse"},
+        json={
+            "codigo": "CUR-1",
+            "nombre": "Curso actualizado",
+            "horas": 8,
+            "categoria": "hse",
+            "tipo": "obligatoria",
+            "origen": "interna",
+            "modalidad": "presencial",
+        },
     )
     assert r2.status_code == 200
     assert r2.get_json()["curso"]["nombre"] == "Curso actualizado"

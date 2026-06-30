@@ -40,10 +40,10 @@ def alertas():
     return render_template("capacitacion/shell.html", view="alertas")
 
 
-@bp.route("/calendario")
+@bp.route("/cronograma")
 @login_required
-def calendario():
-    return render_template("capacitacion/shell.html", view="calendario")
+def cronograma():
+    return render_template("capacitacion/shell.html", view="cronograma")
 
 
 @bp.route("/reportes")

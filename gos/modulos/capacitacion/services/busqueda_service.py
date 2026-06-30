@@ -45,7 +45,7 @@ def busqueda_global(empresa_id: int, q: str, *, limit: int = 20) -> dict:
                     "tipo": "curso",
                     "id": c.id,
                     "titulo": f"{c.codigo} — {c.nombre}",
-                    "subtitulo": c.tipo_capacitacion or "",
+                    "subtitulo": c.categoria or c.tipo_capacitacion or "",
                     "vista": "catalogos",
                 }
             )

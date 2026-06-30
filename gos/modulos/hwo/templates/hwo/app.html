@@ -270,11 +270,35 @@ function lookupSavedSchedule(equipo, datasetName) {
 async function initModalidad() {
   try {
     const resp = await fetch('/gos/hwo/api/modalidad');
-    if (resp.ok) _modalidadCache = await resp.json();
+    if (resp.ok) {
+      const server = await resp.json();
+      _modalidadCache = { ...server, ..._modalidadCache };
+    }
   } catch(e) { console.warn('No se pudo cargar modalidad:', e); }
 }
 
 function loadModalidad() { return _modalidadCache; }
+
+function snapshotModalidadFromEqs(eqs, datasetName) {
+  if (!eqs || !datasetName) return;
+  for (const [k, e] of Object.entries(eqs)) {
+    const eq = eqKey(k);
+    if (e?.schedule && SCHEDULES.includes(e.schedule)) {
+      _modalidadCache[modalidadStorageKey(eq, datasetName)] = e.schedule;
+    }
+  }
+}
+
+async function persistModalidadCache() {
+  if (!Object.keys(_modalidadCache).length) return;
+  try {
+    await fetch('/gos/hwo/api/modalidad', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(_modalidadCache),
+    });
+  } catch(e) { console.warn('No se pudo guardar modalidad:', e); }
+}
 
 async function saveModalidadFor(equipo, schedule) {
   if (!equipo || !schedule || !SCHEDULES.includes(schedule)) return;
@@ -397,7 +421,7 @@ function mergeConfigs(existing, incoming) {
   return cfg;
 }
 
-function finalizeDataset(ds, datasetName) {
+function finalizeDataset(ds, datasetName, prevEqs) {
   D = {};
   D.config = { ...ds.config, eqs: { ...(ds.config?.eqs || {}) } };
   D.rows = ds.rows || [];
@@ -413,12 +437,15 @@ function finalizeDataset(ds, datasetName) {
     let wdHol = 0; for (const t of hSet) { const dow = new Date(t).getDay(); if (dow !== 0 && dow !== 6) wdHol++; }
     D.config.feriados = wdHol; D.config.weekdaysNoHol = Math.max(0, D.config.weekdays - wdHol);
   }
-  D.eqs = calcEquipments(datasetName); D.holidays = detectHolidays();
+  D.eqs = calcEquipments(datasetName, prevEqs); D.holidays = detectHolidays();
   applyModalidad(datasetName); addExpectedToDate(); D.burnup = calcBurnup(); D.dailyStates = calcDailyStates();
+  snapshotModalidadFromEqs(D.eqs, datasetName);
   return { ...D };
 }
 
 function mergeIntoDataset(existing, incoming, datasetName) {
+  snapshotModalidadFromEqs(existing.eqs, datasetName);
+  const prevEqs = existing.eqs;
   const map = new Map();
   let updated = 0, added = 0;
   for (const r of existing.rows) map.set(rowKey(r), r);
@@ -430,7 +457,7 @@ function mergeIntoDataset(existing, incoming, datasetName) {
   }
   const rows = [...map.values()].sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
   const config = mergeConfigs(existing.config, incoming.config);
-  const D = finalizeDataset({ config, rows }, datasetName);
+  const D = finalizeDataset({ config, rows }, datasetName, prevEqs);
   return { D, added, updated, total: rows.length };
 }
 
@@ -534,7 +561,6 @@ function loadFile(file) {
     const reader = new FileReader();
     reader.onload = async ev => {
       try {
-        await initModalidad();
         const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array', cellDates: true });
         const filename = file.name.replace(/\.[^.]+$/, '');
         const results = processWorkbook(wb, filename);
@@ -562,6 +588,7 @@ function loadFile(file) {
           await apiSaveDataset(tabName, finalDs);
           messages.push(`${tabName}: ${msg}`);
         }
+        await persistModalidadCache();
         D = datasets[activeIdx].D;
         showApp(
           summarizeLoadMessages(messages),
@@ -674,6 +701,7 @@ async function renameDataset(idx, newName) {
       }
     }
     datasets[idx].name = newName;
+    await persistModalidadCache();
     renderAll();
   } catch (err) {
     alert(err.message || 'No se pudo renombrar la pestaña.');
@@ -684,6 +712,10 @@ async function renameDataset(idx, newName) {
 function switchDataset(idx) {
   if (idx === activeIdx) return;
   activeIdx = idx; D = datasets[idx].D;
+  applyModalidad(datasets[idx].name);
+  addExpectedToDate();
+  D.burnup = calcBurnup();
+  D.dailyStates = calcDailyStates();
   mesCerrado = false; document.getElementById('btn-closed').classList.remove('active');
   renderAll();
 }
@@ -770,18 +802,23 @@ function parseDataRows(raw) {
 // ── Calculations ─────────────────────────────
 function stateOf(row) { const s = row.sitRealUC; if (s.includes('FUERA')) return 'fds'; if (s.includes('STAND BY C')) return 'sbcc'; if (s.includes('STAND BY')) return 'sbsp'; if (s.includes('OPERANDO')) return 'op'; return 'other'; }
 
-function calcEquipments(datasetName) {
+function prevEqSchedule(prevEqs, key) {
+  const prev = prevEqs?.[key];
+  return prev?.schedule && SCHEDULES.includes(prev.schedule) ? prev.schedule : null;
+}
+
+function calcEquipments(datasetName, prevEqs) {
   const eqs = {}, cfg = D.config;
   const dsName = datasetName || datasets[activeIdx]?.name || '';
   for (const [k, c] of Object.entries(cfg.eqs)) {
     const key = eqKey(k);
-    const sched = lookupSavedSchedule(key, dsName) || detectSchedule(c.totalCompleto, cfg);
+    const sched = lookupSavedSchedule(key, dsName) || prevEqSchedule(prevEqs, key) || detectSchedule(c.totalCompleto, cfg);
     eqs[key] = { ...c, equipo: key, schedule: sched, _fdsTolBase: c.fdsTolerado || 0, fdsTolerado: calcFdsTol(sched, c.fdsTolerado), dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
   }
   for (const row of D.rows) {
     const k = eqKey(row.centro);
     if (!eqs[k]) {
-      const sched = lookupSavedSchedule(k, dsName) || 'lun-lun';
+      const sched = lookupSavedSchedule(k, dsName) || prevEqSchedule(prevEqs, k) || 'lun-lun';
       eqs[k] = { equipo: k, cliente: row.cliente, totalCompleto: cfg.periodDays, _fdsTolBase: 2, fdsTolerado: calcFdsTol(sched, 2), proyectado: cfg.periodDays - 2, schedule: sched, dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
     }
     const e = eqs[k], st = stateOf(row), j = jpd(e.schedule);

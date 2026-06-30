@@ -40,6 +40,7 @@
   let isoNormaActual = "9001";
   let personaSeleccionadaId = null;
   let certUploadRegistroId = null;
+  let taxonomiaCascada = null;
 
 
 
@@ -192,6 +193,174 @@
 
 
 
+  function fillCascadeSelect(selectId, entries, placeholder, disabled) {
+
+    const sel = document.getElementById(selectId);
+
+    if (!sel) return;
+
+    const current = sel.value;
+
+    sel.innerHTML = `<option value="">${placeholder}</option>`;
+
+    entries.forEach(([value, label]) => {
+
+      const opt = document.createElement("option");
+
+      opt.value = value;
+
+      opt.textContent = label;
+
+      sel.appendChild(opt);
+
+    });
+
+    sel.disabled = Boolean(disabled);
+
+    if (current && [...sel.options].some((o) => o.value === current)) {
+
+      sel.value = current;
+
+    }
+
+  }
+
+
+
+  async function ensureTaxonomia() {
+
+    if (taxonomiaCascada) return taxonomiaCascada;
+
+    const data = await fetchJson(`${API}/cursos/taxonomia`);
+
+    taxonomiaCascada = data.cascada || {};
+
+    return taxonomiaCascada;
+
+  }
+
+
+
+  function syncCursoCascada(prefill) {
+
+    const cascada = taxonomiaCascada || {};
+
+    const cat = prefill?.categoria || document.getElementById("cap-c-categoria")?.value || "";
+
+    const tipo = prefill?.tipo || "";
+
+    const origen = prefill?.origen || "";
+
+    const modalidad = prefill?.modalidad || "";
+
+
+
+    const categorias = Object.entries(cascada).map(([k, v]) => [k, v.label || k]);
+
+    fillCascadeSelect("cap-c-categoria", categorias, "— Seleccionar —", false);
+
+    if (cat) document.getElementById("cap-c-categoria").value = cat;
+
+
+
+    const tipos = cat && cascada[cat]
+
+      ? Object.entries(cascada[cat].tipos || {}).map(([k, v]) => [k, v.label || k])
+
+      : [];
+
+    fillCascadeSelect("cap-c-tipo", tipos, "— Seleccionar —", !cat);
+
+    if (tipo) document.getElementById("cap-c-tipo").value = tipo;
+
+
+
+    const origenes = cat && tipo && cascada[cat]?.tipos?.[tipo]
+
+      ? Object.entries(cascada[cat].tipos[tipo].origenes || {}).map(([k, v]) => [k, v.label || k])
+
+      : [];
+
+    fillCascadeSelect("cap-c-origen", origenes, "— Seleccionar —", !tipo);
+
+    if (origen) document.getElementById("cap-c-origen").value = origen;
+
+
+
+    const modalidades = cat && tipo && origen && cascada[cat]?.tipos?.[tipo]?.origenes?.[origen]
+
+      ? (cascada[cat].tipos[tipo].origenes[origen].modalidades || []).map((m) => {
+
+          const labels = { presencial: "Presencial", virtual: "Virtual", mixta: "Mixta" };
+
+          return [m, labels[m] || m];
+
+        })
+
+      : [];
+
+    fillCascadeSelect("cap-c-modalidad", modalidades, "— Seleccionar —", !origen);
+
+    if (modalidad) document.getElementById("cap-c-modalidad").value = modalidad;
+
+  }
+
+
+
+  function bindCursoCascada() {
+
+    document.getElementById("cap-c-categoria")?.addEventListener("change", () => {
+
+      syncCursoCascada();
+
+    });
+
+    document.getElementById("cap-c-tipo")?.addEventListener("change", () => {
+
+      const cat = document.getElementById("cap-c-categoria")?.value;
+
+      syncCursoCascada({ categoria: cat, tipo: document.getElementById("cap-c-tipo")?.value });
+
+    });
+
+    document.getElementById("cap-c-origen")?.addEventListener("change", () => {
+
+      syncCursoCascada({
+
+        categoria: document.getElementById("cap-c-categoria")?.value,
+
+        tipo: document.getElementById("cap-c-tipo")?.value,
+
+        origen: document.getElementById("cap-c-origen")?.value,
+
+      });
+
+    });
+
+  }
+
+
+
+  function cursoClasificacionLabel(c, field) {
+
+    const labels = {
+
+      categoria: c.categoria_label,
+
+      tipo: c.tipo_label,
+
+      origen: c.origen_label,
+
+      modalidad: c.modalidad_label,
+
+    };
+
+    return labels[field] || c[field] || "—";
+
+  }
+
+
+
   function editButton(label, dataset) {
 
     const attrs = Object.entries(dataset)
@@ -280,7 +449,7 @@
 
 
 
-  function renderCalendario() {
+  function renderCronograma() {
 
     const labelText = `${MESES[calMonth]} ${calYear}`;
 
@@ -396,7 +565,7 @@
 
     encuentros = data.encuentros || [];
 
-    renderCalendario();
+    renderCronograma();
 
   }
 
@@ -1312,17 +1481,36 @@
 
 
 
+  function getPersonaInitials(nombre) {
+    const parts = String(nombre || "").trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return "?";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  }
+
+
+  function renderPersonaAvatar(p, size) {
+    if (p.tiene_foto) {
+      const ts = Date.now();
+      return `<img src="${API}/participantes/${p.id}/foto?t=${ts}" alt="">`;
+    }
+    return getPersonaInitials(p.nombre);
+  }
+
+
   async function loadPersonas(selectId) {
 
-    const list = document.getElementById("cap-personas-list");
+    const row = document.getElementById("cap-personas-row");
 
     const detail = document.getElementById("cap-persona-detail");
 
-    if (!list) return;
+    const legajoPanel = document.getElementById("cap-legajo-panel");
+
+    if (!row) return;
 
 
 
-    list.innerHTML = '<li class="cap-loading">Cargando...</li>';
+    row.innerHTML = '<p class="cap-empty">Cargando...</p>';
 
     const q = document.getElementById("cap-personas-q")?.value?.trim() || "";
 
@@ -1340,9 +1528,13 @@
 
     if (!items.length) {
 
-      list.innerHTML = '<li class="cap-empty">Sin participantes cargados</li>';
+      row.innerHTML = '<p class="cap-empty">Sin participantes cargados</p>';
 
-      if (detail) detail.innerHTML = '<p class="cap-empty">Agregá personas para ver el analítico.</p>';
+      if (detail) detail.innerHTML = '<p class="cap-empty">Agregá personas para ver el legajo.</p>';
+
+      legajoPanel?.classList.add("cap-hidden");
+
+      personaSeleccionadaId = null;
 
       return;
 
@@ -1350,13 +1542,21 @@
 
 
 
-    list.innerHTML = items
+    row.innerHTML = items
 
       .map(
 
         (p) =>
 
-          `<li><button type="button" class="cap-list-item" data-id="${p.id}">${p.nombre}${p.legajo ? ` <span style="color:var(--cap-muted);font-size:.78rem">(${p.legajo})</span>` : ""}</button></li>`
+          `<button type="button" class="cap-persona-card" data-id="${p.id}">
+
+            <span class="cap-persona-card__avatar">${renderPersonaAvatar(p)}</span>
+
+            <span class="cap-persona-card__nombre">${p.nombre}</span>
+
+            <span class="cap-persona-card__legajo">${p.legajo || "—"}</span>
+
+          </button>`
 
       )
 
@@ -1364,7 +1564,7 @@
 
 
 
-    list.querySelectorAll(".cap-list-item").forEach((btn) => {
+    row.querySelectorAll(".cap-persona-card").forEach((btn) => {
 
       btn.addEventListener("click", () => selectPersona(btn.dataset.id, btn));
 
@@ -1372,11 +1572,37 @@
 
 
 
-    const targetId = selectId || items[0].id;
+    if (selectId) {
 
-    const targetBtn = list.querySelector(`.cap-list-item[data-id="${targetId}"]`) || list.querySelector(".cap-list-item");
+      const targetBtn = row.querySelector(`.cap-persona-card[data-id="${selectId}"]`);
 
-    selectPersona(targetId, targetBtn);
+      if (targetBtn) {
+
+        selectPersona(selectId, targetBtn);
+
+        return;
+
+      }
+
+    }
+
+    if (personaSeleccionadaId) {
+
+      const activeBtn = row.querySelector(`.cap-persona-card[data-id="${personaSeleccionadaId}"]`);
+
+      if (activeBtn) {
+
+        activeBtn.classList.add("active");
+
+        return;
+
+      }
+
+    }
+
+    legajoPanel?.classList.add("cap-hidden");
+
+    if (detail) detail.innerHTML = '<p class="cap-empty">Seleccioná una persona para ver su legajo</p>';
 
   }
 
@@ -1384,7 +1610,7 @@
 
   async function selectPersona(id, btn) {
 
-    document.querySelectorAll(".cap-list-item").forEach((b) => b.classList.remove("active"));
+    document.querySelectorAll(".cap-persona-card").forEach((b) => b.classList.remove("active"));
 
     if (btn) btn.classList.add("active");
 
@@ -1392,9 +1618,13 @@
 
     const detail = document.getElementById("cap-persona-detail");
 
+    const legajoPanel = document.getElementById("cap-legajo-panel");
+
     if (!detail) return;
 
-    detail.innerHTML = '<p class="cap-loading">Cargando analítico...</p>';
+    legajoPanel?.classList.remove("cap-hidden");
+
+    detail.innerHTML = '<p class="cap-loading">Cargando legajo...</p>';
 
 
 
@@ -1402,31 +1632,53 @@
 
     const p = data.participante;
 
+    const fotoTs = Date.now();
+
+    const fotoHtml = p.tiene_foto
+
+      ? `<img class="cap-legajo-foto__img" id="cap-legajo-foto-img" src="${API}/participantes/${id}/foto?t=${fotoTs}" alt="Foto de ${p.nombre}">`
+
+      : `<div class="cap-legajo-foto__placeholder" id="cap-legajo-foto-placeholder"><i class="bi bi-person-fill"></i></div>`;
+
 
 
     detail.innerHTML = `
 
-      <div class="cap-widget-head cap-widget-head--split" style="border-bottom:1px solid var(--cap-border);margin:-1rem -1rem 1rem;padding:1rem;">
+      <div class="cap-legajo-header">
 
-        <div class="cap-widget-head-left">
+        <div class="cap-legajo-foto">
 
-          <i class="bi bi-person-badge"></i>
+          ${fotoHtml}
 
-          <div>
+          <div class="cap-legajo-foto__actions">
 
-            <h2 class="cap-widget-title">${p.nombre}</h2>
+            <button type="button" class="cap-btn cap-btn--ghost cap-btn--xs" id="cap-btn-subir-foto" title="Subir foto">
 
-            <div style="font-size:.8rem;color:var(--cap-muted)">
+              <i class="bi bi-camera"></i>
 
-              ${p.sector_nombre || "—"} · ${p.puesto_nombre || "—"}
+            </button>
 
-            </div>
+            ${p.tiene_foto ? `<button type="button" class="cap-btn cap-btn--ghost cap-btn--xs" id="cap-btn-quitar-foto" title="Quitar foto"><i class="bi bi-trash"></i></button>` : ""}
 
           </div>
 
         </div>
 
-        <div class="cap-toolbar-actions">
+        <div class="cap-legajo-info">
+
+          <h2>${p.nombre}</h2>
+
+          <div class="cap-legajo-meta">
+
+            <div><strong>Legajo:</strong> ${p.legajo || "—"}</div>
+
+            <div>${p.sector_nombre || "—"} · ${p.puesto_nombre || "—"}</div>
+
+          </div>
+
+        </div>
+
+        <div class="cap-toolbar-actions" style="margin-left:auto">
 
           <a class="cap-btn cap-btn--ghost" href="${API}/participantes/${id}/reporte.pdf" target="_blank"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
 
@@ -1502,15 +1754,73 @@
 
     });
 
-    detail.querySelectorAll("[data-cert-registro]").forEach((btn) => {
+    document.getElementById("cap-btn-subir-foto")?.addEventListener("click", () => {
 
-      btn.addEventListener("click", () => {
+      document.getElementById("cap-foto-upload-file")?.click();
 
-        certUploadRegistroId = parseInt(btn.dataset.certRegistro, 10);
+    });
+
+    document.getElementById("cap-btn-quitar-foto")?.addEventListener("click", async () => {
+
+      if (!confirm("¿Quitar la foto del legajo?")) return;
+
+      try {
+
+        await deleteJson(`${API}/participantes/${id}/foto`);
+
+        await selectPersona(id, btn);
+
+        await loadPersonas(id);
+
+      } catch (e) {
+
+        alert(e.message);
+
+      }
+
+    });
+
+    detail.querySelectorAll("[data-cert-registro]").forEach((certBtn) => {
+
+      certBtn.addEventListener("click", () => {
+
+        certUploadRegistroId = parseInt(certBtn.dataset.certRegistro, 10);
 
         document.getElementById("cap-cert-upload-file")?.click();
 
       });
+
+    });
+
+  }
+
+
+
+  function bindFotoUpload() {
+
+    document.getElementById("cap-foto-upload-file")?.addEventListener("change", async (ev) => {
+
+      const file = ev.target.files?.[0];
+
+      ev.target.value = "";
+
+      if (!file || !personaSeleccionadaId) return;
+
+      try {
+
+        await uploadFile(`${API}/participantes/${personaSeleccionadaId}/foto`, file);
+
+        const activeBtn = document.querySelector(`.cap-persona-card[data-id="${personaSeleccionadaId}"]`);
+
+        await selectPersona(personaSeleccionadaId, activeBtn);
+
+        await loadPersonas(personaSeleccionadaId);
+
+      } catch (e) {
+
+        alert(e.message);
+
+      }
 
     });
 
@@ -1564,7 +1874,7 @@
 
     if (!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="5" class="cap-loading">Cargando...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="cap-loading">Cargando...</td></tr>';
 
     const items = (await fetchJson(`${API}/cursos`)).cursos || [];
 
@@ -1572,7 +1882,7 @@
 
     if (!items.length) {
 
-      tbody.innerHTML = '<tr><td colspan="5" class="cap-empty">Sin cursos cargados</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="cap-empty">Sin cursos cargados</td></tr>';
 
       fillSelect("cap-req-curso", [], "— Seleccionar curso —");
 
@@ -1590,7 +1900,13 @@
 
         <td>${c.nombre}</td>
 
-        <td>${c.tipo_capacitacion || "—"}</td>
+        <td>${cursoClasificacionLabel(c, "categoria")}</td>
+
+        <td>${cursoClasificacionLabel(c, "tipo")}</td>
+
+        <td>${cursoClasificacionLabel(c, "origen")}</td>
+
+        <td>${cursoClasificacionLabel(c, "modalidad")}</td>
 
         <td>${c.horas != null ? c.horas : "—"}</td>
 
@@ -1610,11 +1926,13 @@
 
 
 
-  function openCursoForm(item) {
+  async function openCursoForm(item) {
 
     const form = document.getElementById("cap-curso-form");
 
     if (!form) return;
+
+    await ensureTaxonomia();
 
     form.reset();
 
@@ -1628,11 +1946,19 @@
 
     document.getElementById("cap-c-descripcion").value = item?.descripcion || "";
 
-    document.getElementById("cap-c-tipo").value = item?.tipo_capacitacion || "";
+    syncCursoCascada({
+
+      categoria: item?.categoria || "",
+
+      tipo: item?.tipo || "",
+
+      origen: item?.origen || "",
+
+      modalidad: item?.modalidad || "",
+
+    });
 
     document.getElementById("cap-c-horas").value = item?.horas ?? "";
-
-    document.getElementById("cap-c-modalidad").value = item?.modalidad || "";
 
     document.getElementById("cap-c-vigencia").value = item?.vigencia_meses ?? "";
 
@@ -2049,6 +2375,14 @@
       setFormError("cap-persona-form-error", "");
 
       const payload = formToObject(form);
+
+      if (!payload.legajo) {
+
+        setFormError("cap-persona-form-error", "El legajo es obligatorio.");
+
+        return;
+
+      }
 
       delete payload.id;
 
@@ -2517,6 +2851,8 @@
     bindPersonaForm();
 
     bindCursoForm();
+    bindCursoCascada();
+    await ensureTaxonomia();
 
     bindSectorForm();
 
@@ -2536,6 +2872,8 @@
 
     bindCertUpload();
 
+    bindFotoUpload();
+
     bindSyncVacaciones();
 
     bindEncuentroForm();
@@ -2554,7 +2892,7 @@
 
     }
 
-    if (view === "calendario") {
+    if (view === "cronograma") {
 
       try { await loadEncuentros(); } catch (e) { console.error(e); }
 

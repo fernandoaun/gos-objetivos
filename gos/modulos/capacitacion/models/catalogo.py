@@ -1,5 +1,6 @@
 from gos.extensions import db
 from gos.models.base import TimestampMixin
+from gos.modulos.capacitacion.models.taxonomia import MODALIDADES, TIPOS_CAPACITACION  # noqa: F401
 
 
 class Puesto(db.Model, TimestampMixin):
@@ -20,19 +21,6 @@ class Puesto(db.Model, TimestampMixin):
     requisitos = db.relationship("RequisitoFormacion", back_populates="puesto", lazy="dynamic")
 
 
-TIPOS_CAPACITACION = (
-    "obligatoria",
-    "interna",
-    "externa",
-    "hse",
-    "tecnica",
-    "sgi",
-    "induccion",
-    "normativa",
-)
-MODALIDADES = ("presencial", "virtual", "mixta")
-
-
 class Curso(db.Model, TimestampMixin):
     """Definición de un curso o módulo de capacitación."""
 
@@ -44,9 +32,12 @@ class Curso(db.Model, TimestampMixin):
     codigo = db.Column(db.String(30), nullable=False)
     nombre = db.Column(db.String(200), nullable=False)
     descripcion = db.Column(db.Text, nullable=True)
-    tipo_capacitacion = db.Column(db.String(30), nullable=True)
+    categoria = db.Column(db.String(30), nullable=True)
+    tipo = db.Column(db.String(30), nullable=True)
+    origen = db.Column(db.String(30), nullable=True)
+    tipo_capacitacion = db.Column(db.String(30), nullable=True)  # legado / reportes ISO
     horas = db.Column(db.Numeric(6, 2), nullable=True)
-    modalidad = db.Column(db.String(30), nullable=True)  # presencial, virtual, mixta
+    modalidad = db.Column(db.String(30), nullable=True)
     vigencia_meses = db.Column(db.Integer, nullable=True)  # validez del conocimiento
     requiere_evaluacion = db.Column(db.Boolean, default=False, nullable=False)
     puntaje_minimo = db.Column(db.Numeric(5, 2), nullable=True)

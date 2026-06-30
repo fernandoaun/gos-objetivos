@@ -213,6 +213,7 @@ def analitico_participante(participante_id: int, empresa_id: int | None = None) 
             "id": participante.id,
             "nombre": participante.nombre,
             "legajo": participante.legajo,
+            "tiene_foto": bool(participante.foto_path),
             "sector_id": participante.sector_id,
             "sector_nombre": participante.sector.nombre if participante.sector else None,
             "puesto_id": participante.puesto_id,

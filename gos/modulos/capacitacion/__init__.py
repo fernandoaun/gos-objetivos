@@ -111,8 +111,8 @@ def _nav_items():
             "icon": "bi-grid-3x3-gap",
         },
         {
-            "label": "Calendario",
-            "endpoint": "capacitacion_main.calendario",
+            "label": "Cronograma",
+            "endpoint": "capacitacion_main.cronograma",
             "icon": "bi-calendar3",
         },
         {

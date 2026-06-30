@@ -6,10 +6,12 @@ from flask import current_app
 from werkzeug.utils import secure_filename
 
 from gos.extensions import db
-from gos.modulos.capacitacion.models import CertificacionEmpleado, RegistroCapacitacion
+from gos.modulos.capacitacion.models import CertificacionEmpleado, Participante, RegistroCapacitacion
 
 ALLOWED_EXT = (".pdf",)
+ALLOWED_FOTO_EXT = (".jpg", ".jpeg", ".png", ".webp")
 MAX_BYTES = 10 * 1024 * 1024
+MAX_FOTO_BYTES = 5 * 1024 * 1024
 
 
 def _upload_dir(empresa_id: int, sub: str) -> Path:
@@ -30,6 +32,77 @@ def _validar_pdf(file_storage) -> str:
     if size > MAX_BYTES:
         raise ValueError("El archivo no puede superar 10 MB.")
     return filename
+
+
+def _validar_imagen(file_storage) -> str:
+    if not file_storage or not file_storage.filename:
+        raise ValueError("Debe enviar una imagen.")
+    filename = secure_filename(file_storage.filename)
+    ext = Path(filename).suffix.lower()
+    if ext not in ALLOWED_FOTO_EXT:
+        raise ValueError("Solo se admiten imágenes JPG, PNG o WebP.")
+    file_storage.seek(0, 2)
+    size = file_storage.tell()
+    file_storage.seek(0)
+    if size > MAX_FOTO_BYTES:
+        raise ValueError("La imagen no puede superar 5 MB.")
+    return filename
+
+
+def subir_foto_participante(empresa_id: int, participante_id: int, file_storage) -> dict:
+    participante = Participante.query.filter_by(
+        id=participante_id, empresa_id=empresa_id, activo=True
+    ).first()
+    if not participante:
+        raise ValueError("Participante no encontrado")
+    filename = _validar_imagen(file_storage)
+    ext = Path(filename).suffix.lower()
+    dest_dir = _upload_dir(empresa_id, "fotos")
+    dest = dest_dir / f"part_{participante_id}{ext}"
+    file_storage.save(dest)
+    if participante.foto_path:
+        old = Path(participante.foto_path)
+        if old.is_file() and old != dest:
+            old.unlink(missing_ok=True)
+    participante.foto_path = str(dest)
+    db.session.commit()
+    return _participante_foto_dict(participante)
+
+
+def descargar_foto_participante(empresa_id: int, participante_id: int) -> tuple[Path, str]:
+    participante = Participante.query.filter_by(
+        id=participante_id, empresa_id=empresa_id, activo=True
+    ).first()
+    if not participante or not participante.foto_path:
+        raise ValueError("Foto no encontrada")
+    path = Path(participante.foto_path)
+    if not path.is_file():
+        raise ValueError("Archivo no disponible")
+    mimetype_map = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
+    return path, mimetype_map.get(path.suffix.lower(), "image/jpeg")
+
+
+def eliminar_foto_participante(empresa_id: int, participante_id: int) -> dict:
+    participante = Participante.query.filter_by(
+        id=participante_id, empresa_id=empresa_id, activo=True
+    ).first()
+    if not participante:
+        raise ValueError("Participante no encontrado")
+    if participante.foto_path:
+        path = Path(participante.foto_path)
+        if path.is_file():
+            path.unlink(missing_ok=True)
+        participante.foto_path = None
+        db.session.commit()
+    return _participante_foto_dict(participante)
+
+
+def _participante_foto_dict(participante: Participante) -> dict:
+    return {
+        "id": participante.id,
+        "foto_path": participante.foto_path,
+        "tiene_foto": bool(participante.foto_path),
+    }
 
 
 def subir_certificado_registro(empresa_id: int, registro_id: int, file_storage) -> dict:

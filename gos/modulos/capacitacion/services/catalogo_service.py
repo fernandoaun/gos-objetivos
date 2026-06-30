@@ -2,8 +2,18 @@ from decimal import Decimal, InvalidOperation
 
 from gos.extensions import db
 from gos.modulos.capacitacion.models import Curso, Participante, Puesto
-from gos.modulos.capacitacion.models.catalogo import MODALIDADES, TIPOS_CAPACITACION
+from gos.modulos.capacitacion.models.taxonomia import (
+    etiqueta_modalidad,
+    etiqueta_nivel,
+    taxonomia_arbol,
+    tipo_capacitacion_legacy,
+    validar_clasificacion,
+)
 from gos.modulos.objetivos.models.catalogos import Sector
+
+
+def obtener_taxonomia_cursos() -> dict:
+    return {"cascada": taxonomia_arbol()}
 
 
 def listar_cursos(empresa_id: int) -> list[dict]:
@@ -94,12 +104,12 @@ def crear_curso(empresa_id: int, data: dict) -> dict:
         raise ValueError(f"Ya existe un curso con el código «{codigo}»")
 
     modalidad = (data.get("modalidad") or "").strip().lower() or None
-    if modalidad and modalidad not in MODALIDADES:
-        raise ValueError("Modalidad inválida (presencial, virtual o mixta)")
-
-    tipo = (data.get("tipo_capacitacion") or "").strip().lower() or None
-    if tipo and tipo not in TIPOS_CAPACITACION:
-        raise ValueError("Tipo de capacitación inválido")
+    categoria, tipo, origen, modalidad = validar_clasificacion(
+        data.get("categoria"),
+        data.get("tipo"),
+        data.get("origen"),
+        modalidad,
+    )
 
     horas = _parse_decimal(data.get("horas"))
     vigencia = _parse_int(data.get("vigencia_meses"))
@@ -114,7 +124,10 @@ def crear_curso(empresa_id: int, data: dict) -> dict:
         codigo=codigo,
         nombre=nombre,
         descripcion=(data.get("descripcion") or "").strip() or None,
-        tipo_capacitacion=tipo,
+        categoria=categoria,
+        tipo=tipo,
+        origen=origen,
+        tipo_capacitacion=tipo_capacitacion_legacy(categoria, tipo),
         horas=horas,
         modalidad=modalidad,
         vigencia_meses=vigencia,
@@ -145,17 +158,20 @@ def actualizar_curso(empresa_id: int, curso_id: int, data: dict) -> dict:
         raise ValueError(f"Ya existe un curso con el código «{codigo}»")
 
     modalidad = (data.get("modalidad") or "").strip().lower() or None
-    if modalidad and modalidad not in MODALIDADES:
-        raise ValueError("Modalidad inválida (presencial, virtual o mixta)")
-
-    tipo = (data.get("tipo_capacitacion") or "").strip().lower() or None
-    if tipo and tipo not in TIPOS_CAPACITACION:
-        raise ValueError("Tipo de capacitación inválido")
+    categoria, tipo, origen, modalidad = validar_clasificacion(
+        data.get("categoria"),
+        data.get("tipo"),
+        data.get("origen"),
+        modalidad,
+    )
 
     curso.codigo = codigo
     curso.nombre = nombre
     curso.descripcion = (data.get("descripcion") or "").strip() or None
-    curso.tipo_capacitacion = tipo
+    curso.categoria = categoria
+    curso.tipo = tipo
+    curso.origen = origen
+    curso.tipo_capacitacion = tipo_capacitacion_legacy(categoria, tipo)
     curso.horas = _parse_decimal(data.get("horas"))
     curso.modalidad = modalidad
     curso.vigencia_meses = _parse_int(data.get("vigencia_meses"))
@@ -211,8 +227,10 @@ def crear_participante(empresa_id: int, data: dict) -> dict:
     if not nombre:
         raise ValueError("El nombre es obligatorio")
 
-    legajo = (data.get("legajo") or "").strip() or None
-    if legajo and Participante.query.filter_by(empresa_id=empresa_id, legajo=legajo).first():
+    legajo = (data.get("legajo") or "").strip()
+    if not legajo:
+        raise ValueError("El legajo es obligatorio")
+    if Participante.query.filter_by(empresa_id=empresa_id, legajo=legajo).first():
         raise ValueError(f"Ya existe una persona con el legajo «{legajo}»")
 
     sector_id = data.get("sector_id")
@@ -267,15 +285,16 @@ def actualizar_participante(empresa_id: int, participante_id: int, data: dict) -
     if not nombre:
         raise ValueError("El nombre es obligatorio")
 
-    legajo = (data.get("legajo") or "").strip() or None
-    if legajo:
-        dup = (
-            Participante.query.filter_by(empresa_id=empresa_id, legajo=legajo)
-            .filter(Participante.id != participante_id)
-            .first()
-        )
-        if dup:
-            raise ValueError(f"Ya existe una persona con el legajo «{legajo}»")
+    legajo = (data.get("legajo") or "").strip()
+    if not legajo:
+        raise ValueError("El legajo es obligatorio")
+    dup = (
+        Participante.query.filter_by(empresa_id=empresa_id, legajo=legajo)
+        .filter(Participante.id != participante_id)
+        .first()
+    )
+    if dup:
+        raise ValueError(f"Ya existe una persona con el legajo «{legajo}»")
 
     sector_id = data.get("sector_id")
     puesto_id = data.get("puesto_id")
@@ -333,6 +352,13 @@ def _curso_dict(curso: Curso) -> dict:
         "codigo": curso.codigo,
         "nombre": curso.nombre,
         "descripcion": curso.descripcion,
+        "categoria": curso.categoria,
+        "tipo": curso.tipo,
+        "origen": curso.origen,
+        "categoria_label": etiqueta_nivel("categoria", curso.categoria),
+        "tipo_label": etiqueta_nivel("tipo", curso.tipo),
+        "origen_label": etiqueta_nivel("origen", curso.origen),
+        "modalidad_label": etiqueta_modalidad(curso.modalidad),
         "tipo_capacitacion": curso.tipo_capacitacion,
         "horas": float(curso.horas) if curso.horas is not None else None,
         "modalidad": curso.modalidad,
@@ -355,6 +381,7 @@ def _participante_dict(p: Participante) -> dict:
         "telefono": p.telefono,
         "fecha_ingreso": p.fecha_ingreso.isoformat() if p.fecha_ingreso else None,
         "observaciones": p.observaciones,
+        "tiene_foto": bool(p.foto_path),
         "activo": p.activo,
         "sector_id": p.sector_id,
         "puesto_id": p.puesto_id,

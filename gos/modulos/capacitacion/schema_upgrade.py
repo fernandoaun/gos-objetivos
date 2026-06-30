@@ -10,7 +10,11 @@ _COLUMN_UPGRADES = [
     ("cap_participantes", "telefono", "VARCHAR(40)"),
     ("cap_participantes", "fecha_ingreso", "DATE"),
     ("cap_participantes", "observaciones", "TEXT"),
+    ("cap_participantes", "foto_path", "VARCHAR(500)"),
     ("cap_cursos", "tipo_capacitacion", "VARCHAR(30)"),
+    ("cap_cursos", "categoria", "VARCHAR(30)"),
+    ("cap_cursos", "tipo", "VARCHAR(30)"),
+    ("cap_cursos", "origen", "VARCHAR(30)"),
     ("cap_cursos", "requiere_evaluacion", "BOOLEAN DEFAULT FALSE"),
     ("cap_cursos", "puntaje_minimo", "NUMERIC(5,2)"),
     ("cap_cursos", "instructor_id", "INTEGER"),
@@ -45,3 +49,26 @@ def ensure_capacitacion_schema() -> None:
             continue
         with db.engine.begin() as conn:
             conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {coldef}"))
+    _migrar_clasificacion_cursos()
+
+
+def _migrar_clasificacion_cursos() -> None:
+    from gos.modulos.capacitacion.models import Curso
+    from gos.modulos.capacitacion.models.taxonomia import (
+        clasificacion_desde_legacy,
+        tipo_capacitacion_legacy,
+    )
+
+    cambios = False
+    for curso in Curso.query.filter(Curso.categoria.is_(None)).all():
+        cat, tipo, origen = clasificacion_desde_legacy(curso.tipo_capacitacion)
+        if not cat and not curso.tipo_capacitacion:
+            continue
+        if cat:
+            curso.categoria = cat
+            curso.tipo = tipo
+            curso.origen = origen
+            curso.tipo_capacitacion = tipo_capacitacion_legacy(cat, tipo)
+            cambios = True
+    if cambios:
+        db.session.commit()

@@ -26,10 +26,12 @@ from gos.modulos.capacitacion.services import (
     crear_sector,
     descargar_certificado_registro,
     descargar_documento_certificacion,
+    descargar_foto_participante,
     detalle_encuentro,
     eliminar_certificado_registro,
+    eliminar_foto_participante,
     eliminar_requisito,
-    encuentros_calendario,
+    encuentros_cronograma,
     enviar_notificaciones_alertas,
     generar_alertas,
     guardar_config,
@@ -45,6 +47,7 @@ from gos.modulos.capacitacion.services import (
     marcar_alerta_leida,
     matriz_capacitaciones,
     obtener_config,
+    obtener_taxonomia_cursos,
     participantes_encuentro,
     registrar_asistencias,
     reporte_iso,
@@ -52,6 +55,7 @@ from gos.modulos.capacitacion.services import (
     sincronizar_legajos_vacaciones,
     subir_certificado_registro,
     subir_documento_certificacion,
+    subir_foto_participante,
 )
 from gos.modulos.capacitacion.services.export_service import exportar_matriz_excel
 from gos.modulos.capacitacion.services.pdf_export_service import (
@@ -130,6 +134,7 @@ def participantes():
                 "nombre": p.nombre_completo,
                 "legajo": p.legajo,
                 "dni": p.dni,
+                "tiene_foto": bool(p.foto_path),
                 "sector_id": p.sector_id,
                 "puesto_id": p.puesto_id,
                 "activo": p.activo,
@@ -150,6 +155,31 @@ def actualizar_participante_route(participante_id: int):
     return jsonify({"participante": item})
 
 
+@bp.route("/participantes/<int:participante_id>/foto", methods=["POST", "GET", "DELETE"])
+@login_required
+def foto_participante(participante_id: int):
+    eid = current_user.empresa_id
+    if request.method == "GET":
+        try:
+            path, mimetype = descargar_foto_participante(eid, participante_id)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 404
+        return send_file(path, mimetype=mimetype)
+    if not _puede_editar():
+        return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    if request.method == "DELETE":
+        try:
+            return jsonify(eliminar_foto_participante(eid, participante_id))
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+    archivo = request.files.get("archivo")
+    try:
+        item = subir_foto_participante(eid, participante_id, archivo)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"participante": item})
+
+
 @bp.route("/participantes/<int:participante_id>/analitico")
 @login_required
 def analitico(participante_id: int):
@@ -158,6 +188,12 @@ def analitico(participante_id: int):
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 403
     return jsonify(data)
+
+
+@bp.route("/cursos/taxonomia")
+@login_required
+def cursos_taxonomia():
+    return jsonify(obtener_taxonomia_cursos())
 
 
 @bp.route("/cursos", methods=["GET", "POST"])
@@ -369,7 +405,7 @@ def listar_encuentros():
         hasta = date.fromisoformat(hasta_s) if hasta_s else hoy
     except ValueError:
         return jsonify({"error": "Fechas inválidas"}), 400
-    items = encuentros_calendario(current_user.empresa_id, desde, hasta)
+    items = encuentros_cronograma(current_user.empresa_id, desde, hasta)
     return jsonify({"encuentros": items})
 
 

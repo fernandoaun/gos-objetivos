@@ -180,7 +180,7 @@ def test_api_editar_participante_sector_puesto(auth_client, app):
         puesto = Puesto(empresa_id=emp.id, codigo="P1", nombre="Puesto 1")
         db.session.add(puesto)
         db.session.flush()
-        participante = Participante(empresa_id=emp.id, sector_id=s1.id, puesto_id=puesto.id, nombre="Ana")
+        participante = Participante(empresa_id=emp.id, sector_id=s1.id, puesto_id=puesto.id, nombre="Ana", legajo="1001")
         db.session.add(participante)
         db.session.commit()
         pid = participante.id
@@ -189,7 +189,7 @@ def test_api_editar_participante_sector_puesto(auth_client, app):
 
     r = auth_client.put(
         f"/gos/capacitacion/api/participantes/{pid}",
-        json={"nombre": "Ana", "sector_id": s2_id, "puesto_id": puesto_id},
+        json={"nombre": "Ana", "legajo": "1001", "sector_id": s2_id, "puesto_id": puesto_id},
     )
     assert r.status_code == 200
     assert r.get_json()["participante"]["sector_id"] == s2_id

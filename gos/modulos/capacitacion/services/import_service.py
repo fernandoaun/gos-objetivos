@@ -6,7 +6,11 @@ import openpyxl
 
 from gos.extensions import db
 from gos.modulos.capacitacion.models import Curso, Participante, Puesto
-from gos.modulos.capacitacion.models.catalogo import MODALIDADES, TIPOS_CAPACITACION
+from gos.modulos.capacitacion.models.taxonomia import (
+    tipo_capacitacion_legacy,
+    validar_clasificacion,
+    clasificacion_desde_legacy,
+)
 from gos.modulos.capacitacion.services.catalogo_service import _parse_date, _parse_decimal, _parse_int
 from gos.modulos.objetivos.models.catalogos import Sector
 
@@ -30,12 +34,12 @@ def importar_participantes_excel(empresa_id: int, file_bytes: bytes) -> dict:
     wb = openpyxl.load_workbook(BytesIO(file_bytes), data_only=True)
     ws = wb.active
     headers = _header_map(ws)
-    required = {"nombre"}
+    required = {"nombre", "legajo"}
     if not required.issubset(headers):
         raise ValueError(
             "El Excel debe tener encabezados en la fila 1. Mínimo: nombre. "
-            "Opcionales: apellido, legajo, dni, email, telefono, sector_codigo, "
-            "puesto_codigo, fecha_ingreso, observaciones"
+            "Opcionales: apellido, dni, email, telefono, sector_codigo, "
+            "puesto_codigo, fecha_ingreso, observaciones. Obligatorio: nombre, legajo"
         )
 
     sectores = {s.codigo: s.id for s in Sector.query.filter_by(empresa_id=empresa_id, activo=True).all()}
@@ -63,6 +67,9 @@ def importar_participantes_excel(empresa_id: int, file_bytes: bytes) -> dict:
             continue
 
         legajo = val("legajo") or None
+        if not legajo:
+            errores.append(f"Fila {row_idx}: el legajo es obligatorio")
+            continue
         sector_codigo = val("sector_codigo")
         puesto_codigo = val("puesto_codigo")
         sector_id = sectores.get(sector_codigo) if sector_codigo else None
@@ -136,8 +143,9 @@ def importar_cursos_excel(empresa_id: int, file_bytes: bytes) -> dict:
     if "codigo" not in headers or "nombre" not in headers:
         raise ValueError(
             "El Excel debe tener encabezados: codigo, nombre. "
-            "Opcionales: descripcion, tipo_capacitacion, horas, modalidad, "
-            "vigencia_meses, requiere_evaluacion, puntaje_minimo"
+            "Opcionales: descripcion, categoria, tipo, origen, modalidad, horas, "
+            "vigencia_meses, requiere_evaluacion, puntaje_minimo. "
+            "Legado: tipo_capacitacion (se mapea a la cascada)"
         )
 
     creados = actualizados = omitidos = 0
@@ -160,13 +168,20 @@ def importar_cursos_excel(empresa_id: int, file_bytes: bytes) -> dict:
             continue
 
         modalidad = val("modalidad").lower() or None
-        if modalidad and modalidad not in MODALIDADES:
-            errores.append(f"Fila {row_idx}: modalidad inválida")
-            continue
+        categoria = val("categoria").lower() or None
+        tipo = val("tipo").lower() or None
+        origen = val("origen").lower() or None
+        legacy_tipo = val("tipo_capacitacion").lower() or None
 
-        tipo = val("tipo_capacitacion").lower() or None
-        if tipo and tipo not in TIPOS_CAPACITACION:
-            errores.append(f"Fila {row_idx}: tipo_capacitacion inválido")
+        if not categoria and legacy_tipo:
+            categoria, tipo, origen = clasificacion_desde_legacy(legacy_tipo)
+
+        try:
+            categoria, tipo, origen, modalidad = validar_clasificacion(
+                categoria, tipo, origen, modalidad
+            )
+        except ValueError as exc:
+            errores.append(f"Fila {row_idx}: {exc}")
             continue
 
         try:
@@ -183,7 +198,10 @@ def importar_cursos_excel(empresa_id: int, file_bytes: bytes) -> dict:
         if curso:
             curso.nombre = nombre
             curso.descripcion = val("descripcion") or None
-            curso.tipo_capacitacion = tipo
+            curso.categoria = categoria
+            curso.tipo = tipo
+            curso.origen = origen
+            curso.tipo_capacitacion = tipo_capacitacion_legacy(categoria, tipo)
             curso.horas = horas
             curso.modalidad = modalidad
             curso.vigencia_meses = vigencia
@@ -198,7 +216,10 @@ def importar_cursos_excel(empresa_id: int, file_bytes: bytes) -> dict:
                     codigo=codigo,
                     nombre=nombre,
                     descripcion=val("descripcion") or None,
-                    tipo_capacitacion=tipo,
+                    categoria=categoria,
+                    tipo=tipo,
+                    origen=origen,
+                    tipo_capacitacion=tipo_capacitacion_legacy(categoria, tipo),
                     horas=horas,
                     modalidad=modalidad,
                     vigencia_meses=vigencia,

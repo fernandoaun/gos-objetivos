@@ -27,6 +27,7 @@ class Participante(db.Model, TimestampMixin):
     telefono = db.Column(db.String(40), nullable=True)
     fecha_ingreso = db.Column(db.Date, nullable=True)
     observaciones = db.Column(db.Text, nullable=True)
+    foto_path = db.Column(db.String(500), nullable=True)
     activo = db.Column(db.Boolean, default=True, nullable=False)
 
     empresa = db.relationship("Empresa")

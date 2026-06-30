@@ -20,18 +20,22 @@ from gos.modulos.capacitacion.services.catalogo_service import (
     listar_cursos,
     listar_puestos,
     listar_sectores,
+    obtener_taxonomia_cursos,
 )
 from gos.modulos.capacitacion.services.config_service import guardar_config, obtener_config
 from gos.modulos.capacitacion.services.dashboard_service import (
-    encuentros_calendario,
+    encuentros_cronograma,
     resumen_dashboard,
 )
 from gos.modulos.capacitacion.services.evidencia_service import (
     descargar_certificado_registro,
     descargar_documento_certificacion,
+    descargar_foto_participante,
     eliminar_certificado_registro,
+    eliminar_foto_participante,
     subir_certificado_registro,
     subir_documento_certificacion,
+    subir_foto_participante,
 )
 from gos.modulos.capacitacion.services.matriz_service import matriz_capacitaciones
 from gos.modulos.capacitacion.services.programa_service import (
@@ -62,13 +66,14 @@ __all__ = [
     "analitico_participante",
     "matriz_capacitaciones",
     "resumen_dashboard",
-    "encuentros_calendario",
+    "encuentros_cronograma",
     "generar_alertas",
     "listar_alertas",
     "marcar_alerta_leida",
     "obtener_config",
     "guardar_config",
     "listar_cursos",
+    "obtener_taxonomia_cursos",
     "listar_puestos",
     "listar_sectores",
     "crear_curso",
@@ -99,6 +104,9 @@ __all__ = [
     "eliminar_certificado_registro",
     "subir_documento_certificacion",
     "descargar_documento_certificacion",
+    "subir_foto_participante",
+    "descargar_foto_participante",
+    "eliminar_foto_participante",
     "reporte_iso",
     "resumen_general_auditoria",
     "sincronizar_legajos_vacaciones",

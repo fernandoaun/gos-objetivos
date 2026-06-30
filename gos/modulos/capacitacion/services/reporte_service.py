@@ -20,16 +20,20 @@ from gos.modulos.capacitacion.services.config_service import dias_proximo_vencer
 NORMAS_ISO = {
     "9001": {
         "titulo": "ISO 9001 — Gestión de la Calidad",
+        "categorias": ("sgi", "normativa"),
         "tipos_curso": ("sgi", "normativa"),
         "patrones": ("9001", "sgi", "calidad", "iso9"),
     },
     "14001": {
         "titulo": "ISO 14001 — Gestión Ambiental",
+        "categorias": ("hse", "normativa"),
         "tipos_curso": ("hse", "normativa"),
         "patrones": ("14001", "ambient", "medio", "iso14"),
     },
     "45001": {
         "titulo": "ISO 45001 — Seguridad y Salud Ocupacional",
+        "categorias": ("hse",),
+        "tipos_requisito": ("obligatoria",),
         "tipos_curso": ("hse", "obligatoria"),
         "patrones": ("45001", "sst", "seguridad", "iso45", "hse"),
     },
@@ -43,18 +47,28 @@ def _coincide_norma(texto: str | None, patrones: tuple[str, ...]) -> bool:
     return any(p in t for p in patrones)
 
 
+def _curso_coincide_norma(curso: Curso, cfg: dict) -> bool:
+    categorias = cfg.get("categorias", cfg.get("tipos_curso", ()))
+    tipos_req = cfg.get("tipos_requisito", ())
+    cat = curso.categoria or curso.tipo_capacitacion
+    if cat in categorias:
+        if tipos_req and curso.tipo not in tipos_req:
+            return False
+        return True
+    legacy = curso.tipo_capacitacion
+    if legacy and legacy in categorias:
+        return True
+    return _coincide_norma(curso.codigo, cfg["patrones"]) or _coincide_norma(
+        curso.nombre, cfg["patrones"]
+    )
+
+
 def cursos_para_norma(empresa_id: int, norma: str) -> list[Curso]:
     cfg = NORMAS_ISO.get(norma)
     if not cfg:
         raise ValueError("Norma ISO inválida (use 9001, 14001 o 45001)")
     cursos = Curso.query.filter_by(empresa_id=empresa_id, activo=True).all()
-    resultado = []
-    for c in cursos:
-        if c.tipo_capacitacion in cfg["tipos_curso"]:
-            resultado.append(c)
-        elif _coincide_norma(c.codigo, cfg["patrones"]) or _coincide_norma(c.nombre, cfg["patrones"]):
-            resultado.append(c)
-    return resultado
+    return [c for c in cursos if _curso_coincide_norma(c, cfg)]
 
 
 def tipos_cert_para_norma(empresa_id: int, norma: str) -> list[CertificacionTipo]:

@@ -13,6 +13,7 @@ from gos.modulos.capacitacion.models import (
     RegistroCapacitacion,
 )
 from gos.modulos.capacitacion.services.analitico_service import analitico_participante
+from gos.modulos.capacitacion.models.taxonomia import etiqueta_nivel
 from gos.modulos.capacitacion.services.config_service import dias_proximo_vencer
 from gos.modulos.objetivos.models.catalogos import Sector
 
@@ -53,18 +54,18 @@ def resumen_dashboard(empresa_id: int, *, sector_id: int | None = None) -> dict:
                 obligatorias_pendientes += 1
             if item.get("tipo") == "curso" and item.get("curso_id"):
                 curso = Curso.query.get(item["curso_id"])
-                tipo_key = (curso.tipo_capacitacion if curso and curso.tipo_capacitacion else "sin_tipo")
+                tipo_key = (curso.categoria if curso and curso.categoria else curso.tipo_capacitacion if curso else None) or "sin_categoria"
                 cumplimiento_por_tipo[tipo_key]["total"] += 1
-                cumplimiento_por_tipo[tipo_key]["nombre"] = tipo_key.replace("_", " ").title()
+                cumplimiento_por_tipo[tipo_key]["nombre"] = etiqueta_nivel("categoria", tipo_key) or tipo_key
 
         for reg in data["cursos_realizados"]:
             cid = reg.get("curso_id")
             if cid:
                 curso = Curso.query.get(cid)
-                tipo_key = (curso.tipo_capacitacion if curso and curso.tipo_capacitacion else "sin_tipo")
+                tipo_key = (curso.categoria if curso and curso.categoria else curso.tipo_capacitacion if curso else None) or "sin_categoria"
                 cumplimiento_por_tipo[tipo_key]["total"] += 1
                 cumplimiento_por_tipo[tipo_key]["ok"] += 1
-                cumplimiento_por_tipo[tipo_key]["nombre"] = tipo_key.replace("_", " ").title()
+                cumplimiento_por_tipo[tipo_key]["nombre"] = etiqueta_nivel("categoria", tipo_key) or tipo_key
 
         for reg in data["cursos_realizados"]:
             if reg.get("vigente_hasta"):
@@ -252,7 +253,7 @@ def _evolucion_mensual(empresa_id: int, meses: int = 6) -> list[dict]:
     return resultado
 
 
-def encuentros_calendario(empresa_id: int, desde: date, hasta: date) -> list[dict]:
+def encuentros_cronograma(empresa_id: int, desde: date, hasta: date) -> list[dict]:
     rows = (
         EncuentroCapacitacion.query.filter_by(empresa_id=empresa_id)
         .filter(EncuentroCapacitacion.fecha >= desde)

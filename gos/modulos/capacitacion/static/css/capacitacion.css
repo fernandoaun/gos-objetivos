@@ -178,7 +178,7 @@
   line-height: 1.1;
 }
 
-/* —— Calendario —— */
+/* —— Cronograma —— */
 .cap-cal-toolbar {
   display: flex;
   align-items: center;
@@ -328,18 +328,140 @@
   text-decoration: line-through;
 }
 
-/* —— Personas (vista secundaria) —— */
-.cap-personas-layout {
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: 1.25rem;
-  min-height: 60vh;
+/* —— Personas (filas arriba + legajo abajo) —— */
+.cap-personas-row-wrap {
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
 }
 
-@media (max-width: 900px) {
-  .cap-personas-layout {
-    grid-template-columns: 1fr;
-  }
+.cap-personas-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  min-height: 2.5rem;
+}
+
+.cap-persona-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 7rem;
+  max-width: 9rem;
+  padding: 0.65rem 0.5rem;
+  border: 1px solid var(--cap-border);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.cap-persona-card:hover {
+  border-color: var(--gos-green);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.cap-persona-card.active {
+  border-color: var(--gos-green);
+  background: var(--gos-success-soft);
+  box-shadow: 0 0 0 2px var(--gos-green);
+}
+
+.cap-persona-card__avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--cap-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--cap-navy);
+  overflow: hidden;
+}
+
+.cap-persona-card__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cap-persona-card__nombre {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--cap-navy-dark);
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.cap-persona-card__legajo {
+  font-size: 0.72rem;
+  color: var(--cap-muted);
+}
+
+.cap-legajo-header {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--cap-border);
+}
+
+.cap-legajo-foto {
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.cap-legajo-foto__img {
+  width: 96px;
+  height: 96px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--cap-border);
+  display: block;
+}
+
+.cap-legajo-foto__placeholder {
+  width: 96px;
+  height: 96px;
+  border-radius: 8px;
+  background: var(--gos-success-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  color: var(--gos-green);
+}
+
+.cap-legajo-foto__actions {
+  display: flex;
+  gap: 0.35rem;
+  justify-content: center;
+  margin-top: 0.5rem;
+}
+
+.cap-legajo-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.cap-legajo-info h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.15rem;
+  color: var(--gos-green);
+}
+
+.cap-legajo-meta {
+  font-size: 0.82rem;
+  color: var(--cap-muted);
+}
+
+.cap-legajo-meta strong {
+  color: var(--cap-navy);
 }
 
 .cap-list {
@@ -490,9 +612,16 @@
   gap: 0.65rem;
 }
 
+.cap-form-row--4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.65rem;
+}
+
 @media (max-width: 700px) {
   .cap-form-row--2,
-  .cap-form-row--3 {
+  .cap-form-row--3,
+  .cap-form-row--4 {
     grid-template-columns: 1fr;
   }
 }
