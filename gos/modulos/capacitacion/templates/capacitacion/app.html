@@ -155,9 +155,37 @@
 
   <!-- PROGRAMAS -->
   <div data-cap-view="programas" class="cap-hidden">
-    <div class="cap-widget">
+    <div class="cap-widget cap-mb">
       <div class="cap-widget-head"><i class="bi bi-calendar-event"></i><h2 class="cap-widget-title">Programas</h2></div>
       <div class="cap-widget-body" id="cap-programas-list"><p class="cap-loading">Cargando...</p></div>
+    </div>
+    <div class="cap-widget cap-widget--full">
+      <div class="cap-widget-head cap-widget-head--split">
+        <div class="cap-widget-head-left">
+          <i class="bi bi-list-check"></i>
+          <h2 class="cap-widget-title">Requisitos por puesto</h2>
+        </div>
+      </div>
+      <div class="cap-widget-body">
+        <div class="cap-form-row cap-form-row--2">
+          <div>
+            <label class="cap-label" for="cap-req-puesto">Puesto</label>
+            <select class="cap-input" id="cap-req-puesto"><option value="">— Seleccionar puesto —</option></select>
+          </div>
+          <div>
+            <label class="cap-label" for="cap-req-curso">Curso a agregar</label>
+            <div class="cap-input-group">
+              <select class="cap-input" id="cap-req-curso"><option value="">— Seleccionar curso —</option></select>
+              <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-agregar-requisito"><i class="bi bi-plus-lg"></i></button>
+            </div>
+          </div>
+        </div>
+        <p class="cap-form-hint cap-form-hint--error" id="cap-requisito-error"></p>
+        <table class="cap-data-table cap-mt">
+          <thead><tr><th>Curso</th><th>Obligatorio</th><th></th></tr></thead>
+          <tbody id="cap-requisitos-body"><tr><td colspan="3" class="cap-empty">Seleccioná un puesto</td></tr></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -517,6 +545,69 @@
         </div>
       </div>
 
+      <div class="cap-widget cap-widget--full" id="cap-taxonomia-panel">
+        <div class="cap-widget-head cap-widget-head--split">
+          <div class="cap-widget-head-left">
+            <i class="bi bi-diagram-2"></i>
+            <h2 class="cap-widget-title">Clasificación de cursos</h2>
+          </div>
+          <p class="cap-form-hint cap-mb-0">Categoría → Tipo → Origen → Modalidad</p>
+        </div>
+        <div class="cap-form-panel cap-hidden" id="cap-tax-form-panel">
+          <form id="cap-tax-form" class="cap-form">
+            <input type="hidden" id="cap-tax-id" value="">
+            <input type="hidden" id="cap-tax-nivel" name="nivel" value="">
+            <input type="hidden" id="cap-tax-parent-id" name="parent_id" value="">
+            <div class="cap-form-row cap-form-row--2">
+              <div id="cap-tax-codigo-wrap">
+                <label class="cap-label" for="cap-tax-codigo">Código</label>
+                <input class="cap-input" id="cap-tax-codigo" name="codigo" maxlength="30" placeholder="Opcional, se genera del nombre">
+              </div>
+              <div>
+                <label class="cap-label" for="cap-tax-nombre">Nombre *</label>
+                <input class="cap-input" id="cap-tax-nombre" name="nombre" required maxlength="100">
+              </div>
+            </div>
+            <p class="cap-form-hint" id="cap-tax-context"></p>
+            <p class="cap-form-hint cap-form-hint--error" id="cap-tax-form-error"></p>
+            <div class="cap-form-actions">
+              <button type="button" class="cap-btn cap-btn--ghost" id="cap-tax-cancel">Cancelar</button>
+              <button type="submit" class="cap-btn cap-btn--primary">Guardar</button>
+            </div>
+          </form>
+        </div>
+        <div class="cap-taxonomia-grid">
+          <div class="cap-taxonomia-col">
+            <div class="cap-taxonomia-col-head">
+              <span>Categoría</span>
+              <button type="button" class="cap-btn cap-btn--xs cap-btn--primary" id="cap-tax-btn-add-categoria" title="Agregar categoría"><i class="bi bi-plus-lg"></i></button>
+            </div>
+            <ul class="cap-taxonomia-list" id="cap-tax-list-categoria"><li class="cap-taxonomia-empty">Cargando...</li></ul>
+          </div>
+          <div class="cap-taxonomia-col">
+            <div class="cap-taxonomia-col-head">
+              <span>Tipo</span>
+              <button type="button" class="cap-btn cap-btn--xs cap-btn--primary" id="cap-tax-btn-add-tipo" title="Agregar tipo" disabled><i class="bi bi-plus-lg"></i></button>
+            </div>
+            <ul class="cap-taxonomia-list" id="cap-tax-list-tipo"><li class="cap-taxonomia-empty">Seleccioná una categoría</li></ul>
+          </div>
+          <div class="cap-taxonomia-col">
+            <div class="cap-taxonomia-col-head">
+              <span>Origen</span>
+              <button type="button" class="cap-btn cap-btn--xs cap-btn--primary" id="cap-tax-btn-add-origen" title="Agregar origen" disabled><i class="bi bi-plus-lg"></i></button>
+            </div>
+            <ul class="cap-taxonomia-list" id="cap-tax-list-origen"><li class="cap-taxonomia-empty">Seleccioná un tipo</li></ul>
+          </div>
+          <div class="cap-taxonomia-col">
+            <div class="cap-taxonomia-col-head">
+              <span>Modalidad</span>
+              <button type="button" class="cap-btn cap-btn--xs cap-btn--primary" id="cap-tax-btn-add-modalidad" title="Agregar modalidad" disabled><i class="bi bi-plus-lg"></i></button>
+            </div>
+            <ul class="cap-taxonomia-list" id="cap-tax-list-modalidad"><li class="cap-taxonomia-empty">Seleccioná un origen</li></ul>
+          </div>
+        </div>
+      </div>
+
       <div class="cap-widget">
         <div class="cap-widget-head cap-widget-head--split">
           <div class="cap-widget-head-left">
@@ -562,144 +653,6 @@
           </table>
         </div>
       </div>
-
-      <div class="cap-widget">
-        <div class="cap-widget-head cap-widget-head--split">
-          <div class="cap-widget-head-left">
-            <i class="bi bi-briefcase"></i>
-            <h2 class="cap-widget-title">Puestos</h2>
-          </div>
-          <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-nuevo-puesto">
-            <i class="bi bi-plus-lg"></i> Agregar
-          </button>
-        </div>
-        <div class="cap-form-panel cap-hidden" id="cap-puesto-form-panel">
-          <form id="cap-puesto-form" class="cap-form">
-            <input type="hidden" id="cap-u-id" name="id" value="">
-            <div class="cap-form-row cap-form-row--2">
-              <div>
-                <label class="cap-label" for="cap-u-codigo">Código *</label>
-                <input class="cap-input" id="cap-u-codigo" name="codigo" required maxlength="20">
-              </div>
-              <div>
-                <label class="cap-label" for="cap-u-nombre">Nombre *</label>
-                <input class="cap-input" id="cap-u-nombre" name="nombre" required maxlength="150">
-              </div>
-            </div>
-            <p class="cap-form-hint cap-form-hint--error" id="cap-puesto-form-error"></p>
-            <div class="cap-form-actions">
-              <button type="button" class="cap-btn cap-btn--ghost" id="cap-puesto-cancel">Cancelar</button>
-              <button type="submit" class="cap-btn cap-btn--primary" id="cap-puesto-submit">Guardar</button>
-            </div>
-          </form>
-        </div>
-        <div class="cap-widget-body cap-widget-body--flush">
-          <table class="cap-data-table" id="cap-puestos-table">
-            <thead>
-              <tr>
-                <th>Código</th>
-                <th>Nombre</th>
-                <th class="cap-col-actions"></th>
-              </tr>
-            </thead>
-            <tbody id="cap-puestos-body">
-              <tr><td colspan="3" class="cap-loading">Cargando...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="cap-widget cap-widget--full">
-        <div class="cap-widget-head cap-widget-head--split">
-          <div class="cap-widget-head-left">
-            <i class="bi bi-diagram-2"></i>
-            <h2 class="cap-widget-title">Clasificación de cursos</h2>
-          </div>
-          <p class="cap-form-hint cap-mb-0">Categoría → Tipo → Origen → Modalidad</p>
-        </div>
-        <div class="cap-form-panel cap-hidden" id="cap-tax-form-panel">
-          <form id="cap-tax-form" class="cap-form">
-            <input type="hidden" id="cap-tax-id" value="">
-            <input type="hidden" id="cap-tax-nivel" name="nivel" value="">
-            <input type="hidden" id="cap-tax-parent-id" name="parent_id" value="">
-            <div class="cap-form-row cap-form-row--2">
-              <div>
-                <label class="cap-label" for="cap-tax-codigo">Código</label>
-                <input class="cap-input" id="cap-tax-codigo" name="codigo" maxlength="30" placeholder="Opcional, se genera del nombre">
-              </div>
-              <div>
-                <label class="cap-label" for="cap-tax-nombre">Nombre *</label>
-                <input class="cap-input" id="cap-tax-nombre" name="nombre" required maxlength="100">
-              </div>
-            </div>
-            <p class="cap-form-hint" id="cap-tax-context"></p>
-            <p class="cap-form-hint cap-form-hint--error" id="cap-tax-form-error"></p>
-            <div class="cap-form-actions">
-              <button type="button" class="cap-btn cap-btn--ghost" id="cap-tax-cancel">Cancelar</button>
-              <button type="submit" class="cap-btn cap-btn--primary">Guardar</button>
-            </div>
-          </form>
-        </div>
-        <div class="cap-taxonomia-grid">
-          <div class="cap-taxonomia-col">
-            <div class="cap-taxonomia-col-head">
-              <span>Categoría</span>
-              <button type="button" class="cap-btn cap-btn--xs cap-btn--primary" id="cap-tax-btn-add-categoria" title="Agregar categoría"><i class="bi bi-plus-lg"></i></button>
-            </div>
-            <ul class="cap-taxonomia-list" id="cap-tax-list-categoria"></ul>
-          </div>
-          <div class="cap-taxonomia-col">
-            <div class="cap-taxonomia-col-head">
-              <span>Tipo</span>
-              <button type="button" class="cap-btn cap-btn--xs cap-btn--primary" id="cap-tax-btn-add-tipo" title="Agregar tipo" disabled><i class="bi bi-plus-lg"></i></button>
-            </div>
-            <ul class="cap-taxonomia-list" id="cap-tax-list-tipo"></ul>
-          </div>
-          <div class="cap-taxonomia-col">
-            <div class="cap-taxonomia-col-head">
-              <span>Origen</span>
-              <button type="button" class="cap-btn cap-btn--xs cap-btn--primary" id="cap-tax-btn-add-origen" title="Agregar origen" disabled><i class="bi bi-plus-lg"></i></button>
-            </div>
-            <ul class="cap-taxonomia-list" id="cap-tax-list-origen"></ul>
-          </div>
-          <div class="cap-taxonomia-col">
-            <div class="cap-taxonomia-col-head">
-              <span>Modalidad</span>
-              <button type="button" class="cap-btn cap-btn--xs cap-btn--primary" id="cap-tax-btn-add-modalidad" title="Agregar modalidad" disabled><i class="bi bi-plus-lg"></i></button>
-            </div>
-            <ul class="cap-taxonomia-list" id="cap-tax-list-modalidad"></ul>
-          </div>
-        </div>
-      </div>
-
-      <div class="cap-widget cap-widget--full">
-        <div class="cap-widget-head cap-widget-head--split">
-          <div class="cap-widget-head-left">
-            <i class="bi bi-list-check"></i>
-            <h2 class="cap-widget-title">Requisitos por puesto</h2>
-          </div>
-        </div>
-        <div class="cap-widget-body">
-          <div class="cap-form-row cap-form-row--2">
-            <div>
-              <label class="cap-label" for="cap-req-puesto">Puesto</label>
-              <select class="cap-input" id="cap-req-puesto"><option value="">— Seleccionar puesto —</option></select>
-            </div>
-            <div>
-              <label class="cap-label" for="cap-req-curso">Curso a agregar</label>
-              <div class="cap-input-group">
-                <select class="cap-input" id="cap-req-curso"><option value="">— Seleccionar curso —</option></select>
-                <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-agregar-requisito"><i class="bi bi-plus-lg"></i></button>
-              </div>
-            </div>
-          </div>
-          <p class="cap-form-hint cap-form-hint--error" id="cap-requisito-error"></p>
-          <table class="cap-data-table cap-mt">
-            <thead><tr><th>Curso</th><th>Obligatorio</th><th></th></tr></thead>
-            <tbody id="cap-requisitos-body"><tr><td colspan="3" class="cap-empty">Seleccioná un puesto</td></tr></tbody>
-          </table>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -733,6 +686,6 @@
   window.CAP_INITIAL_VIEW = {{ initial_view|tojson }};
   window.CAP_API_BASE = {{ api_base|tojson }};
 </script>
-<script src="{{ url_for('capacitacion_static.static', filename='js/capacitacion.js') }}"></script>
+<script src="{{ url_for('capacitacion_static.static', filename='js/capacitacion.js') }}?v={{ app_version }}"></script>
 </body>
 </html>

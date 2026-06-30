@@ -377,6 +377,16 @@
 
 
 
+  function renderTaxListError(nivel, message) {
+
+    const ul = document.getElementById(`cap-tax-list-${nivel}`);
+
+    if (ul) ul.innerHTML = `<li class="cap-taxonomia-empty" style="color:#c0392b">${message}</li>`;
+
+  }
+
+
+
   function renderTaxList(nivel, items, selectedId) {
 
     const ul = document.getElementById(`cap-tax-list-${nivel}`);
@@ -485,9 +495,45 @@
 
   async function loadTaxonomiaBrowser() {
 
-    taxItemsCache.categoria = await fetchTaxItems("categoria");
+    TAX_NIVELES.forEach((nivel) => {
 
-    renderTaxList("categoria", taxItemsCache.categoria, taxSelected.categoria?.id);
+      const ul = document.getElementById(`cap-tax-list-${nivel}`);
+
+      if (ul && !taxSelected[nivel]) {
+
+        const hints = {
+
+          categoria: "Cargando...",
+
+          tipo: "Seleccioná una categoría",
+
+          origen: "Seleccioná un tipo",
+
+          modalidad: "Seleccioná un origen",
+
+        };
+
+        ul.innerHTML = `<li class="cap-taxonomia-empty">${hints[nivel]}</li>`;
+
+      }
+
+    });
+
+
+
+    try {
+
+      taxItemsCache.categoria = await fetchTaxItems("categoria");
+
+      renderTaxList("categoria", taxItemsCache.categoria, taxSelected.categoria?.id);
+
+    } catch (err) {
+
+      renderTaxListError("categoria", err.message);
+
+      throw err;
+
+    }
 
 
 
@@ -625,7 +671,7 @@
 
     document.getElementById("cap-tax-codigo").value = "";
 
-    document.getElementById("cap-tax-codigo").closest("div").classList.add("cap-hidden");
+    document.getElementById("cap-tax-codigo-wrap")?.classList.add("cap-hidden");
 
     document.getElementById("cap-tax-nombre").value = nombre || "";
 
@@ -751,7 +797,7 @@
 
       togglePanel("cap-tax-form-panel", false);
 
-      document.getElementById("cap-tax-codigo")?.closest("div")?.classList.remove("cap-hidden");
+      document.getElementById("cap-tax-codigo-wrap")?.classList.remove("cap-hidden");
 
       setFormError("cap-tax-form-error", "");
 
@@ -785,7 +831,7 @@
 
         togglePanel("cap-tax-form-panel", false);
 
-        document.getElementById("cap-tax-codigo")?.closest("div")?.classList.remove("cap-hidden");
+        document.getElementById("cap-tax-codigo-wrap")?.classList.remove("cap-hidden");
 
         form.reset();
 
@@ -2334,19 +2380,19 @@
 
     const tbody = document.getElementById("cap-cursos-body");
 
-    if (!tbody) return;
-
-    tbody.innerHTML = '<tr><td colspan="8" class="cap-loading">Cargando...</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="cap-loading">Cargando...</td></tr>';
 
     const items = (await fetchJson(`${API}/cursos`)).cursos || [];
 
     window.capCursosCache = items;
 
+    fillSelect("cap-req-curso", items.map((c) => ({ id: c.id, codigo: c.codigo, nombre: c.nombre })), "— Seleccionar curso —");
+
+    if (!tbody) return;
+
     if (!items.length) {
 
       tbody.innerHTML = '<tr><td colspan="8" class="cap-empty">Sin cursos cargados</td></tr>';
-
-      fillSelect("cap-req-curso", [], "— Seleccionar curso —");
 
       return;
 
@@ -2381,8 +2427,6 @@
       .join("");
 
     bindCatalogTableEdits("cap-cursos-body", (ds) => openCursoForm(items.find((x) => String(x.id) === String(ds.id))));
-
-    fillSelect("cap-req-curso", items.map((c) => ({ id: c.id, codigo: c.codigo, nombre: c.nombre })), "— Seleccionar curso —");
 
   }
 
@@ -2492,43 +2536,15 @@
 
 
 
-  async function loadPuestos() {
+  async function loadPuestosOptions() {
 
-    const tbody = document.getElementById("cap-puestos-body");
+    const sel = document.getElementById("cap-req-puesto");
 
-    if (!tbody) return;
-
-    tbody.innerHTML = '<tr><td colspan="3" class="cap-loading">Cargando...</td></tr>';
+    if (!sel) return;
 
     const items = (await fetchJson(`${API}/puestos`)).puestos || [];
 
-    if (!items.length) {
-
-      tbody.innerHTML = '<tr><td colspan="3" class="cap-empty">Sin puestos cargados</td></tr>';
-
-      return;
-
-    }
-
-    tbody.innerHTML = items
-
-      .map(
-
-        (p) => `<tr>
-
-        <td><strong>${p.codigo}</strong></td>
-
-        <td>${p.nombre}</td>
-
-        <td class="cap-col-actions">${editButton("Editar puesto", { id: p.id, codigo: p.codigo, nombre: p.nombre })}</td>
-
-      </tr>`
-
-      )
-
-      .join("");
-
-    bindCatalogTableEdits("cap-puestos-body", openPuestoForm);
+    metaPuestos = items;
 
     fillSelect("cap-req-puesto", items, "— Seleccionar puesto —");
 
@@ -2673,34 +2689,6 @@
     togglePanel("cap-sector-form-panel", true);
 
     document.getElementById("cap-s-codigo")?.focus();
-
-  }
-
-
-
-  function openPuestoForm(item) {
-
-    const form = document.getElementById("cap-puesto-form");
-
-    if (!form) return;
-
-    form.reset();
-
-    document.getElementById("cap-u-id").value = item?.id || "";
-
-    if (item) {
-
-      document.getElementById("cap-u-codigo").value = item.codigo || "";
-
-      document.getElementById("cap-u-nombre").value = item.nombre || "";
-
-    }
-
-    setFormError("cap-puesto-form-error", "");
-
-    togglePanel("cap-puesto-form-panel", true);
-
-    document.getElementById("cap-u-codigo")?.focus();
 
   }
 
@@ -3222,72 +3210,6 @@
 
 
 
-  function bindPuestoForm() {
-
-    const form = document.getElementById("cap-puesto-form");
-
-    if (!form) return;
-
-
-
-    document.getElementById("cap-btn-nuevo-puesto")?.addEventListener("click", () => openPuestoForm(null));
-
-    document.getElementById("cap-puesto-cancel")?.addEventListener("click", () => {
-
-      togglePanel("cap-puesto-form-panel", false);
-
-      setFormError("cap-puesto-form-error", "");
-
-    });
-
-
-
-    form.addEventListener("submit", async (e) => {
-
-      e.preventDefault();
-
-      setFormError("cap-puesto-form-error", "");
-
-      const payload = formToObject(form);
-
-      const id = document.getElementById("cap-u-id")?.value;
-
-      delete payload.id;
-
-      try {
-
-        if (id) {
-
-          await putJson(`${API}/puestos/${id}`, payload);
-
-        } else {
-
-          await postJson(`${API}/puestos`, payload);
-
-        }
-
-        togglePanel("cap-puesto-form-panel", false);
-
-        form.reset();
-
-        await loadPuestos();
-
-        metaPuestos = (await fetchJson(`${API}/puestos`)).puestos || [];
-
-        fillSelect("cap-p-puesto", metaPuestos, "— Sin puesto —");
-
-      } catch (err) {
-
-        setFormError("cap-puesto-form-error", err.message);
-
-      }
-
-    });
-
-  }
-
-
-
   function showView(view) {
 
     document.querySelectorAll("[data-cap-view]").forEach((el) => {
@@ -3318,8 +3240,6 @@
     await ensureTaxonomia();
 
     bindSectorForm();
-
-    bindPuestoForm();
 
     bindMatriz();
 
@@ -3364,6 +3284,10 @@
     if (view === "programas") {
 
       try { await loadProgramas(); } catch (e) { console.error(e); }
+
+      try { await loadPuestosOptions(); } catch (e) { console.error(e); }
+
+      try { await loadCursos(); } catch (e) { console.error(e); }
 
     }
 
@@ -3415,9 +3339,21 @@
 
     if (view === "catalogos") {
 
+      try { await loadCursos(); } catch (e) { console.error(e); }
+
+      try { await loadSectores(); } catch (e) { console.error(e); }
+
       try {
-        await Promise.all([loadCursos(), loadSectores(), loadPuestos(), loadTaxonomiaBrowser()]);
-      } catch (e) { console.error(e); }
+
+        await loadTaxonomiaBrowser();
+
+      } catch (e) {
+
+        console.error("Taxonomía:", e);
+
+      }
+
+      if (taxonomiaCascada) syncCursoCascada();
 
     }
 
