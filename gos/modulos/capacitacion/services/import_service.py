@@ -6,10 +6,10 @@ import openpyxl
 
 from gos.extensions import db
 from gos.modulos.capacitacion.models import Curso, Participante, Puesto
-from gos.modulos.capacitacion.models.taxonomia import (
+from gos.modulos.capacitacion.services.taxonomia_service import (
+    clasificacion_desde_legacy,
     tipo_capacitacion_legacy,
     validar_clasificacion,
-    clasificacion_desde_legacy,
 )
 from gos.modulos.capacitacion.services.catalogo_service import _parse_date, _parse_decimal, _parse_int
 from gos.modulos.objetivos.models.catalogos import Sector
@@ -174,11 +174,11 @@ def importar_cursos_excel(empresa_id: int, file_bytes: bytes) -> dict:
         legacy_tipo = val("tipo_capacitacion").lower() or None
 
         if not categoria and legacy_tipo:
-            categoria, tipo, origen = clasificacion_desde_legacy(legacy_tipo)
+            categoria, tipo, origen = clasificacion_desde_legacy(empresa_id, legacy_tipo)
 
         try:
             categoria, tipo, origen, modalidad = validar_clasificacion(
-                categoria, tipo, origen, modalidad
+                empresa_id, categoria, tipo, origen, modalidad
             )
         except ValueError as exc:
             errores.append(f"Fila {row_idx}: {exc}")

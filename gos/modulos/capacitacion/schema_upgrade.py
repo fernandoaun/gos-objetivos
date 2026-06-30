@@ -37,6 +37,7 @@ def ensure_capacitacion_schema() -> None:
         AlertaCapacitacion,
         CapacitacionConfig,
         Instructor,
+        TaxonomiaItem,
     )
 
     db.create_all()
@@ -54,14 +55,14 @@ def ensure_capacitacion_schema() -> None:
 
 def _migrar_clasificacion_cursos() -> None:
     from gos.modulos.capacitacion.models import Curso
-    from gos.modulos.capacitacion.models.taxonomia import (
+    from gos.modulos.capacitacion.services.taxonomia_service import (
         clasificacion_desde_legacy,
         tipo_capacitacion_legacy,
     )
 
     cambios = False
     for curso in Curso.query.filter(Curso.categoria.is_(None)).all():
-        cat, tipo, origen = clasificacion_desde_legacy(curso.tipo_capacitacion)
+        cat, tipo, origen = clasificacion_desde_legacy(curso.empresa_id, curso.tipo_capacitacion)
         if not cat and not curso.tipo_capacitacion:
             continue
         if cat:

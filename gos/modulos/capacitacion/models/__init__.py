@@ -16,6 +16,7 @@ from gos.modulos.capacitacion.models.registro import (
     RegistroCapacitacion,
     RequisitoFormacion,
 )
+from gos.modulos.capacitacion.models.taxonomia_item import TaxonomiaItem
 
 __all__ = [
     "Puesto",
@@ -35,4 +36,5 @@ __all__ = [
     "RegistroCapacitacion",
     "CertificacionEmpleado",
     "PlanCapacitacion",
+    "TaxonomiaItem",
 ]

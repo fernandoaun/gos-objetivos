@@ -2,18 +2,17 @@ from decimal import Decimal, InvalidOperation
 
 from gos.extensions import db
 from gos.modulos.capacitacion.models import Curso, Participante, Puesto
-from gos.modulos.capacitacion.models.taxonomia import (
-    etiqueta_modalidad,
-    etiqueta_nivel,
-    taxonomia_arbol,
+from gos.modulos.capacitacion.services.taxonomia_service import (
+    arbol_taxonomia,
+    etiqueta_taxonomia,
     tipo_capacitacion_legacy,
     validar_clasificacion,
 )
 from gos.modulos.objetivos.models.catalogos import Sector
 
 
-def obtener_taxonomia_cursos() -> dict:
-    return {"cascada": taxonomia_arbol()}
+def obtener_taxonomia_cursos(empresa_id: int) -> dict:
+    return {"cascada": arbol_taxonomia(empresa_id)}
 
 
 def listar_cursos(empresa_id: int) -> list[dict]:
@@ -22,7 +21,7 @@ def listar_cursos(empresa_id: int) -> list[dict]:
         .order_by(Curso.codigo)
         .all()
     )
-    return [_curso_dict(c) for c in items]
+    return [_curso_dict(c, empresa_id) for c in items]
 
 
 def listar_puestos(empresa_id: int) -> list[dict]:
@@ -105,6 +104,7 @@ def crear_curso(empresa_id: int, data: dict) -> dict:
 
     modalidad = (data.get("modalidad") or "").strip().lower() or None
     categoria, tipo, origen, modalidad = validar_clasificacion(
+        empresa_id,
         data.get("categoria"),
         data.get("tipo"),
         data.get("origen"),
@@ -137,7 +137,7 @@ def crear_curso(empresa_id: int, data: dict) -> dict:
     )
     db.session.add(curso)
     db.session.commit()
-    return _curso_dict(curso)
+    return _curso_dict(curso, empresa_id)
 
 
 def actualizar_curso(empresa_id: int, curso_id: int, data: dict) -> dict:
@@ -159,6 +159,7 @@ def actualizar_curso(empresa_id: int, curso_id: int, data: dict) -> dict:
 
     modalidad = (data.get("modalidad") or "").strip().lower() or None
     categoria, tipo, origen, modalidad = validar_clasificacion(
+        empresa_id,
         data.get("categoria"),
         data.get("tipo"),
         data.get("origen"),
@@ -180,7 +181,7 @@ def actualizar_curso(empresa_id: int, curso_id: int, data: dict) -> dict:
     instructor_id = data.get("instructor_id")
     curso.instructor_id = int(instructor_id) if instructor_id else None
     db.session.commit()
-    return _curso_dict(curso)
+    return _curso_dict(curso, empresa_id)
 
 
 def baja_curso(empresa_id: int, curso_id: int) -> dict:
@@ -346,7 +347,7 @@ def _sector_dict(sector: Sector) -> dict:
     return {"id": sector.id, "codigo": sector.codigo, "nombre": sector.nombre}
 
 
-def _curso_dict(curso: Curso) -> dict:
+def _curso_dict(curso: Curso, empresa_id: int) -> dict:
     return {
         "id": curso.id,
         "codigo": curso.codigo,
@@ -355,10 +356,10 @@ def _curso_dict(curso: Curso) -> dict:
         "categoria": curso.categoria,
         "tipo": curso.tipo,
         "origen": curso.origen,
-        "categoria_label": etiqueta_nivel("categoria", curso.categoria),
-        "tipo_label": etiqueta_nivel("tipo", curso.tipo),
-        "origen_label": etiqueta_nivel("origen", curso.origen),
-        "modalidad_label": etiqueta_modalidad(curso.modalidad),
+        "categoria_label": etiqueta_taxonomia(empresa_id, "categoria", curso.categoria),
+        "tipo_label": etiqueta_taxonomia(empresa_id, "tipo", curso.tipo),
+        "origen_label": etiqueta_taxonomia(empresa_id, "origen", curso.origen),
+        "modalidad_label": etiqueta_taxonomia(empresa_id, "modalidad", curso.modalidad),
         "tipo_capacitacion": curso.tipo_capacitacion,
         "horas": float(curso.horas) if curso.horas is not None else None,
         "modalidad": curso.modalidad,

@@ -53,6 +53,7 @@ def _register_models() -> None:
         Puesto,
         RegistroCapacitacion,
         RequisitoFormacion,
+        TaxonomiaItem,
     )
 
 

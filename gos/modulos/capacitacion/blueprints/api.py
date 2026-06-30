@@ -57,6 +57,12 @@ from gos.modulos.capacitacion.services import (
     subir_documento_certificacion,
     subir_foto_participante,
 )
+from gos.modulos.capacitacion.services.taxonomia_service import (
+    actualizar_taxonomia_item,
+    baja_taxonomia_item,
+    crear_taxonomia_item,
+    listar_taxonomia_items,
+)
 from gos.modulos.capacitacion.services.export_service import exportar_matriz_excel
 from gos.modulos.capacitacion.services.pdf_export_service import (
     generar_pdf_general,
@@ -193,7 +199,48 @@ def analitico(participante_id: int):
 @bp.route("/cursos/taxonomia")
 @login_required
 def cursos_taxonomia():
-    return jsonify(obtener_taxonomia_cursos())
+    return jsonify(obtener_taxonomia_cursos(current_user.empresa_id))
+
+
+@bp.route("/taxonomia/items", methods=["GET", "POST"])
+@login_required
+def taxonomia_items():
+    eid = current_user.empresa_id
+    if request.method == "POST":
+        if not _puede_editar():
+            return jsonify({"error": "No tenés permiso para esta acción."}), 403
+        try:
+            item = crear_taxonomia_item(eid, _json_body())
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"item": item}), 201
+    return jsonify(
+        {
+            "items": listar_taxonomia_items(
+                eid,
+                nivel=request.args.get("nivel"),
+                parent_id=request.args.get("parent_id", type=int),
+            )
+        }
+    )
+
+
+@bp.route("/taxonomia/items/<int:item_id>", methods=["PUT", "DELETE"])
+@login_required
+def taxonomia_item_detalle(item_id: int):
+    if not _puede_editar():
+        return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    eid = current_user.empresa_id
+    if request.method == "DELETE":
+        try:
+            return jsonify(baja_taxonomia_item(eid, item_id))
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+    try:
+        item = actualizar_taxonomia_item(eid, item_id, _json_body())
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"item": item})
 
 
 @bp.route("/cursos", methods=["GET", "POST"])
