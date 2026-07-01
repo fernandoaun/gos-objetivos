@@ -508,6 +508,31 @@
   grid-column: 1 / -1;
 }
 
+.cap-legajo-matriz {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--cap-border);
+}
+
+.cap-legajo-matriz h3 {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--cap-navy);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.75rem;
+}
+
+.cap-matriz-wrap--legajo {
+  max-height: none;
+  margin-bottom: 0.5rem;
+}
+
+.cap-leyenda--compact {
+  padding: 0.5rem 0 0;
+  border-top: none;
+}
+
 .cap-list {
   list-style: none;
   margin: 0;
@@ -674,6 +699,12 @@
 
 .cap-btn--ghost {
   background: transparent;
+}
+
+.cap-btn--ghost.cap-btn--active {
+  background: var(--cap-gray-bg);
+  color: var(--cap-navy);
+  font-weight: 600;
 }
 
 .cap-form-panel {

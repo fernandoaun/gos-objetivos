@@ -1266,6 +1266,58 @@
 
 
 
+  function renderMatrizTable(data, head, body, { showPersonaColumn = true } = {}) {
+
+    if (!head || !body) return;
+
+    const columnas = data.columnas || [];
+
+    const filas = data.filas || [];
+
+    const personaTh = showPersonaColumn ? '<th class="cap-matriz-sticky">Persona</th>' : "";
+
+    head.innerHTML = `<tr>${personaTh}${columnas.map((c) => `<th title="${c.nombre}">${c.codigo}</th>`).join("")}</tr>`;
+
+    const colSpan = columnas.length + (showPersonaColumn ? 1 : 0);
+
+    body.innerHTML = filas.map((f) => `
+
+      <tr>
+
+        ${showPersonaColumn ? `<td class="cap-matriz-sticky">${f.nombre}</td>` : ""}
+
+        ${columnas.map((c) => {
+
+          const cel = f.celdas[String(c.id)] || { estado: "no_aplica", color: "gris" };
+
+          return `<td class="cap-celda cap-celda--${cel.color}" title="${cel.estado}">${cel.estado === "no_aplica" ? "" : cel.estado.slice(0, 3)}</td>`;
+
+        }).join("")}
+
+      </tr>`).join("") || `<tr><td colspan="${colSpan}" class="cap-empty">Sin datos</td></tr>`;
+
+  }
+
+
+
+  async function loadLegajoMatriz(participanteId) {
+
+    const head = document.getElementById("cap-legajo-matriz-head");
+
+    const body = document.getElementById("cap-legajo-matriz-body");
+
+    if (!head || !body) return;
+
+    body.innerHTML = '<tr><td class="cap-loading">Cargando...</td></tr>';
+
+    const data = await fetchJson(`${API}/matriz?participante_id=${participanteId}`);
+
+    renderMatrizTable(data, head, body, { showPersonaColumn: false });
+
+  }
+
+
+
   async function loadMatriz() {
 
     const sector = document.getElementById("cap-matriz-sector")?.value || "";
@@ -1296,23 +1348,7 @@
       }
     }
 
-    head.innerHTML = `<tr><th class="cap-matriz-sticky">Persona</th>${(data.columnas || []).map((c) => `<th title="${c.nombre}">${c.codigo}</th>`).join("")}</tr>`;
-
-    body.innerHTML = (data.filas || []).map((f) => `
-
-      <tr>
-
-        <td class="cap-matriz-sticky">${f.nombre}</td>
-
-        ${(data.columnas || []).map((c) => {
-
-          const cel = f.celdas[String(c.id)] || { estado: "no_aplica", color: "gris" };
-
-          return `<td class="cap-celda cap-celda--${cel.color}" title="${cel.estado}">${cel.estado === "no_aplica" ? "" : cel.estado.slice(0, 3)}</td>`;
-
-        }).join("")}
-
-      </tr>`).join("") || `<tr><td colspan="${(data.columnas || []).length + 1}" class="cap-empty">Sin datos</td></tr>`;
+    renderMatrizTable(data, head, body);
 
     const exp = document.getElementById("cap-matriz-export");
 
@@ -2362,7 +2398,7 @@
 
         <div class="cap-toolbar-actions" style="margin-left:auto">
 
-          <button type="button" class="cap-btn cap-btn--ghost cap-btn--xs" id="cap-btn-ver-matriz" title="Ver en matriz analítica">
+          <button type="button" class="cap-btn cap-btn--ghost cap-btn--xs" id="cap-btn-ver-matriz" title="Ver matriz de capacitaciones">
 
             <i class="bi bi-grid-3x3-gap"></i> Matriz
 
@@ -2381,6 +2417,38 @@
       </div>
 
       ${renderLegajoPerfil(p)}
+
+      <div class="cap-legajo-matriz cap-hidden" id="cap-legajo-matriz">
+
+        <h3>Matriz de capacitaciones</h3>
+
+        <div class="cap-matriz-wrap cap-matriz-wrap--legajo">
+
+          <table class="cap-matriz-table" id="cap-legajo-matriz-table">
+
+            <thead id="cap-legajo-matriz-head"><tr><th>Curso</th></tr></thead>
+
+            <tbody id="cap-legajo-matriz-body"><tr><td class="cap-loading">Cargando...</td></tr></tbody>
+
+          </table>
+
+        </div>
+
+        <div class="cap-leyenda cap-leyenda--compact">
+
+          <span class="cap-leyenda-item cap-leyenda--verde">Vigente</span>
+
+          <span class="cap-leyenda-item cap-leyenda--amarillo">Próximo a vencer</span>
+
+          <span class="cap-leyenda-item cap-leyenda--rojo">Vencido</span>
+
+          <span class="cap-leyenda-item cap-leyenda--azul">Programado</span>
+
+          <span class="cap-leyenda-item cap-leyenda--gris">No aplica</span>
+
+        </div>
+
+      </div>
 
     `;
 
@@ -2408,9 +2476,34 @@
 
     });
 
-    document.getElementById("cap-btn-ver-matriz")?.addEventListener("click", () => {
-      sessionStorage.setItem("cap_matriz_persona_nombre", nombreDisplay);
-      navigateToCapView("matriz", { participante_id: id });
+    document.getElementById("cap-btn-ver-matriz")?.addEventListener("click", async () => {
+
+      const section = document.getElementById("cap-legajo-matriz");
+
+      const btn = document.getElementById("cap-btn-ver-matriz");
+
+      if (!section) return;
+
+      const willShow = section.classList.contains("cap-hidden");
+
+      if (willShow) {
+
+        section.classList.remove("cap-hidden");
+
+        btn?.classList.add("cap-btn--active");
+
+        await loadLegajoMatriz(id);
+
+        section.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+      } else {
+
+        section.classList.add("cap-hidden");
+
+        btn?.classList.remove("cap-btn--active");
+
+      }
+
     });
 
     document.getElementById("cap-btn-subir-foto")?.addEventListener("click", () => {
