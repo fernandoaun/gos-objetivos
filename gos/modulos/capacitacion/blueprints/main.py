@@ -31,7 +31,13 @@ def catalogos():
 @bp.route("/matriz")
 @login_required
 def matriz():
-    return render_template("capacitacion/shell.html", view="matriz")
+    from flask import request
+
+    return render_template(
+        "capacitacion/shell.html",
+        view="matriz",
+        participante_id=request.args.get("participante_id", type=int),
+    )
 
 
 @bp.route("/alertas")
@@ -68,4 +74,5 @@ def app():
         "capacitacion/app.html",
         initial_view=view,
         api_base="/gos/capacitacion/api",
+        participante_id=request.args.get("participante_id", type=int),
     )

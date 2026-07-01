@@ -31,6 +31,6 @@
 {% endblock %}
 {% block content %}
 <div class="cap-shell w-100">
-  <iframe class="cap-frame" src="{{ url_for('capacitacion_main.app', view=view) }}" title="Capacitación"></iframe>
+  <iframe class="cap-frame" src="{{ url_for('capacitacion_main.app', view=view, participante_id=participante_id) if participante_id is defined and participante_id else url_for('capacitacion_main.app', view=view) }}" title="Capacitación"></iframe>
 </div>
 {% endblock %}

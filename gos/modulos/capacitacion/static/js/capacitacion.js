@@ -39,6 +39,8 @@
   let chartTipo = null;
   let isoNormaActual = "9001";
   let personaSeleccionadaId = null;
+  let matrizParticipanteId = window.CAP_INITIAL_PARTICIPANTE_ID || null;
+  let matrizParticipanteNombre = null;
   let certUploadRegistroId = null;
   let taxonomiaCascada = null;
   let taxonomiaListas = null;
@@ -85,6 +87,45 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+  }
+
+
+
+  function navigateToCapView(vista, params = {}) {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== null && value !== undefined && value !== "") {
+        query.set(key, String(value));
+      }
+    });
+    const qs = query.toString();
+    const parentPath = vista === "panel" ? "/gos/capacitacion/" : `/gos/capacitacion/${vista}`;
+    const parentUrl = qs ? `${parentPath}?${qs}` : parentPath;
+
+    if (window.parent && window.parent !== window) {
+      window.parent.location.href = parentUrl;
+      return;
+    }
+
+    const appQuery = new URLSearchParams({ view: vista, ...params });
+    window.location.href = `/gos/capacitacion/app/?${appQuery}`;
+  }
+
+
+
+  function updateMatrizPersonaFilter() {
+    const wrap = document.getElementById("cap-matriz-persona-filter");
+    const nombre = document.getElementById("cap-matriz-persona-nombre");
+    if (!wrap || !nombre) return;
+
+    if (matrizParticipanteId) {
+      nombre.textContent = matrizParticipanteNombre || `Persona #${matrizParticipanteId}`;
+      wrap.classList.remove("cap-hidden");
+      return;
+    }
+
+    nombre.textContent = "";
+    wrap.classList.add("cap-hidden");
   }
 
 
@@ -1237,6 +1278,8 @@
 
     if (estado) url += `estado=${estado}&`;
 
+    if (matrizParticipanteId) url += `participante_id=${matrizParticipanteId}&`;
+
     const data = await fetchJson(url);
 
     const head = document.getElementById("cap-matriz-head");
@@ -1244,6 +1287,14 @@
     const body = document.getElementById("cap-matriz-body");
 
     if (!head || !body) return;
+
+    if (matrizParticipanteId && !matrizParticipanteNombre) {
+      const fila = (data.filas || []).find((f) => f.participante_id === matrizParticipanteId);
+      if (fila?.nombre) {
+        matrizParticipanteNombre = fila.nombre;
+        updateMatrizPersonaFilter();
+      }
+    }
 
     head.innerHTML = `<tr><th class="cap-matriz-sticky">Persona</th>${(data.columnas || []).map((c) => `<th title="${c.nombre}">${c.codigo}</th>`).join("")}</tr>`;
 
@@ -1464,6 +1515,13 @@
     document.getElementById("cap-matriz-sector")?.addEventListener("change", () => loadMatriz().catch(console.error));
 
     document.getElementById("cap-matriz-estado")?.addEventListener("change", () => loadMatriz().catch(console.error));
+
+    document.getElementById("cap-matriz-persona-clear")?.addEventListener("click", () => {
+      matrizParticipanteId = null;
+      matrizParticipanteNombre = null;
+      updateMatrizPersonaFilter();
+      loadMatriz().catch(console.error);
+    });
 
   }
 
@@ -2264,6 +2322,12 @@
 
         <div class="cap-toolbar-actions" style="margin-left:auto">
 
+          <button type="button" class="cap-btn cap-btn--ghost cap-btn--xs" id="cap-btn-ver-matriz" title="Ver en matriz analítica">
+
+            <i class="bi bi-grid-3x3-gap"></i> Matriz
+
+          </button>
+
           <a class="cap-btn cap-btn--ghost" href="${API}/participantes/${id}/reporte.pdf" target="_blank"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
 
           <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-editar-persona">
@@ -2336,6 +2400,11 @@
 
       });
 
+    });
+
+    document.getElementById("cap-btn-ver-matriz")?.addEventListener("click", () => {
+      sessionStorage.setItem("cap_matriz_persona_nombre", p.nombre);
+      navigateToCapView("matriz", { participante_id: id });
     });
 
     document.getElementById("cap-btn-subir-foto")?.addEventListener("click", () => {
@@ -3378,6 +3447,14 @@
         await loadMeta();
 
         fillSelect("cap-matriz-sector", metaSectores, "Todos los sectores");
+
+        if (matrizParticipanteId) {
+          matrizParticipanteNombre = sessionStorage.getItem("cap_matriz_persona_nombre");
+          if (matrizParticipanteNombre) {
+            sessionStorage.removeItem("cap_matriz_persona_nombre");
+          }
+          updateMatrizPersonaFilter();
+        }
 
         await loadMatriz();
 

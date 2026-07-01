@@ -212,6 +212,11 @@
       <div class="cap-widget-head cap-widget-head--split">
         <div class="cap-widget-head-left"><i class="bi bi-grid-3x3-gap"></i><h2 class="cap-widget-title">Matriz analítica</h2></div>
         <div class="cap-toolbar-actions">
+          <span class="cap-matriz-persona-filter cap-hidden" id="cap-matriz-persona-filter" title="Filtrado por persona">
+            <i class="bi bi-person-fill"></i>
+            <span id="cap-matriz-persona-nombre"></span>
+            <button type="button" class="cap-matriz-persona-clear" id="cap-matriz-persona-clear" title="Quitar filtro de persona" aria-label="Quitar filtro de persona">&times;</button>
+          </span>
           <select class="cap-input cap-input--sm" id="cap-matriz-sector"><option value="">Todos los sectores</option></select>
           <select class="cap-input cap-input--sm" id="cap-matriz-estado">
             <option value="">Todos</option>
@@ -704,6 +709,7 @@
 <script>
   window.CAP_INITIAL_VIEW = {{ initial_view|tojson }};
   window.CAP_API_BASE = {{ api_base|tojson }};
+  window.CAP_INITIAL_PARTICIPANTE_ID = {{ participante_id|tojson }};
 </script>
 <script src="{{ url_for('capacitacion_static.static', filename='js/capacitacion.js') }}?v={{ app_version }}"></script>
 </body>

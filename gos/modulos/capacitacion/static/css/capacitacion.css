@@ -512,6 +512,47 @@
   margin: 0 0 0.5rem;
 }
 
+.cap-matriz-persona-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--cap-navy);
+  background: #eef6e8;
+  border: 1px solid #c8e0b8;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.cap-matriz-persona-filter .bi-person-fill {
+  font-size: 0.85rem;
+  color: var(--gos-green);
+}
+
+.cap-matriz-persona-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  padding: 0;
+  margin-left: 0.1rem;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--cap-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.cap-matriz-persona-clear:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--cap-navy);
+}
+
 .cap-mini-table {
   width: 100%;
   font-size: 0.82rem;
