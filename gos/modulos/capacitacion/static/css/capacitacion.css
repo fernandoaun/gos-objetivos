@@ -969,6 +969,50 @@
   border-bottom: none;
 }
 
+.cap-col-num {
+  width: 2.5rem;
+  text-align: center;
+  color: var(--cap-muted);
+  font-weight: 600;
+}
+
+.cap-check-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.35rem 1rem;
+  padding: 0.5rem 0;
+}
+
+.cap-check-grid--scroll {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--cap-border);
+  border-radius: 6px;
+  padding: 0.65rem 0.85rem;
+  background: #fff;
+}
+
+.cap-check-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.cap-check-item input {
+  accent-color: var(--cap-navy);
+}
+
+.cap-enc-personas-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.35rem;
+}
+
 .cap-col-actions {
   width: 3rem;
   text-align: right;

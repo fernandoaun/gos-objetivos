@@ -1,5 +1,11 @@
 from gos.modulos.capacitacion.models.alerta import AlertaCapacitacion
-from gos.modulos.capacitacion.models.catalogo import CertificacionTipo, Curso, Puesto, TIPOS_CAPACITACION
+from gos.modulos.capacitacion.models.catalogo import (
+    CertificacionTipo,
+    Curso,
+    EmpresaCapacitadora,
+    Puesto,
+    TIPOS_CAPACITACION,
+)
 from gos.modulos.capacitacion.models.config import CapacitacionConfig
 from gos.modulos.capacitacion.models.instructor import Instructor
 from gos.modulos.capacitacion.models.participante import Participante
@@ -21,6 +27,7 @@ from gos.modulos.capacitacion.models.taxonomia_item import TaxonomiaItem
 __all__ = [
     "Puesto",
     "Curso",
+    "EmpresaCapacitadora",
     "TIPOS_CAPACITACION",
     "CertificacionTipo",
     "CapacitacionConfig",

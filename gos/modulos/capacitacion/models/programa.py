@@ -57,12 +57,19 @@ class EncuentroCapacitacion(db.Model, TimestampMixin):
     lugar = db.Column(db.String(200), nullable=True)
     link_virtual = db.Column(db.String(500), nullable=True)
     instructor = db.Column(db.String(150), nullable=True)
+    instructor_id = db.Column(db.Integer, db.ForeignKey("cap_instructores.id"), nullable=True, index=True)
+    origen = db.Column(db.String(30), nullable=True)
+    empresa_capacitadora_id = db.Column(
+        db.Integer, db.ForeignKey("cap_empresas_capacitadoras.id"), nullable=True, index=True
+    )
     estado = db.Column(db.String(20), default="programado", nullable=False)
     observaciones = db.Column(db.Text, nullable=True)
 
     empresa = db.relationship("Empresa")
     programa = db.relationship("ProgramaCapacitacion", back_populates="encuentros")
     curso = db.relationship("Curso", back_populates="encuentros")
+    instructor_rel = db.relationship("Instructor", foreign_keys=[instructor_id])
+    empresa_capacitadora = db.relationship("EmpresaCapacitadora")
     temas = db.relationship(
         "EncuentroTema",
         back_populates="encuentro",

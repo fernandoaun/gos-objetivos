@@ -52,6 +52,26 @@ class Curso(db.Model, TimestampMixin):
     planes = db.relationship("PlanCapacitacion", back_populates="curso", lazy="dynamic")
 
 
+class EmpresaCapacitadora(db.Model, TimestampMixin):
+    """Proveedor externo que dicta capacitaciones."""
+
+    __tablename__ = "cap_empresas_capacitadoras"
+    __table_args__ = (
+        db.UniqueConstraint("empresa_id", "codigo", name="uq_cap_emp_cap_codigo"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey("empresas.id"), nullable=False, index=True)
+    codigo = db.Column(db.String(20), nullable=False)
+    nombre = db.Column(db.String(200), nullable=False)
+    contacto = db.Column(db.String(150), nullable=True)
+    telefono = db.Column(db.String(40), nullable=True)
+    email = db.Column(db.String(150), nullable=True)
+    activo = db.Column(db.Boolean, default=True, nullable=False)
+
+    empresa = db.relationship("Empresa")
+
+
 class CertificacionTipo(db.Model, TimestampMixin):
     """Tipos de certificación (ISO, seguridad, operativa, etc.)."""
 

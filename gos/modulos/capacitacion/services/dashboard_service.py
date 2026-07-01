@@ -275,9 +275,16 @@ def encuentros_cronograma(empresa_id: int, desde: date, hasta: date) -> list[dic
             "lugar": e.lugar,
             "link_virtual": e.link_virtual,
             "instructor": e.instructor,
+            "instructor_id": e.instructor_id,
+            "origen": e.origen,
+            "empresa_capacitadora_id": e.empresa_capacitadora_id,
+            "empresa_capacitadora_nombre": e.empresa_capacitadora.nombre if e.empresa_capacitadora else None,
             "estado": e.estado,
             "programa_id": e.programa_id,
             "curso_id": e.curso_id,
+            "curso_codigo": e.curso.codigo if e.curso else None,
+            "curso_nombre": e.curso.nombre if e.curso else None,
+            "inscriptos": e.asistencias.count() if e.asistencias else 0,
         }
         for e in rows
     ]

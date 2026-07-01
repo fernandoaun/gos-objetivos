@@ -5,7 +5,10 @@ from datetime import date, time
 from gos.extensions import db
 from gos.modulos.capacitacion.models import (
     AsistenciaEncuentro,
+    Curso,
+    EmpresaCapacitadora,
     EncuentroCapacitacion,
+    Instructor,
     InscripcionPrograma,
     Participante,
     ProgramaCapacitacion,
@@ -18,7 +21,7 @@ from gos.modulos.capacitacion.models.programa import (
     ESTADOS_PROGRAMA,
 )
 
-RESULTADOS_ASISTENCIA = ("presente", "ausente", "justificado")
+RESULTADOS_ASISTENCIA = ("inscripto", "presente", "ausente", "justificado")
 
 
 def listar_programas(
@@ -103,19 +106,62 @@ def crear_programa(empresa_id: int, data: dict) -> dict:
 
 
 def crear_encuentro(empresa_id: int, data: dict) -> dict:
-    titulo = (data.get("titulo") or "").strip()
     fecha = _parse_date(data.get("fecha"))
-    if not titulo or not fecha:
-        raise ValueError("Título y fecha son obligatorios")
+    curso_id = data.get("curso_id") or None
+    participante_ids = data.get("participante_ids") or []
+    if isinstance(participante_ids, str):
+        participante_ids = [int(x) for x in participante_ids.split(",") if str(x).strip().isdigit()]
+    else:
+        participante_ids = [int(x) for x in participante_ids if x]
+
+    if not fecha:
+        raise ValueError("La fecha es obligatoria")
+    if not curso_id:
+        raise ValueError("El curso es obligatorio")
+    if not participante_ids:
+        raise ValueError("Seleccioná al menos una persona")
+
+    curso = Curso.query.filter_by(id=curso_id, empresa_id=empresa_id, activo=True).first()
+    if not curso:
+        raise ValueError("Curso no válido")
+
+    titulo = (data.get("titulo") or "").strip() or f"{curso.codigo} — {curso.nombre}"
 
     estado = (data.get("estado") or "programado").strip().lower()
     if estado not in ESTADOS_ENCUENTRO:
         raise ValueError("Estado de encuentro inválido")
 
+    origen = (data.get("origen") or curso.origen or "").strip().lower() or None
+    empresa_cap_id = data.get("empresa_capacitadora_id") or None
+    if origen == "externa":
+        if not empresa_cap_id:
+            raise ValueError("Seleccioná la empresa capacitadora para origen externo")
+        if not EmpresaCapacitadora.query.filter_by(
+            id=empresa_cap_id, empresa_id=empresa_id, activo=True
+        ).first():
+            raise ValueError("Empresa capacitadora no válida")
+    else:
+        empresa_cap_id = None
+
+    instructor_id = data.get("instructor_id") or None
+    instructor_nombre = (data.get("instructor") or "").strip() or None
+    if instructor_id:
+        inst = Instructor.query.filter_by(id=instructor_id, empresa_id=empresa_id, activo=True).first()
+        if not inst:
+            raise ValueError("Capacitador no válido")
+        instructor_nombre = inst.nombre
+
+    participantes_validos: list[int] = []
+    for pid in participante_ids:
+        if Participante.query.filter_by(id=pid, empresa_id=empresa_id, activo=True).first():
+            participantes_validos.append(pid)
+    if not participantes_validos:
+        raise ValueError("Ninguna persona seleccionada es válida")
+
     encuentro = EncuentroCapacitacion(
         empresa_id=empresa_id,
         programa_id=data.get("programa_id") or None,
-        curso_id=data.get("curso_id") or None,
+        curso_id=curso_id,
         numero=data.get("numero"),
         titulo=titulo,
         fecha=fecha,
@@ -123,11 +169,25 @@ def crear_encuentro(empresa_id: int, data: dict) -> dict:
         hora_fin=_parse_time(data.get("hora_fin")),
         lugar=(data.get("lugar") or "").strip() or None,
         link_virtual=(data.get("link_virtual") or "").strip() or None,
-        instructor=(data.get("instructor") or "").strip() or None,
+        instructor=instructor_nombre,
+        instructor_id=int(instructor_id) if instructor_id else None,
+        origen=origen,
+        empresa_capacitadora_id=int(empresa_cap_id) if empresa_cap_id else None,
         estado=estado,
         observaciones=(data.get("observaciones") or "").strip() or None,
     )
     db.session.add(encuentro)
+    db.session.flush()
+
+    for pid in participantes_validos:
+        db.session.add(
+            AsistenciaEncuentro(
+                encuentro_id=encuentro.id,
+                participante_id=pid,
+                asistencia="inscripto",
+            )
+        )
+
     db.session.commit()
     return _encuentro_dict(encuentro)
 
@@ -151,6 +211,17 @@ def actualizar_encuentro(empresa_id: int, encuentro_id: int, data: dict) -> dict
         enc.link_virtual = (data.get("link_virtual") or "").strip() or None
     if "instructor" in data:
         enc.instructor = (data.get("instructor") or "").strip() or None
+    if "instructor_id" in data:
+        instructor_id = data.get("instructor_id") or None
+        enc.instructor_id = int(instructor_id) if instructor_id else None
+        if enc.instructor_id:
+            inst = Instructor.query.filter_by(id=enc.instructor_id, empresa_id=empresa_id, activo=True).first()
+            if inst:
+                enc.instructor = inst.nombre
+    if "origen" in data:
+        enc.origen = (data.get("origen") or "").strip().lower() or None
+    if "empresa_capacitadora_id" in data:
+        enc.empresa_capacitadora_id = data.get("empresa_capacitadora_id") or None
     if "estado" in data:
         estado = (data["estado"] or "").strip().lower()
         if estado not in ESTADOS_ENCUENTRO:
@@ -252,8 +323,10 @@ def participantes_encuentro(empresa_id: int, encuentro_id: int) -> list[dict]:
     if not enc:
         raise ValueError("Encuentro no encontrado")
 
-    participantes: list[Participante] = []
-    if enc.programa_id:
+    asistencias = AsistenciaEncuentro.query.filter_by(encuentro_id=encuentro_id).all()
+    if asistencias:
+        participantes = [a.participante for a in asistencias if a.participante and a.participante.activo]
+    elif enc.programa_id:
         inscripciones = InscripcionPrograma.query.filter_by(programa_id=enc.programa_id).all()
         participantes = [i.participante for i in inscripciones if i.participante and i.participante.activo]
     else:
@@ -326,6 +399,9 @@ def _programa_dict(p: ProgramaCapacitacion) -> dict:
 
 
 def _encuentro_dict(e: EncuentroCapacitacion) -> dict:
+    curso = e.curso
+    emp_cap = e.empresa_capacitadora
+    inscriptos = e.asistencias.count() if e.asistencias else 0
     return {
         "id": e.id,
         "titulo": e.titulo,
@@ -335,9 +411,16 @@ def _encuentro_dict(e: EncuentroCapacitacion) -> dict:
         "lugar": e.lugar,
         "link_virtual": e.link_virtual,
         "instructor": e.instructor,
+        "instructor_id": e.instructor_id,
+        "origen": e.origen,
+        "empresa_capacitadora_id": e.empresa_capacitadora_id,
+        "empresa_capacitadora_nombre": emp_cap.nombre if emp_cap else None,
         "estado": e.estado,
         "programa_id": e.programa_id,
         "curso_id": e.curso_id,
+        "curso_codigo": curso.codigo if curso else None,
+        "curso_nombre": curso.nombre if curso else None,
+        "inscriptos": inscriptos,
         "observaciones": e.observaciones,
     }
 

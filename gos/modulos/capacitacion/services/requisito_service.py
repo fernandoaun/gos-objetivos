@@ -7,11 +7,14 @@ def listar_requisitos(
     empresa_id: int,
     *,
     puesto_id: int | None = None,
+    puesto_ids: list[int] | None = None,
     sector_id: int | None = None,
     participante_id: int | None = None,
 ) -> list[dict]:
     q = RequisitoFormacion.query.filter_by(empresa_id=empresa_id)
-    if puesto_id:
+    if puesto_ids:
+        q = q.filter(RequisitoFormacion.puesto_id.in_(puesto_ids))
+    elif puesto_id:
         q = q.filter_by(puesto_id=puesto_id)
     if sector_id:
         q = q.filter_by(sector_id=sector_id)

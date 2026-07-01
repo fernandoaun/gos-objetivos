@@ -19,6 +19,9 @@ _COLUMN_UPGRADES = [
     ("cap_cursos", "puntaje_minimo", "NUMERIC(5,2)"),
     ("cap_cursos", "instructor_id", "INTEGER"),
     ("cap_encuentros", "link_virtual", "VARCHAR(500)"),
+    ("cap_encuentros", "origen", "VARCHAR(30)"),
+    ("cap_encuentros", "empresa_capacitadora_id", "INTEGER"),
+    ("cap_encuentros", "instructor_id", "INTEGER"),
     ("cap_programas", "puesto_id", "INTEGER"),
     ("cap_programas", "alcance", "VARCHAR(20) DEFAULT 'general'"),
     ("cap_config", "pct_cumplimiento_minimo", "INTEGER DEFAULT 80"),
@@ -38,6 +41,7 @@ def ensure_capacitacion_schema() -> None:
     from gos.modulos.capacitacion.models import (  # noqa: F401
         AlertaCapacitacion,
         CapacitacionConfig,
+        EmpresaCapacitadora,
         Instructor,
         TaxonomiaItem,
     )

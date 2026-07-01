@@ -19,7 +19,9 @@ from gos.modulos.capacitacion.services import (
     baja_participante,
     busqueda_global,
     crear_curso,
+    crear_empresa_capacitadora,
     crear_encuentro,
+    crear_instructor,
     crear_participante,
     crear_programa,
     crear_puesto,
@@ -41,6 +43,8 @@ from gos.modulos.capacitacion.services import (
     inscribir_participantes,
     listar_alertas,
     listar_cursos,
+    listar_empresas_capacitadoras,
+    listar_instructores,
     listar_programas,
     listar_puestos,
     listar_requisitos,
@@ -80,6 +84,12 @@ def _puede_editar() -> bool:
 
 def _json_body() -> dict:
     return request.get_json(silent=True) or {}
+
+
+def _parse_id_list(raw: str | None) -> list[int]:
+    if not raw:
+        return []
+    return [int(x) for x in raw.split(",") if x.strip().isdigit()]
 
 
 def _empresa_nombre() -> str:
@@ -125,10 +135,13 @@ def participantes():
         q = q.filter_by(activo=request.args.get("activo", "true").lower() == "true")
     sector_id = request.args.get("sector_id", type=int)
     puesto_id = request.args.get("puesto_id", type=int)
+    puesto_ids = _parse_id_list(request.args.get("puesto_ids"))
     busqueda = (request.args.get("q") or "").strip().lower()
     if sector_id:
         q = q.filter_by(sector_id=sector_id)
-    if puesto_id:
+    if puesto_ids:
+        q = q.filter(Participante.puesto_id.in_(puesto_ids))
+    elif puesto_id:
         q = q.filter_by(puesto_id=puesto_id)
 
     items = []
@@ -339,6 +352,7 @@ def requisitos():
             "requisitos": listar_requisitos(
                 current_user.empresa_id,
                 puesto_id=request.args.get("puesto_id", type=int),
+                puesto_ids=_parse_id_list(request.args.get("puesto_ids")) or None,
                 sector_id=request.args.get("sector_id", type=int),
                 participante_id=request.args.get("participante_id", type=int),
             )
@@ -382,6 +396,34 @@ def actualizar_puesto_route(puesto_id: int):
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify({"puesto": item})
+
+
+@bp.route("/instructores", methods=["GET", "POST"])
+@login_required
+def instructores():
+    if request.method == "POST":
+        if not _puede_editar():
+            return jsonify({"error": "No tenés permiso para esta acción."}), 403
+        try:
+            item = crear_instructor(current_user.empresa_id, _json_body())
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"instructor": item}), 201
+    return jsonify({"instructores": listar_instructores(current_user.empresa_id)})
+
+
+@bp.route("/empresas-capacitadoras", methods=["GET", "POST"])
+@login_required
+def empresas_capacitadoras():
+    if request.method == "POST":
+        if not _puede_editar():
+            return jsonify({"error": "No tenés permiso para esta acción."}), 403
+        try:
+            item = crear_empresa_capacitadora(current_user.empresa_id, _json_body())
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"empresa_capacitadora": item}), 201
+    return jsonify({"empresas_capacitadoras": listar_empresas_capacitadoras(current_user.empresa_id)})
 
 
 @bp.route("/sectores", methods=["GET", "POST"])

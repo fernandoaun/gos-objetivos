@@ -1,7 +1,7 @@
 from decimal import Decimal, InvalidOperation
 
 from gos.extensions import db
-from gos.modulos.capacitacion.models import Curso, Participante, Puesto
+from gos.modulos.capacitacion.models import Curso, EmpresaCapacitadora, Instructor, Participante, Puesto
 from gos.modulos.capacitacion.services.taxonomia_service import (
     arbol_taxonomia,
     etiqueta_taxonomia,
@@ -40,6 +40,80 @@ def listar_puestos(empresa_id: int) -> list[dict]:
 def listar_sectores(empresa_id: int) -> list[dict]:
     items = Sector.query.filter_by(empresa_id=empresa_id, activo=True).order_by(Sector.codigo).all()
     return [_sector_dict(s) for s in items]
+
+
+def listar_instructores(empresa_id: int) -> list[dict]:
+    items = (
+        Instructor.query.filter_by(empresa_id=empresa_id, activo=True)
+        .order_by(Instructor.nombre)
+        .all()
+    )
+    return [_instructor_dict(i) for i in items]
+
+
+def crear_instructor(empresa_id: int, data: dict) -> dict:
+    codigo = (data.get("codigo") or "").strip()
+    nombre = (data.get("nombre") or "").strip()
+    if not nombre:
+        raise ValueError("El nombre del capacitador es obligatorio")
+    if not codigo:
+        base = "".join(ch for ch in nombre.upper() if ch.isalnum())[:12] or "CAP"
+        codigo = base
+        n = 1
+        while Instructor.query.filter_by(empresa_id=empresa_id, codigo=codigo).first():
+            codigo = f"{base}{n}"
+            n += 1
+    elif Instructor.query.filter_by(empresa_id=empresa_id, codigo=codigo).first():
+        raise ValueError(f"Ya existe un capacitador con el código «{codigo}»")
+
+    instructor = Instructor(
+        empresa_id=empresa_id,
+        codigo=codigo,
+        nombre=nombre,
+        email=(data.get("email") or "").strip() or None,
+        telefono=(data.get("telefono") or "").strip() or None,
+        especialidad=(data.get("especialidad") or "").strip() or None,
+    )
+    db.session.add(instructor)
+    db.session.commit()
+    return _instructor_dict(instructor)
+
+
+def listar_empresas_capacitadoras(empresa_id: int) -> list[dict]:
+    items = (
+        EmpresaCapacitadora.query.filter_by(empresa_id=empresa_id, activo=True)
+        .order_by(EmpresaCapacitadora.nombre)
+        .all()
+    )
+    return [_empresa_capacitadora_dict(e) for e in items]
+
+
+def crear_empresa_capacitadora(empresa_id: int, data: dict) -> dict:
+    codigo = (data.get("codigo") or "").strip()
+    nombre = (data.get("nombre") or "").strip()
+    if not nombre:
+        raise ValueError("El nombre de la empresa capacitadora es obligatorio")
+    if not codigo:
+        base = "".join(ch for ch in nombre.upper() if ch.isalnum())[:12] or "EXT"
+        codigo = base
+        n = 1
+        while EmpresaCapacitadora.query.filter_by(empresa_id=empresa_id, codigo=codigo).first():
+            codigo = f"{base}{n}"
+            n += 1
+    elif EmpresaCapacitadora.query.filter_by(empresa_id=empresa_id, codigo=codigo).first():
+        raise ValueError(f"Ya existe una empresa con el código «{codigo}»")
+
+    empresa = EmpresaCapacitadora(
+        empresa_id=empresa_id,
+        codigo=codigo,
+        nombre=nombre,
+        contacto=(data.get("contacto") or "").strip() or None,
+        telefono=(data.get("telefono") or "").strip() or None,
+        email=(data.get("email") or "").strip() or None,
+    )
+    db.session.add(empresa)
+    db.session.commit()
+    return _empresa_capacitadora_dict(empresa)
 
 
 def crear_sector(empresa_id: int, data: dict) -> dict:
@@ -411,6 +485,28 @@ def _puesto_dict(puesto: Puesto) -> dict:
         "codigo": puesto.codigo,
         "nombre": puesto.nombre,
         "descripcion": puesto.descripcion,
+    }
+
+
+def _instructor_dict(instructor: Instructor) -> dict:
+    return {
+        "id": instructor.id,
+        "codigo": instructor.codigo,
+        "nombre": instructor.nombre,
+        "email": instructor.email,
+        "telefono": instructor.telefono,
+        "especialidad": instructor.especialidad,
+    }
+
+
+def _empresa_capacitadora_dict(empresa: EmpresaCapacitadora) -> dict:
+    return {
+        "id": empresa.id,
+        "codigo": empresa.codigo,
+        "nombre": empresa.nombre,
+        "contacto": empresa.contacto,
+        "telefono": empresa.telefono,
+        "email": empresa.email,
     }
 
 

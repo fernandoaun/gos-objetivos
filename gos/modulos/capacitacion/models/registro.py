@@ -2,7 +2,7 @@ from gos.extensions import db
 from gos.models.base import TimestampMixin
 
 ESTADOS_PLAN = ("pendiente", "programado", "completado", "cancelado")
-RESULTADOS_ASISTENCIA = ("presente", "ausente", "justificado")
+RESULTADOS_ASISTENCIA = ("inscripto", "presente", "ausente", "justificado")
 
 
 class RequisitoFormacion(db.Model, TimestampMixin):
