@@ -11,6 +11,7 @@ from gos.modulos.capacitacion.services import (
     actualizar_curso,
     actualizar_encuentro,
     actualizar_participante,
+    obtener_participante,
     actualizar_puesto,
     actualizar_sector,
     analitico_participante,
@@ -149,9 +150,16 @@ def participantes():
     return jsonify({"participantes": items})
 
 
-@bp.route("/participantes/<int:participante_id>", methods=["PUT"])
+@bp.route("/participantes/<int:participante_id>", methods=["GET", "PUT"])
 @login_required
-def actualizar_participante_route(participante_id: int):
+def participante_detalle(participante_id: int):
+    if request.method == "GET":
+        try:
+            item = obtener_participante(current_user.empresa_id, participante_id)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 404
+        return jsonify({"participante": item})
+
     if not _puede_editar():
         return jsonify({"error": "No tenés permiso para esta acción."}), 403
     try:

@@ -208,6 +208,18 @@ def baja_participante(empresa_id: int, participante_id: int) -> dict:
     return {"id": participante.id, "activo": False}
 
 
+def obtener_participante(empresa_id: int, participante_id: int) -> dict:
+    participante = Participante.query.filter_by(
+        id=participante_id, empresa_id=empresa_id, activo=True
+    ).first()
+    if not participante:
+        raise ValueError("Participante no encontrado")
+    data = _participante_dict(participante)
+    data["sector_nombre"] = participante.sector.nombre if participante.sector else None
+    data["puesto_nombre"] = participante.puesto.nombre if participante.puesto else None
+    return data
+
+
 def crear_puesto(empresa_id: int, data: dict) -> dict:
     codigo = (data.get("codigo") or "").strip()
     nombre = (data.get("nombre") or "").strip()

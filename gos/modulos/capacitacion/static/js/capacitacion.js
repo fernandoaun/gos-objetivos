@@ -2091,6 +2091,46 @@
 
 
 
+  function formatFecha(iso) {
+    if (!iso) return "—";
+    const [y, m, d] = iso.split("-");
+    if (!y || !m || !d) return iso;
+    return `${d}/${m}/${y}`;
+  }
+
+
+
+  function renderLegajoCampo(label, value) {
+    const texto = value || "—";
+    return `<div class="cap-legajo-campo"><dt>${label}</dt><dd>${texto}</dd></div>`;
+  }
+
+
+
+  function renderLegajoPerfil(p) {
+    const observaciones = p.observaciones
+      ? `<div class="cap-legajo-campo cap-legajo-campo--full"><dt>Observaciones</dt><dd>${p.observaciones}</dd></div>`
+      : "";
+
+    return `
+      <div class="cap-legajo-datos">
+        <h3>Datos de la persona</h3>
+        <dl class="cap-legajo-grid">
+          ${renderLegajoCampo("Legajo", p.legajo)}
+          ${renderLegajoCampo("DNI", p.dni)}
+          ${renderLegajoCampo("Email", p.email)}
+          ${renderLegajoCampo("Teléfono", p.telefono)}
+          ${renderLegajoCampo("Sector", p.sector_nombre)}
+          ${renderLegajoCampo("Puesto", p.puesto_nombre)}
+          ${renderLegajoCampo("Fecha de ingreso", formatFecha(p.fecha_ingreso))}
+          ${observaciones}
+        </dl>
+      </div>
+    `;
+  }
+
+
+
   function getPersonaInitials(nombre) {
     const parts = String(nombre || "").trim().split(/\s+/).filter(Boolean);
     if (!parts.length) return "?";
@@ -2270,15 +2310,15 @@
 
 
 
-    const data = await fetchJson(`${API}/participantes/${id}/analitico`);
+    const { participante: p } = await fetchJson(`${API}/participantes/${id}`);
 
-    const p = data.participante;
+    const nombreDisplay = p.nombre_completo || p.nombre;
 
     const fotoTs = Date.now();
 
     const fotoHtml = p.tiene_foto
 
-      ? `<img class="cap-legajo-foto__img" id="cap-legajo-foto-img" src="${API}/participantes/${id}/foto?t=${fotoTs}" alt="Foto de ${p.nombre}">`
+      ? `<img class="cap-legajo-foto__img" id="cap-legajo-foto-img" src="${API}/participantes/${id}/foto?t=${fotoTs}" alt="Foto de ${nombreDisplay}">`
 
       : `<div class="cap-legajo-foto__placeholder" id="cap-legajo-foto-placeholder"><i class="bi bi-person-fill"></i></div>`;
 
@@ -2308,7 +2348,7 @@
 
         <div class="cap-legajo-info">
 
-          <h2>${p.nombre}</h2>
+          <h2>${nombreDisplay}</h2>
 
           <div class="cap-legajo-meta">
 
@@ -2340,41 +2380,7 @@
 
       </div>
 
-      <div class="cap-analitico-section">
-
-        <h3>Cursos realizados</h3>
-
-        ${renderCursosConCert(data.cursos_realizados || [])}
-
-      </div>
-
-      <div class="cap-analitico-section">
-
-        <h3>Pendientes</h3>
-
-        ${renderTable(
-
-          ["Nombre", "Tipo", "Origen"],
-
-          (data.pendientes || []).map((x) => [x.nombre, x.tipo, x.origen_requisito])
-
-        )}
-
-      </div>
-
-      <div class="cap-analitico-section">
-
-        <h3>Planificación</h3>
-
-        ${renderTable(
-
-          ["Curso", "Fecha prevista", "Estado"],
-
-          (data.planificacion || []).map((pl) => [pl.curso_nombre, pl.fecha_planificada || "—", pl.estado])
-
-        )}
-
-      </div>
+      ${renderLegajoPerfil(p)}
 
     `;
 
@@ -2388,11 +2394,11 @@
 
         id: p.id,
 
-        nombre: p.nombre,
+        nombre: nombreDisplay,
 
         legajo: p.legajo,
 
-        email: null,
+        email: p.email,
 
         sector_id: p.sector_id,
 
@@ -2403,7 +2409,7 @@
     });
 
     document.getElementById("cap-btn-ver-matriz")?.addEventListener("click", () => {
-      sessionStorage.setItem("cap_matriz_persona_nombre", p.nombre);
+      sessionStorage.setItem("cap_matriz_persona_nombre", nombreDisplay);
       navigateToCapView("matriz", { participante_id: id });
     });
 
@@ -2430,18 +2436,6 @@
         alert(e.message);
 
       }
-
-    });
-
-    detail.querySelectorAll("[data-cert-registro]").forEach((certBtn) => {
-
-      certBtn.addEventListener("click", () => {
-
-        certUploadRegistroId = parseInt(certBtn.dataset.certRegistro, 10);
-
-        document.getElementById("cap-cert-upload-file")?.click();
-
-      });
 
     });
 
