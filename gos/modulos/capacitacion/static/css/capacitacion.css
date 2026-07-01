@@ -1138,6 +1138,18 @@
 .cap-badge--yellow { background: #fff8e1; color: #8a6d00; }
 .cap-badge--blue { background: #e3f2fd; color: #1565c0; }
 .cap-programa-card { padding: 0.65rem 0; border-bottom: 1px solid var(--cap-border); }
+
+.cap-data-table tr.cap-row-active td {
+  background: var(--gos-success-soft);
+}
+
+.cap-data-table tr[data-programa-id] {
+  cursor: pointer;
+}
+
+.cap-data-table tr[data-programa-id]:hover td {
+  background: var(--gos-yellow-soft);
+}
 .cap-muted { color: var(--cap-muted); font-size: 0.8rem; margin-top: 0.2rem; }
 
 .cap-btn--danger {

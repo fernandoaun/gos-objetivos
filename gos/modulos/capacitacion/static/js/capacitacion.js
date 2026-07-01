@@ -1432,6 +1432,8 @@
 
 
   let programaCursosIds = [];
+  let programaSeleccionadoId = null;
+  let programasCache = [];
 
   function refreshProgramaCursoSelect() {
 
@@ -3368,6 +3370,248 @@
 
     fillSelect("cap-req-puesto", items, "— Seleccionar puesto —");
 
+    fillSelect("cap-prog-puesto", items, "— Seleccionar puesto —");
+
+  }
+
+
+
+  function programaEstadoLabel(estado) {
+
+    const labels = {
+
+      borrador: "Borrador",
+
+      programado: "Programado",
+
+      en_curso: "En curso",
+
+      finalizado: "Finalizado",
+
+      cancelado: "Cancelado",
+
+    };
+
+    return labels[estado] || estado || "—";
+
+  }
+
+
+
+  async function loadProgramas() {
+
+    const tbody = document.getElementById("cap-programas-body");
+
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="5" class="cap-loading">Cargando...</td></tr>';
+
+    const data = await fetchJson(`${API}/programas`);
+
+    programasCache = data.programas || [];
+
+    if (!programasCache.length) {
+
+      tbody.innerHTML = '<tr><td colspan="5" class="cap-empty">Todavía no hay programas. Creá el primero con <strong>Nuevo programa</strong>.</td></tr>';
+
+      return;
+
+    }
+
+    tbody.innerHTML = programasCache.map((p) => `
+
+      <tr class="${p.id === programaSeleccionadoId ? "cap-row-active" : ""}" data-programa-id="${p.id}">
+
+        <td><strong>${p.codigo}</strong></td>
+
+        <td>${p.nombre}</td>
+
+        <td>${p.puesto_nombre || "—"}</td>
+
+        <td>${programaEstadoLabel(p.estado)}</td>
+
+        <td class="cap-col-actions">
+
+          <button type="button" class="cap-btn cap-btn--sm cap-btn--primary" data-prog-cursos="${p.id}" title="Gestionar cursos">
+
+            <i class="bi bi-list-check"></i> Cursos
+
+          </button>
+
+        </td>
+
+      </tr>`).join("");
+
+    tbody.querySelectorAll("[data-prog-cursos]").forEach((btn) => {
+
+      btn.addEventListener("click", () => {
+
+        selectPrograma(Number(btn.dataset.progCursos)).catch(console.error);
+
+      });
+
+    });
+
+    tbody.querySelectorAll("tr[data-programa-id]").forEach((row) => {
+
+      row.addEventListener("click", (ev) => {
+
+        if (ev.target.closest("button")) return;
+
+        selectPrograma(Number(row.dataset.programaId)).catch(console.error);
+
+      });
+
+    });
+
+  }
+
+
+
+  async function selectPrograma(programaId) {
+
+    const programa = programasCache.find((p) => p.id === programaId);
+
+    if (!programa) return;
+
+    programaSeleccionadoId = programaId;
+
+    const puestoSel = document.getElementById("cap-req-puesto");
+
+    if (puestoSel && programa.puesto_id) puestoSel.value = String(programa.puesto_id);
+
+    const cursosSection = document.getElementById("cap-programa-cursos-section");
+
+    const titleEl = document.getElementById("cap-programa-cursos-title");
+
+    if (cursosSection) cursosSection.classList.remove("cap-hidden");
+
+    if (titleEl) {
+
+      titleEl.textContent = `Cursos del programa — ${programa.nombre}`;
+
+    }
+
+    await loadProgramas();
+
+    await loadRequisitos();
+
+    cursosSection?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+  }
+
+
+
+  function suggestProgramaFieldsFromPuesto() {
+
+    const puestoId = document.getElementById("cap-prog-puesto")?.value;
+
+    const codigoInp = document.getElementById("cap-prog-codigo");
+
+    const nombreInp = document.getElementById("cap-prog-nombre");
+
+    if (!puestoId || !codigoInp || !nombreInp) return;
+
+    const puesto = metaPuestos.find((p) => String(p.id) === String(puestoId));
+
+    if (!puesto) return;
+
+    if (!codigoInp.value.trim()) {
+
+      codigoInp.value = `PROG-${(puesto.codigo || puesto.id).toString().toUpperCase().replace(/\s+/g, "-")}`;
+
+    }
+
+    if (!nombreInp.value.trim()) {
+
+      nombreInp.value = `Programa ${puesto.nombre}`;
+
+    }
+
+  }
+
+
+
+  function openProgramaForm() {
+
+    const form = document.getElementById("cap-programa-form");
+
+    if (form) form.reset();
+
+    setFormError("cap-programa-form-error", "");
+
+    togglePanel("cap-programa-form-panel", true);
+
+    document.getElementById("cap-prog-puesto")?.focus();
+
+  }
+
+
+
+  function bindProgramaForm() {
+
+    document.getElementById("cap-btn-nuevo-programa")?.addEventListener("click", async () => {
+
+      if (!metaPuestos.length) {
+
+        try { await loadPuestosOptions(); } catch (e) { console.error(e); }
+
+      }
+
+      openProgramaForm();
+
+    });
+
+    document.getElementById("cap-programa-cancel")?.addEventListener("click", () => {
+
+      togglePanel("cap-programa-form-panel", false);
+
+    });
+
+    document.getElementById("cap-prog-puesto")?.addEventListener("change", suggestProgramaFieldsFromPuesto);
+
+    document.getElementById("cap-programa-form")?.addEventListener("submit", async (e) => {
+
+      e.preventDefault();
+
+      setFormError("cap-programa-form-error", "");
+
+      const body = formToObject(e.target);
+
+      body.alcance = "puesto";
+
+      if (!body.puesto_id) {
+
+        setFormError("cap-programa-form-error", "Seleccioná un puesto");
+
+        return;
+
+      }
+
+      try {
+
+        const data = await postJson(`${API}/programas`, body);
+
+        togglePanel("cap-programa-form-panel", false);
+
+        e.target.reset();
+
+        await loadProgramas();
+
+        if (data.programa?.id) {
+
+          await selectPrograma(data.programa.id);
+
+        }
+
+      } catch (err) {
+
+        setFormError("cap-programa-form-error", err.message);
+
+      }
+
+    });
+
   }
 
 
@@ -3380,19 +3624,15 @@
 
     const tbody = document.getElementById("cap-requisitos-body");
 
-    const addRow = document.getElementById("cap-programa-add-row");
-
-    const titleEl = document.getElementById("cap-programa-list-title");
+    const titleEl = document.getElementById("cap-programa-cursos-title");
 
     const countEl = document.getElementById("cap-programa-count");
 
+    const cursosSection = document.getElementById("cap-programa-cursos-section");
+
     if (!tbody) return;
 
-    if (!puestoId) {
-
-      if (addRow) addRow.classList.add("cap-hidden");
-
-      if (titleEl) titleEl.textContent = "Cursos del programa";
+    if (!puestoId || !programaSeleccionadoId) {
 
       if (countEl) countEl.textContent = "";
 
@@ -3400,17 +3640,17 @@
 
       refreshProgramaCursoSelect();
 
-      tbody.innerHTML = '<tr><td colspan="3" class="cap-empty">Seleccioná un puesto para armar su programa</td></tr>';
+      if (cursosSection && !programaSeleccionadoId) cursosSection.classList.add("cap-hidden");
+
+      tbody.innerHTML = '<tr><td colspan="3" class="cap-empty">Seleccioná un programa para agregar cursos</td></tr>';
 
       return;
 
     }
 
-    const puestoNombre = puestoSel.selectedOptions[0]?.textContent || "";
+    const programa = programasCache.find((p) => p.id === programaSeleccionadoId);
 
-    if (addRow) addRow.classList.remove("cap-hidden");
-
-    if (titleEl) titleEl.textContent = `Cursos del programa — ${puestoNombre}`;
+    if (titleEl && programa) titleEl.textContent = `Cursos del programa — ${programa.nombre}`;
 
     const items = (await fetchJson(`${API}/requisitos?puesto_id=${puestoId}`)).requisitos || [];
 
@@ -3868,9 +4108,17 @@
 
     setFormError("cap-requisito-error", "");
 
+    if (!programaSeleccionadoId) {
+
+      setFormError("cap-requisito-error", "Seleccioná un programa primero");
+
+      return;
+
+    }
+
     if (!puestoId) {
 
-      setFormError("cap-requisito-error", "Seleccioná un puesto primero");
+      setFormError("cap-requisito-error", "El programa no tiene puesto asociado");
 
       return;
 
@@ -3901,8 +4149,6 @@
 
 
   function bindRequisitos() {
-
-    document.getElementById("cap-req-puesto")?.addEventListener("change", () => loadRequisitos().catch(console.error));
 
     document.getElementById("cap-btn-agregar-requisito")?.addEventListener("click", () => agregarCursoAlPrograma().catch(console.error));
 
@@ -4147,6 +4393,8 @@
 
     bindEncAccionModal();
 
+    bindProgramaForm();
+
     bindRequisitos();
 
     bindAsistenciaModal();
@@ -4173,7 +4421,7 @@
 
       try { await loadPuestosOptions(); } catch (e) { console.error(e); }
 
-      try { await loadRequisitos(); } catch (e) { console.error(e); }
+      try { await loadProgramas(); } catch (e) { console.error(e); }
 
     }
 

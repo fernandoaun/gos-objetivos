@@ -222,29 +222,89 @@
           <i class="bi bi-journal-bookmark"></i>
           <h2 class="cap-widget-title">Programas de capacitación</h2>
         </div>
+        <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-nuevo-programa"><i class="bi bi-plus-lg"></i> Nuevo programa</button>
       </div>
       <div class="cap-widget-body">
-        <p class="cap-form-hint cap-mb">Elegí un puesto, agregá los cursos que debe cursar y después asigná las fechas en <strong>Cronograma</strong>.</p>
-        <div class="cap-form-row cap-form-row--2">
-          <div>
-            <label class="cap-label" for="cap-req-puesto">1. Puesto</label>
-            <select class="cap-input" id="cap-req-puesto"><option value="">— Seleccionar puesto —</option></select>
-          </div>
-          <div id="cap-programa-add-row" class="cap-hidden">
-            <label class="cap-label" for="cap-req-curso">2. Agregar curso al programa</label>
-            <div class="cap-input-group">
-              <select class="cap-input" id="cap-req-curso"><option value="">— Seleccionar curso —</option></select>
-              <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-agregar-requisito" title="Agregar curso"><i class="bi bi-plus-lg"></i></button>
+        <p class="cap-form-hint cap-mb">Creá un programa por puesto, agregá los cursos que debe cursar y después asigná las fechas en <strong>Cronograma</strong>.</p>
+
+        <div class="cap-form-panel cap-hidden cap-mb" id="cap-programa-form-panel">
+          <form id="cap-programa-form" class="cap-form">
+            <div class="cap-form-row cap-form-row--2">
+              <div>
+                <label class="cap-label" for="cap-prog-puesto">Puesto *</label>
+                <select class="cap-input" id="cap-prog-puesto" name="puesto_id" required>
+                  <option value="">— Seleccionar puesto —</option>
+                </select>
+              </div>
+              <div>
+                <label class="cap-label" for="cap-prog-codigo">Código *</label>
+                <input class="cap-input" id="cap-prog-codigo" name="codigo" required maxlength="30" placeholder="Ej. PROG-OP01">
+              </div>
+            </div>
+            <div class="cap-form-row cap-form-row--2">
+              <div>
+                <label class="cap-label" for="cap-prog-nombre">Nombre *</label>
+                <input class="cap-input" id="cap-prog-nombre" name="nombre" required maxlength="200" placeholder="Ej. Programa Operarios">
+              </div>
+              <div>
+                <label class="cap-label" for="cap-prog-estado">Estado</label>
+                <select class="cap-input" id="cap-prog-estado" name="estado">
+                  <option value="borrador">Borrador</option>
+                  <option value="programado" selected>Programado</option>
+                  <option value="en_curso">En curso</option>
+                </select>
+              </div>
+            </div>
+            <div class="cap-form-row">
+              <div>
+                <label class="cap-label" for="cap-prog-descripcion">Descripción</label>
+                <textarea class="cap-input cap-textarea" id="cap-prog-descripcion" name="descripcion" rows="2" placeholder="Opcional"></textarea>
+              </div>
+            </div>
+            <p class="cap-form-hint cap-form-hint--error" id="cap-programa-form-error"></p>
+            <div class="cap-form-actions">
+              <button type="button" class="cap-btn cap-btn--ghost" id="cap-programa-cancel">Cancelar</button>
+              <button type="submit" class="cap-btn cap-btn--primary">Crear programa</button>
+            </div>
+          </form>
+        </div>
+
+        <h3 class="cap-subtitle">Programas cargados</h3>
+        <table class="cap-data-table cap-mb">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Nombre</th>
+              <th>Puesto</th>
+              <th>Estado</th>
+              <th class="cap-col-actions"></th>
+            </tr>
+          </thead>
+          <tbody id="cap-programas-body">
+            <tr><td colspan="5" class="cap-loading">Cargando...</td></tr>
+          </tbody>
+        </table>
+
+        <div id="cap-programa-cursos-section" class="cap-hidden">
+          <h3 class="cap-subtitle" id="cap-programa-cursos-title">Cursos del programa</h3>
+          <div class="cap-form-row cap-form-row--2">
+            <div id="cap-programa-add-row">
+              <label class="cap-label" for="cap-req-curso">Agregar curso al programa</label>
+              <div class="cap-input-group">
+                <select class="cap-input" id="cap-req-curso"><option value="">— Seleccionar curso —</option></select>
+                <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-agregar-requisito" title="Agregar curso"><i class="bi bi-plus-lg"></i></button>
+              </div>
             </div>
           </div>
+          <p class="cap-form-hint cap-form-hint--error" id="cap-requisito-error"></p>
+          <table class="cap-data-table">
+            <thead><tr><th class="cap-col-num">#</th><th>Curso</th><th></th></tr></thead>
+            <tbody id="cap-requisitos-body"><tr><td colspan="3" class="cap-empty">Seleccioná un programa para agregar cursos</td></tr></tbody>
+          </table>
+          <p class="cap-form-hint cap-mt" id="cap-programa-count"></p>
         </div>
-        <p class="cap-form-hint cap-form-hint--error" id="cap-requisito-error"></p>
-        <h3 class="cap-subtitle" id="cap-programa-list-title">Cursos del programa</h3>
-        <table class="cap-data-table">
-          <thead><tr><th class="cap-col-num">#</th><th>Curso</th><th></th></tr></thead>
-          <tbody id="cap-requisitos-body"><tr><td colspan="3" class="cap-empty">Seleccioná un puesto para armar su programa</td></tr></tbody>
-        </table>
-        <p class="cap-form-hint cap-mt" id="cap-programa-count"></p>
+
+        <select class="cap-hidden" id="cap-req-puesto" aria-hidden="true"><option value="">— Seleccionar puesto —</option></select>
       </div>
     </div>
   </div>
