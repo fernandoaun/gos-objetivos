@@ -32,6 +32,7 @@ from gos.modulos.capacitacion.services import (
     descargar_foto_participante,
     detalle_encuentro,
     eliminar_certificado_registro,
+    eliminar_encuentro,
     eliminar_foto_participante,
     eliminar_requisito,
     encuentros_cronograma,
@@ -528,7 +529,7 @@ def encuentro_participantes(encuentro_id: int):
     return jsonify({"participantes": items})
 
 
-@bp.route("/encuentros/<int:encuentro_id>", methods=["GET", "PUT"])
+@bp.route("/encuentros/<int:encuentro_id>", methods=["GET", "PUT", "DELETE"])
 @login_required
 def encuentro_detalle(encuentro_id: int):
     if request.method == "GET":
@@ -538,6 +539,11 @@ def encuentro_detalle(encuentro_id: int):
             return jsonify({"error": str(exc)}), 404
     if not _puede_editar():
         return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    if request.method == "DELETE":
+        try:
+            return jsonify(eliminar_encuentro(current_user.empresa_id, encuentro_id))
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 404
     try:
         item = actualizar_encuentro(current_user.empresa_id, encuentro_id, _json_body())
     except ValueError as exc:

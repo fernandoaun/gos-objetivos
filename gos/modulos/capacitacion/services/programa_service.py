@@ -4,13 +4,16 @@ from datetime import date, time
 
 from gos.extensions import db
 from gos.modulos.capacitacion.models import (
+    AlertaCapacitacion,
     AsistenciaEncuentro,
     Curso,
     EmpresaCapacitadora,
     EncuentroCapacitacion,
+    EncuentroTema,
     Instructor,
     InscripcionPrograma,
     Participante,
+    PlanCapacitacion,
     ProgramaCapacitacion,
     Puesto,
     RegistroCapacitacion,
@@ -230,8 +233,64 @@ def actualizar_encuentro(empresa_id: int, encuentro_id: int, data: dict) -> dict
     if "observaciones" in data:
         enc.observaciones = (data.get("observaciones") or "").strip() or None
 
+    if "curso_id" in data:
+        curso_id = data.get("curso_id") or None
+        if not curso_id:
+            raise ValueError("El curso es obligatorio")
+        curso = Curso.query.filter_by(id=curso_id, empresa_id=empresa_id, activo=True).first()
+        if not curso:
+            raise ValueError("Curso no válido")
+        enc.curso_id = int(curso_id)
+
+    if "participante_ids" in data:
+        participante_ids = data.get("participante_ids") or []
+        if isinstance(participante_ids, str):
+            participante_ids = [int(x) for x in participante_ids.split(",") if str(x).strip().isdigit()]
+        else:
+            participante_ids = [int(x) for x in participante_ids if x]
+        if not participante_ids:
+            raise ValueError("Seleccioná al menos una persona")
+
+        participantes_validos: list[int] = []
+        for pid in participante_ids:
+            if Participante.query.filter_by(id=pid, empresa_id=empresa_id, activo=True).first():
+                participantes_validos.append(pid)
+        if not participantes_validos:
+            raise ValueError("Ninguna persona seleccionada es válida")
+
+        nuevos = set(participantes_validos)
+        actuales = {a.participante_id for a in enc.asistencias.all()}
+        for pid in actuales - nuevos:
+            AsistenciaEncuentro.query.filter_by(encuentro_id=encuentro_id, participante_id=pid).delete(
+                synchronize_session=False
+            )
+        for pid in nuevos - actuales:
+            db.session.add(
+                AsistenciaEncuentro(
+                    encuentro_id=encuentro_id,
+                    participante_id=pid,
+                    asistencia="inscripto",
+                )
+            )
+
     db.session.commit()
     return _encuentro_dict(enc)
+
+
+def eliminar_encuentro(empresa_id: int, encuentro_id: int) -> dict:
+    enc = EncuentroCapacitacion.query.filter_by(id=encuentro_id, empresa_id=empresa_id).first()
+    if not enc:
+        raise ValueError("Encuentro no encontrado")
+
+    AlertaCapacitacion.query.filter_by(encuentro_id=encuentro_id).delete(synchronize_session=False)
+    PlanCapacitacion.query.filter_by(encuentro_id=encuentro_id).update(
+        {"encuentro_id": None}, synchronize_session=False
+    )
+    AsistenciaEncuentro.query.filter_by(encuentro_id=encuentro_id).delete(synchronize_session=False)
+    EncuentroTema.query.filter_by(encuentro_id=encuentro_id).delete(synchronize_session=False)
+    db.session.delete(enc)
+    db.session.commit()
+    return {"id": encuentro_id, "eliminado": True}
 
 
 def inscribir_participantes(empresa_id: int, programa_id: int, participante_ids: list[int]) -> dict:
@@ -347,6 +406,7 @@ def participantes_encuentro(empresa_id: int, encuentro_id: int) -> list[dict]:
                 "participante_id": p.id,
                 "nombre": p.nombre_completo,
                 "legajo": p.legajo,
+                "puesto_id": p.puesto_id,
                 "asistencia": a.asistencia if a else None,
                 "nota": float(a.nota) if a and a.nota is not None else None,
                 "aprobado": a.aprobado if a else None,

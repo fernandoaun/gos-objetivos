@@ -132,7 +132,7 @@
     </div>
     <div class="cap-form-panel cap-hidden cap-mt" id="cap-encuentro-form-panel">
       <form id="cap-encuentro-form" class="cap-form">
-        <p class="cap-form-hint cap-mb">Programá una capacitación eligiendo puestos, personas, curso y fecha.</p>
+        <p class="cap-form-hint cap-mb" id="cap-encuentro-form-hint">Programá una capacitación eligiendo puestos, personas, curso y fecha.</p>
 
         <h3 class="cap-subtitle">1. Puestos</h3>
         <div id="cap-enc-puestos" class="cap-check-grid"><p class="cap-empty">Cargando puestos...</p></div>
@@ -206,8 +206,9 @@
 
         <p class="cap-form-hint cap-form-hint--error" id="cap-encuentro-form-error"></p>
         <div class="cap-form-actions">
+          <button type="button" class="cap-btn cap-btn--danger cap-hidden" id="cap-encuentro-eliminar"><i class="bi bi-trash"></i> Eliminar</button>
           <button type="button" class="cap-btn cap-btn--ghost" id="cap-encuentro-cancel">Cancelar</button>
-          <button type="submit" class="cap-btn cap-btn--primary">Programar capacitación</button>
+          <button type="submit" class="cap-btn cap-btn--primary" id="cap-encuentro-submit">Programar capacitación</button>
         </div>
       </form>
     </div>
@@ -717,6 +718,29 @@
               <tr><td colspan="3" class="cap-loading">Cargando...</td></tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal acciones programación (cronograma) -->
+  <div class="cap-modal cap-hidden" id="cap-enc-accion-modal">
+    <div class="cap-modal-backdrop" id="cap-enc-accion-backdrop"></div>
+    <div class="cap-modal-panel cap-modal-panel--sm">
+      <div class="cap-widget-head cap-widget-head--split">
+        <div class="cap-widget-head-left">
+          <i class="bi bi-calendar-event"></i>
+          <h2 class="cap-widget-title">Programación</h2>
+        </div>
+        <button type="button" class="cap-btn cap-btn--icon" id="cap-enc-accion-cerrar"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div class="cap-widget-body">
+        <p class="cap-enc-accion-titulo" id="cap-enc-accion-titulo"></p>
+        <p class="cap-muted cap-mb" id="cap-enc-accion-fecha"></p>
+        <div class="cap-enc-accion-btns">
+          <button type="button" class="cap-btn cap-btn--primary cap-btn--block" id="cap-enc-accion-editar"><i class="bi bi-pencil"></i> Modificar</button>
+          <button type="button" class="cap-btn cap-btn--ghost cap-btn--block" id="cap-enc-accion-asistencia"><i class="bi bi-clipboard-check"></i> Registrar asistencia</button>
+          <button type="button" class="cap-btn cap-btn--danger cap-btn--block" id="cap-enc-accion-eliminar"><i class="bi bi-trash"></i> Eliminar</button>
         </div>
       </div>
     </div>

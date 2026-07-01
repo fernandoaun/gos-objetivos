@@ -904,9 +904,15 @@
 
 .cap-form-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  align-items: center;
   gap: 0.5rem;
   margin-top: 0.25rem;
+}
+
+.cap-form-actions .cap-btn--danger {
+  margin-right: auto;
 }
 
 .cap-form-hint {
@@ -1143,6 +1149,28 @@
 .cap-btn--danger:hover {
   background: var(--cap-red);
   color: #fff;
+}
+
+.cap-modal-panel--sm {
+  width: min(420px, 100%);
+}
+
+.cap-enc-accion-titulo {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--cap-navy-dark);
+  margin: 0 0 0.35rem;
+}
+
+.cap-enc-accion-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cap-btn--block {
+  width: 100%;
+  justify-content: center;
 }
 
 .cap-modal {

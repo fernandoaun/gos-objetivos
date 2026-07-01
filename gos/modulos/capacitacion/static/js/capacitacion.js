@@ -25,6 +25,9 @@
   let calView = "mes";
 
   let encuentros = [];
+  let currentCapView = "panel";
+  let encuentroEditId = null;
+  let encAccionEncuentroId = null;
 
   let metaSectores = [];
 
@@ -994,7 +997,7 @@
 
           (e) =>
 
-            `<span class="cap-cal-event${e.estado === "cancelado" ? " cap-cal-event--cancelado" : ""}" data-encuentro-id="${e.id}" title="${e.titulo}">${e.titulo}</span>`
+            `<span class="cap-cal-event${e.estado === "cancelado" ? " cap-cal-event--cancelado" : ""}" data-encuentro-id="${e.id}" title="${e.titulo}${currentCapView === "cronograma" ? " — Clic para modificar o eliminar" : ""}">${e.titulo}</span>`
 
         )
 
@@ -1024,9 +1027,31 @@
 
     document.querySelectorAll("[data-encuentro-id]").forEach((el) => {
 
-      el.addEventListener("click", () => openAsistenciaModal(Number(el.dataset.encuentroId)));
+      el.addEventListener("click", (ev) => {
+
+        ev.stopPropagation();
+
+        onCalEventClick(Number(el.dataset.encuentroId));
+
+      });
 
     });
+
+  }
+
+
+
+  function onCalEventClick(encuentroId) {
+
+    if (currentCapView === "cronograma") {
+
+      openEncAccionModal(encuentroId).catch(console.error);
+
+      return;
+
+    }
+
+    openAsistenciaModal(encuentroId).catch(console.error);
 
   }
 
@@ -1938,7 +1963,7 @@
 
 
 
-  async function loadEncPersonas() {
+  async function loadEncPersonas(selectedIds = null) {
 
     const el = document.getElementById("cap-enc-personas");
 
@@ -1976,11 +2001,13 @@
 
     }
 
+    const selected = selectedIds instanceof Set ? selectedIds : null;
+
     el.innerHTML = encPersonasCache.map((p) => `
 
       <label class="cap-check-item">
 
-        <input type="checkbox" value="${p.id}" data-enc-persona checked>
+        <input type="checkbox" value="${p.id}" data-enc-persona ${selected ? (selected.has(p.id) ? "checked" : "") : "checked"}>
 
         <span>${p.nombre}${p.legajo ? ` <span class="cap-muted">(${p.legajo})</span>` : ""}</span>
 
@@ -2134,15 +2161,65 @@
 
 
 
+  function updateEncuentroFormMode(editing) {
+
+    const hint = document.getElementById("cap-encuentro-form-hint");
+
+    const submit = document.getElementById("cap-encuentro-submit");
+
+    const delBtn = document.getElementById("cap-encuentro-eliminar");
+
+    if (hint) {
+
+      hint.textContent = editing
+
+        ? "Modificá los datos de la programación."
+
+        : "Programá una capacitación eligiendo puestos, personas, curso y fecha.";
+
+    }
+
+    if (submit) submit.textContent = editing ? "Guardar cambios" : "Programar capacitación";
+
+    if (delBtn) delBtn.classList.toggle("cap-hidden", !editing);
+
+  }
+
+
+
+  function setEncFormVal(id, val) {
+
+    const el = document.getElementById(id);
+
+    if (el) el.value = val ?? "";
+
+  }
+
+
+
+  function formatTimeInput(value) {
+
+    if (!value) return "";
+
+    return String(value).slice(0, 5);
+
+  }
+
+
+
   async function resetEncuentroForm() {
 
     const form = document.getElementById("cap-encuentro-form");
 
     if (form) form.reset();
 
+    encuentroEditId = null;
+
     encPuestosSeleccionados = new Set();
 
     setFormError("cap-encuentro-form-error", "");
+
+    updateEncuentroFormMode(false);
 
     renderEncPuestos();
 
@@ -2180,11 +2257,253 @@
 
 
 
+  async function openEncuentroFormEdit(encuentroId) {
+
+    closeEncAccionModal();
+
+    if (!metaPuestos.length) {
+
+      try { await loadPuestosOptions(); } catch (e) { console.error(e); }
+
+    }
+
+    if (!window.capCursosCache?.length) {
+
+      try { await loadCursos(); } catch (e) { console.error(e); }
+
+    }
+
+    try { await loadEncCatalogos(); } catch (e) { console.error(e); }
+
+    const form = document.getElementById("cap-encuentro-form");
+
+    if (form) form.reset();
+
+    setFormError("cap-encuentro-form-error", "");
+
+    encuentroEditId = encuentroId;
+
+    updateEncuentroFormMode(true);
+
+    const data = await fetchJson(`${API}/encuentros/${encuentroId}`);
+
+    const participantes = data.participantes || [];
+
+    const participanteIds = new Set(participantes.map((p) => p.participante_id));
+
+    encPuestosSeleccionados = new Set(
+
+      participantes.map((p) => p.puesto_id).filter(Boolean)
+
+    );
+
+    if (!encPuestosSeleccionados.size && metaPuestos.length) {
+
+      encPuestosSeleccionados = new Set(metaPuestos.map((p) => p.id));
+
+    }
+
+    renderEncPuestos();
+
+    await loadEncPersonas(participanteIds);
+
+    await loadEncCursos();
+
+    const cursoSel = document.getElementById("cap-enc-curso");
+
+    if (cursoSel && data.curso_id) {
+
+      const cursoId = String(data.curso_id);
+
+      if (!Array.from(cursoSel.options).some((o) => o.value === cursoId)) {
+
+        const curso = (window.capCursosCache || []).find((c) => String(c.id) === cursoId);
+
+        if (curso) {
+
+          const opt = document.createElement("option");
+
+          opt.value = curso.id;
+
+          opt.textContent = `${curso.codigo} — ${curso.nombre}`;
+
+          cursoSel.appendChild(opt);
+
+        }
+
+      }
+
+      cursoSel.value = cursoId;
+
+    }
+
+    setEncFormVal("cap-enc-fecha", data.fecha);
+
+    setEncFormVal("cap-enc-hora-inicio", formatTimeInput(data.hora_inicio));
+
+    setEncFormVal("cap-enc-hora-fin", formatTimeInput(data.hora_fin));
+
+    setEncFormVal("cap-enc-origen", data.origen || "");
+
+    setEncFormVal("cap-enc-empresa", data.empresa_capacitadora_id || "");
+
+    setEncFormVal("cap-enc-instructor", data.instructor_id || "");
+
+    setEncFormVal("cap-enc-lugar", data.lugar || "");
+
+    setEncFormVal("cap-enc-link", data.link_virtual || "");
+
+    toggleEncEmpresaCapacitadora();
+
+    togglePanel("cap-encuentro-form-panel", true);
+
+  }
+
+
+
+  async function eliminarEncuentro(encuentroId) {
+
+    if (!confirm("¿Eliminar esta programación? Esta acción no se puede deshacer.")) return;
+
+    await deleteJson(`${API}/encuentros/${encuentroId}`);
+
+    closeEncAccionModal();
+
+    togglePanel("cap-encuentro-form-panel", false);
+
+    encuentroEditId = null;
+
+    updateEncuentroFormMode(false);
+
+    await loadEncuentros();
+
+  }
+
+
+
+  async function openEncAccionModal(encuentroId) {
+
+    encAccionEncuentroId = encuentroId;
+
+    const modal = document.getElementById("cap-enc-accion-modal");
+
+    if (!modal) return;
+
+    let ev = encuentros.find((e) => e.id === encuentroId);
+
+    if (!ev) {
+
+      try {
+
+        ev = await fetchJson(`${API}/encuentros/${encuentroId}`);
+
+      } catch (e) {
+
+        console.error(e);
+
+        return;
+
+      }
+
+    }
+
+    const tituloEl = document.getElementById("cap-enc-accion-titulo");
+
+    const fechaEl = document.getElementById("cap-enc-accion-fecha");
+
+    if (tituloEl) tituloEl.textContent = ev.titulo || "Programación";
+
+    if (fechaEl) {
+
+      const parts = (ev.fecha || "").split("-");
+
+      const fechaTxt = parts.length === 3
+
+        ? `${parts[2]}/${parts[1]}/${parts[0]}`
+
+        : (ev.fecha || "");
+
+      const hora = ev.hora_inicio ? ` · ${formatTimeInput(ev.hora_inicio)}` : "";
+
+      fechaEl.textContent = `${fechaTxt}${hora}`;
+
+    }
+
+    modal.classList.remove("cap-hidden");
+
+  }
+
+
+
+  function closeEncAccionModal() {
+
+    document.getElementById("cap-enc-accion-modal")?.classList.add("cap-hidden");
+
+    encAccionEncuentroId = null;
+
+  }
+
+
+
+  function bindEncAccionModal() {
+
+    document.getElementById("cap-enc-accion-backdrop")?.addEventListener("click", closeEncAccionModal);
+
+    document.getElementById("cap-enc-accion-cerrar")?.addEventListener("click", closeEncAccionModal);
+
+    document.getElementById("cap-enc-accion-editar")?.addEventListener("click", () => {
+
+      if (!encAccionEncuentroId) return;
+
+      openEncuentroFormEdit(encAccionEncuentroId).catch(console.error);
+
+    });
+
+    document.getElementById("cap-enc-accion-asistencia")?.addEventListener("click", () => {
+
+      if (!encAccionEncuentroId) return;
+
+      const id = encAccionEncuentroId;
+
+      closeEncAccionModal();
+
+      openAsistenciaModal(id).catch(console.error);
+
+    });
+
+    document.getElementById("cap-enc-accion-eliminar")?.addEventListener("click", () => {
+
+      if (!encAccionEncuentroId) return;
+
+      eliminarEncuentro(encAccionEncuentroId).catch((err) => alert(err.message));
+
+    });
+
+  }
+
+
+
   function bindEncuentroForm() {
 
     document.getElementById("cap-btn-nuevo-encuentro")?.addEventListener("click", () => openEncuentroForm().catch(console.error));
 
-    document.getElementById("cap-encuentro-cancel")?.addEventListener("click", () => togglePanel("cap-encuentro-form-panel", false));
+    document.getElementById("cap-encuentro-cancel")?.addEventListener("click", () => {
+
+      togglePanel("cap-encuentro-form-panel", false);
+
+      encuentroEditId = null;
+
+      updateEncuentroFormMode(false);
+
+    });
+
+    document.getElementById("cap-encuentro-eliminar")?.addEventListener("click", () => {
+
+      if (!encuentroEditId) return;
+
+      eliminarEncuentro(encuentroEditId).catch((err) => setFormError("cap-encuentro-form-error", err.message));
+
+    });
 
     document.getElementById("cap-enc-sel-todos")?.addEventListener("click", () => {
 
@@ -2260,9 +2579,21 @@
 
       try {
 
-        await postJson(`${API}/encuentros`, body);
+        if (encuentroEditId) {
+
+          await putJson(`${API}/encuentros/${encuentroEditId}`, body);
+
+        } else {
+
+          await postJson(`${API}/encuentros`, body);
+
+        }
 
         togglePanel("cap-encuentro-form-panel", false);
+
+        encuentroEditId = null;
+
+        updateEncuentroFormMode(false);
 
         await resetEncuentroForm();
 
@@ -3763,6 +4094,8 @@
 
   function showView(view) {
 
+    currentCapView = view;
+
     document.querySelectorAll("[data-cap-view]").forEach((el) => {
 
       const views = (el.dataset.capView || "").split(/\s+/);
@@ -3811,6 +4144,8 @@
     bindSyncVacaciones();
 
     bindEncuentroForm();
+
+    bindEncAccionModal();
 
     bindRequisitos();
 
