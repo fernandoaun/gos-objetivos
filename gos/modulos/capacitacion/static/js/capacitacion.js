@@ -2099,6 +2099,8 @@
 
     toggleEncEmpresaCapacitadora();
 
+    updateEncHoraFin();
+
   }
 
 
@@ -2209,6 +2211,90 @@
 
 
 
+  function calcEncHoraFin(horaInicio, horasDuracion) {
+
+    if (!horaInicio || horasDuracion == null || horasDuracion === "") return "";
+
+    const parts = String(horaInicio).slice(0, 5).split(":");
+
+    if (parts.length < 2) return "";
+
+    const h = Number(parts[0]);
+
+    const m = Number(parts[1]);
+
+    if (Number.isNaN(h) || Number.isNaN(m)) return "";
+
+    const totalMinutes = h * 60 + m + Math.round(Number(horasDuracion) * 60);
+
+    const dayMinutes = totalMinutes % (24 * 60);
+
+    const nh = Math.floor(dayMinutes / 60);
+
+    const nm = dayMinutes % 60;
+
+    return `${String(nh).padStart(2, "0")}:${String(nm).padStart(2, "0")}`;
+
+  }
+
+
+
+  function updateEncHoraFin() {
+
+    const cursoId = document.getElementById("cap-enc-curso")?.value;
+
+    const horaInicio = document.getElementById("cap-enc-hora-inicio")?.value;
+
+    const horaFinEl = document.getElementById("cap-enc-hora-fin");
+
+    if (!horaFinEl) return;
+
+    if (!cursoId || !horaInicio) {
+
+      horaFinEl.value = "";
+
+      return;
+
+    }
+
+    const curso = (window.capCursosCache || []).find((c) => String(c.id) === String(cursoId));
+
+    horaFinEl.value = calcEncHoraFin(horaInicio, curso?.horas);
+
+  }
+
+
+
+  function appendEncSelectOption(selectId, item) {
+
+    const sel = document.getElementById(selectId);
+
+    if (!sel || !item?.id) return;
+
+    const opt = document.createElement("option");
+
+    opt.value = item.id;
+
+    opt.textContent = item.codigo ? `${item.codigo} — ${item.nombre}` : item.nombre;
+
+    sel.appendChild(opt);
+
+    sel.value = String(item.id);
+
+  }
+
+
+
+  function closeEncQuickForms() {
+
+    togglePanel("cap-enc-empresa-quick", false);
+
+    togglePanel("cap-enc-instructor-quick", false);
+
+  }
+
+
+
   async function resetEncuentroForm() {
 
     const form = document.getElementById("cap-encuentro-form");
@@ -2220,6 +2306,8 @@
     encPuestosSeleccionados = new Set();
 
     setFormError("cap-encuentro-form-error", "");
+
+    closeEncQuickForms();
 
     updateEncuentroFormMode(false);
 
@@ -2357,6 +2445,8 @@
 
     toggleEncEmpresaCapacitadora();
 
+    updateEncHoraFin();
+
     togglePanel("cap-encuentro-form-panel", true);
 
   }
@@ -2491,6 +2581,8 @@
 
     document.getElementById("cap-encuentro-cancel")?.addEventListener("click", () => {
 
+      closeEncQuickForms();
+
       togglePanel("cap-encuentro-form-panel", false);
 
       encuentroEditId = null;
@@ -2525,7 +2617,99 @@
 
     document.getElementById("cap-enc-curso")?.addEventListener("change", onEncCursoChange);
 
+    document.getElementById("cap-enc-hora-inicio")?.addEventListener("change", updateEncHoraFin);
+
+    document.getElementById("cap-enc-hora-inicio")?.addEventListener("input", updateEncHoraFin);
+
     document.getElementById("cap-enc-origen")?.addEventListener("change", toggleEncEmpresaCapacitadora);
+
+    document.getElementById("cap-enc-empresa-add")?.addEventListener("click", () => {
+
+      togglePanel("cap-enc-instructor-quick", false);
+
+      togglePanel("cap-enc-empresa-quick", true);
+
+      document.getElementById("cap-enc-empresa-quick-nombre")?.focus();
+
+    });
+
+    document.getElementById("cap-enc-instructor-add")?.addEventListener("click", () => {
+
+      togglePanel("cap-enc-empresa-quick", false);
+
+      togglePanel("cap-enc-instructor-quick", true);
+
+      document.getElementById("cap-enc-instructor-quick-nombre")?.focus();
+
+    });
+
+    document.getElementById("cap-enc-empresa-quick-cancel")?.addEventListener("click", () => togglePanel("cap-enc-empresa-quick", false));
+
+    document.getElementById("cap-enc-instructor-quick-cancel")?.addEventListener("click", () => togglePanel("cap-enc-instructor-quick", false));
+
+    document.getElementById("cap-enc-empresa-quick-save")?.addEventListener("click", async () => {
+
+      const nombre = document.getElementById("cap-enc-empresa-quick-nombre")?.value.trim();
+
+      if (!nombre) {
+
+        setFormError("cap-encuentro-form-error", "Indicá el nombre de la empresa capacitadora");
+
+        return;
+
+      }
+
+      try {
+
+        const data = await postJson(`${API}/empresas-capacitadoras`, { nombre });
+
+        appendEncSelectOption("cap-enc-empresa", data.empresa_capacitadora);
+
+        document.getElementById("cap-enc-empresa-quick-nombre").value = "";
+
+        togglePanel("cap-enc-empresa-quick", false);
+
+        setFormError("cap-encuentro-form-error", "");
+
+      } catch (err) {
+
+        setFormError("cap-encuentro-form-error", err.message);
+
+      }
+
+    });
+
+    document.getElementById("cap-enc-instructor-quick-save")?.addEventListener("click", async () => {
+
+      const nombre = document.getElementById("cap-enc-instructor-quick-nombre")?.value.trim();
+
+      if (!nombre) {
+
+        setFormError("cap-encuentro-form-error", "Indicá el nombre del capacitador");
+
+        return;
+
+      }
+
+      try {
+
+        const data = await postJson(`${API}/instructores`, { nombre });
+
+        appendEncSelectOption("cap-enc-instructor", data.instructor);
+
+        document.getElementById("cap-enc-instructor-quick-nombre").value = "";
+
+        togglePanel("cap-enc-instructor-quick", false);
+
+        setFormError("cap-encuentro-form-error", "");
+
+      } catch (err) {
+
+        setFormError("cap-encuentro-form-error", err.message);
+
+      }
+
+    });
 
     document.getElementById("cap-encuentro-form")?.addEventListener("submit", async (e) => {
 

@@ -1040,6 +1040,12 @@
   min-width: 0;
 }
 
+.cap-input--readonly {
+  background: #f4f6f8;
+  color: var(--cap-muted);
+  cursor: default;
+}
+
 .cap-btn--sm {
   padding: 0.25rem 0.45rem;
   font-size: 0.75rem;

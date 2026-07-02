@@ -166,7 +166,7 @@
           </div>
           <div>
             <label class="cap-label" for="cap-enc-hora-fin">Hora fin</label>
-            <input class="cap-input" id="cap-enc-hora-fin" name="hora_fin" type="time">
+            <input class="cap-input cap-input--readonly" id="cap-enc-hora-fin" name="hora_fin" type="time" readonly tabindex="-1" title="Se calcula automáticamente según la duración del curso">
           </div>
         </div>
 
@@ -179,18 +179,44 @@
           </div>
           <div id="cap-enc-empresa-wrap" class="cap-hidden">
             <label class="cap-label" for="cap-enc-empresa">Empresa capacitadora *</label>
-            <select class="cap-input" id="cap-enc-empresa" name="empresa_capacitadora_id">
-              <option value="">— Seleccionar empresa —</option>
-            </select>
+            <div class="cap-input-group">
+              <select class="cap-input" id="cap-enc-empresa" name="empresa_capacitadora_id">
+                <option value="">— Seleccionar empresa —</option>
+              </select>
+              <button type="button" class="cap-btn cap-btn--icon" id="cap-enc-empresa-add" title="Agregar empresa">
+                <i class="bi bi-plus-lg"></i>
+              </button>
+            </div>
+            <div class="cap-quick-form cap-hidden" id="cap-enc-empresa-quick">
+              <p class="cap-quick-form-title">Nueva empresa capacitadora</p>
+              <input class="cap-input" id="cap-enc-empresa-quick-nombre" placeholder="Nombre de la empresa" maxlength="200">
+              <div class="cap-form-actions">
+                <button type="button" class="cap-btn cap-btn--ghost" id="cap-enc-empresa-quick-cancel">Cancelar</button>
+                <button type="button" class="cap-btn cap-btn--primary" id="cap-enc-empresa-quick-save">Guardar</button>
+              </div>
+            </div>
           </div>
         </div>
 
         <div class="cap-form-row cap-form-row--2">
           <div>
             <label class="cap-label" for="cap-enc-instructor">6. Capacitador</label>
-            <select class="cap-input" id="cap-enc-instructor" name="instructor_id">
-              <option value="">— Seleccionar capacitador —</option>
-            </select>
+            <div class="cap-input-group">
+              <select class="cap-input" id="cap-enc-instructor" name="instructor_id">
+                <option value="">— Seleccionar capacitador —</option>
+              </select>
+              <button type="button" class="cap-btn cap-btn--icon" id="cap-enc-instructor-add" title="Agregar capacitador">
+                <i class="bi bi-plus-lg"></i>
+              </button>
+            </div>
+            <div class="cap-quick-form cap-hidden" id="cap-enc-instructor-quick">
+              <p class="cap-quick-form-title">Nuevo capacitador</p>
+              <input class="cap-input" id="cap-enc-instructor-quick-nombre" placeholder="Nombre del capacitador" maxlength="150">
+              <div class="cap-form-actions">
+                <button type="button" class="cap-btn cap-btn--ghost" id="cap-enc-instructor-quick-cancel">Cancelar</button>
+                <button type="button" class="cap-btn cap-btn--primary" id="cap-enc-instructor-quick-save">Guardar</button>
+              </div>
+            </div>
           </div>
           <div>
             <label class="cap-label" for="cap-enc-lugar">Lugar</label>
