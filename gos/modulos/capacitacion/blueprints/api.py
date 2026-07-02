@@ -47,6 +47,7 @@ from gos.modulos.capacitacion.services import (
     listar_empresas_capacitadoras,
     listar_instructores,
     listar_programas,
+    listar_participantes_por_puestos,
     listar_puestos,
     listar_requisitos,
     listar_sectores,
@@ -138,11 +139,19 @@ def participantes():
     puesto_id = request.args.get("puesto_id", type=int)
     puesto_ids = _parse_id_list(request.args.get("puesto_ids"))
     busqueda = (request.args.get("q") or "").strip().lower()
+    if puesto_ids:
+        items = listar_participantes_por_puestos(current_user.empresa_id, puesto_ids)
+        if busqueda:
+            items = [
+                p
+                for p in items
+                if busqueda in p["nombre"].lower() or busqueda in (p.get("legajo") or "").lower()
+            ]
+        return jsonify({"participantes": items})
+
     if sector_id:
         q = q.filter_by(sector_id=sector_id)
-    if puesto_ids:
-        q = q.filter(Participante.puesto_id.in_(puesto_ids))
-    elif puesto_id:
+    if puesto_id:
         q = q.filter_by(puesto_id=puesto_id)
 
     items = []

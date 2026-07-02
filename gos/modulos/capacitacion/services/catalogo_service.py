@@ -37,6 +37,19 @@ def listar_puestos(empresa_id: int) -> list[dict]:
     return [_puesto_dict(p) for p in items]
 
 
+def listar_participantes_por_puestos(empresa_id: int, puesto_ids: list[int]) -> list[dict]:
+    """Participantes activos asignados a uno o más puestos (cronograma)."""
+    if not puesto_ids:
+        return []
+    items = (
+        Participante.query.filter_by(empresa_id=empresa_id, activo=True)
+        .filter(Participante.puesto_id.in_(puesto_ids))
+        .order_by(Participante.nombre)
+        .all()
+    )
+    return [_participante_resumen_dict(p) for p in items]
+
+
 def listar_sectores(empresa_id: int) -> list[dict]:
     items = Sector.query.filter_by(empresa_id=empresa_id, activo=True).order_by(Sector.codigo).all()
     return [_sector_dict(s) for s in items]
@@ -333,7 +346,7 @@ def crear_participante(empresa_id: int, data: dict) -> dict:
     else:
         sector_id = None
 
-    if puesto_id is not None:
+    if puesto_id is not None and puesto_id != "":
         puesto_id = int(puesto_id)
         if not Puesto.query.filter_by(id=puesto_id, empresa_id=empresa_id, activo=True).first():
             raise ValueError("Puesto no válido")
@@ -476,6 +489,20 @@ def _participante_dict(p: Participante) -> dict:
         "activo": p.activo,
         "sector_id": p.sector_id,
         "puesto_id": p.puesto_id,
+    }
+
+
+def _participante_resumen_dict(p: Participante) -> dict:
+    return {
+        "id": p.id,
+        "nombre": p.nombre_completo,
+        "legajo": p.legajo,
+        "dni": p.dni,
+        "tiene_foto": bool(p.foto_path),
+        "sector_id": p.sector_id,
+        "puesto_id": p.puesto_id,
+        "puesto_nombre": p.puesto.nombre if p.puesto else None,
+        "activo": p.activo,
     }
 
 

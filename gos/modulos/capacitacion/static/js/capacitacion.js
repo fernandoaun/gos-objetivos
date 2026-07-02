@@ -210,6 +210,26 @@
 
 
 
+  function normPuestoId(id) {
+
+    const n = Number(id);
+
+    return Number.isFinite(n) ? n : null;
+
+  }
+
+
+
+  function encPuestoSetHas(puestoId) {
+
+    const id = normPuestoId(puestoId);
+
+    return id !== null && encPuestosSeleccionados.has(id);
+
+  }
+
+
+
   function fillSelect(selectId, items, placeholder) {
 
     const sel = document.getElementById(selectId);
@@ -1903,7 +1923,7 @@
 
   function getEncPuestosSeleccionados() {
 
-    return Array.from(encPuestosSeleccionados);
+    return Array.from(encPuestosSeleccionados).filter((id) => normPuestoId(id) !== null);
 
   }
 
@@ -1919,27 +1939,49 @@
 
     if (!items.length) {
 
-      el.innerHTML = '<p class="cap-empty">No hay puestos cargados</p>';
+      el.innerHTML = `
+
+        <p class="cap-empty">No hay puestos cargados</p>
+
+        <button type="button" class="cap-btn cap-btn--sm cap-btn--ghost" id="cap-enc-puesto-add">Agregar puesto</button>`;
+
+      document.getElementById("cap-enc-puesto-add")?.addEventListener("click", () => {
+
+        togglePanel("cap-enc-instructor-quick", false);
+
+        togglePanel("cap-enc-empresa-quick", false);
+
+        togglePanel("cap-enc-puesto-quick", true);
+
+        document.getElementById("cap-enc-puesto-quick-codigo")?.focus();
+
+      });
 
       return;
 
     }
 
-    el.innerHTML = items.map((p) => `
+    el.innerHTML = `
+
+      ${items.map((p) => `
 
       <label class="cap-check-item">
 
-        <input type="checkbox" value="${p.id}" data-enc-puesto ${encPuestosSeleccionados.has(p.id) ? "checked" : ""}>
+        <input type="checkbox" value="${p.id}" data-enc-puesto ${encPuestoSetHas(p.id) ? "checked" : ""}>
 
         <span>${p.codigo} — ${p.nombre}</span>
 
-      </label>`).join("");
+      </label>`).join("")}
+
+      <button type="button" class="cap-btn cap-btn--sm cap-btn--ghost cap-check-grid__action" id="cap-enc-puesto-add">+ Agregar puesto</button>`;
 
     el.querySelectorAll("[data-enc-puesto]").forEach((cb) => {
 
       cb.addEventListener("change", () => {
 
-        const id = Number(cb.value);
+        const id = normPuestoId(cb.value);
+
+        if (id === null) return;
 
         if (cb.checked) encPuestosSeleccionados.add(id);
 
@@ -1948,6 +1990,18 @@
         onEncPuestosChange().catch(console.error);
 
       });
+
+    });
+
+    document.getElementById("cap-enc-puesto-add")?.addEventListener("click", () => {
+
+      togglePanel("cap-enc-instructor-quick", false);
+
+      togglePanel("cap-enc-empresa-quick", false);
+
+      togglePanel("cap-enc-puesto-quick", true);
+
+      document.getElementById("cap-enc-puesto-quick-codigo")?.focus();
 
     });
 
@@ -1965,7 +2019,7 @@
 
 
 
-  async function loadEncPersonas(selectedIds = null) {
+  async function loadEncPersonas(selectedIds = null, { todas = false } = {}) {
 
     const el = document.getElementById("cap-enc-personas");
 
@@ -1975,7 +2029,7 @@
 
     const puestoIds = getEncPuestosSeleccionados();
 
-    if (!puestoIds.length) {
+    if (!todas && !puestoIds.length) {
 
       encPersonasCache = [];
 
@@ -1989,13 +2043,53 @@
 
     el.innerHTML = '<p class="cap-loading">Cargando personas...</p>';
 
-    const data = await fetchJson(`${API}/participantes?puesto_ids=${puestoIds.join(",")}`);
+    const url = todas
+
+      ? `${API}/participantes?`
+
+      : `${API}/participantes?puesto_ids=${puestoIds.join(",")}`;
+
+    const data = await fetchJson(url);
 
     encPersonasCache = data.participantes || [];
 
     if (!encPersonasCache.length) {
 
-      el.innerHTML = '<p class="cap-empty">No hay personas en los puestos seleccionados</p>';
+      if (!todas && puestoIds.length) {
+
+        const totalData = await fetchJson(`${API}/participantes?`);
+
+        const total = (totalData.participantes || []).length;
+
+        const nombresPuesto = puestoIds
+
+          .map((id) => metaPuestos.find((p) => normPuestoId(p.id) === id))
+
+          .filter(Boolean)
+
+          .map((p) => `${p.codigo} — ${p.nombre}`)
+
+          .join(", ");
+
+        el.innerHTML = `
+
+          <p class="cap-empty">No hay personas con el puesto ${nombresPuesto || "seleccionado"} asignado.</p>
+
+          <p class="cap-form-hint">En <strong>Personas</strong>, editá cada legajo y elegí el puesto correspondiente.</p>
+
+          ${total ? `<button type="button" class="cap-btn cap-btn--sm cap-btn--ghost" id="cap-enc-cargar-todas">Mostrar las ${total} personas activas</button>` : ""}`;
+
+        document.getElementById("cap-enc-cargar-todas")?.addEventListener("click", () => {
+
+          loadEncPersonas(null, { todas: true }).catch(console.error);
+
+        });
+
+      } else {
+
+        el.innerHTML = '<p class="cap-empty">No hay personas en los puestos seleccionados</p>';
+
+      }
 
       if (countEl) countEl.textContent = "0 personas";
 
@@ -2005,15 +2099,21 @@
 
     const selected = selectedIds instanceof Set ? selectedIds : null;
 
-    el.innerHTML = encPersonasCache.map((p) => `
+    const avisoTodas = todas
+
+      ? '<p class="cap-form-hint cap-mb">Mostrando todas las personas activas. Asigná el puesto en Personas para filtrar automáticamente.</p>'
+
+      : "";
+
+    el.innerHTML = `${avisoTodas}${encPersonasCache.map((p) => `
 
       <label class="cap-check-item">
 
-        <input type="checkbox" value="${p.id}" data-enc-persona ${selected ? (selected.has(p.id) ? "checked" : "") : "checked"}>
+        <input type="checkbox" value="${p.id}" data-enc-persona ${selected ? (selected.has(p.id) || selected.has(normPuestoId(p.id)) ? "checked" : "") : "checked"}>
 
-        <span>${p.nombre}${p.legajo ? ` <span class="cap-muted">(${p.legajo})</span>` : ""}</span>
+        <span>${p.nombre}${p.legajo ? ` <span class="cap-muted">(${p.legajo})</span>` : ""}${p.puesto_nombre ? "" : ' <span class="cap-muted">(sin puesto)</span>'}</span>
 
-      </label>`).join("");
+      </label>`).join("")}`;
 
     updateEncPersonasCount();
 
@@ -2291,6 +2391,8 @@
 
     togglePanel("cap-enc-instructor-quick", false);
 
+    togglePanel("cap-enc-puesto-quick", false);
+
   }
 
 
@@ -2383,13 +2485,13 @@
 
     encPuestosSeleccionados = new Set(
 
-      participantes.map((p) => p.puesto_id).filter(Boolean)
+      participantes.map((p) => normPuestoId(p.puesto_id)).filter((id) => id !== null)
 
     );
 
     if (!encPuestosSeleccionados.size && metaPuestos.length) {
 
-      encPuestosSeleccionados = new Set(metaPuestos.map((p) => p.id));
+      encPuestosSeleccionados = new Set(metaPuestos.map((p) => normPuestoId(p.id)).filter((id) => id !== null));
 
     }
 
@@ -2627,6 +2729,8 @@
 
       togglePanel("cap-enc-instructor-quick", false);
 
+      togglePanel("cap-enc-puesto-quick", false);
+
       togglePanel("cap-enc-empresa-quick", true);
 
       document.getElementById("cap-enc-empresa-quick-nombre")?.focus();
@@ -2637,9 +2741,57 @@
 
       togglePanel("cap-enc-empresa-quick", false);
 
+      togglePanel("cap-enc-puesto-quick", false);
+
       togglePanel("cap-enc-instructor-quick", true);
 
       document.getElementById("cap-enc-instructor-quick-nombre")?.focus();
+
+    });
+
+    document.getElementById("cap-enc-puesto-quick-cancel")?.addEventListener("click", () => togglePanel("cap-enc-puesto-quick", false));
+
+    document.getElementById("cap-enc-puesto-quick-save")?.addEventListener("click", async () => {
+
+      const codigo = document.getElementById("cap-enc-puesto-quick-codigo")?.value.trim();
+
+      const nombre = document.getElementById("cap-enc-puesto-quick-nombre")?.value.trim();
+
+      if (!codigo || !nombre) {
+
+        setFormError("cap-encuentro-form-error", "Código y nombre del puesto son obligatorios.");
+
+        return;
+
+      }
+
+      try {
+
+        const data = await postJson(`${API}/puestos`, { codigo, nombre });
+
+        await loadPuestosOptions();
+
+        const puestoId = normPuestoId(data.puesto?.id);
+
+        if (puestoId !== null) encPuestosSeleccionados.add(puestoId);
+
+        document.getElementById("cap-enc-puesto-quick-codigo").value = "";
+
+        document.getElementById("cap-enc-puesto-quick-nombre").value = "";
+
+        togglePanel("cap-enc-puesto-quick", false);
+
+        setFormError("cap-encuentro-form-error", "");
+
+        renderEncPuestos();
+
+        await onEncPuestosChange();
+
+      } catch (err) {
+
+        setFormError("cap-encuentro-form-error", err.message);
+
+      }
 
     });
 
@@ -3555,6 +3707,22 @@
     fillSelect("cap-req-puesto", items, "— Seleccionar puesto —");
 
     fillSelect("cap-prog-puesto", items, "— Seleccionar puesto —");
+
+    fillSelect("cap-p-puesto", items, "— Sin puesto —");
+
+    const formOpen = !document.getElementById("cap-encuentro-form-panel")?.classList.contains("cap-hidden");
+
+    if (formOpen) {
+
+      renderEncPuestos();
+
+      if (getEncPuestosSeleccionados().length) {
+
+        await loadEncPersonas();
+
+      }
+
+    }
 
   }
 

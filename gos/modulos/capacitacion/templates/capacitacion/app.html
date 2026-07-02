@@ -136,6 +136,17 @@
 
         <h3 class="cap-subtitle">1. Puestos</h3>
         <div id="cap-enc-puestos" class="cap-check-grid"><p class="cap-empty">Cargando puestos...</p></div>
+        <div class="cap-quick-form cap-hidden" id="cap-enc-puesto-quick">
+          <p class="cap-quick-form-title">Nuevo puesto</p>
+          <div class="cap-form-row cap-form-row--2">
+            <input class="cap-input" id="cap-enc-puesto-quick-codigo" placeholder="Código" maxlength="20">
+            <input class="cap-input" id="cap-enc-puesto-quick-nombre" placeholder="Nombre" maxlength="150">
+          </div>
+          <div class="cap-form-actions">
+            <button type="button" class="cap-btn cap-btn--ghost" id="cap-enc-puesto-quick-cancel">Cancelar</button>
+            <button type="button" class="cap-btn cap-btn--primary" id="cap-enc-puesto-quick-save">Guardar puesto</button>
+          </div>
+        </div>
 
         <h3 class="cap-subtitle">2. Personas a capacitar</h3>
         <div class="cap-enc-personas-toolbar">
