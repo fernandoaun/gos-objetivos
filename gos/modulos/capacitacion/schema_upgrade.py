@@ -15,6 +15,7 @@ _COLUMN_UPGRADES = [
     ("cap_cursos", "categoria", "VARCHAR(30)"),
     ("cap_cursos", "tipo", "VARCHAR(30)"),
     ("cap_cursos", "origen", "VARCHAR(30)"),
+    ("cap_cursos", "temas", "TEXT"),
     ("cap_cursos", "requiere_evaluacion", "BOOLEAN DEFAULT FALSE"),
     ("cap_cursos", "puntaje_minimo", "NUMERIC(5,2)"),
     ("cap_cursos", "instructor_id", "INTEGER"),
@@ -22,8 +23,16 @@ _COLUMN_UPGRADES = [
     ("cap_encuentros", "origen", "VARCHAR(30)"),
     ("cap_encuentros", "empresa_capacitadora_id", "INTEGER"),
     ("cap_encuentros", "instructor_id", "INTEGER"),
+    ("cap_encuentros", "plan_id", "INTEGER"),
+    ("cap_encuentros", "fecha_inicio", "DATETIME"),
+    ("cap_encuentros", "fecha_fin", "DATETIME"),
+    ("cap_encuentros", "material_adjunto_url", "VARCHAR(500)"),
+    ("cap_encuentros", "resultados_adjunto_url", "VARCHAR(500)"),
+    ("cap_asistencias", "fecha_aprobacion", "DATE"),
+    ("cap_asistencias", "fecha_vencimiento", "DATE"),
     ("cap_programas", "puesto_id", "INTEGER"),
     ("cap_programas", "alcance", "VARCHAR(20) DEFAULT 'general'"),
+    ("cap_programas", "tipo", "VARCHAR(20) DEFAULT 'interno'"),
     ("cap_config", "pct_cumplimiento_minimo", "INTEGER DEFAULT 80"),
     ("cap_config", "notif_email_activo", "BOOLEAN DEFAULT FALSE"),
     ("cap_config", "notif_vencimiento", "BOOLEAN DEFAULT TRUE"),
@@ -39,10 +48,15 @@ _COLUMN_UPGRADES = [
 def ensure_capacitacion_schema() -> None:
     """Idempotente: crea tablas nuevas y agrega columnas faltantes."""
     from gos.modulos.capacitacion.models import (  # noqa: F401
+        Acreditacion,
         AlertaCapacitacion,
         CapacitacionConfig,
+        CronogramaPuesto,
         EmpresaCapacitadora,
         Instructor,
+        PlanCurso,
+        ProgramaPlan,
+        ProgramaPuesto,
         TaxonomiaItem,
     )
 
@@ -57,6 +71,7 @@ def ensure_capacitacion_schema() -> None:
         with db.engine.begin() as conn:
             conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {coldef}"))
     _migrar_clasificacion_cursos()
+    _migrar_estructura_programas()
 
 
 def _migrar_clasificacion_cursos() -> None:
@@ -77,5 +92,56 @@ def _migrar_clasificacion_cursos() -> None:
             curso.origen = origen
             curso.tipo_capacitacion = tipo_capacitacion_legacy(cat, tipo)
             cambios = True
+    if cambios:
+        db.session.commit()
+
+
+def _migrar_estructura_programas() -> None:
+    """Convierte programas legados (puesto + requisitos) a Programa→Plan→Cursos."""
+    from gos.modulos.capacitacion.models import (
+        PlanCurso,
+        ProgramaCapacitacion,
+        ProgramaPlan,
+        ProgramaPuesto,
+        RequisitoFormacion,
+    )
+
+    cambios = False
+    for programa in ProgramaCapacitacion.query.filter_by(activo=True).all():
+        if not programa.tipo:
+            programa.tipo = "interno"
+            cambios = True
+
+        puestos_ids = {pp.puesto_id for pp in programa.puestos_asignados.all()}
+        if programa.puesto_id and programa.puesto_id not in puestos_ids:
+            db.session.add(ProgramaPuesto(programa_id=programa.id, puesto_id=programa.puesto_id))
+            puestos_ids.add(programa.puesto_id)
+            cambios = True
+
+        if not puestos_ids:
+            continue
+
+        plan = programa.planes.order_by(ProgramaPlan.orden).first()
+        if not plan:
+            plan = ProgramaPlan(programa_id=programa.id, nombre="General", orden=1)
+            db.session.add(plan)
+            db.session.flush()
+            cambios = True
+
+        cursos_en_plan = {pc.curso_id for pc in plan.cursos.all()}
+        requisitos = RequisitoFormacion.query.filter(
+            RequisitoFormacion.empresa_id == programa.empresa_id,
+            RequisitoFormacion.puesto_id.in_(puestos_ids),
+            RequisitoFormacion.curso_id.isnot(None),
+        ).all()
+        orden = len(cursos_en_plan)
+        for req in requisitos:
+            if req.curso_id in cursos_en_plan:
+                continue
+            orden += 1
+            db.session.add(PlanCurso(plan_id=plan.id, curso_id=req.curso_id, orden=orden))
+            cursos_en_plan.add(req.curso_id)
+            cambios = True
+
     if cambios:
         db.session.commit()

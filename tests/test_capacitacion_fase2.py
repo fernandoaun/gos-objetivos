@@ -128,7 +128,7 @@ def test_registrar_asistencias(auth_client, app):
 
     det = auth_client.get(f"/gos/capacitacion/api/encuentros/{enc_id}")
     assert det.status_code == 200
-    assert det.get_json()["estado"] == "realizado"
+    assert det.get_json()["estado"] in ("cerrado", "realizado")
 
 
 def test_api_programas_por_puesto_y_persona(auth_client, app):

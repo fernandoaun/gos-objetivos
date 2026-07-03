@@ -21,7 +21,52 @@ def listar_requisitos(
     if participante_id:
         q = q.filter_by(participante_id=participante_id)
     items = q.order_by(RequisitoFormacion.id).all()
-    return [_requisito_dict(r) for r in items]
+    resultado = [_requisito_dict(r) for r in items]
+
+    # Incluir cursos de la estructura Programa → Plan → Curso
+    ids_puestos = list(puesto_ids or [])
+    if puesto_id and puesto_id not in ids_puestos:
+        ids_puestos.append(puesto_id)
+    if participante_id and not ids_puestos:
+        persona = Participante.query.filter_by(id=participante_id, empresa_id=empresa_id).first()
+        if persona and persona.puesto_id:
+            ids_puestos.append(persona.puesto_id)
+    if ids_puestos:
+        from gos.modulos.capacitacion.services.acreditacion_service import (
+            cursos_requeridos_por_puesto,
+        )
+
+        vistos = {r["curso_id"] for r in resultado if r.get("curso_id")}
+        for curso in cursos_requeridos_por_puesto(empresa_id, ids_puestos):
+            if curso["curso_id"] in vistos:
+                continue
+            vistos.add(curso["curso_id"])
+            resultado.append(
+                {
+                    "id": f"plan-{curso['id']}",
+                    "puesto_id": ids_puestos[0],
+                    "puesto_nombre": None,
+                    "sector_id": None,
+                    "sector_nombre": None,
+                    "participante_id": None,
+                    "participante_nombre": None,
+                    "curso_id": curso["curso_id"],
+                    "curso_codigo": curso["curso_codigo"],
+                    "curso_nombre": curso["curso_nombre"],
+                    "certificacion_tipo_id": None,
+                    "obligatorio": True,
+                    "observaciones": None,
+                    "plan_id": curso["plan_id"],
+                    "plan_nombre": curso["plan_nombre"],
+                    "programa_id": curso["programa_id"],
+                    "programa_nombre": curso["programa_nombre"],
+                    "origen": curso.get("origen"),
+                    "horas": curso.get("horas"),
+                    "requiere_evaluacion": curso.get("requiere_evaluacion"),
+                    "puntaje_minimo": curso.get("puntaje_minimo"),
+                }
+            )
+    return resultado
 
 
 def crear_requisito(empresa_id: int, data: dict) -> dict:

@@ -37,6 +37,7 @@ def _ensure_template_loader(app: Flask) -> None:
 
 def _register_models() -> None:
     from gos.modulos.capacitacion.models import (  # noqa: F401
+        Acreditacion,
         AlertaCapacitacion,
         AsistenciaEncuentro,
         CapacitacionConfig,
@@ -49,7 +50,11 @@ def _register_models() -> None:
         InscripcionPrograma,
         Participante,
         PlanCapacitacion,
+        PlanCurso,
         ProgramaCapacitacion,
+        ProgramaPlan,
+        ProgramaPuesto,
+        CronogramaPuesto,
         Puesto,
         RegistroCapacitacion,
         RequisitoFormacion,

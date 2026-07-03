@@ -301,6 +301,8 @@ def validar_clasificacion(
             raise ValueError("Debe completar Categoría, Tipo, Origen y Modalidad")
         return None, None, None, None
 
+    ensure_taxonomia_defaults(empresa_id)
+
     if requerido and not all((categoria, tipo, origen, modalidad)):
         raise ValueError("Debe completar Categoría, Tipo, Origen y Modalidad")
 

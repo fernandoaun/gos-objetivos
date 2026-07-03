@@ -202,8 +202,12 @@ def crear_curso(empresa_id: int, data: dict) -> dict:
         modalidad,
     )
 
-    horas = _parse_decimal(data.get("horas"))
-    vigencia = _parse_int(data.get("vigencia_meses"))
+    horas = _parse_decimal(data.get("horas") or data.get("duracion_horas"))
+    tiene_vigencia = data.get("tiene_vigencia")
+    if tiene_vigencia is False or str(tiene_vigencia).lower() in ("0", "false", "no"):
+        vigencia = None
+    else:
+        vigencia = _parse_int(data.get("vigencia_meses") or data.get("meses_vigencia"))
     puntaje = _parse_decimal(data.get("puntaje_minimo"))
     requiere_eval = bool(data.get("requiere_evaluacion"))
     instructor_id = data.get("instructor_id")
@@ -221,9 +225,10 @@ def crear_curso(empresa_id: int, data: dict) -> dict:
         tipo_capacitacion=tipo_capacitacion_legacy(categoria, tipo),
         horas=horas,
         modalidad=modalidad,
+        temas=(data.get("temas") or "").strip() or None,
         vigencia_meses=vigencia,
         requiere_evaluacion=requiere_eval,
-        puntaje_minimo=puntaje,
+        puntaje_minimo=puntaje if requiere_eval else None,
         instructor_id=instructor_id,
     )
     db.session.add(curso)
@@ -264,11 +269,19 @@ def actualizar_curso(empresa_id: int, curso_id: int, data: dict) -> dict:
     curso.tipo = tipo
     curso.origen = origen
     curso.tipo_capacitacion = tipo_capacitacion_legacy(categoria, tipo)
-    curso.horas = _parse_decimal(data.get("horas"))
+    curso.horas = _parse_decimal(data.get("horas") or data.get("duracion_horas"))
     curso.modalidad = modalidad
-    curso.vigencia_meses = _parse_int(data.get("vigencia_meses"))
+    if "temas" in data:
+        curso.temas = (data.get("temas") or "").strip() or None
+    tiene_vigencia = data.get("tiene_vigencia")
+    if tiene_vigencia is False or str(tiene_vigencia).lower() in ("0", "false", "no"):
+        curso.vigencia_meses = None
+    else:
+        curso.vigencia_meses = _parse_int(data.get("vigencia_meses") or data.get("meses_vigencia"))
     curso.requiere_evaluacion = bool(data.get("requiere_evaluacion"))
-    curso.puntaje_minimo = _parse_decimal(data.get("puntaje_minimo"))
+    curso.puntaje_minimo = (
+        _parse_decimal(data.get("puntaje_minimo")) if curso.requiere_evaluacion else None
+    )
     instructor_id = data.get("instructor_id")
     curso.instructor_id = int(instructor_id) if instructor_id else None
     db.session.commit()
@@ -465,11 +478,16 @@ def _curso_dict(curso: Curso, empresa_id: int) -> dict:
         "modalidad_label": etiqueta_taxonomia(empresa_id, "modalidad", curso.modalidad),
         "tipo_capacitacion": curso.tipo_capacitacion,
         "horas": float(curso.horas) if curso.horas is not None else None,
+        "duracion_horas": float(curso.horas) if curso.horas is not None else None,
         "modalidad": curso.modalidad,
+        "temas": curso.temas,
+        "tiene_vigencia": curso.tiene_vigencia,
         "vigencia_meses": curso.vigencia_meses,
+        "meses_vigencia": curso.vigencia_meses,
         "requiere_evaluacion": curso.requiere_evaluacion,
         "puntaje_minimo": float(curso.puntaje_minimo) if curso.puntaje_minimo is not None else None,
         "instructor_id": curso.instructor_id,
+        "activo": curso.activo,
     }
 
 

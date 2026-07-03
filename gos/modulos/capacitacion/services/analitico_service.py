@@ -142,12 +142,14 @@ def analitico_participante(participante_id: int, empresa_id: int | None = None) 
         )
 
     pendientes = []
+    cursos_pendientes: set[int] = set()
     for req in _requisitos_aplicables(participante):
         if req.curso_id:
             cumplido = _curso_cumplido(participante_id, req.curso_id, hoy)
             if cumplido:
                 continue
             curso = req.curso or Curso.query.get(req.curso_id)
+            cursos_pendientes.add(req.curso_id)
             item = {
                 "tipo": "curso",
                 "curso_id": req.curso_id,
@@ -172,6 +174,28 @@ def analitico_participante(participante_id: int, empresa_id: int | None = None) 
         else:
             continue
         pendientes.append(item)
+
+    from gos.modulos.capacitacion.services.acreditacion_service import cursos_requeridos_persona
+
+    for curso_req in cursos_requeridos_persona(participante):
+        cid = curso_req["curso_id"]
+        if cid in cursos_pendientes:
+            continue
+        if _curso_cumplido(participante_id, cid, hoy):
+            continue
+        cursos_pendientes.add(cid)
+        pendientes.append(
+            {
+                "tipo": "curso",
+                "curso_id": cid,
+                "codigo": curso_req.get("curso_codigo"),
+                "nombre": curso_req.get("curso_nombre"),
+                "obligatorio": True,
+                "origen_requisito": "programa",
+                "programa_id": curso_req.get("programa_id"),
+                "plan_id": curso_req.get("plan_id"),
+            }
+        )
 
     planes = []
     for plan in (

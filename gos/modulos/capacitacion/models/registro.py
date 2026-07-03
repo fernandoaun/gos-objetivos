@@ -47,6 +47,8 @@ class AsistenciaEncuentro(db.Model, TimestampMixin):
     asistencia = db.Column(db.String(20), default="presente", nullable=False)
     nota = db.Column(db.Numeric(5, 2), nullable=True)
     aprobado = db.Column(db.Boolean, nullable=True)
+    fecha_aprobacion = db.Column(db.Date, nullable=True)
+    fecha_vencimiento = db.Column(db.Date, nullable=True)
     observaciones = db.Column(db.Text, nullable=True)
 
     encuentro = db.relationship("EncuentroCapacitacion", back_populates="asistencias")

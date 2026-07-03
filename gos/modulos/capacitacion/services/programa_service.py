@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from datetime import date, time
+from datetime import date, datetime, time
 
 from gos.extensions import db
 from gos.modulos.capacitacion.models import (
     AlertaCapacitacion,
     AsistenciaEncuentro,
+    CronogramaPuesto,
     Curso,
     EmpresaCapacitadora,
     EncuentroCapacitacion,
@@ -14,14 +15,22 @@ from gos.modulos.capacitacion.models import (
     InscripcionPrograma,
     Participante,
     PlanCapacitacion,
+    PlanCurso,
     ProgramaCapacitacion,
+    ProgramaPlan,
+    ProgramaPuesto,
     Puesto,
-    RegistroCapacitacion,
 )
 from gos.modulos.capacitacion.models.programa import (
     ALCANCES_PROGRAMA,
     ESTADOS_ENCUENTRO,
     ESTADOS_PROGRAMA,
+    TIPOS_PROGRAMA,
+)
+from gos.modulos.capacitacion.services.acreditacion_service import (
+    aplicar_resultado_asistencia,
+    calcular_fecha_fin,
+    cursos_requeridos_por_puesto,
 )
 
 RESULTADOS_ASISTENCIA = ("inscripto", "presente", "ausente", "justificado")
@@ -32,13 +41,19 @@ def listar_programas(
     *,
     puesto_id: int | None = None,
     participante_id: int | None = None,
+    tipo: str | None = None,
+    detalle: bool = False,
 ) -> list[dict]:
     q = ProgramaCapacitacion.query.filter_by(empresa_id=empresa_id, activo=True)
 
+    if tipo:
+        q = q.filter_by(tipo=tipo.strip().lower())
+
     if puesto_id:
+        ids = db.session.query(ProgramaPuesto.programa_id).filter_by(puesto_id=puesto_id)
         q = q.filter(
-            db.and_(
-                ProgramaCapacitacion.alcance == "puesto",
+            db.or_(
+                ProgramaCapacitacion.id.in_(ids),
                 ProgramaCapacitacion.puesto_id == puesto_id,
             )
         )
@@ -54,48 +69,71 @@ def listar_programas(
         )
         condiciones = [ProgramaCapacitacion.id.in_(inscritos)]
         if participante.puesto_id:
-            condiciones.append(
-                db.and_(
-                    ProgramaCapacitacion.alcance == "puesto",
-                    ProgramaCapacitacion.puesto_id == participante.puesto_id,
-                )
+            por_puesto = db.session.query(ProgramaPuesto.programa_id).filter_by(
+                puesto_id=participante.puesto_id
             )
+            condiciones.append(ProgramaCapacitacion.id.in_(por_puesto))
+            condiciones.append(ProgramaCapacitacion.puesto_id == participante.puesto_id)
         q = q.filter(db.or_(*condiciones))
 
-    items = q.order_by(ProgramaCapacitacion.fecha_inicio.desc()).all()
-    return [_programa_dict(p) for p in items]
+    items = q.order_by(ProgramaCapacitacion.nombre).all()
+    return [_programa_dict(p, detalle=detalle) for p in items]
+
+
+def obtener_programa(empresa_id: int, programa_id: int) -> dict:
+    programa = ProgramaCapacitacion.query.filter_by(
+        id=programa_id, empresa_id=empresa_id, activo=True
+    ).first()
+    if not programa:
+        raise ValueError("Programa no encontrado")
+    return _programa_dict(programa, detalle=True)
 
 
 def crear_programa(empresa_id: int, data: dict) -> dict:
-    codigo = (data.get("codigo") or "").strip()
     nombre = (data.get("nombre") or "").strip()
-    if not codigo or not nombre:
-        raise ValueError("Código y nombre son obligatorios")
+    if not nombre:
+        raise ValueError("El nombre es obligatorio")
 
-    estado = (data.get("estado") or "borrador").strip().lower()
+    codigo = (data.get("codigo") or "").strip()
+    if not codigo:
+        base = "".join(ch for ch in nombre.upper() if ch.isalnum())[:12] or "PROG"
+        codigo = base
+        n = 1
+        while ProgramaCapacitacion.query.filter_by(empresa_id=empresa_id, codigo=codigo).first():
+            codigo = f"{base}{n}"
+            n += 1
+    elif ProgramaCapacitacion.query.filter_by(empresa_id=empresa_id, codigo=codigo).first():
+        raise ValueError(f"Ya existe un programa con el código «{codigo}»")
+
+    tipo = (data.get("tipo") or "interno").strip().lower()
+    if tipo not in TIPOS_PROGRAMA:
+        raise ValueError("Tipo de programa inválido (interno/externo)")
+
+    estado = (data.get("estado") or "programado").strip().lower()
     if estado not in ESTADOS_PROGRAMA:
         raise ValueError("Estado de programa inválido")
 
-    alcance = (data.get("alcance") or "general").strip().lower()
+    puesto_ids = _parse_id_list(data.get("puesto_ids") or data.get("puestos"))
+    puesto_id = data.get("puesto_id") or None
+    if puesto_id and int(puesto_id) not in puesto_ids:
+        puesto_ids.append(int(puesto_id))
+
+    alcance = (data.get("alcance") or ("puesto" if puesto_ids else "general")).strip().lower()
     if alcance not in ALCANCES_PROGRAMA:
         raise ValueError("Alcance de programa inválido")
 
-    puesto_id = data.get("puesto_id") or None
-    if alcance == "puesto":
-        if not puesto_id:
-            raise ValueError("El puesto es obligatorio para programas por puesto")
-        if not Puesto.query.filter_by(id=puesto_id, empresa_id=empresa_id, activo=True).first():
-            raise ValueError("Puesto no encontrado")
-    else:
-        puesto_id = None
+    for pid in puesto_ids:
+        if not Puesto.query.filter_by(id=pid, empresa_id=empresa_id, activo=True).first():
+            raise ValueError(f"Puesto {pid} no encontrado")
 
     programa = ProgramaCapacitacion(
         empresa_id=empresa_id,
         codigo=codigo,
         nombre=nombre,
+        tipo=tipo,
         descripcion=(data.get("descripcion") or "").strip() or None,
         sector_id=data.get("sector_id") or None,
-        puesto_id=puesto_id,
+        puesto_id=puesto_ids[0] if puesto_ids else None,
         curso_id=data.get("curso_id") or None,
         alcance=alcance,
         fecha_inicio=_parse_date(data.get("fecha_inicio")),
@@ -104,18 +142,150 @@ def crear_programa(empresa_id: int, data: dict) -> dict:
         estado=estado,
     )
     db.session.add(programa)
+    db.session.flush()
+
+    _sync_puestos(programa, puesto_ids)
+
+    planes_data = data.get("planes")
+    if planes_data:
+        _sync_planes(empresa_id, programa, planes_data)
+    else:
+        plan_nombre = (data.get("plan_inicial") or "General").strip() or "General"
+        db.session.add(ProgramaPlan(programa_id=programa.id, nombre=plan_nombre, orden=1))
+
     db.session.commit()
-    return _programa_dict(programa)
+    return _programa_dict(programa, detalle=True)
+
+
+def actualizar_programa(empresa_id: int, programa_id: int, data: dict) -> dict:
+    programa = ProgramaCapacitacion.query.filter_by(
+        id=programa_id, empresa_id=empresa_id, activo=True
+    ).first()
+    if not programa:
+        raise ValueError("Programa no encontrado")
+
+    if "nombre" in data:
+        nombre = (data.get("nombre") or "").strip()
+        if not nombre:
+            raise ValueError("El nombre es obligatorio")
+        programa.nombre = nombre
+    if "descripcion" in data:
+        programa.descripcion = (data.get("descripcion") or "").strip() or None
+    if "tipo" in data:
+        tipo = (data.get("tipo") or "").strip().lower()
+        if tipo not in TIPOS_PROGRAMA:
+            raise ValueError("Tipo de programa inválido (interno/externo)")
+        programa.tipo = tipo
+    if "estado" in data:
+        estado = (data.get("estado") or "").strip().lower()
+        if estado not in ESTADOS_PROGRAMA:
+            raise ValueError("Estado de programa inválido")
+        programa.estado = estado
+    if "activo" in data:
+        programa.activo = bool(data["activo"])
+
+    if "puesto_ids" in data or "puestos" in data:
+        puesto_ids = _parse_id_list(data.get("puesto_ids") or data.get("puestos"))
+        for pid in puesto_ids:
+            if not Puesto.query.filter_by(id=pid, empresa_id=empresa_id, activo=True).first():
+                raise ValueError(f"Puesto {pid} no encontrado")
+        _sync_puestos(programa, puesto_ids)
+        programa.puesto_id = puesto_ids[0] if puesto_ids else None
+        programa.alcance = "puesto" if puesto_ids else "general"
+
+    if "planes" in data:
+        _sync_planes(empresa_id, programa, data.get("planes") or [])
+
+    db.session.commit()
+    return _programa_dict(programa, detalle=True)
+
+
+def agregar_plan(empresa_id: int, programa_id: int, data: dict) -> dict:
+    programa = ProgramaCapacitacion.query.filter_by(
+        id=programa_id, empresa_id=empresa_id, activo=True
+    ).first()
+    if not programa:
+        raise ValueError("Programa no encontrado")
+    nombre = (data.get("nombre") or "").strip()
+    if not nombre:
+        raise ValueError("El nombre del plan es obligatorio")
+    max_orden = (
+        db.session.query(db.func.max(ProgramaPlan.orden)).filter_by(programa_id=programa_id).scalar()
+        or 0
+    )
+    plan = ProgramaPlan(
+        programa_id=programa_id,
+        nombre=nombre,
+        orden=int(data.get("orden") or max_orden + 1),
+    )
+    db.session.add(plan)
+    db.session.commit()
+    return _plan_dict(plan, empresa_id)
+
+
+def eliminar_plan(empresa_id: int, plan_id: int) -> None:
+    plan = (
+        ProgramaPlan.query.join(ProgramaCapacitacion)
+        .filter(ProgramaPlan.id == plan_id, ProgramaCapacitacion.empresa_id == empresa_id)
+        .first()
+    )
+    if not plan:
+        raise ValueError("Plan no encontrado")
+    PlanCurso.query.filter_by(plan_id=plan_id).delete(synchronize_session=False)
+    db.session.delete(plan)
+    db.session.commit()
+
+
+def agregar_curso_a_plan(empresa_id: int, plan_id: int, curso_id: int) -> dict:
+    plan = (
+        ProgramaPlan.query.join(ProgramaCapacitacion)
+        .filter(ProgramaPlan.id == plan_id, ProgramaCapacitacion.empresa_id == empresa_id)
+        .first()
+    )
+    if not plan:
+        raise ValueError("Plan no encontrado")
+    curso = Curso.query.filter_by(id=curso_id, empresa_id=empresa_id, activo=True).first()
+    if not curso:
+        raise ValueError("Curso no válido")
+    if PlanCurso.query.filter_by(plan_id=plan_id, curso_id=curso_id).first():
+        raise ValueError("El curso ya está en este plan")
+
+    max_orden = (
+        db.session.query(db.func.max(PlanCurso.orden)).filter_by(plan_id=plan_id).scalar() or 0
+    )
+    pc = PlanCurso(plan_id=plan_id, curso_id=curso_id, orden=max_orden + 1)
+    db.session.add(pc)
+
+    # Mantener requisitos legados sincronizados por puesto
+    for pp in ProgramaPuesto.query.filter_by(programa_id=plan.programa_id).all():
+        _ensure_requisito(empresa_id, pp.puesto_id, curso_id)
+
+    db.session.commit()
+    return _plan_curso_dict(pc, empresa_id)
+
+
+def eliminar_curso_de_plan(empresa_id: int, plan_curso_id: int) -> None:
+    pc = (
+        PlanCurso.query.join(ProgramaPlan)
+        .join(ProgramaCapacitacion)
+        .filter(PlanCurso.id == plan_curso_id, ProgramaCapacitacion.empresa_id == empresa_id)
+        .first()
+    )
+    if not pc:
+        raise ValueError("Curso del plan no encontrado")
+    db.session.delete(pc)
+    db.session.commit()
+
+
+def cursos_de_puestos(empresa_id: int, puesto_ids: list[int]) -> list[dict]:
+    return cursos_requeridos_por_puesto(empresa_id, puesto_ids)
 
 
 def crear_encuentro(empresa_id: int, data: dict) -> dict:
-    fecha = _parse_date(data.get("fecha"))
+    fecha = _parse_date(data.get("fecha") or data.get("fecha_inicio"))
     curso_id = data.get("curso_id") or None
-    participante_ids = data.get("participante_ids") or []
-    if isinstance(participante_ids, str):
-        participante_ids = [int(x) for x in participante_ids.split(",") if str(x).strip().isdigit()]
-    else:
-        participante_ids = [int(x) for x in participante_ids if x]
+    participante_ids = _parse_id_list(data.get("participante_ids"))
+    puesto_ids = _parse_id_list(data.get("puesto_ids"))
 
     if not fecha:
         raise ValueError("La fecha es obligatoria")
@@ -128,14 +298,32 @@ def crear_encuentro(empresa_id: int, data: dict) -> dict:
     if not curso:
         raise ValueError("Curso no válido")
 
+    plan_id = data.get("plan_id") or None
+    programa_id = data.get("programa_id") or None
+    if plan_id:
+        plan = (
+            ProgramaPlan.query.join(ProgramaCapacitacion)
+            .filter(ProgramaPlan.id == plan_id, ProgramaCapacitacion.empresa_id == empresa_id)
+            .first()
+        )
+        if not plan:
+            raise ValueError("Plan no válido")
+        programa_id = plan.programa_id
+
     titulo = (data.get("titulo") or "").strip() or f"{curso.codigo} — {curso.nombre}"
 
-    estado = (data.get("estado") or "programado").strip().lower()
+    estado = (data.get("estado") or "planificado").strip().lower()
+    if estado == "programado":
+        estado = "planificado"
     if estado not in ESTADOS_ENCUENTRO:
         raise ValueError("Estado de encuentro inválido")
 
-    origen = (data.get("origen") or curso.origen or "").strip().lower() or None
-    empresa_cap_id = data.get("empresa_capacitadora_id") or None
+    origen = (data.get("origen") or data.get("tipo") or curso.origen or "").strip().lower() or None
+    if origen == "externo":
+        origen = "externa"
+    if origen == "interno":
+        origen = "interna"
+    empresa_cap_id = data.get("empresa_capacitadora_id") or data.get("empresa_externa_id") or None
     if origen == "externa":
         if not empresa_cap_id:
             raise ValueError("Seleccioná la empresa capacitadora para origen externo")
@@ -147,7 +335,7 @@ def crear_encuentro(empresa_id: int, data: dict) -> dict:
         empresa_cap_id = None
 
     instructor_id = data.get("instructor_id") or None
-    instructor_nombre = (data.get("instructor") or "").strip() or None
+    instructor_nombre = (data.get("instructor") or data.get("capacitador") or "").strip() or None
     if instructor_id:
         inst = Instructor.query.filter_by(id=instructor_id, empresa_id=empresa_id, activo=True).first()
         if not inst:
@@ -161,17 +349,29 @@ def crear_encuentro(empresa_id: int, data: dict) -> dict:
     if not participantes_validos:
         raise ValueError("Ninguna persona seleccionada es válida")
 
+    hora_inicio = _parse_time(data.get("hora_inicio"))
+    hora_fin = _parse_time(data.get("hora_fin"))
+    fecha_inicio_dt = _combine_datetime(fecha, hora_inicio)
+    fecha_fin_dt = _parse_datetime(data.get("fecha_fin"))
+    if fecha_fin_dt is None and fecha_inicio_dt is not None:
+        fecha_fin_dt = calcular_fecha_fin(fecha_inicio_dt, curso.horas)
+        if fecha_fin_dt and not hora_fin:
+            hora_fin = fecha_fin_dt.time()
+
     encuentro = EncuentroCapacitacion(
         empresa_id=empresa_id,
-        programa_id=data.get("programa_id") or None,
+        programa_id=programa_id,
+        plan_id=int(plan_id) if plan_id else None,
         curso_id=curso_id,
         numero=data.get("numero"),
         titulo=titulo,
         fecha=fecha,
-        hora_inicio=_parse_time(data.get("hora_inicio")),
-        hora_fin=_parse_time(data.get("hora_fin")),
+        hora_inicio=hora_inicio,
+        hora_fin=hora_fin,
+        fecha_inicio=fecha_inicio_dt,
+        fecha_fin=fecha_fin_dt,
         lugar=(data.get("lugar") or "").strip() or None,
-        link_virtual=(data.get("link_virtual") or "").strip() or None,
+        link_virtual=(data.get("link_virtual") or data.get("link") or "").strip() or None,
         instructor=instructor_nombre,
         instructor_id=int(instructor_id) if instructor_id else None,
         origen=origen,
@@ -181,6 +381,10 @@ def crear_encuentro(empresa_id: int, data: dict) -> dict:
     )
     db.session.add(encuentro)
     db.session.flush()
+
+    for pid in puesto_ids:
+        if Puesto.query.filter_by(id=pid, empresa_id=empresa_id, activo=True).first():
+            db.session.add(CronogramaPuesto(encuentro_id=encuentro.id, puesto_id=pid))
 
     for pid in participantes_validos:
         db.session.add(
@@ -323,58 +527,82 @@ def registrar_asistencias(empresa_id: int, encuentro_id: int, registros: list[di
     if not enc:
         raise ValueError("Encuentro no encontrado")
 
+    if not registros:
+        raise ValueError("Registrá la asistencia de al menos una persona")
+
     guardados = 0
     for item in registros:
         pid = item.get("participante_id")
         if not pid:
             continue
-        asistencia = (item.get("asistencia") or "presente").strip().lower()
-        if asistencia not in RESULTADOS_ASISTENCIA:
-            raise ValueError(f"Asistencia inválida: {asistencia}")
+        asistencia = (item.get("asistencia") or "").strip().lower()
+        asistio = item.get("asistio")
+        if asistio is None and asistencia:
+            if asistencia not in RESULTADOS_ASISTENCIA:
+                raise ValueError(f"Asistencia inválida: {asistencia}")
+            asistio = asistencia == "presente"
+            if asistencia == "inscripto":
+                asistio = None
+
+        nota = item.get("nota")
+        if nota is not None and nota != "":
+            nota = float(nota)
+        else:
+            nota = None
 
         row = AsistenciaEncuentro.query.filter_by(encuentro_id=encuentro_id, participante_id=pid).first()
         if not row:
             row = AsistenciaEncuentro(encuentro_id=encuentro_id, participante_id=pid)
             db.session.add(row)
-        row.asistencia = asistencia
-        if item.get("nota") is not None and item.get("nota") != "":
-            row.nota = float(item["nota"])
-        if item.get("aprobado") is not None:
-            row.aprobado = bool(item["aprobado"])
-        row.observaciones = (item.get("observaciones") or "").strip() or None
+            db.session.flush()
+
+        if asistio is not None:
+            aplicar_resultado_asistencia(empresa_id, enc, row, asistio=asistio, nota=nota)
+        else:
+            row.asistencia = asistencia or "inscripto"
+            row.nota = nota
+            row.observaciones = (item.get("observaciones") or "").strip() or None
+
+        if item.get("observaciones") is not None:
+            row.observaciones = (item.get("observaciones") or "").strip() or None
         guardados += 1
 
-        if enc.curso_id and row.aprobado and asistencia == "presente":
-            _crear_registro_desde_asistencia(empresa_id, enc, pid, row)
+    if guardados == 0:
+        raise ValueError("Registrá la asistencia de al menos una persona")
 
-    if enc.estado == "programado":
-        enc.estado = "realizado"
+    if enc.estado in ("programado", "planificado", "en_curso"):
+        enc.estado = "cerrado"
     db.session.commit()
-    return {"guardados": guardados}
+    return {"guardados": guardados, "estado": enc.estado}
 
 
-def _crear_registro_desde_asistencia(
-    empresa_id: int, enc: EncuentroCapacitacion, participante_id: int, asist: AsistenciaEncuentro
-) -> None:
-    from datetime import timedelta
+def cerrar_cronograma(empresa_id: int, encuentro_id: int, data: dict) -> dict:
+    """Cierre post-evento: asistencia + acreditaciones (reglas 2, 3 y 4)."""
+    enc = EncuentroCapacitacion.query.filter_by(id=encuentro_id, empresa_id=empresa_id).first()
+    if not enc:
+        raise ValueError("Encuentro no encontrado")
 
-    curso = enc.curso
-    vigente_hasta = None
-    if curso and curso.vigencia_meses:
-        vigente_hasta = enc.fecha + timedelta(days=int(curso.vigencia_meses) * 30)
+    registros = data.get("personas") or data.get("registros") or []
+    if not registros:
+        raise ValueError("Un cronograma no puede cerrarse sin registrar asistencia de al menos una persona")
 
-    reg = RegistroCapacitacion(
-        empresa_id=empresa_id,
-        participante_id=participante_id,
-        curso_id=enc.curso_id,
-        programa_id=enc.programa_id,
-        fecha_realizacion=enc.fecha,
-        nota=asist.nota,
-        aprobado=bool(asist.aprobado),
-        horas=curso.horas if curso else None,
-        vigente_hasta=vigente_hasta,
-    )
-    db.session.add(reg)
+    if "capacitador" in data or "instructor" in data:
+        enc.instructor = (data.get("capacitador") or data.get("instructor") or "").strip() or None
+    if "lugar" in data:
+        enc.lugar = (data.get("lugar") or "").strip() or None
+    if "link" in data or "link_virtual" in data:
+        enc.link_virtual = (data.get("link") or data.get("link_virtual") or "").strip() or None
+    if "material_adjunto_url" in data:
+        enc.material_adjunto_url = (data.get("material_adjunto_url") or "").strip() or None
+    if "resultados_adjunto_url" in data:
+        enc.resultados_adjunto_url = (data.get("resultados_adjunto_url") or "").strip() or None
+
+    result = registrar_asistencias(empresa_id, encuentro_id, registros)
+    enc.estado = "cerrado"
+    db.session.commit()
+    detalle = detalle_encuentro(empresa_id, encuentro_id)
+    detalle["guardados"] = result["guardados"]
+    return detalle
 
 
 def participantes_encuentro(empresa_id: int, encuentro_id: int) -> list[dict]:
@@ -401,15 +629,30 @@ def participantes_encuentro(empresa_id: int, encuentro_id: int) -> list[dict]:
     resultado = []
     for p in participantes:
         a = asist_map.get(p.id)
+        asistencia = a.asistencia if a else None
+        aprobado = a.aprobado if a else None
+        if aprobado is True:
+            estado = "Aprobó"
+        elif aprobado is False and asistencia == "ausente":
+            estado = "No asistió"
+        elif aprobado is False:
+            estado = "No aprobó"
+        else:
+            estado = "Pendiente"
         resultado.append(
             {
                 "participante_id": p.id,
                 "nombre": p.nombre_completo,
                 "legajo": p.legajo,
                 "puesto_id": p.puesto_id,
-                "asistencia": a.asistencia if a else None,
+                "tiene_foto": bool(p.foto_path),
+                "asistencia": asistencia,
+                "asistio": True if asistencia == "presente" else (False if asistencia == "ausente" else None),
                 "nota": float(a.nota) if a and a.nota is not None else None,
-                "aprobado": a.aprobado if a else None,
+                "aprobado": aprobado,
+                "estado": estado,
+                "fecha_aprobacion": a.fecha_aprobacion.isoformat() if a and a.fecha_aprobacion else None,
+                "fecha_vencimiento": a.fecha_vencimiento.isoformat() if a and a.fecha_vencimiento else None,
                 "observaciones": a.observaciones if a else None,
             }
         )
@@ -437,50 +680,215 @@ def detalle_encuentro(empresa_id: int, encuentro_id: int) -> dict:
     return data
 
 
-def _programa_dict(p: ProgramaCapacitacion) -> dict:
-    inscriptos = p.inscripciones.count() if p.inscripciones else 0
-    return {
+def _programa_dict(p: ProgramaCapacitacion, *, detalle: bool = False) -> dict:
+    puestos = []
+    for pp in p.puestos_asignados.all():
+        if pp.puesto:
+            puestos.append({"id": pp.puesto_id, "nombre": pp.puesto.nombre, "codigo": pp.puesto.codigo})
+    if not puestos and p.puesto_id and p.puesto:
+        puestos.append({"id": p.puesto_id, "nombre": p.puesto.nombre, "codigo": p.puesto.codigo})
+
+    planes = [_plan_dict(pl, p.empresa_id) for pl in p.planes.all()]
+    cursos_count = sum(len(pl["cursos"]) for pl in planes)
+
+    data = {
         "id": p.id,
         "codigo": p.codigo,
         "nombre": p.nombre,
         "descripcion": p.descripcion,
+        "tipo": p.tipo or "interno",
         "sector_id": p.sector_id,
         "puesto_id": p.puesto_id,
-        "puesto_nombre": p.puesto.nombre if p.puesto else None,
+        "puesto_nombre": puestos[0]["nombre"] if puestos else None,
+        "puestos": puestos,
+        "puestos_count": len(puestos),
+        "planes_count": len(planes),
+        "cursos_count": cursos_count,
         "curso_id": p.curso_id,
         "curso_nombre": p.curso.nombre if p.curso else None,
         "alcance": p.alcance or "general",
-        "inscriptos": inscriptos,
+        "inscriptos": p.inscripciones.count() if p.inscripciones else 0,
         "fecha_inicio": p.fecha_inicio.isoformat() if p.fecha_inicio else None,
         "fecha_fin": p.fecha_fin.isoformat() if p.fecha_fin else None,
         "instructor": p.instructor,
         "estado": p.estado,
+        "activo": p.activo,
     }
+    if detalle:
+        data["planes"] = planes
+    return data
+
+
+def _plan_dict(plan: ProgramaPlan, empresa_id: int) -> dict:
+    cursos = [_plan_curso_dict(pc, empresa_id) for pc in plan.cursos.all()]
+    return {
+        "id": plan.id,
+        "programa_id": plan.programa_id,
+        "nombre": plan.nombre,
+        "orden": plan.orden,
+        "cursos": cursos,
+        "cursos_count": len(cursos),
+    }
+
+
+def _plan_curso_dict(pc: PlanCurso, empresa_id: int) -> dict:
+    curso = pc.curso
+    tambien_en = _otros_programas_del_curso(empresa_id, pc.curso_id, pc.plan.programa_id if pc.plan else None)
+    return {
+        "id": pc.id,
+        "plan_id": pc.plan_id,
+        "curso_id": pc.curso_id,
+        "orden": pc.orden,
+        "curso_codigo": curso.codigo if curso else None,
+        "curso_nombre": curso.nombre if curso else None,
+        "horas": float(curso.horas) if curso and curso.horas is not None else None,
+        "origen": curso.origen if curso else None,
+        "requiere_evaluacion": curso.requiere_evaluacion if curso else False,
+        "tambien_en": tambien_en,
+    }
+
+
+def _otros_programas_del_curso(empresa_id: int, curso_id: int, excluir_programa_id: int | None) -> list[dict]:
+    filas = (
+        db.session.query(ProgramaCapacitacion)
+        .join(ProgramaPlan, ProgramaPlan.programa_id == ProgramaCapacitacion.id)
+        .join(PlanCurso, PlanCurso.plan_id == ProgramaPlan.id)
+        .filter(
+            ProgramaCapacitacion.empresa_id == empresa_id,
+            ProgramaCapacitacion.activo.is_(True),
+            PlanCurso.curso_id == curso_id,
+        )
+        .all()
+    )
+    vistos = set()
+    resultado = []
+    for prog in filas:
+        if prog.id == excluir_programa_id or prog.id in vistos:
+            continue
+        vistos.add(prog.id)
+        resultado.append({"id": prog.id, "nombre": prog.nombre, "tipo": prog.tipo})
+    return resultado
+
+
+def _sync_puestos(programa: ProgramaCapacitacion, puesto_ids: list[int]) -> None:
+    actuales = {pp.puesto_id: pp for pp in programa.puestos_asignados.all()}
+    nuevos = set(puesto_ids)
+    for pid, row in list(actuales.items()):
+        if pid not in nuevos:
+            db.session.delete(row)
+    for pid in nuevos - set(actuales):
+        db.session.add(ProgramaPuesto(programa_id=programa.id, puesto_id=pid))
+
+
+def _sync_planes(empresa_id: int, programa: ProgramaCapacitacion, planes_data: list) -> None:
+    actuales = {pl.id: pl for pl in programa.planes.all()}
+    vistos = set()
+    for idx, item in enumerate(planes_data, start=1):
+        plan_id = item.get("id")
+        nombre = (item.get("nombre") or "").strip()
+        if not nombre:
+            continue
+        if plan_id and plan_id in actuales:
+            plan = actuales[plan_id]
+            plan.nombre = nombre
+            plan.orden = int(item.get("orden") or idx)
+            vistos.add(plan_id)
+        else:
+            plan = ProgramaPlan(programa_id=programa.id, nombre=nombre, orden=int(item.get("orden") or idx))
+            db.session.add(plan)
+            db.session.flush()
+            vistos.add(plan.id)
+
+        curso_ids = _parse_id_list(item.get("curso_ids") or [c.get("curso_id") for c in item.get("cursos") or []])
+        existentes = {pc.curso_id: pc for pc in plan.cursos.all()}
+        for orden, cid in enumerate(curso_ids, start=1):
+            if not Curso.query.filter_by(id=cid, empresa_id=empresa_id, activo=True).first():
+                raise ValueError(f"Curso {cid} no válido")
+            if cid in existentes:
+                existentes[cid].orden = orden
+            else:
+                db.session.add(PlanCurso(plan_id=plan.id, curso_id=cid, orden=orden))
+                for pp in programa.puestos_asignados.all():
+                    _ensure_requisito(empresa_id, pp.puesto_id, cid)
+        for cid, pc in list(existentes.items()):
+            if cid not in curso_ids:
+                db.session.delete(pc)
+
+    for plan_id, plan in actuales.items():
+        if plan_id not in vistos:
+            PlanCurso.query.filter_by(plan_id=plan_id).delete(synchronize_session=False)
+            db.session.delete(plan)
+
+
+def _ensure_requisito(empresa_id: int, puesto_id: int, curso_id: int) -> None:
+    from gos.modulos.capacitacion.models import RequisitoFormacion
+
+    existe = RequisitoFormacion.query.filter_by(
+        empresa_id=empresa_id, puesto_id=puesto_id, curso_id=curso_id
+    ).first()
+    if existe:
+        return
+    db.session.add(
+        RequisitoFormacion(
+            empresa_id=empresa_id,
+            puesto_id=puesto_id,
+            curso_id=curso_id,
+            obligatorio=True,
+        )
+    )
+
+
+def _parse_id_list(raw) -> list[int]:
+    if not raw:
+        return []
+    if isinstance(raw, str):
+        return [int(x) for x in raw.split(",") if str(x).strip().isdigit()]
+    result = []
+    for x in raw:
+        if x is None or x == "":
+            continue
+        result.append(int(x))
+    return result
 
 
 def _encuentro_dict(e: EncuentroCapacitacion) -> dict:
     curso = e.curso
     emp_cap = e.empresa_capacitadora
     inscriptos = e.asistencias.count() if e.asistencias else 0
+    puestos = [
+        {"id": cp.puesto_id, "nombre": cp.puesto.nombre if cp.puesto else None}
+        for cp in e.puestos_convocados.all()
+    ]
     return {
         "id": e.id,
         "titulo": e.titulo,
-        "fecha": e.fecha.isoformat(),
+        "fecha": e.fecha.isoformat() if e.fecha else None,
         "hora_inicio": e.hora_inicio.isoformat() if e.hora_inicio else None,
         "hora_fin": e.hora_fin.isoformat() if e.hora_fin else None,
+        "fecha_inicio": e.fecha_inicio.isoformat() if e.fecha_inicio else None,
+        "fecha_fin": e.fecha_fin.isoformat() if e.fecha_fin else None,
         "lugar": e.lugar,
         "link_virtual": e.link_virtual,
         "instructor": e.instructor,
         "instructor_id": e.instructor_id,
         "origen": e.origen,
+        "tipo": "externo" if (e.origen or "").startswith("extern") else "interno",
         "empresa_capacitadora_id": e.empresa_capacitadora_id,
         "empresa_capacitadora_nombre": emp_cap.nombre if emp_cap else None,
         "estado": e.estado,
         "programa_id": e.programa_id,
+        "plan_id": e.plan_id,
+        "plan_nombre": e.plan.nombre if e.plan else None,
         "curso_id": e.curso_id,
         "curso_codigo": curso.codigo if curso else None,
         "curso_nombre": curso.nombre if curso else None,
+        "curso_horas": float(curso.horas) if curso and curso.horas is not None else None,
+        "curso_requiere_evaluacion": curso.requiere_evaluacion if curso else False,
+        "curso_puntaje_minimo": float(curso.puntaje_minimo) if curso and curso.puntaje_minimo is not None else None,
         "inscriptos": inscriptos,
+        "puestos": puestos,
+        "material_adjunto_url": e.material_adjunto_url,
+        "resultados_adjunto_url": e.resultados_adjunto_url,
         "observaciones": e.observaciones,
     }
 
@@ -488,9 +896,14 @@ def _encuentro_dict(e: EncuentroCapacitacion) -> dict:
 def _parse_date(value) -> date | None:
     if not value:
         return None
+    if isinstance(value, datetime):
+        return value.date()
     if isinstance(value, date):
         return value
-    return date.fromisoformat(str(value))
+    text = str(value)
+    if "T" in text:
+        return datetime.fromisoformat(text.replace("Z", "")).date()
+    return date.fromisoformat(text[:10])
 
 
 def _parse_time(value) -> time | None:
@@ -498,5 +911,25 @@ def _parse_time(value) -> time | None:
         return None
     if isinstance(value, time):
         return value
+    if isinstance(value, datetime):
+        return value.time()
     parts = str(value).split(":")
     return time(int(parts[0]), int(parts[1]) if len(parts) > 1 else 0)
+
+
+def _parse_datetime(value):
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    text = str(value).replace("Z", "")
+    if "T" in text:
+        return datetime.fromisoformat(text)
+    d = _parse_date(text)
+    return datetime.combine(d, time(9, 0)) if d else None
+
+
+def _combine_datetime(d: date | None, t: time | None):
+    if not d:
+        return None
+    return datetime.combine(d, t or time(9, 0))

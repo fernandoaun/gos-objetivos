@@ -27,7 +27,9 @@ def _curso_requerido(participante: Participante, curso_id: int) -> bool:
     for req in _requisitos_aplicables(participante):
         if req.curso_id == curso_id:
             return True
-    return False
+    from gos.modulos.capacitacion.services.acreditacion_service import cursos_requeridos_persona
+
+    return any(c["curso_id"] == curso_id for c in cursos_requeridos_persona(participante))
 
 
 def _ultimo_registro(participante_id: int, curso_id: int) -> RegistroCapacitacion | None:

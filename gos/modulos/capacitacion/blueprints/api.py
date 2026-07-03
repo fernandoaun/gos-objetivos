@@ -11,13 +11,16 @@ from gos.modulos.capacitacion.services import (
     actualizar_curso,
     actualizar_encuentro,
     actualizar_participante,
-    obtener_participante,
+    actualizar_programa,
     actualizar_puesto,
     actualizar_sector,
+    agregar_curso_a_plan,
+    agregar_plan,
     analitico_participante,
     baja_curso,
     baja_participante,
     busqueda_global,
+    cerrar_cronograma,
     crear_curso,
     crear_empresa_capacitadora,
     crear_encuentro,
@@ -27,13 +30,16 @@ from gos.modulos.capacitacion.services import (
     crear_puesto,
     crear_requisito,
     crear_sector,
+    cursos_de_puestos,
     descargar_certificado_registro,
     descargar_documento_certificacion,
     descargar_foto_participante,
     detalle_encuentro,
     eliminar_certificado_registro,
+    eliminar_curso_de_plan,
     eliminar_encuentro,
     eliminar_foto_participante,
+    eliminar_plan,
     eliminar_requisito,
     encuentros_cronograma,
     enviar_notificaciones_alertas,
@@ -52,8 +58,11 @@ from gos.modulos.capacitacion.services import (
     listar_requisitos,
     listar_sectores,
     marcar_alerta_leida,
+    matriz_analitica,
     matriz_capacitaciones,
     obtener_config,
+    obtener_participante,
+    obtener_programa,
     obtener_taxonomia_cursos,
     participantes_encuentro,
     registrar_asistencias,
@@ -472,6 +481,27 @@ def dashboard():
 @bp.route("/matriz")
 @login_required
 def matriz():
+    # Nueva matriz analítica (3 vistas) si se pide vista=...
+    vista = request.args.get("vista")
+    if vista:
+        try:
+            return jsonify(
+                matriz_analitica(
+                    current_user.empresa_id,
+                    vista=vista,
+                    anio=request.args.get("anio", type=int),
+                    plan_ids=request.args.get("planes") or request.args.get("plan_ids"),
+                    tipos=(request.args.get("tipos") or "").split(",") if request.args.get("tipos") else [],
+                    empresas=request.args.get("empresas") or request.args.get("empresa_ids"),
+                    persona_ids=request.args.get("personas") or request.args.get("persona_ids"),
+                    puesto_ids=request.args.get("puestos") or request.args.get("puesto_ids"),
+                    persona_id=request.args.get("persona_id", type=int)
+                    or request.args.get("participante_id", type=int),
+                )
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
     return jsonify(
         matriz_capacitaciones(
             current_user.empresa_id,
@@ -483,6 +513,57 @@ def matriz():
             solo_requeridos=request.args.get("solo_requeridos", "true").lower() != "false",
         )
     )
+
+
+@bp.route("/matriz/calendario")
+@login_required
+def matriz_calendario_api():
+    return jsonify(
+        matriz_analitica(
+            current_user.empresa_id,
+            vista="calendario",
+            anio=request.args.get("anio", type=int),
+            plan_ids=request.args.get("planes"),
+            tipos=(request.args.get("tipos") or "").split(",") if request.args.get("tipos") else [],
+            empresas=request.args.get("empresas"),
+            persona_ids=request.args.get("personas"),
+            puesto_ids=request.args.get("puestos"),
+        )
+    )
+
+
+@bp.route("/matriz/tabla")
+@login_required
+def matriz_tabla_api():
+    return jsonify(
+        matriz_analitica(
+            current_user.empresa_id,
+            vista="tabla",
+            plan_ids=request.args.get("planes"),
+            tipos=(request.args.get("tipos") or "").split(",") if request.args.get("tipos") else [],
+            empresas=request.args.get("empresas"),
+            persona_ids=request.args.get("personas"),
+            puesto_ids=request.args.get("puestos"),
+        )
+    )
+
+
+@bp.route("/matriz/persona/<int:persona_id>")
+@login_required
+def matriz_persona_api(persona_id: int):
+    try:
+        return jsonify(
+            matriz_analitica(
+                current_user.empresa_id,
+                vista="persona",
+                persona_id=persona_id,
+                plan_ids=request.args.get("planes"),
+                tipos=(request.args.get("tipos") or "").split(",") if request.args.get("tipos") else [],
+                empresas=request.args.get("empresas"),
+            )
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
 
 
 @bp.route("/matriz/exportar.xlsx")
@@ -590,8 +671,99 @@ def programas():
             current_user.empresa_id,
             puesto_id=request.args.get("puesto_id", type=int),
             participante_id=request.args.get("participante_id", type=int),
+            tipo=request.args.get("tipo"),
+            detalle=request.args.get("detalle") == "1",
         )
     })
+
+
+@bp.route("/programas/<int:programa_id>", methods=["GET", "PUT"])
+@login_required
+def programa_detalle(programa_id: int):
+    if request.method == "GET":
+        try:
+            item = obtener_programa(current_user.empresa_id, programa_id)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 404
+        return jsonify({"programa": item})
+    if not _puede_editar():
+        return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    try:
+        item = actualizar_programa(current_user.empresa_id, programa_id, _json_body())
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"programa": item})
+
+
+@bp.route("/programas/<int:programa_id>/planes", methods=["POST"])
+@login_required
+def programa_planes(programa_id: int):
+    if not _puede_editar():
+        return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    try:
+        plan = agregar_plan(current_user.empresa_id, programa_id, _json_body())
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"plan": plan}), 201
+
+
+@bp.route("/planes/<int:plan_id>", methods=["DELETE"])
+@login_required
+def plan_eliminar(plan_id: int):
+    if not _puede_editar():
+        return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    try:
+        eliminar_plan(current_user.empresa_id, plan_id)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"ok": True})
+
+
+@bp.route("/planes/<int:plan_id>/cursos", methods=["POST"])
+@login_required
+def plan_cursos(plan_id: int):
+    if not _puede_editar():
+        return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    body = _json_body()
+    curso_id = body.get("curso_id")
+    if not curso_id:
+        return jsonify({"error": "curso_id es obligatorio"}), 400
+    try:
+        item = agregar_curso_a_plan(current_user.empresa_id, plan_id, int(curso_id))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"curso": item}), 201
+
+
+@bp.route("/plan-cursos/<int:plan_curso_id>", methods=["DELETE"])
+@login_required
+def plan_curso_eliminar(plan_curso_id: int):
+    if not _puede_editar():
+        return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    try:
+        eliminar_curso_de_plan(current_user.empresa_id, plan_curso_id)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"ok": True})
+
+
+@bp.route("/programas/cursos-por-puestos")
+@login_required
+def programas_cursos_por_puestos():
+    puesto_ids = _parse_id_list(request.args.get("puesto_ids"))
+    return jsonify({"cursos": cursos_de_puestos(current_user.empresa_id, puesto_ids)})
+
+
+@bp.route("/encuentros/<int:encuentro_id>/cierre", methods=["PUT"])
+@login_required
+def encuentro_cierre(encuentro_id: int):
+    if not _puede_editar():
+        return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    try:
+        item = cerrar_cronograma(current_user.empresa_id, encuentro_id, _json_body())
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(item)
 
 
 @bp.route("/programas/<int:programa_id>/inscripciones", methods=["POST"])

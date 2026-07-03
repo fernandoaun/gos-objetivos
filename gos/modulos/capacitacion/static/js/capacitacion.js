@@ -3751,817 +3751,357 @@
 
 
   async function loadProgramas() {
-
-    const tbody = document.getElementById("cap-programas-body");
-
-    if (!tbody) return;
-
-    tbody.innerHTML = '<tr><td colspan="5" class="cap-loading">Cargando...</td></tr>';
-
-    const data = await fetchJson(`${API}/programas`);
-
+    const cards = document.getElementById("cap-programas-cards");
+    if (!cards) return;
+    cards.innerHTML = '<div class="cap-loading">Cargando...</div>';
+    const tipo = document.getElementById("cap-prog-filtro-tipo")?.value || "";
+    const qs = tipo ? `?tipo=${encodeURIComponent(tipo)}` : "";
+    const data = await fetchJson(`${API}/programas${qs}`);
     programasCache = data.programas || [];
-
     if (!programasCache.length) {
-
-      tbody.innerHTML = '<tr><td colspan="5" class="cap-empty">Todavía no hay programas. Creá el primero con <strong>Nuevo programa</strong>.</td></tr>';
-
+      cards.innerHTML = '<div class="cap-empty">Todavía no hay programas. Creá el primero con <strong>Nuevo programa</strong>.</div>';
       return;
-
     }
-
-    tbody.innerHTML = programasCache.map((p) => `
-
-      <tr class="${p.id === programaSeleccionadoId ? "cap-row-active" : ""}" data-programa-id="${p.id}">
-
-        <td><strong>${p.codigo}</strong></td>
-
-        <td>${p.nombre}</td>
-
-        <td>${p.puesto_nombre || "—"}</td>
-
-        <td>${programaEstadoLabel(p.estado)}</td>
-
-        <td class="cap-col-actions">
-
-          <button type="button" class="cap-btn cap-btn--sm cap-btn--primary" data-prog-cursos="${p.id}" title="Gestionar cursos">
-
-            <i class="bi bi-list-check"></i> Cursos
-
-          </button>
-
-        </td>
-
-      </tr>`).join("");
-
-    tbody.querySelectorAll("[data-prog-cursos]").forEach((btn) => {
-
-      btn.addEventListener("click", () => {
-
-        selectPrograma(Number(btn.dataset.progCursos)).catch(console.error);
-
+    cards.innerHTML = programasCache.map((p) => {
+      const puestos = (p.puestos || []).map((x) => x.nombre).join(", ") || p.puesto_nombre || "Sin puestos";
+      const tipoLabel = p.tipo === "externo" ? "Externo" : "Interno";
+      return `
+      <article class="cap-card ${p.id === programaSeleccionadoId ? "cap-card--active" : ""}" data-programa-id="${p.id}">
+        <div class="cap-card-head">
+          <strong>${escapeHtml(p.nombre)}</strong>
+          <span class="cap-badge">${tipoLabel}</span>
+        </div>
+        <div class="cap-card-meta">
+          <span><i class="bi bi-diagram-3"></i> ${p.planes_count || 0} planes</span>
+          <span><i class="bi bi-journal-text"></i> ${p.cursos_count || 0} cursos</span>
+          <span><i class="bi bi-person-badge"></i> ${p.puestos_count || 0} puestos</span>
+        </div>
+        <p class="cap-card-sub">${escapeHtml(puestos)}</p>
+        <div class="cap-card-actions">
+          <button type="button" class="cap-btn cap-btn--sm cap-btn--primary" data-prog-open="${p.id}">Abrir</button>
+        </div>
+      </article>`;
+    }).join("");
+    cards.querySelectorAll("[data-prog-open], article[data-programa-id]").forEach((el) => {
+      el.addEventListener("click", (ev) => {
+        if (ev.target.closest("button") && !ev.target.closest("[data-prog-open]")) return;
+        const id = Number(el.dataset.progOpen || el.dataset.programaId);
+        selectPrograma(id).catch(console.error);
       });
-
     });
-
-    tbody.querySelectorAll("tr[data-programa-id]").forEach((row) => {
-
-      row.addEventListener("click", (ev) => {
-
-        if (ev.target.closest("button")) return;
-
-        selectPrograma(Number(row.dataset.programaId)).catch(console.error);
-
-      });
-
-    });
-
   }
 
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;");
+  }
 
+  function renderPuestosChecks(containerId, selectedIds = []) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const selected = new Set((selectedIds || []).map(String));
+    if (!metaPuestos.length) {
+      el.innerHTML = '<p class="cap-empty">No hay puestos cargados en catálogos.</p>';
+      return;
+    }
+    el.innerHTML = metaPuestos.map((p) => `
+      <label class="cap-check">
+        <input type="checkbox" value="${p.id}" ${selected.has(String(p.id)) ? "checked" : ""}>
+        <span>${escapeHtml(p.nombre)}</span>
+      </label>`).join("");
+  }
+
+  function selectedPuestoIds(containerId) {
+    return Array.from(document.querySelectorAll(`#${containerId} input[type="checkbox"]:checked`))
+      .map((inp) => Number(inp.value));
+  }
 
   async function selectPrograma(programaId) {
-
-    const programa = programasCache.find((p) => p.id === programaId);
-
-    if (!programa) return;
-
     programaSeleccionadoId = programaId;
-
-    const puestoSel = document.getElementById("cap-req-puesto");
-
-    if (puestoSel && programa.puesto_id) puestoSel.value = String(programa.puesto_id);
-
-    const cursosSection = document.getElementById("cap-programa-cursos-section");
-
-    const titleEl = document.getElementById("cap-programa-cursos-title");
-
-    if (cursosSection) cursosSection.classList.remove("cap-hidden");
-
-    if (titleEl) {
-
-      titleEl.textContent = `Cursos del programa — ${programa.nombre}`;
-
-    }
-
+    const detalle = document.getElementById("cap-programa-detalle");
+    const titleEl = document.getElementById("cap-programa-detalle-title");
+    const planesEl = document.getElementById("cap-programa-planes");
+    if (!detalle || !planesEl) return;
+    detalle.classList.remove("cap-hidden");
+    planesEl.innerHTML = '<div class="cap-loading">Cargando estructura...</div>';
+    const data = await fetchJson(`${API}/programas/${programaId}`);
+    const programa = data.programa;
+    programasCache = programasCache.map((p) => (p.id === programa.id ? { ...p, ...programa } : p));
+    if (titleEl) titleEl.textContent = `${programa.nombre} (${programa.tipo === "externo" ? "Externo" : "Interno"})`;
+    renderPuestosChecks("cap-programa-puestos-detalle", (programa.puestos || []).map((p) => p.id));
+    renderProgramaPlanes(programa);
     await loadProgramas();
-
-    await loadRequisitos();
-
-    cursosSection?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-
+    detalle.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
-
-
-  function suggestProgramaFieldsFromPuesto() {
-
-    const puestoId = document.getElementById("cap-prog-puesto")?.value;
-
-    const codigoInp = document.getElementById("cap-prog-codigo");
-
-    const nombreInp = document.getElementById("cap-prog-nombre");
-
-    if (!puestoId || !codigoInp || !nombreInp) return;
-
-    const puesto = metaPuestos.find((p) => String(p.id) === String(puestoId));
-
-    if (!puesto) return;
-
-    if (!codigoInp.value.trim()) {
-
-      codigoInp.value = `PROG-${(puesto.codigo || puesto.id).toString().toUpperCase().replace(/\s+/g, "-")}`;
-
+  function renderProgramaPlanes(programa) {
+    const planesEl = document.getElementById("cap-programa-planes");
+    if (!planesEl) return;
+    const planes = programa.planes || [];
+    if (!planes.length) {
+      planesEl.innerHTML = '<p class="cap-empty">Este programa no tiene planes. Agregá el primero.</p>';
+      return;
     }
+    const allCursos = window.capCursosCache || [];
+    planesEl.innerHTML = planes.map((plan) => {
+      const usados = new Set((plan.cursos || []).map((c) => c.curso_id));
+      const disponibles = allCursos.filter((c) => !usados.has(c.id));
+      const cursosHtml = (plan.cursos || []).map((c, i) => {
+        const badges = (c.tambien_en || []).map((p) => `<span class="cap-badge cap-badge--soft">También en: ${escapeHtml(p.nombre)}</span>`).join(" ");
+        return `<li class="cap-plan-curso">
+          <span class="cap-col-num">${i + 1}</span>
+          <span>${escapeHtml(c.curso_codigo)} — ${escapeHtml(c.curso_nombre)} ${badges}</span>
+          <button type="button" class="cap-btn cap-btn--sm cap-btn--danger" data-del-plan-curso="${c.id}" title="Quitar"><i class="bi bi-trash"></i></button>
+        </li>`;
+      }).join("") || '<li class="cap-empty">Sin cursos en este plan</li>';
+      return `<section class="cap-plan-block" data-plan-id="${plan.id}">
+        <div class="cap-plan-head">
+          <h4>${escapeHtml(plan.nombre)}</h4>
+          <button type="button" class="cap-btn cap-btn--sm cap-btn--danger" data-del-plan="${plan.id}" title="Eliminar plan"><i class="bi bi-trash"></i></button>
+        </div>
+        <ul class="cap-plan-cursos">${cursosHtml}</ul>
+        <div class="cap-input-group">
+          <select class="cap-input" data-plan-curso-select="${plan.id}">
+            <option value="">— Agregar curso —</option>
+            ${disponibles.map((c) => `<option value="${c.id}">${escapeHtml(c.codigo)} — ${escapeHtml(c.nombre)}</option>`).join("")}
+          </select>
+          <button type="button" class="cap-btn cap-btn--primary" data-add-plan-curso="${plan.id}"><i class="bi bi-plus-lg"></i></button>
+        </div>
+      </section>`;
+    }).join("");
 
-    if (!nombreInp.value.trim()) {
-
-      nombreInp.value = `Programa ${puesto.nombre}`;
-
-    }
-
+    planesEl.querySelectorAll("[data-add-plan-curso]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const planId = Number(btn.dataset.addPlanCurso);
+        const sel = planesEl.querySelector(`[data-plan-curso-select="${planId}"]`);
+        const cursoId = Number(sel?.value || 0);
+        if (!cursoId) return;
+        try {
+          await postJson(`${API}/planes/${planId}/cursos`, { curso_id: cursoId });
+          await selectPrograma(programaSeleccionadoId);
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    });
+    planesEl.querySelectorAll("[data-del-plan-curso]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("¿Quitar este curso del plan?")) return;
+        try {
+          await deleteJson(`${API}/plan-cursos/${btn.dataset.delPlanCurso}`);
+          await selectPrograma(programaSeleccionadoId);
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    });
+    planesEl.querySelectorAll("[data-del-plan]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("¿Eliminar este plan y sus cursos?")) return;
+        try {
+          await deleteJson(`${API}/planes/${btn.dataset.delPlan}`);
+          await selectPrograma(programaSeleccionadoId);
+        } catch (err) {
+          alert(err.message);
+        }
+      });
+    });
   }
 
-
-
-  function openProgramaForm() {
-
+  function openProgramaForm(programa = null) {
     const form = document.getElementById("cap-programa-form");
-
     if (form) form.reset();
-
     setFormError("cap-programa-form-error", "");
-
+    document.getElementById("cap-prog-id").value = programa?.id || "";
+    document.getElementById("cap-prog-nombre").value = programa?.nombre || "";
+    document.getElementById("cap-prog-codigo").value = programa?.codigo || "";
+    document.getElementById("cap-prog-descripcion").value = programa?.descripcion || "";
+    const tipo = programa?.tipo || "interno";
+    form.querySelectorAll('input[name="tipo"]').forEach((inp) => {
+      inp.checked = inp.value === tipo;
+    });
+    renderPuestosChecks("cap-prog-puestos", (programa?.puestos || []).map((p) => p.id));
+    document.getElementById("cap-programa-submit").textContent = programa ? "Guardar cambios" : "Crear programa";
     togglePanel("cap-programa-form-panel", true);
-
-    document.getElementById("cap-prog-puesto")?.focus();
-
+    document.getElementById("cap-prog-nombre")?.focus();
   }
-
-
 
   function bindProgramaForm() {
-
     document.getElementById("cap-btn-nuevo-programa")?.addEventListener("click", async () => {
-
       if (!metaPuestos.length) {
-
         try { await loadPuestosOptions(); } catch (e) { console.error(e); }
-
       }
-
+      if (!(window.capCursosCache || []).length) {
+        try {
+          const data = await fetchJson(`${API}/cursos`);
+          window.capCursosCache = data.cursos || [];
+        } catch (e) { console.error(e); }
+      }
       openProgramaForm();
-
     });
-
     document.getElementById("cap-programa-cancel")?.addEventListener("click", () => {
-
       togglePanel("cap-programa-form-panel", false);
-
     });
-
-    document.getElementById("cap-prog-puesto")?.addEventListener("change", suggestProgramaFieldsFromPuesto);
-
-    document.getElementById("cap-programa-form")?.addEventListener("submit", async (e) => {
-
-      e.preventDefault();
-
-      setFormError("cap-programa-form-error", "");
-
-      const body = formToObject(e.target);
-
-      body.alcance = "puesto";
-
-      if (!body.puesto_id) {
-
-        setFormError("cap-programa-form-error", "Seleccioná un puesto");
-
-        return;
-
-      }
-
+    document.getElementById("cap-prog-filtro-tipo")?.addEventListener("change", () => {
+      loadProgramas().catch(console.error);
+    });
+    document.getElementById("cap-btn-editar-programa")?.addEventListener("click", async () => {
+      if (!programaSeleccionadoId) return;
+      const data = await fetchJson(`${API}/programas/${programaSeleccionadoId}`);
+      openProgramaForm(data.programa);
+    });
+    document.getElementById("cap-btn-agregar-plan")?.addEventListener("click", async () => {
+      if (!programaSeleccionadoId) return;
+      const nombre = prompt("Nombre del plan (ej. Seguridad, Técnico, Liderazgo):");
+      if (!nombre || !nombre.trim()) return;
       try {
-
-        const data = await postJson(`${API}/programas`, body);
-
-        togglePanel("cap-programa-form-panel", false);
-
-        e.target.reset();
-
-        await loadProgramas();
-
-        if (data.programa?.id) {
-
-          await selectPrograma(data.programa.id);
-
-        }
-
+        await postJson(`${API}/programas/${programaSeleccionadoId}/planes`, { nombre: nombre.trim() });
+        await selectPrograma(programaSeleccionadoId);
       } catch (err) {
-
-        setFormError("cap-programa-form-error", err.message);
-
+        alert(err.message);
       }
-
     });
-
+    document.getElementById("cap-btn-guardar-puestos")?.addEventListener("click", async () => {
+      if (!programaSeleccionadoId) return;
+      setFormError("cap-programa-puestos-error", "");
+      try {
+        await putJson(`${API}/programas/${programaSeleccionadoId}`, {
+          puesto_ids: selectedPuestoIds("cap-programa-puestos-detalle"),
+        });
+        await selectPrograma(programaSeleccionadoId);
+      } catch (err) {
+        setFormError("cap-programa-puestos-error", err.message);
+      }
+    });
+    document.getElementById("cap-programa-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      setFormError("cap-programa-form-error", "");
+      const body = formToObject(e.target);
+      body.puesto_ids = selectedPuestoIds("cap-prog-puestos");
+      body.tipo = e.target.querySelector('input[name="tipo"]:checked')?.value || "interno";
+      const id = body.id ? Number(body.id) : null;
+      delete body.id;
+      try {
+        const data = id
+          ? await putJson(`${API}/programas/${id}`, body)
+          : await postJson(`${API}/programas`, body);
+        togglePanel("cap-programa-form-panel", false);
+        e.target.reset();
+        await loadProgramas();
+        if (data.programa?.id) await selectPrograma(data.programa.id);
+      } catch (err) {
+        setFormError("cap-programa-form-error", err.message);
+      }
+    });
   }
-
-
 
   async function loadRequisitos() {
-
-    const puestoSel = document.getElementById("cap-req-puesto");
-
-    const puestoId = puestoSel?.value;
-
-    const tbody = document.getElementById("cap-requisitos-body");
-
-    const titleEl = document.getElementById("cap-programa-cursos-title");
-
-    const countEl = document.getElementById("cap-programa-count");
-
-    const cursosSection = document.getElementById("cap-programa-cursos-section");
-
-    if (!tbody) return;
-
-    if (!puestoId || !programaSeleccionadoId) {
-
-      if (countEl) countEl.textContent = "";
-
-      programaCursosIds = [];
-
-      refreshProgramaCursoSelect();
-
-      if (cursosSection && !programaSeleccionadoId) cursosSection.classList.add("cap-hidden");
-
-      tbody.innerHTML = '<tr><td colspan="3" class="cap-empty">Seleccioná un programa para agregar cursos</td></tr>';
-
-      return;
-
-    }
-
-    const programa = programasCache.find((p) => p.id === programaSeleccionadoId);
-
-    if (titleEl && programa) titleEl.textContent = `Cursos del programa — ${programa.nombre}`;
-
-    const items = (await fetchJson(`${API}/requisitos?puesto_id=${puestoId}`)).requisitos || [];
-
-    programaCursosIds = items.map((r) => r.curso_id);
-
-    refreshProgramaCursoSelect();
-
-    if (!items.length) {
-
-      if (countEl) countEl.textContent = "0 cursos";
-
-      tbody.innerHTML = '<tr><td colspan="3" class="cap-empty">Todavía no hay cursos. Agregá el primero arriba.</td></tr>';
-
-      return;
-
-    }
-
-    if (countEl) {
-
-      countEl.textContent = `${items.length} curso${items.length === 1 ? "" : "s"} — las fechas se asignan en Cronograma`;
-
-    }
-
-    tbody.innerHTML = items.map((r, i) => `
-
-      <tr>
-
-        <td class="cap-col-num">${i + 1}</td>
-
-        <td>${r.curso_codigo} — ${r.curso_nombre}</td>
-
-        <td class="cap-col-actions"><button type="button" class="cap-btn cap-btn--sm cap-btn--danger" data-req-id="${r.id}" title="Quitar del programa"><i class="bi bi-trash"></i></button></td>
-
-      </tr>`).join("");
-
-    tbody.querySelectorAll("[data-req-id]").forEach((btn) => {
-
-      btn.addEventListener("click", async () => {
-
-        if (!confirm("¿Eliminar este requisito?")) return;
-
-        await deleteJson(`${API}/requisitos/${btn.dataset.reqId}`);
-
-        await loadRequisitos();
-
-      });
-
-    });
-
+    return;
   }
-
-
-
-  async function openAsistenciaModal(encuentroId) {
-
-    asistenciaEncuentroId = encuentroId;
-
-    const modal = document.getElementById("cap-asistencia-modal");
-
-    const tbody = document.getElementById("cap-asistencia-body");
-
-    if (!modal || !tbody) return;
-
-    const data = await fetchJson(`${API}/encuentros/${encuentroId}`);
-
-    document.getElementById("cap-asistencia-titulo").textContent = data.titulo || "Asistencia";
-
-    const participantes = data.participantes || [];
-
-    tbody.innerHTML = participantes.map((p) => `
-
-      <tr data-pid="${p.participante_id}">
-
-        <td>${p.nombre}</td>
-
-        <td>
-
-          <select class="cap-input cap-input--sm cap-asist-sel">
-
-            <option value="inscripto" ${p.asistencia === "inscripto" ? "selected" : ""}>Pendiente</option>
-
-            <option value="presente" ${p.asistencia === "presente" ? "selected" : ""}>Presente</option>
-
-            <option value="ausente" ${p.asistencia === "ausente" ? "selected" : ""}>Ausente</option>
-
-            <option value="justificado" ${p.asistencia === "justificado" ? "selected" : ""}>Justificado</option>
-
-          </select>
-
-        </td>
-
-        <td><input class="cap-input cap-input--sm cap-nota-inp" type="number" min="0" max="10" step="0.1" value="${p.nota ?? ""}"></td>
-
-        <td><input type="checkbox" class="cap-aprob-inp" ${p.aprobado ? "checked" : ""}></td>
-
-      </tr>`).join("") || '<tr><td colspan="4" class="cap-empty">Sin participantes</td></tr>';
-
-    modal.classList.remove("cap-hidden");
-
-  }
-
-
-
-  function closeAsistenciaModal() {
-
-    document.getElementById("cap-asistencia-modal")?.classList.add("cap-hidden");
-
-    asistenciaEncuentroId = null;
-
-  }
-
-
-
-  function openSectorForm(item) {
-
-    const form = document.getElementById("cap-sector-form");
-
-    if (!form) return;
-
-    form.reset();
-
-    document.getElementById("cap-s-id").value = item?.id || "";
-
-    if (item) {
-
-      document.getElementById("cap-s-codigo").value = item.codigo || "";
-
-      document.getElementById("cap-s-nombre").value = item.nombre || "";
-
-    }
-
-    setFormError("cap-sector-form-error", "");
-
-    togglePanel("cap-sector-form-panel", true);
-
-    document.getElementById("cap-s-codigo")?.focus();
-
-  }
-
-
-
-  function bindPersonaForm() {
-
-    const form = document.getElementById("cap-persona-form");
-
-    if (!form) return;
-
-
-
-    document.getElementById("cap-btn-nueva-persona")?.addEventListener("click", async () => {
-
-      await loadMeta();
-
-      openPersonaForm(null);
-
-    });
-
-
-
-    document.getElementById("cap-persona-cancel")?.addEventListener("click", () => {
-
-      personaEditId = null;
-
-      togglePanel("cap-persona-form-panel", false);
-
-      setFormError("cap-persona-form-error", "");
-
-    });
-
-
-
-    document.getElementById("cap-p-sector-add")?.addEventListener("click", () => {
-
-      togglePanel("cap-puesto-quick", false);
-
-      togglePanel("cap-sector-quick", true);
-
-    });
-
-    document.getElementById("cap-p-puesto-add")?.addEventListener("click", () => {
-
-      togglePanel("cap-sector-quick", false);
-
-      togglePanel("cap-puesto-quick", true);
-
-    });
-
-    document.getElementById("cap-sector-quick-cancel")?.addEventListener("click", () => togglePanel("cap-sector-quick", false));
-
-    document.getElementById("cap-puesto-quick-cancel")?.addEventListener("click", () => togglePanel("cap-puesto-quick", false));
-
-
-
-    document.getElementById("cap-sector-quick-save")?.addEventListener("click", async () => {
-
-      const codigo = document.getElementById("cap-sector-quick-codigo")?.value.trim();
-
-      const nombre = document.getElementById("cap-sector-quick-nombre")?.value.trim();
-
-      if (!codigo || !nombre) {
-
-        setFormError("cap-persona-form-error", "Código y nombre del sector son obligatorios.");
-
-        return;
-
-      }
-
-      try {
-
-        const data = await postJson(`${API}/sectores`, { codigo, nombre });
-
-        await loadMeta();
-
-        document.getElementById("cap-p-sector").value = data.sector.id;
-
-        togglePanel("cap-sector-quick", false);
-
-        setFormError("cap-persona-form-error", "");
-
-      } catch (err) {
-
-        setFormError("cap-persona-form-error", err.message);
-
-      }
-
-    });
-
-
-
-    document.getElementById("cap-puesto-quick-save")?.addEventListener("click", async () => {
-
-      const codigo = document.getElementById("cap-puesto-quick-codigo")?.value.trim();
-
-      const nombre = document.getElementById("cap-puesto-quick-nombre")?.value.trim();
-
-      if (!codigo || !nombre) {
-
-        setFormError("cap-persona-form-error", "Código y nombre del puesto son obligatorios.");
-
-        return;
-
-      }
-
-      try {
-
-        const data = await postJson(`${API}/puestos`, { codigo, nombre });
-
-        await loadMeta();
-
-        document.getElementById("cap-p-puesto").value = data.puesto.id;
-
-        togglePanel("cap-puesto-quick", false);
-
-        setFormError("cap-persona-form-error", "");
-
-      } catch (err) {
-
-        setFormError("cap-persona-form-error", err.message);
-
-      }
-
-    });
-
-
-
-    form.addEventListener("submit", async (e) => {
-
-      e.preventDefault();
-
-      setFormError("cap-persona-form-error", "");
-
-      const payload = formToObject(form);
-
-      if (!payload.legajo) {
-
-        setFormError("cap-persona-form-error", "El legajo es obligatorio.");
-
-        return;
-
-      }
-
-      delete payload.id;
-
-      if (payload.sector_id) payload.sector_id = Number(payload.sector_id);
-
-      if (payload.puesto_id) payload.puesto_id = Number(payload.puesto_id);
-
-      try {
-
-        let data;
-
-        if (personaEditId) {
-
-          data = await putJson(`${API}/participantes/${personaEditId}`, payload);
-
-        } else {
-
-          data = await postJson(`${API}/participantes`, payload);
-
-        }
-
-        personaEditId = null;
-
-        togglePanel("cap-persona-form-panel", false);
-
-        form.reset();
-
-        await loadPersonas(data.participante?.id);
-
-      } catch (err) {
-
-        setFormError("cap-persona-form-error", err.message);
-
-      }
-
-    });
-
-  }
-
-
-
-  function bindCursoForm() {
-
-    const form = document.getElementById("cap-curso-form");
-
-    if (!form) return;
-
-
-
-    document.getElementById("cap-btn-nuevo-curso")?.addEventListener("click", () => openCursoForm(null));
-
-    document.getElementById("cap-btn-importar-cursos")?.addEventListener("click", () => {
-
-      document.getElementById("cap-import-cursos-file")?.click();
-
-    });
-
-    document.getElementById("cap-import-cursos-file")?.addEventListener("change", async (e) => {
-
-      const file = e.target.files?.[0];
-
-      if (!file) return;
-
-      try {
-
-        const r = await uploadFile(`${API}/cursos/importar`, file);
-
-        alert(`Importación: ${r.creados} creados, ${r.actualizados} actualizados.${r.errores?.length ? "\nErrores:\n" + r.errores.join("\n") : ""}`);
-
-        await loadCursos();
-
-      } catch (err) {
-
-        alert(err.message);
-
-      }
-
-      e.target.value = "";
-
-    });
-
-
-
-    document.getElementById("cap-curso-cancel")?.addEventListener("click", () => {
-
-      cursoEditId = null;
-
-      togglePanel("cap-curso-form-panel", false);
-
-      setFormError("cap-curso-form-error", "");
-
-    });
-
-
-
-    document.getElementById("cap-curso-baja")?.addEventListener("click", async () => {
-
-      if (!cursoEditId || !confirm("¿Dar de baja este curso?")) return;
-
-      try {
-
-        await deleteJson(`${API}/cursos/${cursoEditId}`);
-
-        togglePanel("cap-curso-form-panel", false);
-
-        cursoEditId = null;
-
-        await loadCursos();
-
-      } catch (err) {
-
-        setFormError("cap-curso-form-error", err.message);
-
-      }
-
-    });
-
-
-
-    form.addEventListener("submit", async (e) => {
-
-      e.preventDefault();
-
-      setFormError("cap-curso-form-error", "");
-
-      const payload = formToObject(form);
-
-      payload.requiere_evaluacion = document.getElementById("cap-c-eval")?.checked || false;
-
-      if (payload.horas) payload.horas = Number(payload.horas);
-
-      if (payload.vigencia_meses) payload.vigencia_meses = Number(payload.vigencia_meses);
-
-      if (payload.puntaje_minimo) payload.puntaje_minimo = Number(payload.puntaje_minimo);
-
-      delete payload.id;
-
-      try {
-
-        if (cursoEditId) {
-
-          await putJson(`${API}/cursos/${cursoEditId}`, payload);
-
-        } else {
-
-          await postJson(`${API}/cursos`, payload);
-
-        }
-
-        togglePanel("cap-curso-form-panel", false);
-
-        form.reset();
-
-        cursoEditId = null;
-
-        await loadCursos();
-
-      } catch (err) {
-
-        setFormError("cap-curso-form-error", err.message);
-
-      }
-
-    });
-
-  }
-
-
 
   async function agregarCursoAlPrograma() {
-
-    const puestoId = document.getElementById("cap-req-puesto")?.value;
-
-    const cursoId = document.getElementById("cap-req-curso")?.value;
-
-    setFormError("cap-requisito-error", "");
-
-    if (!programaSeleccionadoId) {
-
-      setFormError("cap-requisito-error", "Seleccioná un programa primero");
-
-      return;
-
-    }
-
-    if (!puestoId) {
-
-      setFormError("cap-requisito-error", "El programa no tiene puesto asociado");
-
-      return;
-
-    }
-
-    if (!cursoId) {
-
-      setFormError("cap-requisito-error", "Seleccioná un curso para agregar");
-
-      return;
-
-    }
-
-    try {
-
-      await postJson(`${API}/requisitos`, { puesto_id: Number(puestoId), curso_id: Number(cursoId), obligatorio: true });
-
-      await loadRequisitos();
-
-    } catch (err) {
-
-      setFormError("cap-requisito-error", err.message);
-
-    }
-
+    return;
   }
-
-
 
   function bindRequisitos() {
-
-    document.getElementById("cap-btn-agregar-requisito")?.addEventListener("click", () => agregarCursoAlPrograma().catch(console.error));
-
-    document.getElementById("cap-req-curso")?.addEventListener("keydown", (e) => {
-
-      if (e.key === "Enter") {
-
-        e.preventDefault();
-
-        agregarCursoAlPrograma().catch(console.error);
-
-      }
-
-    });
-
   }
 
+  let asistenciaCursoMeta = { requiere_evaluacion: false, puntaje_minimo: null };
 
+  function calcEstadoAsistencia(asistio, nota) {
+    if (asistio === false) return "No asistió";
+    if (asistio !== true) return "Pendiente";
+    if (!asistenciaCursoMeta.requiere_evaluacion) return "Aprobó";
+    if (nota === null || nota === "" || Number.isNaN(Number(nota))) return "No aprobó";
+    const minimo = Number(asistenciaCursoMeta.puntaje_minimo ?? 0);
+    return Number(nota) >= minimo ? "Aprobó" : "No aprobó";
+  }
+
+  function refreshAsistenciaRow(tr) {
+    const asistio = tr.querySelector(".cap-asist-sel")?.value;
+    const notaInp = tr.querySelector(".cap-nota-inp");
+    const estadoEl = tr.querySelector(".cap-estado-calc");
+    const asistioBool = asistio === "presente" ? true : (asistio === "ausente" ? false : null);
+    if (notaInp) {
+      const showNota = asistenciaCursoMeta.requiere_evaluacion && asistioBool === true;
+      notaInp.disabled = !showNota;
+      if (!showNota) notaInp.value = "";
+    }
+    if (estadoEl) estadoEl.textContent = calcEstadoAsistencia(asistioBool, notaInp?.value);
+  }
+
+  async function openAsistenciaModal(encuentroId) {
+    asistenciaEncuentroId = encuentroId;
+    const modal = document.getElementById("cap-asistencia-modal");
+    const tbody = document.getElementById("cap-asistencia-body");
+    if (!modal || !tbody) return;
+    const data = await fetchJson(`${API}/encuentros/${encuentroId}`);
+    document.getElementById("cap-asistencia-titulo").textContent = data.titulo || "Cierre de cronograma";
+    asistenciaCursoMeta = {
+      requiere_evaluacion: !!data.curso_requiere_evaluacion,
+      puntaje_minimo: data.curso_puntaje_minimo,
+    };
+    const participantes = data.participantes || [];
+    tbody.innerHTML = participantes.map((p) => {
+      const asistio = p.asistio === true ? "presente" : (p.asistio === false ? "ausente" : (p.asistencia || "inscripto"));
+      return `
+      <tr data-pid="${p.participante_id}">
+        <td>${escapeHtml(p.nombre)}</td>
+        <td>
+          <select class="cap-input cap-input--sm cap-asist-sel">
+            <option value="inscripto" ${asistio === "inscripto" ? "selected" : ""}>Pendiente</option>
+            <option value="presente" ${asistio === "presente" ? "selected" : ""}>Sí</option>
+            <option value="ausente" ${asistio === "ausente" ? "selected" : ""}>No</option>
+          </select>
+        </td>
+        <td><input class="cap-input cap-input--sm cap-nota-inp" type="number" min="0" max="100" step="0.1" value="${p.nota ?? ""}"></td>
+        <td><span class="cap-estado-calc">${escapeHtml(p.estado || "Pendiente")}</span></td>
+      </tr>`;
+    }).join("") || '<tr><td colspan="4" class="cap-empty">Sin participantes</td></tr>';
+    tbody.querySelectorAll("tr[data-pid]").forEach((tr) => {
+      refreshAsistenciaRow(tr);
+      tr.querySelector(".cap-asist-sel")?.addEventListener("change", () => refreshAsistenciaRow(tr));
+      tr.querySelector(".cap-nota-inp")?.addEventListener("input", () => refreshAsistenciaRow(tr));
+    });
+    modal.classList.remove("cap-hidden");
+  }
+
+  function closeAsistenciaModal() {
+    asistenciaEncuentroId = null;
+    document.getElementById("cap-asistencia-modal")?.classList.add("cap-hidden");
+  }
 
   function bindAsistenciaModal() {
-
     ["cap-asistencia-cerrar", "cap-asistencia-cancel", "cap-asistencia-backdrop"].forEach((id) => {
-
       document.getElementById(id)?.addEventListener("click", closeAsistenciaModal);
-
     });
-
     document.getElementById("cap-asistencia-guardar")?.addEventListener("click", async () => {
-
       if (!asistenciaEncuentroId) return;
-
       const rows = document.querySelectorAll("#cap-asistencia-body tr[data-pid]");
-
-      const asistencias = Array.from(rows).map((tr) => ({
-
-        participante_id: Number(tr.dataset.pid),
-
-        asistencia: tr.querySelector(".cap-asist-sel")?.value || "presente",
-
-        nota: tr.querySelector(".cap-nota-inp")?.value || null,
-
-        aprobado: tr.querySelector(".cap-aprob-inp")?.checked || false,
-
-      }));
-
-      try {
-
-        await postJson(`${API}/encuentros/${asistenciaEncuentroId}/asistencias`, { asistencias });
-
-        closeAsistenciaModal();
-
-        await loadEncuentros();
-
-      } catch (err) {
-
-        alert(err.message);
-
+      const registros = Array.from(rows).map((tr) => {
+        const asistencia = tr.querySelector(".cap-asist-sel")?.value || "inscripto";
+        return {
+          participante_id: Number(tr.dataset.pid),
+          asistencia,
+          asistio: asistencia === "presente" ? true : (asistencia === "ausente" ? false : null),
+          nota: tr.querySelector(".cap-nota-inp")?.value || null,
+        };
+      }).filter((r) => r.asistio !== null);
+      if (!registros.length) {
+        alert("Registrá la asistencia de al menos una persona");
+        return;
       }
-
+      try {
+        await putJson(`${API}/encuentros/${asistenciaEncuentroId}/cierre`, { personas: registros });
+        closeAsistenciaModal();
+        if (typeof loadEncuentros === "function") await loadEncuentros();
+      } catch (err) {
+        alert(err.message);
+      }
     });
-
   }
 
 

@@ -1317,3 +1317,99 @@
 .cap-btn--xs { padding: 0.2rem 0.45rem; font-size: 0.75rem; }
 .cap-link { color: var(--gos-green); text-decoration: none; }
 .cap-link:hover { text-decoration: underline; }
+
+.cap-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.85rem;
+}
+.cap-card {
+  border: 1px solid var(--cap-border);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.cap-card:hover,
+.cap-card--active {
+  border-color: var(--cap-navy, #1e3a5f);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+}
+.cap-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+.cap-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  font-size: 0.8rem;
+  color: var(--cap-muted);
+  margin-bottom: 0.35rem;
+}
+.cap-card-sub {
+  margin: 0 0 0.55rem;
+  font-size: 0.82rem;
+  color: var(--cap-muted);
+}
+.cap-card-actions { display: flex; justify-content: flex-end; }
+.cap-badge {
+  display: inline-block;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: #e8eef5;
+  color: var(--cap-navy, #1e3a5f);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.cap-badge--soft {
+  background: #fff7e6;
+  color: #8a5a00;
+  margin-left: 0.25rem;
+}
+.cap-radio-row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  min-height: 2.25rem;
+}
+.cap-radio,
+.cap-check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.cap-plan-block {
+  border: 1px solid var(--cap-border);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.85rem;
+  background: #fafbfc;
+}
+.cap-plan-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+.cap-plan-head h4 { margin: 0; font-size: 1rem; }
+.cap-plan-cursos {
+  list-style: none;
+  margin: 0 0 0.65rem;
+  padding: 0;
+}
+.cap-plan-curso {
+  display: grid;
+  grid-template-columns: 2rem 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--cap-border);
+}
+.cap-plan-curso:last-child { border-bottom: 0; }

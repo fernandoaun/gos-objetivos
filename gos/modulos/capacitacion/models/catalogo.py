@@ -38,9 +38,18 @@ class Curso(db.Model, TimestampMixin):
     tipo_capacitacion = db.Column(db.String(30), nullable=True)  # legado / reportes ISO
     horas = db.Column(db.Numeric(6, 2), nullable=True)
     modalidad = db.Column(db.String(30), nullable=True)
+    temas = db.Column(db.Text, nullable=True)
     vigencia_meses = db.Column(db.Integer, nullable=True)  # validez del conocimiento
     requiere_evaluacion = db.Column(db.Boolean, default=False, nullable=False)
     puntaje_minimo = db.Column(db.Numeric(5, 2), nullable=True)
+
+    @property
+    def tiene_vigencia(self) -> bool:
+        return bool(self.vigencia_meses and self.vigencia_meses > 0)
+
+    @property
+    def duracion_horas(self):
+        return float(self.horas) if self.horas is not None else None
     instructor_id = db.Column(db.Integer, db.ForeignKey("cap_instructores.id"), nullable=True, index=True)
     activo = db.Column(db.Boolean, default=True, nullable=False)
 
