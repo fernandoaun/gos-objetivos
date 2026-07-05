@@ -3326,6 +3326,186 @@
 
 
 
+  function bindPersonaForm() {
+
+    const form = document.getElementById("cap-persona-form");
+
+    if (!form) return;
+
+
+
+    document.getElementById("cap-btn-nueva-persona")?.addEventListener("click", async () => {
+
+      await loadMeta();
+
+      openPersonaForm(null);
+
+    });
+
+
+
+    document.getElementById("cap-persona-cancel")?.addEventListener("click", () => {
+
+      personaEditId = null;
+
+      togglePanel("cap-persona-form-panel", false);
+
+      setFormError("cap-persona-form-error", "");
+
+    });
+
+
+
+    document.getElementById("cap-p-sector-add")?.addEventListener("click", () => {
+
+      togglePanel("cap-puesto-quick", false);
+
+      togglePanel("cap-sector-quick", true);
+
+    });
+
+    document.getElementById("cap-p-puesto-add")?.addEventListener("click", () => {
+
+      togglePanel("cap-sector-quick", false);
+
+      togglePanel("cap-puesto-quick", true);
+
+    });
+
+    document.getElementById("cap-sector-quick-cancel")?.addEventListener("click", () => togglePanel("cap-sector-quick", false));
+
+    document.getElementById("cap-puesto-quick-cancel")?.addEventListener("click", () => togglePanel("cap-puesto-quick", false));
+
+
+
+    document.getElementById("cap-sector-quick-save")?.addEventListener("click", async () => {
+
+      const codigo = document.getElementById("cap-sector-quick-codigo")?.value.trim();
+
+      const nombre = document.getElementById("cap-sector-quick-nombre")?.value.trim();
+
+      if (!codigo || !nombre) {
+
+        setFormError("cap-persona-form-error", "Código y nombre del sector son obligatorios.");
+
+        return;
+
+      }
+
+      try {
+
+        const data = await postJson(`${API}/sectores`, { codigo, nombre });
+
+        await loadMeta();
+
+        document.getElementById("cap-p-sector").value = data.sector.id;
+
+        togglePanel("cap-sector-quick", false);
+
+        setFormError("cap-persona-form-error", "");
+
+      } catch (err) {
+
+        setFormError("cap-persona-form-error", err.message);
+
+      }
+
+    });
+
+
+
+    document.getElementById("cap-puesto-quick-save")?.addEventListener("click", async () => {
+
+      const codigo = document.getElementById("cap-puesto-quick-codigo")?.value.trim();
+
+      const nombre = document.getElementById("cap-puesto-quick-nombre")?.value.trim();
+
+      if (!codigo || !nombre) {
+
+        setFormError("cap-persona-form-error", "Código y nombre del puesto son obligatorios.");
+
+        return;
+
+      }
+
+      try {
+
+        const data = await postJson(`${API}/puestos`, { codigo, nombre });
+
+        await loadMeta();
+
+        document.getElementById("cap-p-puesto").value = data.puesto.id;
+
+        togglePanel("cap-puesto-quick", false);
+
+        setFormError("cap-persona-form-error", "");
+
+      } catch (err) {
+
+        setFormError("cap-persona-form-error", err.message);
+
+      }
+
+    });
+
+
+
+    form.addEventListener("submit", async (e) => {
+
+      e.preventDefault();
+
+      setFormError("cap-persona-form-error", "");
+
+      const payload = formToObject(form);
+
+      if (!payload.legajo) {
+
+        setFormError("cap-persona-form-error", "El legajo es obligatorio.");
+
+        return;
+
+      }
+
+      delete payload.id;
+
+      if (payload.sector_id) payload.sector_id = Number(payload.sector_id);
+
+      if (payload.puesto_id) payload.puesto_id = Number(payload.puesto_id);
+
+      try {
+
+        let data;
+
+        if (personaEditId) {
+
+          data = await putJson(`${API}/participantes/${personaEditId}`, payload);
+
+        } else {
+
+          data = await postJson(`${API}/participantes`, payload);
+
+        }
+
+        personaEditId = null;
+
+        togglePanel("cap-persona-form-panel", false);
+
+        form.reset();
+
+        await loadPersonas(data.participante?.id);
+
+      } catch (err) {
+
+        setFormError("cap-persona-form-error", err.message);
+
+      }
+
+    });
+
+  }
+
+
+
   function formatFecha(iso) {
     if (!iso) return "—";
     const [y, m, d] = iso.split("-");
@@ -3908,6 +4088,134 @@
     setFormError("cap-curso-form-error", "");
 
     togglePanel("cap-curso-form-panel", true);
+
+  }
+
+
+
+  function bindCursoForm() {
+
+    const form = document.getElementById("cap-curso-form");
+
+    if (!form) return;
+
+
+
+    document.getElementById("cap-btn-nuevo-curso")?.addEventListener("click", () => openCursoForm(null));
+
+    document.getElementById("cap-btn-importar-cursos")?.addEventListener("click", () => {
+
+      document.getElementById("cap-import-cursos-file")?.click();
+
+    });
+
+    document.getElementById("cap-import-cursos-file")?.addEventListener("change", async (e) => {
+
+      const file = e.target.files?.[0];
+
+      if (!file) return;
+
+      try {
+
+        const r = await uploadFile(`${API}/cursos/importar`, file);
+
+        alert(`Importación: ${r.creados} creados, ${r.actualizados} actualizados.${r.errores?.length ? "\nErrores:\n" + r.errores.join("\n") : ""}`);
+
+        await loadCursos();
+
+      } catch (err) {
+
+        alert(err.message);
+
+      }
+
+      e.target.value = "";
+
+    });
+
+
+
+    document.getElementById("cap-curso-cancel")?.addEventListener("click", () => {
+
+      cursoEditId = null;
+
+      togglePanel("cap-curso-form-panel", false);
+
+      setFormError("cap-curso-form-error", "");
+
+    });
+
+
+
+    document.getElementById("cap-curso-baja")?.addEventListener("click", async () => {
+
+      if (!cursoEditId || !confirm("¿Dar de baja este curso?")) return;
+
+      try {
+
+        await deleteJson(`${API}/cursos/${cursoEditId}`);
+
+        togglePanel("cap-curso-form-panel", false);
+
+        cursoEditId = null;
+
+        await loadCursos();
+
+      } catch (err) {
+
+        setFormError("cap-curso-form-error", err.message);
+
+      }
+
+    });
+
+
+
+    form.addEventListener("submit", async (e) => {
+
+      e.preventDefault();
+
+      setFormError("cap-curso-form-error", "");
+
+      const payload = formToObject(form);
+
+      payload.requiere_evaluacion = document.getElementById("cap-c-eval")?.checked || false;
+
+      if (payload.horas) payload.horas = Number(payload.horas);
+
+      if (payload.vigencia_meses) payload.vigencia_meses = Number(payload.vigencia_meses);
+
+      if (payload.puntaje_minimo) payload.puntaje_minimo = Number(payload.puntaje_minimo);
+
+      delete payload.id;
+
+      try {
+
+        if (cursoEditId) {
+
+          await putJson(`${API}/cursos/${cursoEditId}`, payload);
+
+        } else {
+
+          await postJson(`${API}/cursos`, payload);
+
+        }
+
+        togglePanel("cap-curso-form-panel", false);
+
+        form.reset();
+
+        cursoEditId = null;
+
+        await loadCursos();
+
+      } catch (err) {
+
+        setFormError("cap-curso-form-error", err.message);
+
+      }
+
+    });
 
   }
 
