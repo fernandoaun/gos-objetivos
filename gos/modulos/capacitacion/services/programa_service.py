@@ -126,6 +126,10 @@ def crear_programa(empresa_id: int, data: dict) -> dict:
         if not Puesto.query.filter_by(id=pid, empresa_id=empresa_id, activo=True).first():
             raise ValueError(f"Puesto {pid} no encontrado")
 
+    empresa_cap_id = _validar_empresa_capacitadora_programa(
+        empresa_id, tipo, data.get("empresa_capacitadora_id")
+    )
+
     programa = ProgramaCapacitacion(
         empresa_id=empresa_id,
         codigo=codigo,
@@ -139,6 +143,7 @@ def crear_programa(empresa_id: int, data: dict) -> dict:
         fecha_inicio=_parse_date(data.get("fecha_inicio")),
         fecha_fin=_parse_date(data.get("fecha_fin")),
         instructor=(data.get("instructor") or "").strip() or None,
+        empresa_capacitadora_id=empresa_cap_id,
         estado=estado,
     )
     db.session.add(programa)
@@ -176,6 +181,19 @@ def actualizar_programa(empresa_id: int, programa_id: int, data: dict) -> dict:
         if tipo not in TIPOS_PROGRAMA:
             raise ValueError("Tipo de programa inválido (interno/externo)")
         programa.tipo = tipo
+        if tipo == "interno":
+            programa.empresa_capacitadora_id = None
+    if "empresa_capacitadora_id" in data:
+        cap_id = data.get("empresa_capacitadora_id") or None
+        if programa.tipo == "externo":
+            programa.empresa_capacitadora_id = _validar_empresa_capacitadora_programa(
+                empresa_id, "externo", cap_id
+            )
+        else:
+            programa.empresa_capacitadora_id = None
+    if programa.tipo == "externo" and not programa.empresa_capacitadora_id:
+        if "tipo" in data or "empresa_capacitadora_id" in data:
+            raise ValueError("Seleccioná la empresa externa del programa")
     if "estado" in data:
         estado = (data.get("estado") or "").strip().lower()
         if estado not in ESTADOS_PROGRAMA:
@@ -752,6 +770,7 @@ def _programa_dict(p: ProgramaCapacitacion, *, detalle: bool = False) -> dict:
 
     planes = [_plan_dict(pl, p.empresa_id) for pl in p.planes.all()]
     cursos_count = sum(len(pl["cursos"]) for pl in planes)
+    emp_cap = p.empresa_capacitadora
 
     data = {
         "id": p.id,
@@ -759,6 +778,8 @@ def _programa_dict(p: ProgramaCapacitacion, *, detalle: bool = False) -> dict:
         "nombre": p.nombre,
         "descripcion": p.descripcion,
         "tipo": p.tipo or "interno",
+        "empresa_capacitadora_id": p.empresa_capacitadora_id,
+        "empresa_capacitadora_nombre": emp_cap.nombre if emp_cap else None,
         "sector_id": p.sector_id,
         "puesto_id": p.puesto_id,
         "puesto_nombre": puestos[0]["nombre"] if puestos else None,
@@ -900,6 +921,20 @@ def _ensure_requisito(empresa_id: int, puesto_id: int, curso_id: int) -> None:
             obligatorio=True,
         )
     )
+
+
+def _validar_empresa_capacitadora_programa(
+    empresa_id: int, tipo: str, empresa_cap_id
+) -> int | None:
+    if tipo != "externo":
+        return None
+    if not empresa_cap_id:
+        raise ValueError("Seleccioná la empresa externa del programa")
+    if not EmpresaCapacitadora.query.filter_by(
+        id=empresa_cap_id, empresa_id=empresa_id, activo=True
+    ).first():
+        raise ValueError("Empresa capacitadora no válida")
+    return int(empresa_cap_id)
 
 
 def _parse_id_list(raw) -> list[int]:

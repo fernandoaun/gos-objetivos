@@ -214,6 +214,177 @@
 
 
 
+  const SIMILAR_TIPO_LABELS = {
+    sector: "sector",
+    puesto: "puesto",
+    instructor: "capacitador",
+    empresa_capacitadora: "empresa capacitadora",
+    taxonomia: "clasificación",
+    curso: "curso",
+  };
+
+  let similarModalResolver = null;
+
+
+
+  function hideSimilarModal() {
+
+    document.getElementById("cap-similar-modal")?.classList.add("cap-hidden");
+
+  }
+
+
+
+  function bindSimilarModal() {
+
+    const finish = (result) => {
+
+      hideSimilarModal();
+
+      if (similarModalResolver) {
+
+        similarModalResolver(result);
+
+        similarModalResolver = null;
+
+      }
+
+    };
+
+    document.getElementById("cap-similar-cerrar")?.addEventListener("click", () => finish({ action: "cancel" }));
+
+    document.getElementById("cap-similar-backdrop")?.addEventListener("click", () => finish({ action: "cancel" }));
+
+    document.getElementById("cap-similar-cancel")?.addEventListener("click", () => finish({ action: "cancel" }));
+
+    document.getElementById("cap-similar-create")?.addEventListener("click", () => finish({ action: "create" }));
+
+    document.getElementById("cap-similar-use")?.addEventListener("click", () => {
+
+      const selected = document.querySelector(".cap-similar-item.cap-similar-item--selected");
+
+      const id = selected ? Number(selected.dataset.id) : null;
+
+      const item = selected?._similarItem || null;
+
+      if (!item) {
+
+        finish({ action: "cancel" });
+
+        return;
+
+      }
+
+      finish({ action: "use", item });
+
+    });
+
+  }
+
+
+
+  function showSimilarModal({ nombre, tipo, similares }) {
+
+    return new Promise((resolve) => {
+
+      const modal = document.getElementById("cap-similar-modal");
+
+      const list = document.getElementById("cap-similar-list");
+
+      const intro = document.getElementById("cap-similar-intro");
+
+      if (!modal || !list || !intro) {
+
+        resolve({ action: "create" });
+
+        return;
+
+      }
+
+      const tipoLabel = SIMILAR_TIPO_LABELS[tipo] || "registro";
+
+      intro.textContent = `«${nombre}» se parece a ${similares.length === 1 ? "un" : "varios"} ${tipoLabel}${similares.length === 1 ? "" : "s"} que ya existen:`;
+
+      list.innerHTML = similares.map((item, idx) => {
+
+        const detalle = [
+
+          item.tipo_label,
+
+          item.codigo ? `Código: ${item.codigo}` : null,
+
+          item.similitud ? `${Math.round(item.similitud * 100)}% similar` : null,
+
+        ].filter(Boolean).join(" · ");
+
+        return `<li><button type="button" class="cap-similar-item${idx === 0 ? " cap-similar-item--selected" : ""}" data-id="${item.id}">
+
+          <strong>${item.nombre}</strong>
+
+          <small>${detalle}</small>
+
+        </button></li>`;
+
+      }).join("");
+
+      list.querySelectorAll(".cap-similar-item").forEach((btn, idx) => {
+
+        btn._similarItem = similares[idx];
+
+        btn.addEventListener("click", () => {
+
+          list.querySelectorAll(".cap-similar-item").forEach((el) => el.classList.remove("cap-similar-item--selected"));
+
+          btn.classList.add("cap-similar-item--selected");
+
+        });
+
+      });
+
+      similarModalResolver = resolve;
+
+      modal.classList.remove("cap-hidden");
+
+    });
+
+  }
+
+
+
+  async function resolveSimilarBeforeCreate({ tipo, nombre, codigo, nivel, excludeId }) {
+
+    const params = new URLSearchParams({ tipo, nombre: nombre || "" });
+
+    if (codigo) params.set("codigo", codigo);
+
+    if (nivel) params.set("nivel", nivel);
+
+    if (excludeId) params.set("exclude_id", String(excludeId));
+
+    let similares = [];
+
+    try {
+
+      const data = await fetchJson(`${API}/similares?${params}`);
+
+      similares = data.similares || [];
+
+    } catch (err) {
+
+      console.error(err);
+
+      return { action: "create" };
+
+    }
+
+    if (!similares.length) return { action: "create" };
+
+    return showSimilarModal({ nombre: nombre || codigo, tipo, similares });
+
+  }
+
+
+
   function normPuestoId(id) {
 
     const n = Number(id);
@@ -811,11 +982,55 @@
 
         } else {
 
-          const data = await postJson(`${API}/taxonomia/items`, payload);
+          const resolution = await resolveSimilarBeforeCreate({
 
-          await applyTaxSelectionAfterCreate(data.item);
+            tipo: "taxonomia",
 
-          await reloadTaxonomia();
+            nombre: payload.nombre,
+
+            codigo: payload.codigo,
+
+            nivel,
+
+          });
+
+          if (resolution.action === "cancel") return;
+
+          if (resolution.action === "use") {
+
+            await applyTaxSelectionAfterCreate(resolution.item);
+
+            await reloadTaxonomia();
+
+            const taxSelectIds = {
+
+              categoria: "cap-c-categoria",
+
+              tipo: "cap-c-tipo",
+
+              origen: "cap-c-origen",
+
+              modalidad: "cap-c-modalidad",
+
+            };
+
+            const selectId = taxSelectIds[nivel];
+
+            if (selectId && resolution.item.codigo) {
+
+              document.getElementById(selectId).value = resolution.item.codigo;
+
+            }
+
+          } else {
+
+            const data = await postJson(`${API}/taxonomia/items`, payload);
+
+            await applyTaxSelectionAfterCreate(data.item);
+
+            await reloadTaxonomia();
+
+          }
 
         }
 
@@ -3024,6 +3239,34 @@
 
       try {
 
+        const resolution = await resolveSimilarBeforeCreate({ tipo: "puesto", nombre, codigo });
+
+        if (resolution.action === "cancel") return;
+
+        if (resolution.action === "use") {
+
+          await loadPuestosOptions();
+
+          const puestoId = normPuestoId(resolution.item.id);
+
+          if (puestoId !== null) encPuestosSeleccionados.add(puestoId);
+
+          document.getElementById("cap-enc-puesto-quick-codigo").value = "";
+
+          document.getElementById("cap-enc-puesto-quick-nombre").value = "";
+
+          togglePanel("cap-enc-puesto-quick", false);
+
+          setFormError("cap-encuentro-form-error", "");
+
+          renderEncPuestos();
+
+          await onEncPuestosChange();
+
+          return;
+
+        }
+
         const payload = { codigo, nombre };
 
         if (sectorId) payload.sector_id = Number(sectorId);
@@ -3074,6 +3317,24 @@
 
       try {
 
+        const resolution = await resolveSimilarBeforeCreate({ tipo: "empresa_capacitadora", nombre });
+
+        if (resolution.action === "cancel") return;
+
+        if (resolution.action === "use") {
+
+          appendEncSelectOption("cap-enc-empresa", resolution.item);
+
+          document.getElementById("cap-enc-empresa-quick-nombre").value = "";
+
+          togglePanel("cap-enc-empresa-quick", false);
+
+          setFormError("cap-encuentro-form-error", "");
+
+          return;
+
+        }
+
         const data = await postJson(`${API}/empresas-capacitadoras`, { nombre });
 
         appendEncSelectOption("cap-enc-empresa", data.empresa_capacitadora);
@@ -3105,6 +3366,24 @@
       }
 
       try {
+
+        const resolution = await resolveSimilarBeforeCreate({ tipo: "instructor", nombre });
+
+        if (resolution.action === "cancel") return;
+
+        if (resolution.action === "use") {
+
+          appendEncSelectOption("cap-enc-instructor", resolution.item);
+
+          document.getElementById("cap-enc-instructor-quick-nombre").value = "";
+
+          togglePanel("cap-enc-instructor-quick", false);
+
+          setFormError("cap-encuentro-form-error", "");
+
+          return;
+
+        }
 
         const data = await postJson(`${API}/instructores`, { nombre });
 
@@ -3394,6 +3673,24 @@
 
       try {
 
+        const resolution = await resolveSimilarBeforeCreate({ tipo: "sector", nombre, codigo });
+
+        if (resolution.action === "cancel") return;
+
+        if (resolution.action === "use") {
+
+          await loadMeta();
+
+          document.getElementById("cap-p-sector").value = resolution.item.id;
+
+          togglePanel("cap-sector-quick", false);
+
+          setFormError("cap-persona-form-error", "");
+
+          return;
+
+        }
+
         const data = await postJson(`${API}/sectores`, { codigo, nombre });
 
         await loadMeta();
@@ -3429,6 +3726,24 @@
       }
 
       try {
+
+        const resolution = await resolveSimilarBeforeCreate({ tipo: "puesto", nombre, codigo });
+
+        if (resolution.action === "cancel") return;
+
+        if (resolution.action === "use") {
+
+          await loadMeta();
+
+          document.getElementById("cap-p-puesto").value = resolution.item.id;
+
+          togglePanel("cap-puesto-quick", false);
+
+          setFormError("cap-persona-form-error", "");
+
+          return;
+
+        }
 
         const data = await postJson(`${API}/puestos`, { codigo, nombre });
 
@@ -4197,6 +4512,38 @@
 
         } else {
 
+          const resolution = await resolveSimilarBeforeCreate({
+
+            tipo: "curso",
+
+            nombre: payload.nombre,
+
+            codigo: payload.codigo,
+
+          });
+
+          if (resolution.action === "cancel") return;
+
+          if (resolution.action === "use") {
+
+            togglePanel("cap-curso-form-panel", false);
+
+            form.reset();
+
+            cursoEditId = null;
+
+            await loadCursos();
+
+            const cursos = window.capCursosCache || [];
+
+            const existente = cursos.find((c) => String(c.id) === String(resolution.item.id));
+
+            if (existente) openCursoForm(existente);
+
+            return;
+
+          }
+
           await postJson(`${API}/cursos`, payload);
 
         }
@@ -4342,6 +4689,9 @@
     cards.innerHTML = programasCache.map((p) => {
       const puestos = (p.puestos || []).map((x) => x.nombre).join(", ") || p.puesto_nombre || "Sin puestos";
       const tipoLabel = p.tipo === "externo" ? "Externo" : "Interno";
+      const empresaExt = p.tipo === "externo" && p.empresa_capacitadora_nombre
+        ? `<p class="cap-card-sub"><i class="bi bi-building"></i> ${escapeHtml(p.empresa_capacitadora_nombre)}</p>`
+        : "";
       return `
       <article class="cap-card ${p.id === programaSeleccionadoId ? "cap-card--active" : ""}" data-programa-id="${p.id}">
         <div class="cap-card-head">
@@ -4354,6 +4704,7 @@
           <span><i class="bi bi-person-badge"></i> ${p.puestos_count || 0} puestos</span>
         </div>
         <p class="cap-card-sub">${escapeHtml(puestos)}</p>
+        ${empresaExt}
         <div class="cap-card-actions">
           <button type="button" class="cap-btn cap-btn--sm cap-btn--primary" data-prog-open="${p.id}">Abrir</button>
         </div>
@@ -4407,7 +4758,13 @@
     const data = await fetchJson(`${API}/programas/${programaId}`);
     const programa = data.programa;
     programasCache = programasCache.map((p) => (p.id === programa.id ? { ...p, ...programa } : p));
-    if (titleEl) titleEl.textContent = `${programa.nombre} (${programa.tipo === "externo" ? "Externo" : "Interno"})`;
+    if (titleEl) {
+      const tipoTxt = programa.tipo === "externo" ? "Externo" : "Interno";
+      const empTxt = programa.tipo === "externo" && programa.empresa_capacitadora_nombre
+        ? ` · ${programa.empresa_capacitadora_nombre}`
+        : "";
+      titleEl.textContent = `${programa.nombre} (${tipoTxt}${empTxt})`;
+    }
     renderPuestosChecks("cap-programa-puestos-detalle", (programa.puestos || []).map((p) => p.id));
     renderProgramaPlanes(programa);
     await loadProgramas();
@@ -4488,6 +4845,29 @@
     });
   }
 
+  async function loadProgEmpresas() {
+    const data = await fetchJson(`${API}/empresas-capacitadoras`);
+    fillSelect(
+      "cap-prog-empresa",
+      data.empresas_capacitadoras || data.empresas || [],
+      "— Seleccionar empresa —"
+    );
+  }
+
+  function toggleProgEmpresa() {
+    const tipo = document.querySelector('#cap-programa-form input[name="tipo"]:checked')?.value || "interno";
+    const wrap = document.getElementById("cap-prog-empresa-wrap");
+    const sel = document.getElementById("cap-prog-empresa");
+    if (!wrap || !sel) return;
+    const esExterno = tipo === "externo";
+    wrap.classList.toggle("cap-hidden", !esExterno);
+    sel.required = esExterno;
+    if (!esExterno) {
+      sel.value = "";
+      togglePanel("cap-prog-empresa-quick", false);
+    }
+  }
+
   function openProgramaForm(programa = null) {
     const form = document.getElementById("cap-programa-form");
     if (form) form.reset();
@@ -4502,6 +4882,16 @@
     });
     renderPuestosChecks("cap-prog-puestos", (programa?.puestos || []).map((p) => p.id));
     document.getElementById("cap-programa-submit").textContent = programa ? "Guardar cambios" : "Crear programa";
+    togglePanel("cap-prog-empresa-quick", false);
+    loadProgEmpresas()
+      .then(() => {
+        const sel = document.getElementById("cap-prog-empresa");
+        if (sel && programa?.empresa_capacitadora_id) {
+          sel.value = String(programa.empresa_capacitadora_id);
+        }
+        toggleProgEmpresa();
+      })
+      .catch(console.error);
     togglePanel("cap-programa-form-panel", true);
     document.getElementById("cap-prog-nombre")?.focus();
   }
@@ -4521,6 +4911,37 @@
     });
     document.getElementById("cap-programa-cancel")?.addEventListener("click", () => {
       togglePanel("cap-programa-form-panel", false);
+      togglePanel("cap-prog-empresa-quick", false);
+    });
+    document.querySelectorAll('#cap-programa-form input[name="tipo"]').forEach((inp) => {
+      inp.addEventListener("change", toggleProgEmpresa);
+    });
+    document.getElementById("cap-prog-empresa-add")?.addEventListener("click", () => {
+      togglePanel("cap-prog-empresa-quick", true);
+      document.getElementById("cap-prog-empresa-quick-nombre")?.focus();
+    });
+    document.getElementById("cap-prog-empresa-quick-cancel")?.addEventListener("click", () => {
+      togglePanel("cap-prog-empresa-quick", false);
+    });
+    document.getElementById("cap-prog-empresa-quick-save")?.addEventListener("click", async () => {
+      const nombre = document.getElementById("cap-prog-empresa-quick-nombre")?.value.trim();
+      if (!nombre) return;
+      try {
+        const resolution = await resolveSimilarBeforeCreate({ tipo: "empresa_capacitadora", nombre });
+        if (resolution.action === "cancel") return;
+        if (resolution.action === "use") {
+          appendEncSelectOption("cap-prog-empresa", resolution.item);
+          document.getElementById("cap-prog-empresa-quick-nombre").value = "";
+          togglePanel("cap-prog-empresa-quick", false);
+          return;
+        }
+        const data = await postJson(`${API}/empresas-capacitadoras`, { nombre });
+        appendEncSelectOption("cap-prog-empresa", data.empresa_capacitadora);
+        document.getElementById("cap-prog-empresa-quick-nombre").value = "";
+        togglePanel("cap-prog-empresa-quick", false);
+      } catch (err) {
+        alert(err.message);
+      }
     });
     document.getElementById("cap-prog-filtro-tipo")?.addEventListener("change", () => {
       loadProgramas().catch(console.error);
@@ -4559,6 +4980,13 @@
       const body = formToObject(e.target);
       body.puesto_ids = selectedPuestoIds("cap-prog-puestos");
       body.tipo = e.target.querySelector('input[name="tipo"]:checked')?.value || "interno";
+      if (body.tipo === "externo" && !body.empresa_capacitadora_id) {
+        setFormError("cap-programa-form-error", "Seleccioná la empresa externa del programa");
+        return;
+      }
+      if (body.tipo === "interno") {
+        delete body.empresa_capacitadora_id;
+      }
       const id = body.id ? Number(body.id) : null;
       delete body.id;
       try {
@@ -4797,6 +5225,34 @@
 
         } else {
 
+          const resolution = await resolveSimilarBeforeCreate({
+
+            tipo: "sector",
+
+            nombre: payload.nombre,
+
+            codigo: payload.codigo,
+
+          });
+
+          if (resolution.action === "cancel") return;
+
+          if (resolution.action === "use") {
+
+            togglePanel("cap-sector-form-panel", false);
+
+            form.reset();
+
+            await loadSectores();
+
+            metaSectores = (await fetchJson(`${API}/sectores`)).sectores || [];
+
+            fillSelect("cap-p-sector", metaSectores, "— Sin sector —");
+
+            return;
+
+          }
+
           await postJson(`${API}/sectores`, payload);
 
         }
@@ -4846,6 +5302,8 @@
     showView(view);
 
     bindCalendar();
+
+    bindSimilarModal();
 
     bindPersonaForm();
 

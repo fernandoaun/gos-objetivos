@@ -150,6 +150,31 @@ def busqueda():
     return jsonify(busqueda_global(current_user.empresa_id, q))
 
 
+@bp.route("/similares")
+@login_required
+def similares():
+    from gos.modulos.capacitacion.services.similitud_service import buscar_similares
+
+    tipo = request.args.get("tipo", "")
+    nombre = request.args.get("nombre", "")
+    codigo = request.args.get("codigo") or None
+    nivel = request.args.get("nivel") or None
+    exclude_raw = request.args.get("exclude_id")
+    exclude_id = int(exclude_raw) if exclude_raw and exclude_raw.isdigit() else None
+    try:
+        items = buscar_similares(
+            current_user.empresa_id,
+            tipo,
+            nombre,
+            codigo=codigo,
+            nivel=nivel,
+            exclude_id=exclude_id,
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"similares": items})
+
+
 @bp.route("/participantes", methods=["GET", "POST"])
 @login_required
 def participantes():

@@ -1518,3 +1518,55 @@
   border-radius: 4px;
 }
 .cap-modal-panel--wide { max-width: 920px; width: 95vw; }
+
+.cap-similar-intro {
+  margin: 0 0 0.75rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.cap-similar-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.cap-similar-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--cap-border);
+  border-radius: var(--cap-radius);
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.cap-similar-item:hover {
+  border-color: var(--gos-green);
+}
+
+.cap-similar-item.cap-similar-item--selected {
+  border-color: var(--gos-green);
+  background: var(--gos-yellow-soft);
+}
+
+.cap-similar-item strong {
+  font-size: 0.92rem;
+  color: var(--cap-navy);
+}
+
+.cap-similar-item small {
+  font-size: 0.78rem;
+  color: var(--cap-muted, #666);
+}
+
+.cap-similar-actions {
+  padding: 0 1rem 1rem;
+  flex-wrap: wrap;
+}

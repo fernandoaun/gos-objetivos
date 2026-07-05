@@ -33,6 +33,7 @@ _COLUMN_UPGRADES = [
     ("cap_programas", "puesto_id", "INTEGER"),
     ("cap_programas", "alcance", "VARCHAR(20) DEFAULT 'general'"),
     ("cap_programas", "tipo", "VARCHAR(20) DEFAULT 'interno'"),
+    ("cap_programas", "empresa_capacitadora_id", "INTEGER"),
     ("cap_config", "pct_cumplimiento_minimo", "INTEGER DEFAULT 80"),
     ("cap_config", "notif_email_activo", "BOOLEAN DEFAULT FALSE"),
     ("cap_config", "notif_vencimiento", "BOOLEAN DEFAULT TRUE"),

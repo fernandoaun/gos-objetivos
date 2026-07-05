@@ -26,10 +26,14 @@ class ProgramaCapacitacion(db.Model, TimestampMixin):
     fecha_inicio = db.Column(db.Date, nullable=True)
     fecha_fin = db.Column(db.Date, nullable=True)
     instructor = db.Column(db.String(150), nullable=True)
+    empresa_capacitadora_id = db.Column(
+        db.Integer, db.ForeignKey("cap_empresas_capacitadoras.id"), nullable=True, index=True
+    )
     estado = db.Column(db.String(20), default="borrador", nullable=False)
     activo = db.Column(db.Boolean, default=True, nullable=False)
 
     empresa = db.relationship("Empresa")
+    empresa_capacitadora = db.relationship("EmpresaCapacitadora")
     sector = db.relationship("Sector")
     puesto = db.relationship("Puesto")
     curso = db.relationship("Curso")

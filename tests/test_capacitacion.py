@@ -3,6 +3,7 @@ from datetime import date
 from gos.extensions import db
 from gos.modulos.capacitacion.models import (
     Curso,
+    Instructor,
     Participante,
     PlanCapacitacion,
     Puesto,
@@ -193,3 +194,34 @@ def test_api_editar_participante_sector_puesto(auth_client, app):
     )
     assert r.status_code == 200
     assert r.get_json()["participante"]["sector_id"] == s2_id
+
+
+def test_similitud_detecta_sector_parecido(app):
+    with app.app_context():
+        from gos.models import Empresa
+        from gos.modulos.capacitacion.services.similitud_service import buscar_similares
+
+        emp = Empresa.query.first()
+        db.session.add(Sector(empresa_id=emp.id, codigo="OP", nombre="Operaciones"))
+        db.session.commit()
+
+        similares = buscar_similares(emp.id, "sector", "operacion")
+        assert len(similares) >= 1
+        assert similares[0]["nombre"] == "Operaciones"
+
+
+def test_api_similares(auth_client, app):
+    with app.app_context():
+        from gos.models import Empresa
+
+        emp = Empresa.query.first()
+        db.session.add(
+            Instructor(empresa_id=emp.id, codigo="JPG", nombre="Juan Pérez García")
+        )
+        db.session.commit()
+
+    r = auth_client.get("/gos/capacitacion/api/similares?tipo=instructor&nombre=Juan Perez")
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data["similares"]
+    assert data["similares"][0]["nombre"] == "Juan Pérez García"

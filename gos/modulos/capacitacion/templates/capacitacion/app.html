@@ -310,6 +310,27 @@
                 </div>
               </div>
             </div>
+            <div id="cap-prog-empresa-wrap" class="cap-form-row cap-hidden">
+              <div>
+                <label class="cap-label" for="cap-prog-empresa">Empresa externa *</label>
+                <div class="cap-input-group">
+                  <select class="cap-input" id="cap-prog-empresa" name="empresa_capacitadora_id">
+                    <option value="">— Seleccionar empresa —</option>
+                  </select>
+                  <button type="button" class="cap-btn cap-btn--icon" id="cap-prog-empresa-add" title="Agregar empresa">
+                    <i class="bi bi-plus-lg"></i>
+                  </button>
+                </div>
+                <div class="cap-quick-form cap-hidden" id="cap-prog-empresa-quick">
+                  <p class="cap-quick-form-title">Nueva empresa capacitadora</p>
+                  <input class="cap-input" id="cap-prog-empresa-quick-nombre" placeholder="Nombre de la empresa" maxlength="200">
+                  <div class="cap-form-actions">
+                    <button type="button" class="cap-btn cap-btn--ghost" id="cap-prog-empresa-quick-cancel">Cancelar</button>
+                    <button type="button" class="cap-btn cap-btn--primary" id="cap-prog-empresa-quick-save">Guardar</button>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div class="cap-form-row cap-form-row--2">
               <div>
                 <label class="cap-label" for="cap-prog-codigo">Código</label>
@@ -934,6 +955,30 @@
       <div class="cap-form-actions" style="padding:1rem">
         <button type="button" class="cap-btn cap-btn--ghost" id="cap-asistencia-cancel">Cancelar</button>
         <button type="button" class="cap-btn cap-btn--primary" id="cap-asistencia-guardar">Cerrar cronograma</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal similitud al agregar catálogos -->
+  <div class="cap-modal cap-hidden" id="cap-similar-modal">
+    <div class="cap-modal-backdrop" id="cap-similar-backdrop"></div>
+    <div class="cap-modal-panel cap-modal-panel--sm">
+      <div class="cap-widget-head cap-widget-head--split">
+        <div class="cap-widget-head-left">
+          <i class="bi bi-exclamation-triangle"></i>
+          <h2 class="cap-widget-title">Registro similar encontrado</h2>
+        </div>
+        <button type="button" class="cap-btn cap-btn--icon" id="cap-similar-cerrar"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div class="cap-widget-body">
+        <p class="cap-similar-intro" id="cap-similar-intro"></p>
+        <ul class="cap-similar-list" id="cap-similar-list"></ul>
+        <p class="cap-form-hint">Elegí un registro existente o confirmá que querés agregar uno nuevo.</p>
+      </div>
+      <div class="cap-form-actions cap-similar-actions">
+        <button type="button" class="cap-btn cap-btn--ghost" id="cap-similar-cancel">Cancelar</button>
+        <button type="button" class="cap-btn cap-btn--ghost" id="cap-similar-create">Agregar de todos modos</button>
+        <button type="button" class="cap-btn cap-btn--primary" id="cap-similar-use">Usar seleccionado</button>
       </div>
     </div>
   </div>
