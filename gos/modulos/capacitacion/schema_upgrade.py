@@ -24,8 +24,8 @@ _COLUMN_UPGRADES = [
     ("cap_encuentros", "empresa_capacitadora_id", "INTEGER"),
     ("cap_encuentros", "instructor_id", "INTEGER"),
     ("cap_encuentros", "plan_id", "INTEGER"),
-    ("cap_encuentros", "fecha_inicio", "DATETIME"),
-    ("cap_encuentros", "fecha_fin", "DATETIME"),
+    ("cap_encuentros", "fecha_inicio", "TIMESTAMP"),
+    ("cap_encuentros", "fecha_fin", "TIMESTAMP"),
     ("cap_encuentros", "material_adjunto_url", "VARCHAR(500)"),
     ("cap_encuentros", "resultados_adjunto_url", "VARCHAR(500)"),
     ("cap_asistencias", "fecha_aprobacion", "DATE"),
@@ -41,7 +41,7 @@ _COLUMN_UPGRADES = [
     ("cap_config", "emails_destinatarios", "TEXT"),
     ("cap_config", "emails_por_sector", "TEXT"),
     ("cap_config", "emails_por_rol", "TEXT"),
-    ("cap_config", "ultimo_envio_notif", "DATETIME"),
+    ("cap_config", "ultimo_envio_notif", "TIMESTAMP"),
     ("cap_puestos", "sector_id", "INTEGER"),
 ]
 
