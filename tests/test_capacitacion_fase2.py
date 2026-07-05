@@ -115,20 +115,16 @@ def test_registrar_asistencias(auth_client, app):
         db.session.commit()
         enc_id, pid = enc.id, p.id
 
-    r = auth_client.post(
-        f"/gos/capacitacion/api/encuentros/{enc_id}/asistencias",
-        json={
-            "asistencias": [
-                {"participante_id": pid, "asistencia": "presente", "nota": 9, "aprobado": True}
-            ]
-        },
+    r = auth_client.put(
+        f"/gos/capacitacion/api/encuentros/{enc_id}/cierre",
+        json={"personas": [{"participante_id": pid, "asistio": True, "nota": 9}]},
     )
     assert r.status_code == 200
     assert r.get_json()["guardados"] == 1
 
     det = auth_client.get(f"/gos/capacitacion/api/encuentros/{enc_id}")
     assert det.status_code == 200
-    assert det.get_json()["estado"] in ("cerrado", "realizado")
+    assert det.get_json()["estado"] == "cerrado"
 
 
 def test_api_programas_por_puesto_y_persona(auth_client, app):

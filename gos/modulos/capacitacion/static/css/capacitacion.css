@@ -1413,3 +1413,108 @@
   border-bottom: 1px solid var(--cap-border);
 }
 .cap-plan-curso:last-child { border-bottom: 0; }
+
+/* —— Matriz Analítica —— */
+.cap-ma-filtros { display: flex; flex-direction: column; gap: 0.65rem; }
+.cap-ma-filtro-grupo { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.cap-ma-filtro-label { font-size: 0.78rem; font-weight: 600; color: var(--cap-muted); min-width: 6.5rem; }
+.cap-pills { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.cap-pill {
+  border: 1px solid var(--cap-border);
+  background: var(--cap-card);
+  border-radius: 999px;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.cap-pill:hover { border-color: var(--cap-navy-light); }
+.cap-pill.active { background: var(--cap-navy); color: #fff; border-color: var(--cap-navy); }
+.cap-ma-vista { min-height: 200px; }
+.cap-ma-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.75rem;
+}
+@media (max-width: 900px) { .cap-ma-cal-grid { grid-template-columns: repeat(2, 1fr); } }
+.cap-ma-mes {
+  border: 1px solid var(--cap-border);
+  border-radius: 8px;
+  padding: 0.5rem;
+  min-height: 120px;
+}
+.cap-ma-mes-title { font-size: 0.82rem; font-weight: 700; margin-bottom: 0.35rem; color: var(--cap-navy); }
+.cap-ma-evento {
+  display: block;
+  font-size: 0.72rem;
+  padding: 0.25rem 0.4rem;
+  margin-bottom: 0.25rem;
+  border-radius: 4px;
+  border-left: 3px solid var(--cap-navy);
+  background: var(--cap-gray-bg);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.cap-ma-evento--externo { border-style: dashed; border-left-style: dashed; }
+.cap-ma-evento--azul { border-left-color: #2563eb; }
+.cap-ma-evento--verde { border-left-color: #16a34a; }
+.cap-ma-evento--ambar { border-left-color: #d97706; }
+.cap-ma-evento--purpura { border-left-color: #7c3aed; }
+.cap-ma-seccion { margin-bottom: 1.25rem; }
+.cap-ma-seccion-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+.cap-ma-curso-block {
+  border: 1px solid var(--cap-border);
+  border-radius: 8px;
+  padding: 0.65rem;
+  margin-bottom: 0.65rem;
+}
+.cap-ma-progreso {
+  height: 8px;
+  background: var(--cap-gray-bg);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 0.35rem 0;
+}
+.cap-ma-progreso-bar { height: 100%; border-radius: 4px; transition: width 0.3s; }
+.cap-ma-progreso-bar--verde { background: var(--cap-green); }
+.cap-ma-progreso-bar--ambar { background: #d97706; }
+.cap-ma-progreso-bar--rojo { background: var(--cap-red); }
+.cap-ma-persona-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--cap-border);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+.cap-ma-avatar {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--cap-navy); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 1.1rem;
+}
+.cap-ma-metricas { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; }
+.cap-ma-metrica {
+  flex: 1; min-width: 120px;
+  border: 1px solid var(--cap-border);
+  border-radius: 8px; padding: 0.65rem; text-align: center;
+}
+.cap-ma-metrica-val { font-size: 1.25rem; font-weight: 700; color: var(--cap-navy); }
+.cap-ma-metrica-lbl { font-size: 0.75rem; color: var(--cap-muted); }
+.cap-ma-programa-card {
+  border: 1px solid var(--cap-border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.cap-curso-meta {
+  font-size: 0.78rem;
+  color: var(--cap-muted);
+  margin-top: 0.35rem;
+  padding: 0.35rem 0.5rem;
+  background: var(--cap-gray-bg);
+  border-radius: 4px;
+}
+.cap-modal-panel--wide { max-width: 920px; width: 95vw; }

@@ -14,9 +14,11 @@ class Puesto(db.Model, TimestampMixin):
     codigo = db.Column(db.String(20), nullable=False)
     nombre = db.Column(db.String(150), nullable=False)
     descripcion = db.Column(db.Text, nullable=True)
+    sector_id = db.Column(db.Integer, db.ForeignKey("sectores.id"), nullable=True, index=True)
     activo = db.Column(db.Boolean, default=True, nullable=False)
 
     empresa = db.relationship("Empresa")
+    sector = db.relationship("Sector")
     participantes = db.relationship("Participante", back_populates="puesto", lazy="dynamic")
     requisitos = db.relationship("RequisitoFormacion", back_populates="puesto", lazy="dynamic")
 

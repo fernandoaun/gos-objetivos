@@ -76,6 +76,87 @@ def _personas_filtradas(
     return q.order_by(Participante.apellido, Participante.nombre).all()
 
 
+def _progreso_color(porcentaje: float) -> str:
+    if porcentaje >= 100:
+        return "verde"
+    if porcentaje >= 50:
+        return "ambar"
+    return "rojo"
+
+
+def _estado_acreditacion(acr: Acreditacion | None, hoy: date) -> str:
+    """Estado visible: cursos vencidos figuran como pendientes."""
+    if not acr or not acr.aprobo:
+        return "pendiente" if not acr or acr.aprobo is None else "no_aprobo"
+    if acr.fecha_vencimiento and acr.fecha_vencimiento < hoy:
+        return "pendiente"
+    if not acr.vigente:
+        return "pendiente"
+    return "aprobada"
+
+
+def _asistio_desde_acreditacion(acr: Acreditacion | None) -> bool | None:
+    if not acr or not acr.cronograma_persona:
+        return None
+    asist = acr.cronograma_persona.asistencia
+    if asist == "presente":
+        return True
+    if asist == "ausente":
+        return False
+    return None
+
+
+def _acr_coincide_empresa(acr: Acreditacion | None, empresas: list[int]) -> bool:
+    if not empresas:
+        return True
+    if not acr or not acr.cronograma_persona or not acr.cronograma_persona.encuentro:
+        return False
+    enc = acr.cronograma_persona.encuentro
+    return enc.empresa_capacitadora_id in empresas
+
+
+def _badge_origen(curso, empresa_nombre: str | None = None) -> str:
+    if (curso.origen or "").startswith("extern"):
+        return empresa_nombre or "Empresa externa"
+    return "GOS Interno"
+
+
+def _empresa_dictada_por_acreditacion(acr: Acreditacion | None) -> str | None:
+    if not acr or not acr.cronograma_persona_id:
+        return None
+    asist = acr.cronograma_persona
+    if not asist or not asist.encuentro:
+        return None
+    enc = asist.encuentro
+    if enc.empresa_capacitadora:
+        return enc.empresa_capacitadora.nombre
+    if (enc.origen or "").startswith("extern"):
+        return "Empresa externa"
+    return "GOS Interno"
+
+
+def matriz_filtros_metadata(empresa_id: int) -> dict:
+    from gos.modulos.capacitacion.models import EmpresaCapacitadora, Puesto
+
+    personas = Participante.query.filter_by(empresa_id=empresa_id, activo=True).order_by(
+        Participante.apellido, Participante.nombre
+    ).all()
+    puestos = Puesto.query.filter_by(empresa_id=empresa_id, activo=True).order_by(Puesto.nombre).all()
+    empresas = EmpresaCapacitadora.query.filter_by(empresa_id=empresa_id, activo=True).order_by(
+        EmpresaCapacitadora.nombre
+    ).all()
+    return {
+        "planes": listar_planes_filtro(empresa_id),
+        "tipos": [{"id": "interno", "nombre": "Interno"}, {"id": "externo", "nombre": "Externo"}],
+        "empresas": [{"id": e.id, "nombre": e.nombre} for e in empresas],
+        "personas": [
+            {"id": p.id, "nombre": p.nombre_completo, "legajo": p.legajo, "puesto_id": p.puesto_id}
+            for p in personas
+        ],
+        "puestos": [{"id": p.id, "nombre": p.nombre} for p in puestos],
+    }
+
+
 def listar_planes_filtro(empresa_id: int) -> list[dict]:
     planes = (
         ProgramaPlan.query.join(ProgramaCapacitacion)
@@ -138,6 +219,9 @@ def matriz_calendario(
 
     meses: dict[int, list] = {m: [] for m in range(1, 13)}
     for enc in encuentros:
+        # Sin fecha_inicio explícita: planificado pero aún no calendarizado
+        if enc.fecha_inicio is None:
+            continue
         if tipos:
             tipo_enc = "externo" if (enc.origen or "").startswith("extern") else "interno"
             if tipo_enc not in tipos:
@@ -194,6 +278,9 @@ def matriz_calendario(
                 "estado": enc.estado,
                 "personas_count": len(personas) or enc.asistencias.count(),
                 "personas": personas,
+                "capacitador": enc.instructor,
+                "lugar": enc.lugar,
+                "link": enc.link_virtual,
             }
         )
 
@@ -230,9 +317,6 @@ def matriz_tabla(
                 curso = pc.curso
                 if not curso or not curso.activo:
                     continue
-                if empresas and (curso.origen or "").startswith("extern"):
-                    # filtro empresa aplica a cronogramas externos; en tabla se muestra badge
-                    pass
                 filas = []
                 horas_req = float(curso.horas or 0)
                 horas_ok = 0.0
@@ -248,47 +332,45 @@ def matriz_tabla(
                         plan_id=plan.id,
                         curso_id=curso.id,
                     ).first()
-                    if acr and acr.aprobo and acr.vigente:
-                        estado = "aprobada"
+                    if empresas and not _acr_coincide_empresa(acr, empresas):
+                        continue
+                    estado = _estado_acreditacion(acr, hoy)
+                    if estado == "aprobada":
                         horas_ok += float(acr.horas_acreditadas or curso.horas or 0)
-                    elif acr and acr.aprobo and not acr.vigente:
-                        estado = "vencida"
-                    elif acr and not acr.aprobo:
-                        estado = "no_aprobo"
-                    else:
-                        estado = "pendiente"
                     filas.append(
                         {
                             "persona_id": persona.id,
                             "persona": persona.nombre_completo,
                             "puesto": persona.puesto.nombre if persona.puesto else None,
-                            "asistio": acr.aprobo if acr else None,
+                            "asistio": _asistio_desde_acreditacion(acr),
                             "nota": float(acr.nota) if acr and acr.nota is not None else None,
                             "estado": estado,
                             "horas_acreditadas": float(acr.horas_acreditadas)
-                            if acr and acr.horas_acreditadas is not None
-                            else (float(curso.horas) if acr and acr.aprobo and acr.vigente else 0),
+                            if acr and acr.horas_acreditadas is not None and estado == "aprobada"
+                            else 0,
                             "fecha_vencimiento": acr.fecha_vencimiento.isoformat()
                             if acr and acr.fecha_vencimiento
                             else None,
                         }
                     )
+                if empresas and not filas:
+                    continue
                 total_req = horas_req * max(len(filas), 1)
+                pct = round((horas_ok / total_req) * 100, 1) if total_req else 0
                 cursos_sec.append(
                     {
                         "curso_id": curso.id,
                         "curso_nombre": curso.nombre,
                         "horas": horas_req,
-                        "origen_badge": "GOS Interno"
-                        if not (curso.origen or "").startswith("extern")
-                        else "Externo",
+                        "origen_badge": _badge_origen(curso),
                         "tiene_vigencia": curso.tiene_vigencia,
                         "meses_vigencia": curso.vigencia_meses,
                         "personas": filas,
                         "progreso": {
                             "horas_acreditadas": horas_ok,
                             "horas_requeridas": total_req,
-                            "porcentaje": round((horas_ok / total_req) * 100, 1) if total_req else 0,
+                            "porcentaje": pct,
+                            "color": _progreso_color(pct),
                         },
                     }
                 )
@@ -359,25 +441,22 @@ def matriz_persona(
                     plan_id=plan.id,
                     curso_id=curso.id,
                 ).first()
-                if acr and acr.aprobo and acr.vigente:
-                    estado = "aprobada"
+                estado = _estado_acreditacion(acr, hoy)
+                if estado == "aprobada":
                     m_ok += 1
                     p_ok += float(acr.horas_acreditadas or hs)
-                elif acr and acr.aprobo and not acr.vigente:
-                    estado = "vencida"
-                    pendientes.append(curso.nombre)
                 else:
-                    estado = "pendiente"
                     pendientes.append(curso.nombre)
+                empresa_dictada = _empresa_dictada_por_acreditacion(acr) or _badge_origen(curso)
+                if empresas and not _acr_coincide_empresa(acr, empresas):
+                    continue
                 cursos_card.append(
                     {
                         "curso": curso.nombre,
                         "hs": hs,
                         "nota": float(acr.nota) if acr and acr.nota is not None else None,
                         "estado": estado,
-                        "empresa": "GOS Interno"
-                        if not (curso.origen or "").startswith("extern")
-                        else "Externo",
+                        "empresa": empresa_dictada,
                         "plan_nombre": plan.nombre,
                     }
                 )
@@ -440,10 +519,7 @@ def matriz_analitica(
     persona_ids = _parse_ids(persona_ids)
     puesto_ids = _parse_ids(puesto_ids)
 
-    filtros = {
-        "planes": listar_planes_filtro(empresa_id),
-        "tipos": ["interno", "externo"],
-    }
+    filtros = matriz_filtros_metadata(empresa_id)
 
     if vista == "calendar" or vista == "calendario":
         data = matriz_calendario(

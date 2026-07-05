@@ -42,6 +42,7 @@ _COLUMN_UPGRADES = [
     ("cap_config", "emails_por_sector", "TEXT"),
     ("cap_config", "emails_por_rol", "TEXT"),
     ("cap_config", "ultimo_envio_notif", "DATETIME"),
+    ("cap_puestos", "sector_id", "INTEGER"),
 ]
 
 
@@ -72,6 +73,7 @@ def ensure_capacitacion_schema() -> None:
             conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {coldef}"))
     _migrar_clasificacion_cursos()
     _migrar_estructura_programas()
+    _migrar_sector_puesto()
 
 
 def _migrar_clasificacion_cursos() -> None:
@@ -143,5 +145,26 @@ def _migrar_estructura_programas() -> None:
             cursos_en_plan.add(req.curso_id)
             cambios = True
 
+    if cambios:
+        db.session.commit()
+
+
+def _migrar_sector_puesto() -> None:
+    """Backfill sector_id en puestos desde el sector más frecuente de sus participantes."""
+    from collections import Counter
+
+    from gos.modulos.capacitacion.models import Participante, Puesto
+
+    cambios = False
+    for puesto in Puesto.query.filter(Puesto.sector_id.is_(None)).all():
+        sectores = [
+            p.sector_id
+            for p in Participante.query.filter_by(puesto_id=puesto.id, activo=True).all()
+            if p.sector_id
+        ]
+        if not sectores:
+            continue
+        puesto.sector_id = Counter(sectores).most_common(1)[0][0]
+        cambios = True
     if cambios:
         db.session.commit()

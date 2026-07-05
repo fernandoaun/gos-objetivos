@@ -6,7 +6,12 @@ from flask import current_app
 from werkzeug.utils import secure_filename
 
 from gos.extensions import db
-from gos.modulos.capacitacion.models import CertificacionEmpleado, Participante, RegistroCapacitacion
+from gos.modulos.capacitacion.models import (
+    CertificacionEmpleado,
+    EncuentroCapacitacion,
+    Participante,
+    RegistroCapacitacion,
+)
 
 ALLOWED_EXT = (".pdf",)
 ALLOWED_FOTO_EXT = (".jpg", ".jpeg", ".png", ".webp")
@@ -178,3 +183,29 @@ def _registro_evidencia_dict(reg: RegistroCapacitacion) -> dict:
         "certificado_path": reg.certificado_path,
         "tiene_certificado": bool(reg.certificado_path),
     }
+
+
+def subir_material_encuentro(empresa_id: int, encuentro_id: int, file_storage) -> dict:
+    enc = EncuentroCapacitacion.query.filter_by(id=encuentro_id, empresa_id=empresa_id).first()
+    if not enc:
+        raise ValueError("Cronograma no encontrado")
+    filename = _validar_pdf(file_storage)
+    dest_dir = _upload_dir(empresa_id, "encuentros")
+    dest = dest_dir / f"enc_{encuentro_id}_material_{filename}"
+    file_storage.save(dest)
+    enc.material_adjunto_url = str(dest)
+    db.session.commit()
+    return {"id": enc.id, "material_adjunto_url": enc.material_adjunto_url}
+
+
+def subir_resultados_encuentro(empresa_id: int, encuentro_id: int, file_storage) -> dict:
+    enc = EncuentroCapacitacion.query.filter_by(id=encuentro_id, empresa_id=empresa_id).first()
+    if not enc:
+        raise ValueError("Cronograma no encontrado")
+    filename = _validar_pdf(file_storage)
+    dest_dir = _upload_dir(empresa_id, "encuentros")
+    dest = dest_dir / f"enc_{encuentro_id}_resultados_{filename}"
+    file_storage.save(dest)
+    enc.resultados_adjunto_url = str(dest)
+    db.session.commit()
+    return {"id": enc.id, "resultados_adjunto_url": enc.resultados_adjunto_url}

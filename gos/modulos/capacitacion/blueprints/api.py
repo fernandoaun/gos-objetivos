@@ -31,6 +31,7 @@ from gos.modulos.capacitacion.services import (
     crear_requisito,
     crear_sector,
     cursos_de_puestos,
+    cursos_del_plan,
     descargar_certificado_registro,
     descargar_documento_certificacion,
     descargar_foto_participante,
@@ -72,6 +73,10 @@ from gos.modulos.capacitacion.services import (
     subir_certificado_registro,
     subir_documento_certificacion,
     subir_foto_participante,
+    subir_material_encuentro,
+    subir_resultados_encuentro,
+    listar_planes,
+    matriz_filtros_metadata,
 )
 from gos.modulos.capacitacion.services.taxonomia_service import (
     actualizar_taxonomia_item,
@@ -79,7 +84,23 @@ from gos.modulos.capacitacion.services.taxonomia_service import (
     crear_taxonomia_item,
     listar_taxonomia_items,
 )
-from gos.modulos.capacitacion.services.export_service import exportar_matriz_excel
+from gos.modulos.capacitacion.services.export_service import (
+    exportar_matriz_analitica_excel,
+    exportar_matriz_excel,
+)
+from gos.modulos.capacitacion.services.acreditacion_crud_service import (
+    actualizar_acreditacion,
+    crear_acreditacion,
+    eliminar_acreditacion,
+    listar_acreditaciones,
+    obtener_acreditacion,
+)
+from gos.modulos.capacitacion.services.plan_capacitacion_service import (
+    actualizar_plan_capacitacion,
+    cancelar_plan_capacitacion,
+    crear_plan_capacitacion,
+    listar_planes_participante,
+)
 from gos.modulos.capacitacion.services.pdf_export_service import (
     generar_pdf_general,
     generar_pdf_iso,
@@ -566,20 +587,133 @@ def matriz_persona_api(persona_id: int):
         return jsonify({"error": str(exc)}), 404
 
 
+@bp.route("/matriz/filtros")
+@login_required
+def matriz_filtros_api():
+    return jsonify(matriz_filtros_metadata(current_user.empresa_id))
+
+
 @bp.route("/matriz/exportar.xlsx")
 @login_required
 def exportar_matriz():
-    buf = exportar_matriz_excel(
-        current_user.empresa_id,
-        sector_id=request.args.get("sector_id", type=int),
-        puesto_id=request.args.get("puesto_id", type=int),
-    )
+    vista = request.args.get("vista")
+    if vista:
+        try:
+            buf = exportar_matriz_analitica_excel(
+                current_user.empresa_id,
+                vista=vista,
+                anio=request.args.get("anio", type=int),
+                plan_ids=request.args.get("planes") or request.args.get("plan_ids"),
+                tipos=(request.args.get("tipos") or "").split(",") if request.args.get("tipos") else [],
+                empresas=request.args.get("empresas") or request.args.get("empresa_ids"),
+                persona_ids=request.args.get("personas") or request.args.get("persona_ids"),
+                puesto_ids=request.args.get("puestos") or request.args.get("puesto_ids"),
+                persona_id=request.args.get("persona_id", type=int)
+                or request.args.get("participante_id", type=int),
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        nombre = f"matriz_analitica_{vista}.xlsx"
+    else:
+        buf = exportar_matriz_excel(
+            current_user.empresa_id,
+            sector_id=request.args.get("sector_id", type=int),
+            puesto_id=request.args.get("puesto_id", type=int),
+        )
+        nombre = "matriz_capacitaciones.xlsx"
     return send_file(
         buf,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
-        download_name="matriz_capacitaciones.xlsx",
+        download_name=nombre,
     )
+
+
+@bp.route("/acreditaciones", methods=["GET", "POST"])
+@login_required
+def acreditaciones():
+    if request.method == "POST":
+        if not _puede_editar():
+            return jsonify({"error": "No tenés permiso para esta acción."}), 403
+        try:
+            item = crear_acreditacion(current_user.empresa_id, _json_body())
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"acreditacion": item}), 201
+    return jsonify(
+        {
+            "acreditaciones": listar_acreditaciones(
+                current_user.empresa_id,
+                persona_id=request.args.get("persona_id", type=int)
+                or request.args.get("participante_id", type=int),
+                programa_id=request.args.get("programa_id", type=int),
+                plan_id=request.args.get("plan_id", type=int),
+                curso_id=request.args.get("curso_id", type=int),
+            )
+        }
+    )
+
+
+@bp.route("/acreditaciones/<int:acreditacion_id>", methods=["GET", "PUT", "DELETE"])
+@login_required
+def acreditacion_detalle(acreditacion_id: int):
+    if request.method == "GET":
+        try:
+            item = obtener_acreditacion(current_user.empresa_id, acreditacion_id)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 404
+        return jsonify({"acreditacion": item})
+    if not _puede_editar():
+        return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    if request.method == "DELETE":
+        try:
+            eliminar_acreditacion(current_user.empresa_id, acreditacion_id)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"ok": True})
+    try:
+        item = actualizar_acreditacion(current_user.empresa_id, acreditacion_id, _json_body())
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"acreditacion": item})
+
+
+@bp.route("/participantes/<int:participante_id>/planes-capacitacion", methods=["GET", "POST"])
+@login_required
+def planes_capacitacion_participante(participante_id: int):
+    if request.method == "POST":
+        if not _puede_editar():
+            return jsonify({"error": "No tenés permiso para esta acción."}), 403
+        try:
+            item = crear_plan_capacitacion(
+                current_user.empresa_id, participante_id, _json_body()
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"plan": item}), 201
+    try:
+        planes = listar_planes_participante(current_user.empresa_id, participante_id)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
+    return jsonify({"planes": planes})
+
+
+@bp.route("/planes-capacitacion/<int:plan_id>", methods=["PUT", "DELETE"])
+@login_required
+def plan_capacitacion_detalle(plan_id: int):
+    if not _puede_editar():
+        return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    if request.method == "DELETE":
+        try:
+            cancelar_plan_capacitacion(current_user.empresa_id, plan_id)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"ok": True})
+    try:
+        item = actualizar_plan_capacitacion(current_user.empresa_id, plan_id, _json_body())
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"plan": item})
 
 
 @bp.route("/encuentros")
@@ -719,6 +853,22 @@ def plan_eliminar(plan_id: int):
     return jsonify({"ok": True})
 
 
+@bp.route("/planes")
+@login_required
+def planes_lista():
+    return jsonify({"planes": listar_planes(current_user.empresa_id)})
+
+
+@bp.route("/planes/<int:plan_id>/cursos", methods=["GET"])
+@login_required
+def plan_cursos_lista(plan_id: int):
+    try:
+        cursos = cursos_del_plan(current_user.empresa_id, plan_id)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"cursos": cursos})
+
+
 @bp.route("/planes/<int:plan_id>/cursos", methods=["POST"])
 @login_required
 def plan_cursos(plan_id: int):
@@ -752,6 +902,32 @@ def plan_curso_eliminar(plan_curso_id: int):
 def programas_cursos_por_puestos():
     puesto_ids = _parse_id_list(request.args.get("puesto_ids"))
     return jsonify({"cursos": cursos_de_puestos(current_user.empresa_id, puesto_ids)})
+
+
+@bp.route("/encuentros/<int:encuentro_id>/material", methods=["POST"])
+@login_required
+def encuentro_material(encuentro_id: int):
+    if not _puede_editar():
+        return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    archivo = request.files.get("archivo")
+    try:
+        item = subir_material_encuentro(current_user.empresa_id, encuentro_id, archivo)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(item)
+
+
+@bp.route("/encuentros/<int:encuentro_id>/resultados", methods=["POST"])
+@login_required
+def encuentro_resultados(encuentro_id: int):
+    if not _puede_editar():
+        return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    archivo = request.files.get("archivo")
+    try:
+        item = subir_resultados_encuentro(current_user.empresa_id, encuentro_id, archivo)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(item)
 
 
 @bp.route("/encuentros/<int:encuentro_id>/cierre", methods=["PUT"])

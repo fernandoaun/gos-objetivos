@@ -44,6 +44,10 @@
   let personaSeleccionadaId = null;
   let matrizParticipanteId = window.CAP_INITIAL_PARTICIPANTE_ID || null;
   let matrizParticipanteNombre = null;
+  let maVista = "calendario";
+  let maFiltros = { planes: [], tipos: [], empresas: [], personas: [], puestos: [] };
+  let maFiltrosMeta = null;
+  let encPlanesCache = [];
   let certUploadRegistroId = null;
   let taxonomiaCascada = null;
   let taxonomiaListas = null;
@@ -893,6 +897,10 @@
 
     fillSelect("cap-p-puesto", metaPuestos, "— Sin puesto —");
 
+    fillSelect("cap-puesto-quick-sector", metaSectores, "— Sin sector —");
+
+    fillSelect("cap-enc-puesto-quick-sector", metaSectores, "— Sin sector —");
+
   }
 
 
@@ -1363,7 +1371,7 @@
 
 
 
-  async function loadMatriz() {
+  async function loadMatrizLegacy() {
 
     const sector = document.getElementById("cap-matriz-sector")?.value || "";
 
@@ -1383,22 +1391,216 @@
 
     const body = document.getElementById("cap-matriz-body");
 
-    if (!head || !body) return;
+    if (!head || !body) return data;
 
     if (matrizParticipanteId && !matrizParticipanteNombre) {
       const fila = (data.filas || []).find((f) => f.participante_id === matrizParticipanteId);
       if (fila?.nombre) {
         matrizParticipanteNombre = fila.nombre;
-        updateMatrizPersonaFilter();
       }
     }
 
     renderMatrizTable(data, head, body);
 
-    const exp = document.getElementById("cap-matriz-export");
+    return data;
 
-    if (exp) exp.href = `${API}/matriz/exportar.xlsx${sector ? `?sector_id=${sector}` : ""}`;
+  }
 
+  function maQueryParams() {
+    const anio = document.getElementById("cap-ma-anio")?.value || new Date().getFullYear();
+    const q = new URLSearchParams({ vista: maVista, anio });
+    if (maFiltros.planes.length) q.set("planes", maFiltros.planes.join(","));
+    if (maFiltros.tipos.length) q.set("tipos", maFiltros.tipos.join(","));
+    if (maFiltros.empresas.length) q.set("empresas", maFiltros.empresas.join(","));
+    if (maFiltros.personas.length) q.set("personas", maFiltros.personas.join(","));
+    if (maFiltros.puestos.length) q.set("puestos", maFiltros.puestos.join(","));
+    if (maVista === "persona") {
+      const pid = document.getElementById("cap-ma-persona-select")?.value;
+      if (pid) q.set("persona_id", pid);
+    }
+    return q;
+  }
+
+  function renderMaPills(containerId, items, grupo, labelKey = "nombre", idKey = "id") {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    el.innerHTML = (items || []).map((it) => {
+      const id = it[idKey];
+      const active = maFiltros[grupo].includes(String(id)) || maFiltros[grupo].includes(id);
+      const label = it[labelKey] || it.nombre;
+      const extra = it.legajo ? ` (${it.legajo})` : "";
+      return `<button type="button" class="cap-pill${active ? " active" : ""}" data-grupo="${grupo}" data-id="${id}">${escapeHtml(label)}${escapeHtml(extra)}</button>`;
+    }).join("");
+    el.querySelectorAll(".cap-pill").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const g = btn.dataset.grupo;
+        const id = btn.dataset.id;
+        const idx = maFiltros[g].indexOf(id);
+        if (idx >= 0) maFiltros[g].splice(idx, 1);
+        else maFiltros[g].push(id);
+        loadMatrizAnalitica().catch(console.error);
+      });
+    });
+  }
+
+  function renderMaCalendario(data) {
+    const wrap = document.getElementById("cap-ma-vista-calendario");
+    if (!wrap) return;
+    const meses = data.meses || {};
+    const nombres = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+    wrap.innerHTML = `<div class="cap-ma-cal-grid">${nombres.map((nombre, i) => {
+      const evs = meses[i + 1] || [];
+      const evHtml = evs.map((ev) => {
+        const ext = ev.tipo === "externo" ? " cap-ma-evento--externo" : "";
+        const col = ev.color ? ` cap-ma-evento--${ev.color}` : "";
+        const emp = ev.empresa_nombre ? ` · ${ev.empresa_nombre}` : "";
+        return `<button type="button" class="cap-ma-evento${ext}${col}" data-event="${encodeURIComponent(JSON.stringify(ev))}" title="${escapeHtml(ev.curso_nombre)}">
+          <strong>${ev.fecha?.slice(5) || ""}</strong> ${escapeHtml(ev.curso_nombre)}${escapeHtml(emp)}
+          <span class="cap-muted"> (${ev.personas_count || 0} pers.)</span>
+        </button>`;
+      }).join("");
+      return `<div class="cap-ma-mes"><div class="cap-ma-mes-title">${nombre}</div>${evHtml || '<span class="cap-muted">—</span>'}</div>`;
+    }).join("")}</div>`;
+    wrap.querySelectorAll("[data-event]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        try { openMaEventoModal(JSON.parse(decodeURIComponent(btn.dataset.event))); } catch (e) { console.error(e); }
+      });
+    });
+  }
+
+  function openMaEventoModal(ev) {
+    const modal = document.getElementById("cap-ma-evento-modal");
+    const body = document.getElementById("cap-ma-evento-body");
+    const titulo = document.getElementById("cap-ma-evento-titulo");
+    if (!modal || !body) return;
+    if (titulo) titulo.textContent = ev.curso_nombre || "Cronograma";
+    const emp = ev.empresa_nombre ? ev.empresa_nombre : "GOS Interno";
+    const filas = (ev.personas || []).map((p) => {
+      const est = p.aprobo === true ? "Aprobó" : (p.aprobo === false ? (p.asistio ? "No aprobó" : "No asistió") : "Pendiente");
+      return `<tr><td>${escapeHtml(p.nombre || "")}</td><td>${p.asistio ? "Sí" : "No"}</td><td>${p.nota ?? "—"}</td><td>${est}</td></tr>`;
+    }).join("");
+    body.innerHTML = `
+      <p><strong>Plan:</strong> ${escapeHtml(ev.plan_nombre || "—")} · <strong>Empresa:</strong> ${escapeHtml(emp)}</p>
+      <p><strong>Fecha:</strong> ${escapeHtml(ev.fecha || "")} · <strong>Capacitador:</strong> ${escapeHtml(ev.capacitador || "—")}</p>
+      <p><strong>Lugar:</strong> ${escapeHtml(ev.lugar || "—")} · <strong>Link:</strong> ${ev.link ? `<a href="${escapeHtml(ev.link)}" target="_blank" rel="noopener">${escapeHtml(ev.link)}</a>` : "—"}</p>
+      <table class="cap-data-table cap-mt"><thead><tr><th>Persona</th><th>Asistió</th><th>Nota</th><th>Estado</th></tr></thead><tbody>${filas || '<tr><td colspan="4" class="cap-empty">Sin personas</td></tr>'}</tbody></table>`;
+    modal.classList.remove("cap-hidden");
+  }
+
+  function estadoLabel(est) {
+    const map = { aprobada: "Aprobada", pendiente: "Pendiente", vencida: "Pendiente", no_aprobo: "No aprobó" };
+    return map[est] || est;
+  }
+
+  function renderMaTabla(data) {
+    const wrap = document.getElementById("cap-ma-vista-tabla");
+    if (!wrap) return;
+    const secciones = data.secciones || [];
+    if (!secciones.length) {
+      wrap.innerHTML = '<p class="cap-empty">Sin datos para los filtros seleccionados</p>';
+      return;
+    }
+    wrap.innerHTML = secciones.map((sec) => {
+      const cursosHtml = (sec.cursos || []).map((c) => {
+        const prog = c.progreso || {};
+        const filas = (c.personas || []).map((p) =>
+          `<tr><td>${escapeHtml(p.persona)}</td><td>${escapeHtml(p.puesto || "—")}</td><td>${p.asistio === true ? "Sí" : p.asistio === false ? "No" : "—"}</td><td>${p.nota ?? "—"}</td><td>${estadoLabel(p.estado)}</td><td>${p.horas_acreditadas ?? 0}</td></tr>`
+        ).join("");
+        return `<div class="cap-ma-curso-block">
+          <div class="cap-ma-seccion-head">
+            <strong>${escapeHtml(c.curso_nombre)}</strong>
+            <span class="cap-badge">${escapeHtml(c.origen_badge)}</span>
+            <span class="cap-muted">${c.horas || 0} hs</span>
+          </div>
+          <div class="cap-ma-progreso" title="${prog.horas_acreditadas || 0} / ${prog.horas_requeridas || 0} hs">
+            <div class="cap-ma-progreso-bar cap-ma-progreso-bar--${prog.color || "rojo"}" style="width:${Math.min(prog.porcentaje || 0, 100)}%"></div>
+          </div>
+          <span class="cap-muted">${prog.porcentaje || 0}% cumplimiento</span>
+          <table class="cap-data-table cap-mt"><thead><tr><th>Persona</th><th>Puesto</th><th>Asistió</th><th>Nota</th><th>Estado</th><th>Hs acreditadas</th></tr></thead><tbody>${filas}</tbody></table>
+        </div>`;
+      }).join("");
+      return `<div class="cap-ma-seccion"><div class="cap-ma-seccion-head"><h3 class="cap-subtitle">${escapeHtml(sec.plan_nombre)}</h3><span class="cap-muted">${escapeHtml(sec.programa_nombre || "")}</span></div>${cursosHtml}</div>`;
+    }).join("");
+  }
+
+  function renderMaPersona(data) {
+    const wrap = document.getElementById("cap-ma-persona-content");
+    if (!wrap) return;
+    const p = data.persona || {};
+    const m = data.metricas || {};
+    const iniciales = (p.nombre || "?").split(" ").map((x) => x[0]).slice(0, 2).join("").toUpperCase();
+    const cards = (data.programas || []).map((prog) => {
+      const cursos = (prog.cursos || []).map((c) =>
+        `<tr><td>${escapeHtml(c.curso)}</td><td>${c.hs}</td><td>${c.nota ?? "—"}</td><td>${estadoLabel(c.estado)}</td><td>${escapeHtml(c.empresa || "GOS Interno")}</td></tr>`
+      ).join("");
+      return `<div class="cap-ma-programa-card"><h4>${escapeHtml(prog.programa_nombre)}</h4>
+        <div class="cap-ma-progreso"><div class="cap-ma-progreso-bar cap-ma-progreso-bar--${(prog.progreso?.porcentaje || 0) >= 100 ? "verde" : (prog.progreso?.porcentaje || 0) >= 50 ? "ambar" : "rojo"}" style="width:${Math.min(prog.progreso?.porcentaje || 0, 100)}%"></div></div>
+        <table class="cap-data-table cap-mt"><thead><tr><th>Curso</th><th>Hs</th><th>Nota</th><th>Estado</th><th>Empresa</th></tr></thead><tbody>${cursos}</tbody></table></div>`;
+    }).join("");
+    wrap.innerHTML = `
+      <div class="cap-ma-persona-header"><div class="cap-ma-avatar">${iniciales}</div><div><h3>${escapeHtml(p.nombre || "")}</h3><p class="cap-muted">${escapeHtml(p.puesto || "Sin puesto")}</p></div></div>
+      <div class="cap-ma-metricas">
+        <div class="cap-ma-metrica"><div class="cap-ma-metrica-val">${m.horas_completadas || 0}/${m.horas_requeridas || 0}</div><div class="cap-ma-metrica-lbl">Horas</div></div>
+        <div class="cap-ma-metrica"><div class="cap-ma-metrica-val">${m.porcentaje || 0}%</div><div class="cap-ma-metrica-lbl">Cumplimiento</div></div>
+        <div class="cap-ma-metrica"><div class="cap-ma-metrica-val">${m.materias_aprobadas || 0}/${m.materias_totales || 0}</div><div class="cap-ma-metrica-lbl">Materias</div></div>
+      </div>${cards || '<p class="cap-empty">Sin programas asignados al puesto actual</p>'}`;
+  }
+
+  async function loadMatrizAnalitica() {
+    if (!maFiltrosMeta) {
+      maFiltrosMeta = await fetchJson(`${API}/matriz/filtros`);
+      const meta = maFiltrosMeta;
+      renderMaPills("cap-ma-pills-planes", meta.planes, "planes");
+      renderMaPills("cap-ma-pills-tipos", meta.tipos, "tipos");
+      renderMaPills("cap-ma-pills-empresas", meta.empresas, "empresas");
+      renderMaPills("cap-ma-pills-personas", meta.personas, "personas");
+      renderMaPills("cap-ma-pills-puestos", meta.puestos, "puestos");
+      fillSelect("cap-ma-persona-select", meta.personas, "— Seleccionar persona —");
+      if (matrizParticipanteId) {
+        const sel = document.getElementById("cap-ma-persona-select");
+        if (sel) sel.value = String(matrizParticipanteId);
+      }
+    } else {
+      renderMaPills("cap-ma-pills-planes", maFiltrosMeta.planes, "planes");
+      renderMaPills("cap-ma-pills-tipos", maFiltrosMeta.tipos, "tipos");
+      renderMaPills("cap-ma-pills-empresas", maFiltrosMeta.empresas, "empresas");
+      renderMaPills("cap-ma-pills-personas", maFiltrosMeta.personas, "personas");
+      renderMaPills("cap-ma-pills-puestos", maFiltrosMeta.puestos, "puestos");
+    }
+    const anioSel = document.getElementById("cap-ma-anio");
+    if (anioSel && !anioSel.options.length) {
+      const y = new Date().getFullYear();
+      for (let i = y - 1; i <= y + 1; i++) {
+        anioSel.add(new Option(String(i), String(i), i === y, i === y));
+      }
+    }
+    if (maVista === "persona" && !document.getElementById("cap-ma-persona-select")?.value) {
+      document.getElementById("cap-ma-vista-persona")?.classList.remove("cap-hidden");
+      return;
+    }
+    const resp = await fetchJson(`${API}/matriz?${maQueryParams()}`);
+    const payload = resp.data || resp;
+    if (maVista === "calendario") renderMaCalendario(payload);
+    else if (maVista === "tabla") renderMaTabla(payload);
+    else renderMaPersona(payload);
+  }
+
+  async function initMatrizAnalitica() {
+    maFiltros = { planes: [], tipos: [], empresas: [], personas: [], puestos: [] };
+    if (matrizParticipanteId) {
+      maFiltros.personas = [String(matrizParticipanteId)];
+      maVista = "persona";
+      document.querySelectorAll("#cap-ma-tabs .cap-tab").forEach((t) => {
+        t.classList.toggle("active", t.dataset.maVista === "persona");
+      });
+      document.querySelectorAll(".cap-ma-vista").forEach((v) => v.classList.add("cap-hidden"));
+      document.getElementById("cap-ma-vista-persona")?.classList.remove("cap-hidden");
+    }
+    await loadMatrizAnalitica();
+  }
+
+  async function loadMatriz() {
+    await loadMatrizAnalitica();
   }
 
 
@@ -1476,18 +1678,27 @@
 
 
   function bindMatriz() {
-
-    document.getElementById("cap-matriz-sector")?.addEventListener("change", () => loadMatriz().catch(console.error));
-
-    document.getElementById("cap-matriz-estado")?.addEventListener("change", () => loadMatriz().catch(console.error));
-
-    document.getElementById("cap-matriz-persona-clear")?.addEventListener("click", () => {
-      matrizParticipanteId = null;
-      matrizParticipanteNombre = null;
-      updateMatrizPersonaFilter();
-      loadMatriz().catch(console.error);
+    document.querySelectorAll("#cap-ma-tabs .cap-tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        maVista = tab.dataset.maVista || "calendario";
+        document.querySelectorAll("#cap-ma-tabs .cap-tab").forEach((t) => t.classList.toggle("active", t === tab));
+        document.querySelectorAll(".cap-ma-vista").forEach((v) => v.classList.add("cap-hidden"));
+        const map = { calendario: "cap-ma-vista-calendario", tabla: "cap-ma-vista-tabla", persona: "cap-ma-vista-persona" };
+        document.getElementById(map[maVista])?.classList.remove("cap-hidden");
+        loadMatrizAnalitica().catch(console.error);
+      });
     });
-
+    document.getElementById("cap-ma-anio")?.addEventListener("change", () => loadMatrizAnalitica().catch(console.error));
+    document.getElementById("cap-ma-persona-select")?.addEventListener("change", () => loadMatrizAnalitica().catch(console.error));
+    document.getElementById("cap-matriz-export")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      window.location.href = `${API}/matriz/exportar.xlsx?${maQueryParams()}`;
+    });
+    ["cap-ma-evento-cerrar", "cap-ma-evento-backdrop"].forEach((id) => {
+      document.getElementById(id)?.addEventListener("click", () => {
+        document.getElementById("cap-ma-evento-modal")?.classList.add("cap-hidden");
+      });
+    });
   }
 
 
@@ -2151,78 +2362,143 @@
 
 
 
-  async function loadEncCursos() {
-
-    const sel = document.getElementById("cap-enc-curso");
-
-    if (!sel) return;
-
-    const current = sel.value;
-
-    const puestoIds = getEncPuestosSeleccionados();
-
-    let cursos = window.capCursosCache || [];
-
-    if (puestoIds.length) {
-
-      const data = await fetchJson(`${API}/requisitos?puesto_ids=${puestoIds.join(",")}`);
-
-      const ids = new Set((data.requisitos || []).map((r) => r.curso_id).filter(Boolean));
-
-      const filtrados = cursos.filter((c) => ids.has(c.id));
-
-      if (filtrados.length) cursos = filtrados;
-
-    }
-
-    fillSelect("cap-enc-curso", cursos.map((c) => ({ id: c.id, codigo: c.codigo, nombre: c.nombre })), "— Seleccionar curso —");
-
-    if (current) sel.value = current;
-
-    onEncCursoChange();
-
+  async function loadEncPlanes() {
+    const data = await fetchJson(`${API}/planes`);
+    encPlanesCache = data.planes || [];
+    fillSelect(
+      "cap-enc-plan",
+      encPlanesCache.map((p) => ({
+        id: p.id,
+        nombre: `${p.nombre}${p.programa_nombre ? ` (${p.programa_nombre})` : ""}`,
+      })),
+      "— Seleccionar plan —"
+    );
   }
 
+  async function loadEncCursos() {
+    const sel = document.getElementById("cap-enc-curso");
+    const planId = document.getElementById("cap-enc-plan")?.value;
+    if (!sel) return;
+    if (!planId) {
+      sel.disabled = true;
+      sel.innerHTML = '<option value="">— Seleccioná un plan primero —</option>';
+      document.getElementById("cap-enc-curso-meta")?.classList.add("cap-hidden");
+      return;
+    }
+    sel.disabled = false;
+    const data = await fetchJson(`${API}/planes/${planId}/cursos`);
+    const cursos = data.cursos || [];
+    fillSelect("cap-enc-curso", cursos.map((c) => ({ id: c.curso_id || c.id, codigo: c.curso_codigo || c.codigo, nombre: c.curso_nombre || c.nombre })), "— Seleccionar curso —");
+    onEncCursoChange();
+  }
 
+  function showEncCursoMeta(curso) {
+    const meta = document.getElementById("cap-enc-curso-meta");
+    if (!meta) return;
+    if (!curso) {
+      meta.classList.add("cap-hidden");
+      return;
+    }
+    const hs = curso.horas ?? curso.duracion_horas ?? "—";
+    const ev = curso.requiere_evaluacion ? `Sí (mín. ${curso.puntaje_minimo ?? 0})` : "No";
+    meta.innerHTML = `<strong>Duración:</strong> ${hs} hs · <strong>Evaluación:</strong> ${ev}`;
+    meta.classList.remove("cap-hidden");
+  }
 
   function onEncCursoChange() {
-
     const cursoId = document.getElementById("cap-enc-curso")?.value;
-
-    const origenSel = document.getElementById("cap-enc-origen");
-
-    if (!cursoId || !origenSel) return;
-
-    const curso = (window.capCursosCache || []).find((c) => String(c.id) === String(cursoId));
-
-    if (curso?.origen && !origenSel.value) origenSel.value = curso.origen;
-
-    toggleEncEmpresaCapacitadora();
-
-    updateEncHoraFin();
-
+    const planId = document.getElementById("cap-enc-plan")?.value;
+    if (!cursoId || !planId) return;
+    fetchJson(`${API}/planes/${planId}/cursos`).then((data) => {
+      const c = (data.cursos || []).find((x) => String(x.curso_id || x.id) === String(cursoId));
+      showEncCursoMeta(c || null);
+      toggleEncEmpresaCapacitadora();
+      updateEncFechaFin();
+    }).catch(console.error);
   }
 
-
+  function toggleEncTipo() {
+    const tipo = document.getElementById("cap-enc-tipo")?.value || "interno";
+    const origenSel = document.getElementById("cap-enc-origen");
+    if (origenSel) origenSel.value = tipo === "externo" ? "externa" : "interna";
+    toggleEncEmpresaCapacitadora();
+  }
 
   function toggleEncEmpresaCapacitadora() {
-
+    const tipo = document.getElementById("cap-enc-tipo")?.value;
     const origen = document.getElementById("cap-enc-origen")?.value;
-
     const wrap = document.getElementById("cap-enc-empresa-wrap");
-
     const sel = document.getElementById("cap-enc-empresa");
-
     if (!wrap || !sel) return;
-
-    const esExterna = origen === "externa";
-
+    const esExterna = tipo === "externo" || origen === "externa";
     wrap.classList.toggle("cap-hidden", !esExterna);
-
     sel.required = esExterna;
-
     if (!esExterna) sel.value = "";
+  }
 
+  function toDatetimeLocalValue(d) {
+    if (!d) return "";
+    const dt = d instanceof Date ? d : new Date(d);
+    if (Number.isNaN(dt.getTime())) return "";
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}T${String(dt.getHours()).padStart(2, "0")}:${String(dt.getMinutes()).padStart(2, "0")}`;
+  }
+
+  function siguienteHabilJs(dt) {
+    const d = new Date(dt);
+    while (d.getDay() === 0 || d.getDay() === 6) {
+      d.setDate(d.getDate() + 1);
+    }
+    d.setHours(9, 0, 0, 0);
+    return d;
+  }
+
+  function calcularFechaFinJs(fechaStr, horaInicio, duracionHoras) {
+    if (!fechaStr || !duracionHoras || duracionHoras <= 0) return null;
+    const [y, m, d] = fechaStr.split("-").map(Number);
+    const [hh, mm] = (horaInicio || "09:00").slice(0, 5).split(":").map(Number);
+    let actual = new Date(y, m - 1, d, hh || 9, mm || 0);
+    let restante = Number(duracionHoras);
+
+    if (restante <= 8) {
+      return new Date(actual.getTime() + restante * 3600000);
+    }
+
+    while (restante > 0) {
+      if (actual.getDay() === 0 || actual.getDay() === 6) {
+        actual = siguienteHabilJs(actual);
+        continue;
+      }
+      const bloque = Math.min(restante, 8);
+      actual = new Date(actual.getTime() + bloque * 3600000);
+      restante -= bloque;
+      if (restante > 0) {
+        const next = new Date(actual);
+        next.setDate(next.getDate() + 1);
+        next.setHours(9, 0, 0, 0);
+        actual = siguienteHabilJs(next);
+      }
+    }
+    return actual;
+  }
+
+  function updateEncFechaFin() {
+    const cursoId = document.getElementById("cap-enc-curso")?.value;
+    const fecha = document.getElementById("cap-enc-fecha")?.value;
+    const horaInicio = document.getElementById("cap-enc-hora-inicio")?.value || "09:00";
+    const finEl = document.getElementById("cap-enc-fecha-fin");
+    if (!finEl || !cursoId) {
+      if (finEl) finEl.value = "";
+      return;
+    }
+    const planId = document.getElementById("cap-enc-plan")?.value;
+    if (!planId) return;
+    fetchJson(`${API}/planes/${planId}/cursos`).then((data) => {
+      const c = (data.cursos || []).find((x) => String(x.curso_id || x.id) === String(cursoId));
+      const horas = parseFloat(c?.horas ?? c?.duracion_horas ?? 0);
+      if (!fecha || !horas) return;
+      const end = calcularFechaFinJs(fecha, horaInicio, horas);
+      if (end && !finEl.dataset.userEdited) finEl.value = toDatetimeLocalValue(end);
+    }).catch(console.error);
   }
 
 
@@ -2274,16 +2550,12 @@
     const delBtn = document.getElementById("cap-encuentro-eliminar");
 
     if (hint) {
-
       hint.textContent = editing
-
-        ? "Modificá los datos de la programación."
-
-        : "Programá una capacitación eligiendo puestos, personas, curso y fecha.";
-
+        ? "Etapa A — Modificá la planificación del cronograma."
+        : "Etapa A — Planificación del cronograma.";
     }
 
-    if (submit) submit.textContent = editing ? "Guardar cambios" : "Programar capacitación";
+    if (submit) submit.textContent = editing ? "Guardar cambios" : "Guardar cronograma";
 
     if (delBtn) delBtn.classList.toggle("cap-hidden", !editing);
 
@@ -2340,27 +2612,7 @@
 
 
   function updateEncHoraFin() {
-
-    const cursoId = document.getElementById("cap-enc-curso")?.value;
-
-    const horaInicio = document.getElementById("cap-enc-hora-inicio")?.value;
-
-    const horaFinEl = document.getElementById("cap-enc-hora-fin");
-
-    if (!horaFinEl) return;
-
-    if (!cursoId || !horaInicio) {
-
-      horaFinEl.value = "";
-
-      return;
-
-    }
-
-    const curso = (window.capCursosCache || []).find((c) => String(c.id) === String(cursoId));
-
-    horaFinEl.value = calcEncHoraFin(horaInicio, curso?.horas);
-
+    updateEncFechaFin();
   }
 
 
@@ -2417,9 +2669,9 @@
 
     await loadEncPersonas();
 
+    await loadEncPlanes();
     await loadEncCursos();
-
-    toggleEncEmpresaCapacitadora();
+    toggleEncTipo();
 
   }
 
@@ -2717,12 +2969,15 @@
 
     });
 
+    document.getElementById("cap-enc-plan")?.addEventListener("change", () => loadEncCursos().catch(console.error));
+    document.getElementById("cap-enc-tipo")?.addEventListener("change", toggleEncTipo);
     document.getElementById("cap-enc-curso")?.addEventListener("change", onEncCursoChange);
-
-    document.getElementById("cap-enc-hora-inicio")?.addEventListener("change", updateEncHoraFin);
-
-    document.getElementById("cap-enc-hora-inicio")?.addEventListener("input", updateEncHoraFin);
-
+    document.getElementById("cap-enc-fecha")?.addEventListener("change", updateEncFechaFin);
+    document.getElementById("cap-enc-hora-inicio")?.addEventListener("change", updateEncFechaFin);
+    document.getElementById("cap-enc-hora-inicio")?.addEventListener("input", updateEncFechaFin);
+    document.getElementById("cap-enc-fecha-fin")?.addEventListener("input", (e) => {
+      e.target.dataset.userEdited = "1";
+    });
     document.getElementById("cap-enc-origen")?.addEventListener("change", toggleEncEmpresaCapacitadora);
 
     document.getElementById("cap-enc-empresa-add")?.addEventListener("click", () => {
@@ -2757,6 +3012,8 @@
 
       const nombre = document.getElementById("cap-enc-puesto-quick-nombre")?.value.trim();
 
+      const sectorId = document.getElementById("cap-enc-puesto-quick-sector")?.value || null;
+
       if (!codigo || !nombre) {
 
         setFormError("cap-encuentro-form-error", "Código y nombre del puesto son obligatorios.");
@@ -2767,7 +3024,11 @@
 
       try {
 
-        const data = await postJson(`${API}/puestos`, { codigo, nombre });
+        const payload = { codigo, nombre };
+
+        if (sectorId) payload.sector_id = Number(sectorId);
+
+        const data = await postJson(`${API}/puestos`, payload);
 
         await loadPuestosOptions();
 
@@ -2899,20 +3160,28 @@
 
       }
 
-      if (!body.fecha) {
-
-        setFormError("cap-encuentro-form-error", "Indicá la fecha");
-
+      if (!body.plan_id) {
+        setFormError("cap-encuentro-form-error", "Seleccioná un plan");
         return;
-
       }
 
-      if (body.origen === "externa" && !body.empresa_capacitadora_id) {
-
-        setFormError("cap-encuentro-form-error", "Seleccioná la empresa capacitadora");
-
+      body.tipo = document.getElementById("cap-enc-tipo")?.value || "interno";
+      body.puesto_ids = getEncPuestosSeleccionados();
+      if (body.tipo === "externo" && !body.empresa_capacitadora_id) {
+        setFormError("cap-encuentro-form-error", "Seleccioná la empresa externa");
         return;
-
+      }
+      const fechaVal = document.getElementById("cap-enc-fecha")?.value;
+      const horaVal = document.getElementById("cap-enc-hora-inicio")?.value || "09:00";
+      if (fechaVal) {
+        body.fecha_inicio = `${fechaVal}T${horaVal}`;
+      } else {
+        delete body.fecha;
+        delete body.fecha_inicio;
+      }
+      const finVal = document.getElementById("cap-enc-fecha-fin")?.value;
+      if (finVal) {
+        body.fecha_fin = finVal.length === 16 ? `${finVal}:00` : finVal;
       }
 
       try {
@@ -4044,6 +4313,12 @@
       requiere_evaluacion: !!data.curso_requiere_evaluacion,
       puntaje_minimo: data.curso_puntaje_minimo,
     };
+    const capEl = document.getElementById("cap-cierre-capacitador");
+    const lugEl = document.getElementById("cap-cierre-lugar");
+    const linkEl = document.getElementById("cap-cierre-link");
+    if (capEl) capEl.value = data.instructor || "";
+    if (lugEl) lugEl.value = data.lugar || "";
+    if (linkEl) linkEl.value = data.link_virtual || "";
     const participantes = data.participantes || [];
     tbody.innerHTML = participantes.map((p) => {
       const asistio = p.asistio === true ? "presente" : (p.asistio === false ? "ausente" : (p.asistencia || "inscripto"));
@@ -4094,8 +4369,18 @@
         alert("Registrá la asistencia de al menos una persona");
         return;
       }
+      const payload = {
+        personas: registros,
+        capacitador: document.getElementById("cap-cierre-capacitador")?.value || null,
+        lugar: document.getElementById("cap-cierre-lugar")?.value || null,
+        link: document.getElementById("cap-cierre-link")?.value || null,
+      };
       try {
-        await putJson(`${API}/encuentros/${asistenciaEncuentroId}/cierre`, { personas: registros });
+        const matFile = document.getElementById("cap-cierre-material")?.files?.[0];
+        const resFile = document.getElementById("cap-cierre-resultados")?.files?.[0];
+        if (matFile) await uploadFile(`${API}/encuentros/${asistenciaEncuentroId}/material`, matFile);
+        if (resFile) await uploadFile(`${API}/encuentros/${asistenciaEncuentroId}/resultados`, resFile);
+        await putJson(`${API}/encuentros/${asistenciaEncuentroId}/cierre`, payload);
         closeAsistenciaModal();
         if (typeof loadEncuentros === "function") await loadEncuentros();
       } catch (err) {
@@ -4302,9 +4587,7 @@
     }
 
     if (view === "cronograma") {
-
-      try { await Promise.all([loadEncuentros(), loadPuestosOptions(), loadCursos()]); } catch (e) { console.error(e); }
-
+      try { await Promise.all([loadEncuentros(), loadPuestosOptions(), loadEncPlanes()]); } catch (e) { console.error(e); }
     }
 
     if (view === "programas") {
@@ -4318,25 +4601,9 @@
     }
 
     if (view === "matriz") {
-
       try {
-
-        await loadMeta();
-
-        fillSelect("cap-matriz-sector", metaSectores, "Todos los sectores");
-
-        if (matrizParticipanteId) {
-          matrizParticipanteNombre = sessionStorage.getItem("cap_matriz_persona_nombre");
-          if (matrizParticipanteNombre) {
-            sessionStorage.removeItem("cap_matriz_persona_nombre");
-          }
-          updateMatrizPersonaFilter();
-        }
-
-        await loadMatriz();
-
+        await initMatrizAnalitica();
       } catch (e) { console.error(e); }
-
     }
 
     if (view === "alertas") {

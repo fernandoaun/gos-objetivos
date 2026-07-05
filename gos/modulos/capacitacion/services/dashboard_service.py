@@ -9,7 +9,6 @@ from gos.modulos.capacitacion.models import (
     Curso,
     EncuentroCapacitacion,
     Participante,
-    PlanCapacitacion,
     RegistroCapacitacion,
 )
 from gos.modulos.capacitacion.services.analitico_service import analitico_participante

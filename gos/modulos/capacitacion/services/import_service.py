@@ -108,26 +108,23 @@ def importar_participantes_excel(empresa_id: int, file_bytes: bytes) -> dict:
         if existente:
             from gos.modulos.capacitacion.services.catalogo_service import actualizar_participante
 
-            actualizar_participante(empresa_id, existente.id, data)
+            try:
+                actualizar_participante(empresa_id, existente.id, data)
+            except ValueError as exc:
+                errores.append(f"Fila {row_idx}: {exc}")
+                continue
             actualizados += 1
         else:
             if legajo and legajo in legajos_existentes:
                 errores.append(f"Fila {row_idx}: legajo duplicado «{legajo}»")
                 continue
-            participante = Participante(
-                empresa_id=empresa_id,
-                nombre=nombre,
-                apellido=data["apellido"],
-                legajo=legajo,
-                dni=data["dni"],
-                email=data["email"],
-                telefono=data["telefono"],
-                observaciones=data["observaciones"],
-                sector_id=sector_id,
-                puesto_id=puesto_id,
-                fecha_ingreso=fecha_ingreso,
-            )
-            db.session.add(participante)
+            from gos.modulos.capacitacion.services.catalogo_service import crear_participante
+
+            try:
+                crear_participante(empresa_id, data)
+            except ValueError as exc:
+                errores.append(f"Fila {row_idx}: {exc}")
+                continue
             if legajo:
                 legajos_existentes.add(legajo)
             creados += 1

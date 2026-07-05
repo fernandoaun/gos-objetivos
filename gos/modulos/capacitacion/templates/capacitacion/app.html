@@ -132,15 +132,37 @@
     </div>
     <div class="cap-form-panel cap-hidden cap-mt" id="cap-encuentro-form-panel">
       <form id="cap-encuentro-form" class="cap-form">
-        <p class="cap-form-hint cap-mb" id="cap-encuentro-form-hint">Programá una capacitación eligiendo puestos, personas, curso y fecha.</p>
+        <p class="cap-form-hint cap-mb" id="cap-encuentro-form-hint">Etapa A — Planificación del cronograma.</p>
 
-        <h3 class="cap-subtitle">1. Puestos</h3>
+        <div class="cap-form-row cap-form-row--2">
+          <div>
+            <label class="cap-label" for="cap-enc-tipo">Tipo *</label>
+            <select class="cap-input" id="cap-enc-tipo" name="tipo" required>
+              <option value="interno">GOS Interno</option>
+              <option value="externo">Externo</option>
+            </select>
+          </div>
+          <div>
+            <label class="cap-label" for="cap-enc-plan">Plan *</label>
+            <select class="cap-input" id="cap-enc-plan" name="plan_id" required>
+              <option value="">— Seleccionar plan —</option>
+            </select>
+          </div>
+        </div>
+
+        <h3 class="cap-subtitle">1. Puestos convocados</h3>
         <div id="cap-enc-puestos" class="cap-check-grid"><p class="cap-empty">Cargando puestos...</p></div>
         <div class="cap-quick-form cap-hidden" id="cap-enc-puesto-quick">
           <p class="cap-quick-form-title">Nuevo puesto</p>
           <div class="cap-form-row cap-form-row--2">
             <input class="cap-input" id="cap-enc-puesto-quick-codigo" placeholder="Código" maxlength="20">
             <input class="cap-input" id="cap-enc-puesto-quick-nombre" placeholder="Nombre" maxlength="150">
+          </div>
+          <div class="cap-form-row">
+            <label class="cap-label" for="cap-enc-puesto-quick-sector">Sector</label>
+            <select class="cap-input" id="cap-enc-puesto-quick-sector">
+              <option value="">— Sin sector —</option>
+            </select>
           </div>
           <div class="cap-form-actions">
             <button type="button" class="cap-btn cap-btn--ghost" id="cap-enc-puesto-quick-cancel">Cancelar</button>
@@ -161,13 +183,14 @@
         <div class="cap-form-row cap-form-row--2 cap-mt">
           <div>
             <label class="cap-label" for="cap-enc-curso">3. Curso *</label>
-            <select class="cap-input" id="cap-enc-curso" name="curso_id" required>
-              <option value="">— Seleccionar curso —</option>
+            <select class="cap-input" id="cap-enc-curso" name="curso_id" required disabled>
+              <option value="">— Seleccioná un plan primero —</option>
             </select>
+            <div class="cap-curso-meta cap-hidden" id="cap-enc-curso-meta"></div>
           </div>
           <div>
-            <label class="cap-label" for="cap-enc-fecha">4. Fecha *</label>
-            <input class="cap-input" id="cap-enc-fecha" name="fecha" type="date" required>
+            <label class="cap-label" for="cap-enc-fecha">4. Fecha inicio</label>
+            <input class="cap-input" id="cap-enc-fecha" name="fecha" type="date">
           </div>
         </div>
         <div class="cap-form-row cap-form-row--2">
@@ -176,20 +199,20 @@
             <input class="cap-input" id="cap-enc-hora-inicio" name="hora_inicio" type="time">
           </div>
           <div>
-            <label class="cap-label" for="cap-enc-hora-fin">Hora fin</label>
-            <input class="cap-input cap-input--readonly" id="cap-enc-hora-fin" name="hora_fin" type="time" readonly tabindex="-1" title="Se calcula automáticamente según la duración del curso">
+            <label class="cap-label" for="cap-enc-fecha-fin">Fecha fin (calculada, editable)</label>
+            <input class="cap-input" id="cap-enc-fecha-fin" name="fecha_fin" type="datetime-local">
           </div>
         </div>
 
-        <div class="cap-form-row cap-form-row--2">
+        <div class="cap-form-row cap-form-row--2 cap-hidden" aria-hidden="true">
           <div>
-            <label class="cap-label" for="cap-enc-origen">5. Origen</label>
+            <label class="cap-label" for="cap-enc-origen">Origen (legacy)</label>
             <select class="cap-input" id="cap-enc-origen" name="origen">
-              <option value="">— Seleccionar origen —</option>
+              <option value="">—</option>
             </select>
           </div>
           <div id="cap-enc-empresa-wrap" class="cap-hidden">
-            <label class="cap-label" for="cap-enc-empresa">Empresa capacitadora *</label>
+            <label class="cap-label" for="cap-enc-empresa">Empresa externa *</label>
             <div class="cap-input-group">
               <select class="cap-input" id="cap-enc-empresa" name="empresa_capacitadora_id">
                 <option value="">— Seleccionar empresa —</option>
@@ -245,7 +268,7 @@
         <div class="cap-form-actions">
           <button type="button" class="cap-btn cap-btn--danger cap-hidden" id="cap-encuentro-eliminar"><i class="bi bi-trash"></i> Eliminar</button>
           <button type="button" class="cap-btn cap-btn--ghost" id="cap-encuentro-cancel">Cancelar</button>
-          <button type="submit" class="cap-btn cap-btn--primary" id="cap-encuentro-submit">Programar capacitación</button>
+          <button type="submit" class="cap-btn cap-btn--primary" id="cap-encuentro-submit">Guardar cronograma</button>
         </div>
       </form>
     </div>
@@ -342,37 +365,62 @@
   <div data-cap-view="matriz" class="cap-hidden">
     <div class="cap-widget">
       <div class="cap-widget-head cap-widget-head--split">
-        <div class="cap-widget-head-left"><i class="bi bi-grid-3x3-gap"></i><h2 class="cap-widget-title">Matriz analítica</h2></div>
+        <div class="cap-widget-head-left"><i class="bi bi-grid-3x3-gap"></i><h2 class="cap-widget-title">Matriz Analítica</h2></div>
         <div class="cap-toolbar-actions">
-          <span class="cap-matriz-persona-filter cap-hidden" id="cap-matriz-persona-filter" title="Filtrado por persona">
-            <i class="bi bi-person-fill"></i>
-            <span id="cap-matriz-persona-nombre"></span>
-            <button type="button" class="cap-matriz-persona-clear" id="cap-matriz-persona-clear" title="Quitar filtro de persona" aria-label="Quitar filtro de persona">&times;</button>
-          </span>
-          <select class="cap-input cap-input--sm" id="cap-matriz-sector"><option value="">Todos los sectores</option></select>
-          <select class="cap-input cap-input--sm" id="cap-matriz-estado">
-            <option value="">Todos</option>
-            <option value="aprobada">Aprobada</option>
-            <option value="pendiente">Pendiente</option>
-            <option value="programada">Programada</option>
-            <option value="vencida">Vencida</option>
-          </select>
+          <select class="cap-input cap-input--sm" id="cap-ma-anio" aria-label="Año"></select>
           <a class="cap-btn cap-btn--ghost" id="cap-matriz-export" href="#"><i class="bi bi-download"></i> Excel</a>
         </div>
       </div>
-      <div class="cap-matriz-wrap">
-        <table class="cap-matriz-table" id="cap-matriz-table">
-          <thead id="cap-matriz-head"><tr><th>Persona</th></tr></thead>
-          <tbody id="cap-matriz-body"><tr><td class="cap-loading">Cargando...</td></tr></tbody>
-        </table>
+      <div class="cap-widget-body">
+        <div class="cap-ma-filtros" id="cap-ma-filtros">
+          <div class="cap-ma-filtro-grupo" data-grupo="planes">
+            <span class="cap-ma-filtro-label">Plan</span>
+            <div class="cap-pills" id="cap-ma-pills-planes"></div>
+          </div>
+          <div class="cap-ma-filtro-grupo" data-grupo="tipos">
+            <span class="cap-ma-filtro-label">Tipo</span>
+            <div class="cap-pills" id="cap-ma-pills-tipos"></div>
+          </div>
+          <div class="cap-ma-filtro-grupo" data-grupo="empresas">
+            <span class="cap-ma-filtro-label">Empresa externa</span>
+            <div class="cap-pills" id="cap-ma-pills-empresas"></div>
+          </div>
+          <div class="cap-ma-filtro-grupo" data-grupo="personas">
+            <span class="cap-ma-filtro-label">Persona</span>
+            <div class="cap-pills" id="cap-ma-pills-personas"></div>
+          </div>
+          <div class="cap-ma-filtro-grupo" data-grupo="puestos">
+            <span class="cap-ma-filtro-label">Puesto</span>
+            <div class="cap-pills" id="cap-ma-pills-puestos"></div>
+          </div>
+        </div>
+        <div class="cap-tabs cap-mt" id="cap-ma-tabs">
+          <button type="button" class="cap-tab active" data-ma-vista="calendario">Calendario anual</button>
+          <button type="button" class="cap-tab" data-ma-vista="tabla">Tabla por Plan</button>
+          <button type="button" class="cap-tab" data-ma-vista="persona">Por Persona</button>
+        </div>
+        <div id="cap-ma-vista-calendario" class="cap-ma-vista cap-mt"></div>
+        <div id="cap-ma-vista-tabla" class="cap-ma-vista cap-hidden cap-mt"></div>
+        <div id="cap-ma-vista-persona" class="cap-ma-vista cap-hidden cap-mt">
+          <div class="cap-form-row cap-mb">
+            <label class="cap-label" for="cap-ma-persona-select">Legajo / Persona</label>
+            <select class="cap-input cap-input--sm" id="cap-ma-persona-select"><option value="">— Seleccionar persona —</option></select>
+          </div>
+          <div id="cap-ma-persona-content"></div>
+        </div>
       </div>
-      <div class="cap-leyenda">
-        <span class="cap-leyenda-item cap-leyenda--verde">Vigente</span>
-        <span class="cap-leyenda-item cap-leyenda--amarillo">Próximo a vencer</span>
-        <span class="cap-leyenda-item cap-leyenda--rojo">Vencido</span>
-        <span class="cap-leyenda-item cap-leyenda--azul">Programado</span>
-        <span class="cap-leyenda-item cap-leyenda--gris">No aplica</span>
+    </div>
+  </div>
+
+  <!-- Modal detalle cronograma (matriz calendario) -->
+  <div class="cap-modal cap-hidden" id="cap-ma-evento-modal">
+    <div class="cap-modal-backdrop" id="cap-ma-evento-backdrop"></div>
+    <div class="cap-modal-panel cap-modal-panel--wide">
+      <div class="cap-widget-head cap-widget-head--split">
+        <div class="cap-widget-head-left"><i class="bi bi-calendar-event"></i><h2 class="cap-widget-title" id="cap-ma-evento-titulo">Cronograma</h2></div>
+        <button type="button" class="cap-btn cap-btn--icon" id="cap-ma-evento-cerrar"><i class="bi bi-x-lg"></i></button>
       </div>
+      <div class="cap-widget-body" id="cap-ma-evento-body"></div>
     </div>
   </div>
 
@@ -555,6 +603,12 @@
             <div class="cap-form-row cap-form-row--2">
               <input class="cap-input" id="cap-puesto-quick-codigo" placeholder="Código" maxlength="20">
               <input class="cap-input" id="cap-puesto-quick-nombre" placeholder="Nombre" maxlength="150">
+            </div>
+            <div class="cap-form-row">
+              <label class="cap-label" for="cap-puesto-quick-sector">Sector</label>
+              <select class="cap-input" id="cap-puesto-quick-sector">
+                <option value="">— Sin sector —</option>
+              </select>
             </div>
             <div class="cap-form-actions">
               <button type="button" class="cap-btn cap-btn--ghost" id="cap-puesto-quick-cancel">Cancelar</button>
@@ -835,23 +889,47 @@
     </div>
   </div>
 
-  <!-- Modal asistencia -->
+  <!-- Modal cierre cronograma (Etapa B) -->
   <div class="cap-modal cap-hidden" id="cap-asistencia-modal">
     <div class="cap-modal-backdrop" id="cap-asistencia-backdrop"></div>
-    <div class="cap-modal-panel">
+    <div class="cap-modal-panel cap-modal-panel--wide">
       <div class="cap-widget-head cap-widget-head--split">
         <div class="cap-widget-head-left">
           <i class="bi bi-clipboard-check"></i>
-          <h2 class="cap-widget-title" id="cap-asistencia-titulo">Asistencia y evaluación</h2>
+          <h2 class="cap-widget-title" id="cap-asistencia-titulo">Etapa B — Cierre de cronograma</h2>
         </div>
         <button type="button" class="cap-btn cap-btn--icon" id="cap-asistencia-cerrar"><i class="bi bi-x-lg"></i></button>
       </div>
-      <div class="cap-widget-body cap-widget-body--flush">
+      <div class="cap-widget-body">
+        <div class="cap-form-row cap-form-row--3 cap-mb">
+          <div>
+            <label class="cap-label" for="cap-cierre-capacitador">Capacitador final</label>
+            <input class="cap-input" id="cap-cierre-capacitador" type="text">
+          </div>
+          <div>
+            <label class="cap-label" for="cap-cierre-lugar">Lugar final</label>
+            <input class="cap-input" id="cap-cierre-lugar" type="text">
+          </div>
+          <div>
+            <label class="cap-label" for="cap-cierre-link">Link final</label>
+            <input class="cap-input" id="cap-cierre-link" type="url">
+          </div>
+        </div>
+        <div class="cap-form-row cap-form-row--2 cap-mb">
+          <div>
+            <label class="cap-label">Material de capacitación (PDF)</label>
+            <input type="file" class="cap-input" id="cap-cierre-material" accept=".pdf">
+          </div>
+          <div>
+            <label class="cap-label">Resultados del examen (PDF)</label>
+            <input type="file" class="cap-input" id="cap-cierre-resultados" accept=".pdf">
+          </div>
+        </div>
         <table class="cap-data-table">
           <thead><tr><th>Persona</th><th>¿Asistió?</th><th>Nota</th><th>Estado</th></tr></thead>
           <tbody id="cap-asistencia-body"></tbody>
         </table>
-        <p class="cap-form-hint" style="padding:0 1rem">El estado (Aprobó / No aprobó / No asistió) se calcula automáticamente según la asistencia, la evaluación del curso y el puntaje mínimo.</p>
+        <p class="cap-form-hint cap-mt">El estado (Aprobó / No aprobó / No asistió) se calcula al cerrar según las reglas vigentes del curso.</p>
       </div>
       <div class="cap-form-actions" style="padding:1rem">
         <button type="button" class="cap-btn cap-btn--ghost" id="cap-asistencia-cancel">Cancelar</button>

@@ -42,8 +42,10 @@ from gos.modulos.capacitacion.services.evidencia_service import (
     subir_certificado_registro,
     subir_documento_certificacion,
     subir_foto_participante,
+    subir_material_encuentro,
+    subir_resultados_encuentro,
 )
-from gos.modulos.capacitacion.services.matriz_analitica_service import matriz_analitica
+from gos.modulos.capacitacion.services.matriz_analitica_service import matriz_analitica, matriz_filtros_metadata
 from gos.modulos.capacitacion.services.matriz_service import matriz_capacitaciones
 from gos.modulos.capacitacion.services.programa_service import (
     actualizar_encuentro,
@@ -54,11 +56,13 @@ from gos.modulos.capacitacion.services.programa_service import (
     crear_encuentro,
     crear_programa,
     cursos_de_puestos,
+    cursos_del_plan,
     detalle_encuentro,
     eliminar_curso_de_plan,
     eliminar_encuentro,
     eliminar_plan,
     inscribir_participantes,
+    listar_planes,
     listar_programas,
     obtener_programa,
     participantes_encuentro,
@@ -82,6 +86,7 @@ __all__ = [
     "analitico_participante",
     "matriz_capacitaciones",
     "matriz_analitica",
+    "matriz_filtros_metadata",
     "resumen_dashboard",
     "encuentros_cronograma",
     "generar_alertas",
@@ -123,6 +128,8 @@ __all__ = [
     "agregar_curso_a_plan",
     "eliminar_curso_de_plan",
     "cursos_de_puestos",
+    "cursos_del_plan",
+    "listar_planes",
     "crear_encuentro",
     "actualizar_encuentro",
     "eliminar_encuentro",

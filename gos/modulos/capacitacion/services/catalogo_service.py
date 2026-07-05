@@ -181,6 +181,8 @@ def actualizar_puesto(empresa_id: int, puesto_id: int, data: dict) -> dict:
     puesto.nombre = nombre
     descripcion = (data.get("descripcion") or "").strip()
     puesto.descripcion = descripcion or None
+    if "sector_id" in data:
+        puesto.sector_id = _parse_sector_id(empresa_id, data)
     db.session.commit()
     return _puesto_dict(puesto)
 
@@ -328,11 +330,13 @@ def crear_puesto(empresa_id: int, data: dict) -> dict:
     if Puesto.query.filter_by(empresa_id=empresa_id, codigo=codigo).first():
         raise ValueError(f"Ya existe un puesto con el código «{codigo}»")
 
+    sector_id = _parse_sector_id(empresa_id, data)
     puesto = Puesto(
         empresa_id=empresa_id,
         codigo=codigo,
         nombre=nombre,
         descripcion=(data.get("descripcion") or "").strip() or None,
+        sector_id=sector_id,
     )
     db.session.add(puesto)
     db.session.commit()
@@ -361,12 +365,16 @@ def crear_participante(empresa_id: int, data: dict) -> dict:
 
     if puesto_id is not None and puesto_id != "":
         puesto_id = int(puesto_id)
-        if not Puesto.query.filter_by(id=puesto_id, empresa_id=empresa_id, activo=True).first():
+        puesto = Puesto.query.filter_by(id=puesto_id, empresa_id=empresa_id, activo=True).first()
+        if not puesto:
             raise ValueError("Puesto no válido")
+        if sector_id is None and puesto.sector_id:
+            sector_id = puesto.sector_id
     else:
         puesto_id = None
 
     email = (data.get("email") or "").strip() or None
+    _validar_email_unico(empresa_id, email)
     apellido = (data.get("apellido") or "").strip() or None
     dni = (data.get("dni") or "").strip() or None
     telefono = (data.get("telefono") or "").strip() or None
@@ -424,24 +432,38 @@ def actualizar_participante(empresa_id: int, participante_id: int, data: dict) -
 
     if puesto_id is not None and puesto_id != "":
         puesto_id = int(puesto_id)
-        if not Puesto.query.filter_by(id=puesto_id, empresa_id=empresa_id, activo=True).first():
+        puesto = Puesto.query.filter_by(id=puesto_id, empresa_id=empresa_id, activo=True).first()
+        if not puesto:
             raise ValueError("Puesto no válido")
+        if sector_id is None and puesto.sector_id:
+            sector_id = puesto.sector_id
     else:
         puesto_id = None
+
+    email = (data.get("email") or "").strip() or None
+    _validar_email_unico(empresa_id, email, exclude_id=participante_id)
 
     participante.nombre = nombre
     participante.apellido = (data.get("apellido") or "").strip() or None
     participante.legajo = legajo
     participante.dni = (data.get("dni") or "").strip() or None
-    participante.email = (data.get("email") or "").strip() or None
+    participante.email = email
     participante.telefono = (data.get("telefono") or "").strip() or None
     participante.fecha_ingreso = _parse_date(data.get("fecha_ingreso"))
     participante.observaciones = (data.get("observaciones") or "").strip() or None
     if "activo" in data:
         participante.activo = bool(data["activo"])
     participante.sector_id = sector_id
+    puesto_anterior = participante.puesto_id
     participante.puesto_id = puesto_id
     db.session.commit()
+
+    # La matriz recalcula programas aplicables según el puesto actual (lectura dinámica)
+    if puesto_anterior != puesto_id:
+        from gos.modulos.capacitacion.services.acreditacion_service import refrescar_vigencias
+
+        refrescar_vigencias(empresa_id)
+
     return _participante_dict(participante)
 
 
@@ -530,7 +552,31 @@ def _puesto_dict(puesto: Puesto) -> dict:
         "codigo": puesto.codigo,
         "nombre": puesto.nombre,
         "descripcion": puesto.descripcion,
+        "sector_id": puesto.sector_id,
+        "sector_nombre": puesto.sector.nombre if puesto.sector else None,
     }
+
+
+def _parse_sector_id(empresa_id: int, data: dict) -> int | None:
+    sector_id = data.get("sector_id")
+    if sector_id is not None and sector_id != "":
+        sector_id = int(sector_id)
+        if not Sector.query.filter_by(id=sector_id, empresa_id=empresa_id, activo=True).first():
+            raise ValueError("Sector no válido")
+        return sector_id
+    return None
+
+
+def _validar_email_unico(
+    empresa_id: int, email: str | None, *, exclude_id: int | None = None
+) -> None:
+    if not email:
+        return
+    q = Participante.query.filter_by(empresa_id=empresa_id, email=email)
+    if exclude_id:
+        q = q.filter(Participante.id != exclude_id)
+    if q.first():
+        raise ValueError(f"Ya existe una persona con el email «{email}»")
 
 
 def _instructor_dict(instructor: Instructor) -> dict:
