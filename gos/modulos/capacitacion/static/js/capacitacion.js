@@ -46,8 +46,23 @@
   let matrizParticipanteNombre = null;
   let maVista = "calendario";
   let maResumenDim = "programas";
+  let maTablaAgrupar = "persona";
   let maFiltros = { planes: [], tipos: [], empresas: [], personas: [], puestos: [] };
   let maFiltrosMeta = null;
+  let crVista = "calendario";
+  let crResumenZoom = {
+    nivel: "programas",
+    mes: null,
+    planId: null,
+    personaId: null,
+    metrica: null,
+    mesNombre: null,
+    planNombre: null,
+    personaNombre: null,
+  };
+  let crFiltros = { planes: [], tipos: [], empresas: [], personas: [], puestos: [] };
+  let crFiltrosMeta = null;
+  let crDetalleEventos = [];
   let encPlanesCache = [];
   let certUploadRegistroId = null;
   let taxonomiaCascada = null;
@@ -1630,6 +1645,7 @@
     if (maFiltros.empresas.length) q.set("empresas", maFiltros.empresas.join(","));
     if (maFiltros.personas.length) q.set("personas", maFiltros.personas.join(","));
     if (maFiltros.puestos.length) q.set("puestos", maFiltros.puestos.join(","));
+    if (maVista === "tabla") q.set("agrupar_por", maTablaAgrupar);
     if (maVista === "persona") {
       const pid = document.getElementById("cap-ma-persona-select")?.value;
       if (pid) q.set("persona_id", pid);
@@ -1659,9 +1675,17 @@
     });
   }
 
+  function maFmtPct(val) {
+    if (val === null || val === undefined || val === "") return "0,0%";
+    const n = typeof val === "number" ? val : parseFloat(val);
+    if (Number.isNaN(n)) return "—";
+    return `${(n * 100).toFixed(1).replace(".", ",")}%`;
+  }
+
   function maFmtRatio(val) {
-    if (val === null || val === undefined || val === "") return "—";
-    if (typeof val === "number") return String(val);
+    if (val === null || val === undefined || val === "") return "0";
+    if (typeof val === "number" && val > 0 && val <= 1) return maFmtPct(val);
+    if (typeof val === "number") return String(Math.round(val));
     return val;
   }
 
@@ -1699,23 +1723,34 @@
     const filas = data.filas || [];
     const tot = data.totales || {};
     const anio = data.anio || "";
-    const cols = [
-      ["programados", "Cursos Programados", "cap-ma-val--programados", "cap-ma-resumen-th--prog"],
-      ["pendientes", "Cursos Pendientes", "cap-ma-val--pendientes", "cap-ma-resumen-th--metric"],
-      ["cumplidos", "Cursos Cumplidos", "cap-ma-val--cumplidos", "cap-ma-resumen-th--metric"],
-      ["puntuales", "Cumplidos Puntuales", "cap-ma-val--puntuales", "cap-ma-resumen-th--metric"],
-      ["pend_vencidos", "Pendientes Vencidos", "cap-ma-val--vencidos", "cap-ma-resumen-th--metric"],
+    const countCols = [
+      ["programados", "Cursos Programados", "cap-ma-val--programados", "cap-ma-resumen-th--prog", 1],
+      ["pendientes", "Cursos Pendientes", "cap-ma-val--pendientes", "cap-ma-resumen-th--metric", 1],
+      ["cumplidos", "Cursos Cumplidos", "cap-ma-val--cumplidos", "cap-ma-resumen-th--metric", 1],
+      ["pct_cumpl_prog", "% Cumpl./Pr.", "cap-ma-val--pct", "cap-ma-resumen-th--metric", 1],
+      ["puntuales", "Cumplidos Puntuales", "cap-ma-val--puntuales", "cap-ma-resumen-th--metric", 1],
+      ["pct_punt_prog", "% Punt./Pr.", "cap-ma-val--pct", "cap-ma-resumen-th--metric", 1],
+      ["pend_vencidos", "Pendientes Vencidos", "cap-ma-val--vencidos", "cap-ma-resumen-th--metric", 1],
+      ["pct_venc_prog", "% Venc./Pr.", "cap-ma-val--pct", "cap-ma-resumen-th--metric", 1],
     ];
+    const pctCols = [
+      ["pct_pend_sin_vencer", "Pendientes Sin Vencer", "cap-ma-val--pend-sin-vencer", "cap-ma-resumen-th--pct-blue"],
+      ["pct_pend_vencidos", "Pendientes Vencidos", "cap-ma-val--vencidos", "cap-ma-resumen-th--pct-red"],
+      ["pct_cumpl_puntuales", "Cumplidos Puntuales", "cap-ma-val--puntuales", "cap-ma-resumen-th--pct-green"],
+      ["pct_cumpl_no_puntuales", "Cumplidos No Puntuales", "cap-ma-val--cumplidos", "cap-ma-resumen-th--pct-purple"],
+    ];
+    const allCols = [...countCols, ...pctCols];
     const dims = [
       ["programas", "Programas"],
       ["planes", "Planes"],
       ["personas", "Personas"],
     ];
-    const rowCells = (row) => cols.map(([k, , cls]) =>
-      `<td class="cap-ma-num ${cls}">${maFmtCount(row[k])}</td>`
+    const cellVal = (row, key) => (key.startsWith("pct_") ? maFmtPct(row[key]) : maFmtCount(row[key]));
+    const rowCells = (row) => allCols.map(([k, , cls]) =>
+      `<td class="cap-ma-num ${cls}">${cellVal(row, k)}</td>`
     ).join("");
-    const totalCells = cols.map(([k, , cls]) =>
-      `<td class="cap-ma-num cap-ma-total-cell ${cls}">${maFmtCount(tot[k])}</td>`
+    const totalCells = allCols.map(([k, , cls]) =>
+      `<td class="cap-ma-num cap-ma-total-cell ${cls}">${cellVal(tot, k)}</td>`
     ).join("");
     wrap.innerHTML = `
       <div class="cap-ma-resumen-wrap">
@@ -1728,8 +1763,18 @@
           <table class="cap-data-table cap-ma-resumen-table">
             <thead>
               <tr>
-                <th class="cap-ma-resumen-anio">${escapeHtml(String(anio))}</th>
-                ${cols.map(([, lbl, , thCls]) =>
+                <th rowspan="2" class="cap-ma-resumen-anio">${escapeHtml(String(anio))}</th>
+                <th rowspan="2" class="cap-ma-resumen-th cap-ma-resumen-th--prog">Cursos Programados</th>
+                <th colspan="3" class="cap-ma-resumen-th cap-ma-resumen-th--metric">Cumplimiento</th>
+                <th colspan="2" class="cap-ma-resumen-th cap-ma-resumen-th--metric">Puntualidad</th>
+                <th colspan="2" class="cap-ma-resumen-th cap-ma-resumen-th--metric">Vencidos</th>
+                <th colspan="4" class="cap-ma-resumen-th cap-ma-resumen-th--pct-group">Distribución %</th>
+              </tr>
+              <tr>
+                ${countCols.slice(1).map(([, lbl, , thCls]) =>
+                  `<th class="cap-ma-resumen-th ${thCls}">${escapeHtml(lbl)}</th>`
+                ).join("")}
+                ${pctCols.map(([, lbl, , thCls]) =>
                   `<th class="cap-ma-resumen-th ${thCls}">${escapeHtml(lbl)}</th>`
                 ).join("")}
               </tr>
@@ -1747,6 +1792,302 @@
         </div>
       </div>`;
     bindMaResumenDims(data);
+  }
+
+  const CR_METRICAS = [
+    ["programados", "Cursos Programados", "cap-ma-val--programados", "cap-ma-resumen-th--prog"],
+    ["pendientes", "Cursos Pendientes", "cap-ma-val--pendientes", "cap-ma-resumen-th--metric"],
+    ["cumplidos", "Cursos Cumplidos", "cap-ma-val--cumplidos", "cap-ma-resumen-th--metric"],
+    ["puntuales", "Cumplidos Puntuales", "cap-ma-val--puntuales", "cap-ma-resumen-th--metric"],
+    ["pend_vencidos", "Pendientes Vencidos", "cap-ma-val--vencidos", "cap-ma-resumen-th--metric"],
+  ];
+  const CR_DIMS = [
+    ["programas", "Programas"],
+    ["planes", "Planes"],
+    ["personas", "Personas"],
+  ];
+
+  function crQueryParams() {
+    const anio = document.getElementById("cap-cr-anio")?.value || new Date().getFullYear();
+    const q = new URLSearchParams({ anio, nivel: crResumenZoom.nivel });
+    if (crResumenZoom.mes) q.set("mes", String(crResumenZoom.mes));
+    if (crResumenZoom.planId) q.set("plan_id", String(crResumenZoom.planId));
+    if (crResumenZoom.personaId) q.set("persona_id", String(crResumenZoom.personaId));
+    if (crResumenZoom.metrica) q.set("metrica", crResumenZoom.metrica);
+    if (crFiltros.planes.length) q.set("planes", crFiltros.planes.join(","));
+    if (crFiltros.tipos.length) q.set("tipos", crFiltros.tipos.join(","));
+    if (crFiltros.empresas.length) q.set("empresas", crFiltros.empresas.join(","));
+    if (crFiltros.personas.length) q.set("personas", crFiltros.personas.join(","));
+    if (crFiltros.puestos.length) q.set("puestos", crFiltros.puestos.join(","));
+    return q;
+  }
+
+  function crResetZoom() {
+    crResumenZoom = {
+      nivel: "programas",
+      mes: null,
+      planId: null,
+      personaId: null,
+      metrica: null,
+      mesNombre: null,
+      planNombre: null,
+      personaNombre: null,
+    };
+  }
+
+  function renderCrPills(containerId, items, grupo, labelKey = "nombre", idKey = "id") {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    el.innerHTML = (items || []).map((it) => {
+      const id = it[idKey];
+      const active = crFiltros[grupo].includes(String(id)) || crFiltros[grupo].includes(id);
+      const label = it[labelKey] || it.nombre;
+      const extra = it.legajo ? ` (${it.legajo})` : "";
+      return `<button type="button" class="cap-pill${active ? " active" : ""}" data-grupo="${grupo}" data-id="${id}">${escapeHtml(label)}${escapeHtml(extra)}</button>`;
+    }).join("");
+    el.querySelectorAll(".cap-pill").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const g = btn.dataset.grupo;
+        const id = btn.dataset.id;
+        const idx = crFiltros[g].indexOf(id);
+        if (idx >= 0) crFiltros[g].splice(idx, 1);
+        else crFiltros[g].push(id);
+        crResetZoom();
+        loadCronogramaResumen().catch(console.error);
+      });
+    });
+  }
+
+  function applyCrResumenDimHighlight() {
+    document.querySelectorAll("#cap-cr-filtros .cap-ma-filtro-grupo").forEach((g) => {
+      const grupo = g.dataset.grupo;
+      const destacado =
+        (crResumenZoom.nivel === "planes" && grupo === "planes") ||
+        (crResumenZoom.nivel === "personas" && (grupo === "personas" || grupo === "puestos"));
+      g.classList.toggle("cap-ma-filtro-grupo--destacado", destacado);
+    });
+  }
+
+  function renderCrBreadcrumb() {
+    const nav = document.getElementById("cap-cr-breadcrumb");
+    if (!nav) return;
+    const parts = [{ label: "Resumen anual", nivel: "programas" }];
+    if (crResumenZoom.mes) {
+      parts.push({ label: crResumenZoom.mesNombre || `Mes ${crResumenZoom.mes}`, nivel: "planes" });
+    }
+    if (crResumenZoom.planId) {
+      parts.push({ label: crResumenZoom.planNombre || "Plan", nivel: "personas" });
+    }
+    if (crResumenZoom.personaId) {
+      parts.push({ label: crResumenZoom.personaNombre || "Persona", nivel: "detalle" });
+    }
+    nav.innerHTML = parts.map((p, i) => {
+      const isLast = i === parts.length - 1;
+      const btn = isLast
+        ? `<span class="cap-cr-breadcrumb-current">${escapeHtml(p.label)}</span>`
+        : `<button type="button" class="cap-cr-breadcrumb-link" data-cr-bc-nivel="${p.nivel}">${escapeHtml(p.label)}</button>`;
+      const sep = isLast ? "" : `<span class="cap-cr-breadcrumb-sep">›</span>`;
+      return `${btn}${sep}`;
+    }).join("");
+    nav.querySelectorAll("[data-cr-bc-nivel]").forEach((btn) => {
+      btn.addEventListener("click", () => crNavigateTo(btn.dataset.crBcNivel));
+    });
+  }
+
+  function crNavigateTo(nivel) {
+    if (nivel === "programas") {
+      crResumenZoom.nivel = "programas";
+      crResumenZoom.mes = null;
+      crResumenZoom.planId = null;
+      crResumenZoom.personaId = null;
+      crResumenZoom.metrica = null;
+      crResumenZoom.mesNombre = null;
+      crResumenZoom.planNombre = null;
+      crResumenZoom.personaNombre = null;
+    } else if (nivel === "planes") {
+      crResumenZoom.nivel = "planes";
+      crResumenZoom.planId = null;
+      crResumenZoom.personaId = null;
+      crResumenZoom.personaNombre = null;
+      crResumenZoom.planNombre = null;
+    } else if (nivel === "personas") {
+      crResumenZoom.nivel = "personas";
+      crResumenZoom.personaId = null;
+      crResumenZoom.personaNombre = null;
+    }
+    loadCronogramaResumen().catch(console.error);
+  }
+
+  function crNextNivel() {
+    if (crResumenZoom.nivel === "programas") return "planes";
+    if (crResumenZoom.nivel === "planes") return "personas";
+    return "detalle";
+  }
+
+  async function crOpenDetalle(rowId, metrica, valor) {
+    if (!valor || Number(valor) === 0) return;
+    if (crResumenZoom.nivel === "personas") {
+      crResumenZoom.personaId = rowId;
+      crResumenZoom.metrica = metrica;
+      const fila = (crResumenZoom._filas || []).find((f) => f.id === rowId);
+      crResumenZoom.personaNombre = fila?.nombre || null;
+      const q = crQueryParams();
+      q.set("nivel", "detalle");
+      const data = await fetchJson(`${API}/matriz/resumen?${q}`);
+      openCrDetalleModal(data);
+      return;
+    }
+    crResumenZoom.metrica = metrica;
+    if (crResumenZoom.nivel === "programas") {
+      crResumenZoom.mes = rowId;
+      const fila = (crResumenZoom._filas || []).find((f) => f.id === rowId);
+      crResumenZoom.mesNombre = fila?.nombre || null;
+      crResumenZoom.nivel = "planes";
+    } else if (crResumenZoom.nivel === "planes") {
+      crResumenZoom.planId = rowId;
+      const fila = (crResumenZoom._filas || []).find((f) => f.id === rowId);
+      crResumenZoom.planNombre = fila?.nombre || null;
+      crResumenZoom.nivel = "personas";
+    }
+    loadCronogramaResumen().catch(console.error);
+  }
+
+  function openCrDetalleModal(data) {
+    const modal = document.getElementById("cap-ma-evento-modal");
+    const body = document.getElementById("cap-ma-evento-body");
+    const titulo = document.getElementById("cap-ma-evento-titulo");
+    if (!modal || !body) return;
+    crDetalleEventos = data.eventos || [];
+    const ctx = [
+      crResumenZoom.mesNombre,
+      crResumenZoom.planNombre,
+      crResumenZoom.personaNombre,
+    ].filter(Boolean).join(" · ");
+    if (titulo) titulo.textContent = ctx || "Detalle de cronogramas";
+    if (!crDetalleEventos.length) {
+      body.innerHTML = '<p class="cap-empty">Sin cronogramas para esta selección</p>';
+    } else {
+      body.innerHTML = crDetalleEventos.map((ev, i) => {
+        const n = (ev.personas || []).length;
+        return `<button type="button" class="cap-ma-evento cap-ma-evento--detalle" data-cr-ev-idx="${i}">
+          <strong>${escapeHtml(ev.curso_nombre || "Curso")}</strong>
+          <span class="cap-muted">${escapeHtml(ev.fecha || "")} · ${escapeHtml(ev.plan_nombre || "")} · ${n} persona(s)</span>
+        </button>`;
+      }).join("");
+      body.querySelectorAll("[data-cr-ev-idx]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const ev = crDetalleEventos[Number(btn.dataset.crEvIdx)];
+          if (ev) openMaEventoModal(ev);
+        });
+      });
+    }
+    modal.classList.remove("cap-hidden");
+  }
+
+  function renderCrResumenTable(data) {
+    const wrap = document.getElementById("cap-cr-resumen-content");
+    if (!wrap) return;
+    const filas = data.filas || [];
+    crResumenZoom._filas = filas;
+    const tot = data.totales || {};
+    const anio = data.anio || "";
+    const nivel = data.nivel || crResumenZoom.nivel;
+    const rowCells = (row) => CR_METRICAS.map(([k, , cls]) => {
+      const val = maFmtCount(row[k]);
+      const clickable = Number(val) > 0 && nivel !== "detalle";
+      const attrs = clickable
+        ? ` data-cr-row="${row.id}" data-cr-metric="${k}" data-cr-val="${val}" tabindex="0" role="button" title="Clic para ver detalle"`
+        : "";
+      return `<td class="cap-ma-num ${cls}${clickable ? " cap-ma-cell--clickable" : ""}"${attrs}>${val}</td>`;
+    }).join("");
+    const totalCells = CR_METRICAS.map(([k, , cls]) =>
+      `<td class="cap-ma-num cap-ma-total-cell ${cls}">${maFmtCount(tot[k])}</td>`
+    ).join("");
+    const rowLabel = nivel === "programas" ? String(anio) : (data.mes_nombre || "Detalle");
+    wrap.innerHTML = `
+      <div class="cap-ma-resumen-wrap">
+        <div class="cap-ma-resumen-dims" role="tablist" aria-label="Nivel de zoom">
+          ${CR_DIMS.map(([id, lbl]) =>
+            `<button type="button" role="tab" aria-selected="${nivel === id}" class="cap-ma-resumen-dim${nivel === id ? " active" : ""}" data-cr-dim="${id}"${nivel === id ? "" : " disabled"}>${lbl}</button>`
+          ).join("")}
+        </div>
+        <div class="cap-ma-table-scroll cap-ma-resumen-scroll">
+          <table class="cap-data-table cap-ma-resumen-table">
+            <thead>
+              <tr>
+                <th class="cap-ma-resumen-anio">${escapeHtml(rowLabel)}</th>
+                ${CR_METRICAS.map(([, lbl, , thCls]) =>
+                  `<th class="cap-ma-resumen-th ${thCls}">${escapeHtml(lbl)}</th>`
+                ).join("")}
+              </tr>
+            </thead>
+            <tbody>
+              ${filas.map((f) =>
+                `<tr><th scope="row" class="cap-ma-mes-cell">${escapeHtml(f.nombre)}</th>${rowCells(f)}</tr>`
+              ).join("")}
+              <tr class="cap-ma-total-row">
+                <th scope="row" class="cap-ma-mes-cell cap-ma-mes-cell--total">Total</th>
+                ${totalCells}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p class="cap-form-hint cap-mt">${nivel === "personas" ? "Clic en una celda con valor para ver los cronogramas." : "Clic en una celda con valor para hacer zoom."}</p>`;
+    wrap.querySelectorAll(".cap-ma-cell--clickable").forEach((cell) => {
+      const handler = () => crOpenDetalle(Number(cell.dataset.crRow), cell.dataset.crMetric, cell.dataset.crVal);
+      cell.addEventListener("click", handler);
+      cell.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); handler(); }
+      });
+    });
+    applyCrResumenDimHighlight();
+    renderCrBreadcrumb();
+  }
+
+  async function loadCronogramaResumen() {
+    if (!crFiltrosMeta) {
+      crFiltrosMeta = await fetchJson(`${API}/matriz/filtros`);
+      renderCrPills("cap-cr-pills-planes", crFiltrosMeta.planes, "planes");
+      renderCrPills("cap-cr-pills-tipos", crFiltrosMeta.tipos, "tipos");
+      renderCrPills("cap-cr-pills-empresas", crFiltrosMeta.empresas, "empresas");
+      renderCrPills("cap-cr-pills-personas", crFiltrosMeta.personas, "personas");
+      renderCrPills("cap-cr-pills-puestos", crFiltrosMeta.puestos, "puestos");
+    }
+    const anioSel = document.getElementById("cap-cr-anio");
+    if (anioSel && !anioSel.options.length) {
+      const y = new Date().getFullYear();
+      for (let i = y - 2; i <= y + 1; i++) {
+        anioSel.innerHTML += `<option value="${i}"${i === y ? " selected" : ""}>${i}</option>`;
+      }
+    }
+    const wrap = document.getElementById("cap-cr-resumen-content");
+    if (wrap) wrap.innerHTML = '<p class="cap-loading">Cargando...</p>';
+    const data = await fetchJson(`${API}/matriz/resumen?${crQueryParams()}`);
+    renderCrResumenTable(data);
+  }
+
+  function bindCronogramaResumen() {
+    document.querySelectorAll("#cap-cr-tabs .cap-tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        crVista = tab.dataset.crVista || "calendario";
+        document.querySelectorAll("#cap-cr-tabs .cap-tab").forEach((t) => t.classList.toggle("active", t === tab));
+        document.querySelectorAll(".cap-cr-vista").forEach((v) => v.classList.add("cap-hidden"));
+        const anioSel = document.getElementById("cap-cr-anio");
+        if (crVista === "resumen") {
+          document.getElementById("cap-cr-vista-resumen")?.classList.remove("cap-hidden");
+          anioSel?.classList.remove("cap-hidden");
+          loadCronogramaResumen().catch(console.error);
+        } else {
+          document.getElementById("cap-cr-vista-calendario")?.classList.remove("cap-hidden");
+          anioSel?.classList.add("cap-hidden");
+        }
+      });
+    });
+    document.getElementById("cap-cr-anio")?.addEventListener("change", () => {
+      crResetZoom();
+      loadCronogramaResumen().catch(console.error);
+    });
   }
 
   function openMaEventoModal(ev) {
@@ -1779,37 +2120,77 @@
     const filas = data.filas || [];
     const meses = data.meses || [];
     const anio = data.anio || "";
+    const agrupar = data.agrupar_por || maTablaAgrupar;
     const subs = ["Prog", "Pdtes", "Cumpl", "Cumpl/Prog"];
     const subKeys = ["prog", "pdtes", "cumpl", "cumpl_prog"];
+    const rowLabel = agrupar === "puesto" ? "Puesto" : "Persona";
+    const fmtCell = (k, v) => (k === "cumpl_prog" ? maFmtPct(v) : maFmtCount(v));
     if (!filas.length) {
-      wrap.innerHTML = '<p class="cap-empty">Sin datos para los filtros seleccionados</p>';
+      wrap.innerHTML = `
+        <div class="cap-ma-tabla-toolbar">
+          <div class="cap-ma-tabla-agrupar" role="tablist" aria-label="Agrupar filas por">
+            <button type="button" role="tab" class="cap-ma-resumen-dim${agrupar === "persona" ? " active" : ""}" data-ma-agrupar="persona">Personas</button>
+            <button type="button" role="tab" class="cap-ma-resumen-dim${agrupar === "puesto" ? " active" : ""}" data-ma-agrupar="puesto">Puestos</button>
+          </div>
+        </div>
+        <p class="cap-empty">Sin datos para los filtros seleccionados</p>`;
+      bindMaTablaAgrupar();
       return;
     }
-    const mesHead = meses.map((m) => `<th colspan="4">${escapeHtml(m.nombre)}</th>`).join("");
-    const subHead = [...meses, { num: "anual" }].map(() =>
-      subs.map((s) => `<th>${s}</th>`).join("")
+    const mesHead = meses.map((m) => `<th colspan="4" class="cap-ma-tabla-mes">${escapeHtml(m.nombre)}</th>`).join("");
+    const subHead = [...meses, { num: "anual" }].map((m, idx) =>
+      subs.map((s, si) => {
+        const cls = si === 2 ? " cap-ma-tabla-comp" : (m.num === "anual" ? " cap-ma-tabla-anual-sub" : "");
+        return `<th class="cap-ma-tabla-sub${cls}">${s}</th>`;
+      }).join("")
     ).join("");
     const filaHtml = filas.map((f) => {
       const md = f.meses || {};
+      const nombre = f.nombre || f.persona || "";
       const celdas = meses.map((m) => {
         const v = md[String(m.num)] || {};
-        return subKeys.map((k) => `<td class="cap-ma-num">${maFmtRatio(v[k])}</td>`).join("");
+        return subKeys.map((k, si) => {
+          const cls = si === 2 ? " cap-ma-tabla-comp" : "";
+          return `<td class="cap-ma-num${cls}">${fmtCell(k, v[k])}</td>`;
+        }).join("");
       }).join("");
       const anual = md.anual || {};
-      const anualCells = subKeys.map((k) => `<td class="cap-ma-num cap-ma-anual">${maFmtRatio(anual[k])}</td>`).join("");
-      return `<tr><th scope="row" class="cap-ma-persona-col">${escapeHtml(f.persona)}</th>${celdas}${anualCells}</tr>`;
+      const anualCells = subKeys.map((k, si) => {
+        const cls = ` cap-ma-anual${si === 2 ? " cap-ma-tabla-comp" : ""}`;
+        return `<td class="cap-ma-num${cls}">${fmtCell(k, anual[k])}</td>`;
+      }).join("");
+      return `<tr><th scope="row" class="cap-ma-persona-col">${escapeHtml(nombre)}</th>${celdas}${anualCells}</tr>`;
     }).join("");
     wrap.innerHTML = `
-      <div class="cap-ma-resumen-meta"><span>Planes:</span><span>Puestos</span></div>
+      <div class="cap-ma-tabla-toolbar">
+        <div class="cap-ma-tabla-agrupar" role="tablist" aria-label="Agrupar filas por">
+          <button type="button" role="tab" class="cap-ma-resumen-dim${agrupar === "persona" ? " active" : ""}" data-ma-agrupar="persona">Personas</button>
+          <button type="button" role="tab" class="cap-ma-resumen-dim${agrupar === "puesto" ? " active" : ""}" data-ma-agrupar="puesto">Puestos</button>
+        </div>
+      </div>
       <div class="cap-ma-table-scroll">
         <table class="cap-data-table cap-ma-tabla-anual">
           <thead>
-            <tr><th rowspan="2" class="cap-ma-persona-col">${escapeHtml(String(anio))}</th>${mesHead}<th colspan="4">Anual</th></tr>
+            <tr>
+              <th rowspan="2" class="cap-ma-persona-col cap-ma-tabla-row-label">${escapeHtml(rowLabel)}</th>
+              ${mesHead}
+              <th colspan="4" class="cap-ma-tabla-mes cap-ma-tabla-mes--anual">Anual</th>
+            </tr>
             <tr>${subHead}</tr>
           </thead>
           <tbody>${filaHtml}</tbody>
         </table>
       </div>`;
+    bindMaTablaAgrupar();
+  }
+
+  function bindMaTablaAgrupar() {
+    document.querySelectorAll("#cap-ma-vista-tabla [data-ma-agrupar]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        maTablaAgrupar = btn.dataset.maAgrupar || "persona";
+        loadMatrizAnalitica().catch(console.error);
+      });
+    });
   }
 
   function renderMaPersona(data) {
@@ -5389,6 +5770,7 @@
     bindSectorForm();
 
     bindMatriz();
+    bindCronogramaResumen();
 
     bindAlertas();
 

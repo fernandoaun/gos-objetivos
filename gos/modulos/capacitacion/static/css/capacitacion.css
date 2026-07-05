@@ -1547,10 +1547,102 @@
 .cap-ma-val--cumplidos { color: #7c3aed; font-weight: 700; }
 .cap-ma-val--puntuales { color: #16a34a; font-weight: 700; }
 .cap-ma-val--vencidos { color: #dc2626; font-weight: 700; }
+.cap-ma-val--pend-sin-vencer { color: #2563eb; font-weight: 700; }
+.cap-ma-val--pct { font-weight: 600; }
+.cap-ma-resumen-th--pct-group { background: #374151; color: #fff; }
+.cap-ma-resumen-th--pct-blue { background: #fffde7; color: #2563eb; font-size: 0.72rem; }
+.cap-ma-resumen-th--pct-red { background: #fffde7; color: #dc2626; font-size: 0.72rem; }
+.cap-ma-resumen-th--pct-green { background: #fffde7; color: #16a34a; font-size: 0.72rem; }
+.cap-ma-resumen-th--pct-purple { background: #fffde7; color: #7c3aed; font-size: 0.72rem; }
+.cap-ma-tabla-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.65rem;
+}
+.cap-ma-tabla-agrupar {
+  display: inline-flex;
+  flex-direction: column;
+  border: 1px solid var(--cap-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.cap-ma-tabla-agrupar .cap-ma-resumen-dim { min-width: 6.5rem; text-align: center; }
+.cap-ma-tabla-anual .cap-ma-tabla-mes {
+  background: #1a1a1a;
+  color: #fff;
+  text-align: center;
+  font-size: 0.78rem;
+}
+.cap-ma-tabla-anual .cap-ma-tabla-mes--anual {
+  background: #1a1a1a;
+  color: #ffeb3b;
+}
+.cap-ma-tabla-anual .cap-ma-tabla-sub {
+  background: #fffde7;
+  font-size: 0.72rem;
+  text-align: center;
+}
+.cap-ma-tabla-anual .cap-ma-tabla-anual-sub { background: #fff9c4; font-weight: 700; }
+.cap-ma-tabla-anual .cap-ma-tabla-comp { color: #2563eb; font-weight: 700; }
+.cap-ma-tabla-anual .cap-ma-persona-col,
+.cap-ma-tabla-anual .cap-ma-tabla-row-label {
+  background: #f3f4f6;
+  font-weight: 600;
+  text-align: left;
+  min-width: 10rem;
+  max-width: 14rem;
+}
 .cap-ma-filtro-grupo--destacado {
   outline: 2px solid #fff176;
   outline-offset: 2px;
   border-radius: 6px;
+}
+.cap-ma-cell--clickable {
+  cursor: pointer;
+  transition: background 0.12s, outline 0.12s;
+}
+.cap-ma-cell--clickable:hover,
+.cap-ma-cell--clickable:focus {
+  background: #fffde7;
+  outline: 2px solid #fff176;
+  outline-offset: -2px;
+}
+.cap-cr-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+}
+.cap-cr-breadcrumb-link {
+  border: 0;
+  background: none;
+  color: var(--cap-navy);
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+.cap-cr-breadcrumb-link:hover { color: var(--cap-navy-light); }
+.cap-cr-breadcrumb-current { font-weight: 700; color: var(--cap-muted); }
+.cap-cr-breadcrumb-sep { color: var(--cap-muted); user-select: none; }
+.cap-ma-evento--detalle {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin-bottom: 0.5rem;
+  border: 1px solid var(--cap-border);
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  background: var(--cap-card);
+  cursor: pointer;
+}
+.cap-ma-evento--detalle:hover { border-color: var(--cap-navy-light); background: #fffde7; }
+.cap-ma-evento--detalle strong { display: block; margin-bottom: 0.15rem; }
+.cap-ma-resumen-dim:disabled {
+  opacity: 0.55;
+  cursor: default;
 }
 .cap-ma-cal-grid {
   display: grid;

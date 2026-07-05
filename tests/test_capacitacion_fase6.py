@@ -118,6 +118,15 @@ def test_matriz_analitica_filtros_y_vistas(app):
         tabla = matriz_analitica(emp.id, vista="tabla", anio=2026)
         assert "filas" in tabla["data"]
         assert "meses" in tabla["data"]
+        assert tabla["data"]["agrupar_por"] == "persona"
+
+        tabla_puesto = matriz_analitica(emp.id, vista="tabla", anio=2026, agrupar_por="puesto")
+        assert tabla_puesto["data"]["agrupar_por"] == "puesto"
+
+        if cal["data"]["filas"]:
+            fila = cal["data"]["filas"][0]
+            assert "pct_cumpl_prog" in fila
+            assert "pct_pend_sin_vencer" in fila
 
 
 def test_planes_cursos_endpoint(auth_client, app):

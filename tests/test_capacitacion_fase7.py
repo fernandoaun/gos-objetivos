@@ -29,7 +29,11 @@ def test_export_matriz_analitica_tabla(app):
         wb = openpyxl.load_workbook(BytesIO(buf.getvalue()))
         assert wb.active.title == "Capacitaciones"
         assert wb.active.cell(1, 1).value == "Planes:"
-        assert wb.active.cell(2, 1).value == "Puestos"
+        assert wb.active.cell(2, 1).value == "Personas"
+
+        buf2 = exportar_matriz_analitica_excel(emp.id, vista="tabla", anio=2026, agrupar_por="puesto")
+        wb2 = openpyxl.load_workbook(BytesIO(buf2.getvalue()))
+        assert wb2.active.cell(2, 1).value == "Puestos"
 
 
 def test_puesto_con_sector(auth_client, app):

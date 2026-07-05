@@ -61,6 +61,7 @@ from gos.modulos.capacitacion.services import (
     marcar_alerta_leida,
     matriz_analitica,
     matriz_capacitaciones,
+    matriz_resumen,
     obtener_config,
     obtener_participante,
     obtener_programa,
@@ -543,6 +544,7 @@ def matriz():
                     puesto_ids=request.args.get("puestos") or request.args.get("puesto_ids"),
                     persona_id=request.args.get("persona_id", type=int)
                     or request.args.get("participante_id", type=int),
+                    agrupar_por=request.args.get("agrupar_por", "persona"),
                 )
             )
         except ValueError as exc:
@@ -559,6 +561,30 @@ def matriz():
             solo_requeridos=request.args.get("solo_requeridos", "true").lower() != "false",
         )
     )
+
+
+@bp.route("/matriz/resumen")
+@login_required
+def matriz_resumen_api():
+    try:
+        return jsonify(
+            matriz_resumen(
+                current_user.empresa_id,
+                anio=request.args.get("anio", type=int),
+                nivel=request.args.get("nivel", "programas"),
+                mes=request.args.get("mes", type=int),
+                plan_id=request.args.get("plan_id", type=int),
+                persona_id=request.args.get("persona_id", type=int),
+                metrica=request.args.get("metrica"),
+                plan_ids=request.args.get("planes") or request.args.get("plan_ids"),
+                tipos=(request.args.get("tipos") or "").split(",") if request.args.get("tipos") else [],
+                empresas=request.args.get("empresas") or request.args.get("empresa_ids"),
+                persona_ids=request.args.get("personas") or request.args.get("persona_ids"),
+                puesto_ids=request.args.get("puestos") or request.args.get("puesto_ids"),
+            )
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
 
 @bp.route("/matriz/calendario")
@@ -590,6 +616,8 @@ def matriz_tabla_api():
             empresas=request.args.get("empresas"),
             persona_ids=request.args.get("personas"),
             puesto_ids=request.args.get("puestos"),
+            anio=request.args.get("anio", type=int),
+            agrupar_por=request.args.get("agrupar_por", "persona"),
         )
     )
 
@@ -635,6 +663,7 @@ def exportar_matriz():
                 puesto_ids=request.args.get("puestos") or request.args.get("puesto_ids"),
                 persona_id=request.args.get("persona_id", type=int)
                 or request.args.get("participante_id", type=int),
+                agrupar_por=request.args.get("agrupar_por", "persona"),
             )
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400

@@ -45,7 +45,7 @@ from gos.modulos.capacitacion.services.evidencia_service import (
     subir_material_encuentro,
     subir_resultados_encuentro,
 )
-from gos.modulos.capacitacion.services.matriz_analitica_service import matriz_analitica, matriz_filtros_metadata
+from gos.modulos.capacitacion.services.matriz_analitica_service import matriz_analitica, matriz_filtros_metadata, matriz_resumen
 from gos.modulos.capacitacion.services.matriz_service import matriz_capacitaciones
 from gos.modulos.capacitacion.services.programa_service import (
     actualizar_encuentro,
@@ -86,6 +86,7 @@ __all__ = [
     "analitico_participante",
     "matriz_capacitaciones",
     "matriz_analitica",
+    "matriz_resumen",
     "matriz_filtros_metadata",
     "resumen_dashboard",
     "encuentros_cronograma",

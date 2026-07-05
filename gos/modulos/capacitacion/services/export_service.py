@@ -25,8 +25,17 @@ _CAL_COLS = [
     ("programados", "Cursos Programados"),
     ("pendientes", "Cursos Pendientes"),
     ("cumplidos", "Cursos Cumplidos"),
+    ("pct_cumpl_prog", "% Cumpl./Pr."),
     ("puntuales", "Cumplidos Puntuales"),
+    ("pct_punt_prog", "% Punt./Pr."),
     ("pend_vencidos", "Pendientes Vencidos"),
+    ("pct_venc_prog", "% Venc./Pr."),
+]
+_CAL_PCT_COLS = [
+    ("pct_pend_sin_vencer", "Pendientes Sin Vencer"),
+    ("pct_pend_vencidos", "Pendientes Vencidos"),
+    ("pct_cumpl_puntuales", "Cumplidos Puntuales"),
+    ("pct_cumpl_no_puntuales", "Cumplidos No Puntuales"),
 ]
 
 _TABLA_SUB = ("prog", "pdtes", "cumpl", "cumpl_prog")
@@ -43,6 +52,8 @@ def _write_header(ws, headers: list[str]) -> None:
 def _fmt_pct(val) -> str | float | int:
     if val is None:
         return ""
+    if isinstance(val, float) and 0 <= val <= 1:
+        return round(val * 100, 1)
     return val
 
 
@@ -82,53 +93,55 @@ def _export_calendario_resumen(ws, data: dict) -> None:
 
     row_head = 4
     ws.cell(row=row_head, column=1, value=anio)
-    col = 3
-    for key, label in _CAL_COLS:
+    col = 2
+    for _, label in _CAL_COLS:
         ws.cell(row=row_head, column=col, value=label)
-        col += 2
+        col += 1
+    for _, label in _CAL_PCT_COLS:
+        ws.cell(row=row_head, column=col, value=label)
+        col += 1
 
+    all_cols = _CAL_COLS + _CAL_PCT_COLS
     for i, fila in enumerate(data.get("filas") or [], start=row_head + 1):
         ws.cell(row=i, column=1, value=fila.get("nombre"))
-        col = 3
-        for key, _ in _CAL_COLS:
-            ws.cell(row=i, column=col, value=_fmt_pct(fila.get(key)))
-            col += 2
+        for j, (key, _) in enumerate(all_cols, start=2):
+            ws.cell(row=i, column=j, value=_fmt_pct(fila.get(key)))
 
     tot = data.get("totales") or {}
-    row_tot = row_head + 1 + len(data.get("filas") or []) + 1
-    col = 3
-    for key, _ in _CAL_COLS:
-        ws.cell(row=row_tot, column=col, value=_fmt_pct(tot.get(key)))
-        col += 2
+    row_tot = row_head + 1 + len(data.get("filas") or [])
+    ws.cell(row=row_tot, column=1, value="Total")
+    for j, (key, _) in enumerate(all_cols, start=2):
+        ws.cell(row=row_tot, column=j, value=_fmt_pct(tot.get(key)))
 
 
 def _export_tabla_personas(ws, data: dict) -> None:
     ws.title = "Capacitaciones"
     anio = data.get("anio", "")
+    agrupar = data.get("agrupar_por", "persona")
     meses = data.get("meses") or [{"num": i, "nombre": n} for i, n in enumerate(MESES_NOMBRES, start=1)]
 
     ws.cell(row=1, column=1, value="Planes:")
-    ws.cell(row=2, column=1, value="Puestos")
+    ws.cell(row=2, column=1, value="Puestos" if agrupar == "puesto" else "Personas")
 
     row_mes = 3
     row_sub = 4
     ws.cell(row=row_sub, column=1, value=anio)
 
-    col = 3
+    col = 2
     for mes in meses:
         ws.cell(row=row_mes, column=col, value=mes.get("nombre"))
         for j, sub in enumerate(_TABLA_SUB_LABELS):
             ws.cell(row=row_sub, column=col + j, value=sub)
         col += 4
 
-    ws.cell(row=row_mes, column=col + 1, value="Anual")
+    ws.cell(row=row_mes, column=col, value="Anual")
     for j, sub in enumerate(_TABLA_SUB_LABELS):
-        ws.cell(row=row_sub, column=col + 1 + j, value=sub)
+        ws.cell(row=row_sub, column=col + j, value=sub)
 
-    for row_idx, fila in enumerate(data.get("filas") or [], start=row_sub + 2):
-        ws.cell(row=row_idx, column=1, value=fila.get("persona"))
+    for row_idx, fila in enumerate(data.get("filas") or [], start=row_sub + 1):
+        ws.cell(row=row_idx, column=1, value=fila.get("nombre") or fila.get("persona"))
         meses_data = fila.get("meses") or {}
-        col = 3
+        col = 2
         for mes in meses:
             m = meses_data.get(str(mes["num"]), {})
             for j, sub in enumerate(_TABLA_SUB):
@@ -136,7 +149,7 @@ def _export_tabla_personas(ws, data: dict) -> None:
             col += 4
         anual = meses_data.get("anual", {})
         for j, sub in enumerate(_TABLA_SUB):
-            ws.cell(row=row_idx, column=col + 1 + j, value=_fmt_pct(anual.get(sub)))
+            ws.cell(row=row_idx, column=col + j, value=_fmt_pct(anual.get(sub)))
 
 
 def exportar_matriz_analitica_excel(
@@ -150,6 +163,7 @@ def exportar_matriz_analitica_excel(
     persona_ids=None,
     puesto_ids=None,
     persona_id: int | None = None,
+    agrupar_por: str = "persona",
 ) -> BytesIO:
     """Exporta la matriz analítica según la vista activa."""
     result = matriz_analitica(
@@ -162,6 +176,7 @@ def exportar_matriz_analitica_excel(
         persona_ids=persona_ids,
         puesto_ids=puesto_ids,
         persona_id=persona_id,
+        agrupar_por=agrupar_por,
     )
     data = result["data"]
     wb = openpyxl.Workbook()

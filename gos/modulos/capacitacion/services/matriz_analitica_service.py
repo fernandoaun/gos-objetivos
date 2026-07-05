@@ -41,6 +41,14 @@ MESES_NOMBRES = [
     "Diciembre",
 ]
 
+METRICAS_RESUMEN = (
+    "programados",
+    "pendientes",
+    "cumplidos",
+    "puntuales",
+    "pend_vencidos",
+)
+
 
 def _metricas_vacias() -> dict:
     return {
@@ -91,6 +99,10 @@ def _finalizar_metricas(m: dict) -> dict:
     m["pct_venc_prog"] = _ratio(m["pend_vencidos"], prog)
     m["pendientes"] = m["programados"] - m["cumplidos"]
     m["cumpl_no_puntuales"] = m["cumplidos"] - m["cumpl_puntuales"]
+    m["pct_pend_sin_vencer"] = _ratio(m["pend_sin_vencer"], prog)
+    m["pct_pend_vencidos"] = _ratio(m["pend_vencidos_det"], prog)
+    m["pct_cumpl_puntuales"] = _ratio(m["cumpl_puntuales"], prog)
+    m["pct_cumpl_no_puntuales"] = _ratio(m["cumpl_no_puntuales"], prog)
     return m
 
 
@@ -331,7 +343,21 @@ def _clasificar_asignacion(
     }
 
 
-def _colectar_metricas_anuales(
+def _asignacion_cuenta_metrica(delta: dict, metrica: str) -> bool:
+    if metrica == "programados":
+        return delta.get("programados", 0) > 0
+    if metrica == "cumplidos":
+        return delta.get("cumplidos", 0) > 0
+    if metrica == "puntuales":
+        return delta.get("puntuales", 0) > 0
+    if metrica == "pend_vencidos":
+        return delta.get("pend_vencidos", 0) > 0
+    if metrica == "pendientes":
+        return delta.get("programados", 0) > 0 and delta.get("cumplidos", 0) == 0
+    return False
+
+
+def _colectar_datos_anuales(
     empresa_id: int,
     *,
     anio: int,
@@ -340,18 +366,20 @@ def _colectar_metricas_anuales(
     empresas: list[int],
     persona_ids: list[int],
     puesto_ids: list[int],
-) -> tuple[dict[int, dict[int, dict]], dict[int, dict], dict[int, str]]:
-    """Métricas por (persona, mes) y agregado por mes."""
+) -> dict:
+    """Métricas agregadas y asignaciones individuales para drill-down."""
     refrescar_vigencias(empresa_id)
     hoy = date.today()
 
     programas = _programas_filtrados(empresa_id, plan_ids=plan_ids, tipos=tipos, puesto_ids=puesto_ids)
     programa_ids = {p.id for p in programas}
     plan_ids_validos: set[int] = set()
+    plan_nombres: dict[int, str] = {}
     for p in programas:
         for pl in p.planes.all():
             if not plan_ids or pl.id in plan_ids:
                 plan_ids_validos.add(pl.id)
+                plan_nombres[pl.id] = pl.nombre
 
     filas = (
         AsistenciaEncuentro.query.join(EncuentroCapacitacion)
@@ -368,8 +396,12 @@ def _colectar_metricas_anuales(
 
     acr_cache: dict[int, Acreditacion | None] = {}
     por_persona_mes: dict[int, dict[int, dict]] = {}
+    por_puesto_mes: dict[int, dict[int, dict]] = {}
+    por_plan_mes: dict[int, dict[int, dict]] = {}
     por_mes: dict[int, dict] = {m: _metricas_vacias() for m in range(1, 13)}
     nombres: dict[int, str] = {}
+    puesto_nombres: dict[int, str] = {}
+    asignaciones: list[dict] = []
 
     for asist in filas:
         enc = asist.encuentro
@@ -393,20 +425,98 @@ def _colectar_metricas_anuales(
         mes = enc.fecha.month
         acr = _acr_para_asistencia(asist, enc, acr_cache)
         delta = _clasificar_asignacion(asist, enc, acr, hoy)
+        plan_id = enc.plan_id or 0
+        plan_nombre = plan_nombres.get(plan_id) or (enc.plan.nombre if enc.plan else "Sin plan")
 
         nombres[persona.id] = persona.nombre_completo
+        puesto_id = persona.puesto_id or 0
+        if persona.puesto:
+            puesto_nombres[puesto_id] = persona.puesto.nombre
+        elif puesto_id == 0:
+            puesto_nombres.setdefault(0, "Sin puesto")
         if persona.id not in por_persona_mes:
             por_persona_mes[persona.id] = {m: _metricas_vacias() for m in range(1, 13)}
+        if puesto_id not in por_puesto_mes:
+            por_puesto_mes[puesto_id] = {m: _metricas_vacias() for m in range(1, 13)}
+        if plan_id not in por_plan_mes:
+            por_plan_mes[plan_id] = {m: _metricas_vacias() for m in range(1, 13)}
         _sumar_metricas(por_persona_mes[persona.id][mes], delta)
+        _sumar_metricas(por_puesto_mes[puesto_id][mes], delta)
+        _sumar_metricas(por_plan_mes[plan_id][mes], delta)
         _sumar_metricas(por_mes[mes], delta)
+
+        curso = enc.curso
+        emp_nombre = None
+        if enc.empresa_capacitadora:
+            emp_nombre = enc.empresa_capacitadora.nombre
+        elif (enc.origen or "").startswith("extern"):
+            emp_nombre = "Empresa externa"
+        asignaciones.append(
+            {
+                "mes": mes,
+                "plan_id": plan_id,
+                "plan_nombre": plan_nombre,
+                "persona_id": persona.id,
+                "persona_nombre": persona.nombre_completo,
+                "encuentro_id": enc.id,
+                "curso_nombre": curso.nombre if curso else enc.titulo,
+                "fecha": enc.fecha.isoformat() if enc.fecha else None,
+                "capacitador": enc.instructor or (enc.instructor_rel.nombre if enc.instructor_rel else None),
+                "lugar": enc.lugar,
+                "link": enc.link_virtual,
+                "empresa_nombre": emp_nombre,
+                "delta": delta,
+                "asistio": _asistio_desde_acreditacion(acr) if acr else (asist.asistencia == "presente"),
+                "nota": float(acr.nota) if acr and acr.nota is not None else (float(asist.nota) if asist.nota is not None else None),
+                "aprobo": acr.aprobo if acr else asist.aprobado,
+            }
+        )
 
     for mes in range(1, 13):
         _finalizar_metricas(por_mes[mes])
     for pid, meses in por_persona_mes.items():
         for mes in range(1, 13):
             _finalizar_metricas(meses[mes])
+    for plid, meses in por_plan_mes.items():
+        for mes in range(1, 13):
+            _finalizar_metricas(meses[mes])
+    for puid, meses in por_puesto_mes.items():
+        for mes in range(1, 13):
+            _finalizar_metricas(meses[mes])
 
-    return por_persona_mes, por_mes, nombres
+    return {
+        "por_mes": por_mes,
+        "por_plan_mes": por_plan_mes,
+        "por_persona_mes": por_persona_mes,
+        "por_puesto_mes": por_puesto_mes,
+        "nombres": nombres,
+        "puesto_nombres": puesto_nombres,
+        "plan_nombres": plan_nombres,
+        "asignaciones": asignaciones,
+    }
+
+
+def _colectar_metricas_anuales(
+    empresa_id: int,
+    *,
+    anio: int,
+    plan_ids: list[int],
+    tipos: list[str],
+    empresas: list[int],
+    persona_ids: list[int],
+    puesto_ids: list[int],
+) -> tuple[dict[int, dict[int, dict]], dict[int, dict], dict[int, str]]:
+    """Métricas por (persona, mes) y agregado por mes."""
+    datos = _colectar_datos_anuales(
+        empresa_id,
+        anio=anio,
+        plan_ids=plan_ids,
+        tipos=tipos,
+        empresas=empresas,
+        persona_ids=persona_ids,
+        puesto_ids=puesto_ids,
+    )
+    return datos["por_persona_mes"], datos["por_mes"], datos["nombres"]
 
 
 def matriz_calendario(
@@ -447,24 +557,35 @@ def matriz_calendario(
     return {"anio": anio, "filas": filas, "totales": totales}
 
 
-def matriz_tabla(
+def _fila_metricas(entity_id, nombre: str, metricas: dict) -> dict:
+    return {"id": entity_id, "nombre": nombre, **metricas}
+
+
+def matriz_resumen(
     empresa_id: int,
     *,
     anio: int | None = None,
+    nivel: str = "programas",
+    mes: int | None = None,
+    plan_id: int | None = None,
+    persona_id: int | None = None,
+    metrica: str | None = None,
     plan_ids: list[int] | None = None,
     tipos: list[str] | None = None,
     empresas: list[int] | None = None,
     persona_ids: list[int] | None = None,
     puesto_ids: list[int] | None = None,
 ) -> dict:
+    """Resumen mensual con drill-down: programas → planes → personas → detalle."""
     anio = anio or date.today().year
     plan_ids = plan_ids or []
     tipos = tipos or []
+    empresas = empresas or []
     persona_ids = persona_ids or []
     puesto_ids = puesto_ids or []
-    empresas = empresas or []
+    nivel = (nivel or "programas").lower()
 
-    por_persona_mes, _, nombres = _colectar_metricas_anuales(
+    datos = _colectar_datos_anuales(
         empresa_id,
         anio=anio,
         plan_ids=plan_ids,
@@ -474,33 +595,231 @@ def matriz_tabla(
         puesto_ids=puesto_ids,
     )
 
-    personas_filtradas = _personas_filtradas(
-        empresa_id, persona_ids=persona_ids, puesto_ids=puesto_ids
+    if nivel == "detalle":
+        if not mes:
+            raise ValueError("Seleccioná un mes para ver el detalle")
+        eventos_map: dict[int, dict] = {}
+        for a in datos["asignaciones"]:
+            if a["mes"] != mes:
+                continue
+            if plan_id and a["plan_id"] != plan_id:
+                continue
+            if persona_id and a["persona_id"] != persona_id:
+                continue
+            if metrica and not _asignacion_cuenta_metrica(a["delta"], metrica):
+                continue
+            eid = a["encuentro_id"]
+            if eid not in eventos_map:
+                eventos_map[eid] = {
+                    "encuentro_id": eid,
+                    "curso_nombre": a["curso_nombre"],
+                    "plan_nombre": a["plan_nombre"],
+                    "empresa_nombre": a["empresa_nombre"],
+                    "fecha": a["fecha"],
+                    "capacitador": a["capacitador"],
+                    "lugar": a["lugar"],
+                    "link": a["link"],
+                    "personas": [],
+                }
+            eventos_map[eid]["personas"].append(
+                {
+                    "persona_id": a["persona_id"],
+                    "nombre": a["persona_nombre"],
+                    "asistio": a["asistio"],
+                    "nota": a["nota"],
+                    "aprobo": a["aprobo"],
+                }
+            )
+        return {
+            "anio": anio,
+            "nivel": "detalle",
+            "mes": mes,
+            "plan_id": plan_id,
+            "persona_id": persona_id,
+            "metrica": metrica,
+            "eventos": list(eventos_map.values()),
+        }
+
+    if nivel == "personas":
+        if not mes:
+            raise ValueError("Seleccioná un mes para desglosar por persona")
+        filas = []
+        totales = _metricas_vacias()
+        for pid in sorted(datos["nombres"].keys(), key=lambda x: datos["nombres"][x]):
+            meses_data = datos["por_persona_mes"].get(pid, {})
+            m = meses_data.get(mes, _metricas_vacias())
+            if plan_id:
+                # Recalcular solo asignaciones de ese plan
+                m = _metricas_vacias()
+                for a in datos["asignaciones"]:
+                    if a["mes"] != mes or a["persona_id"] != pid:
+                        continue
+                    if a["plan_id"] != plan_id:
+                        continue
+                    _sumar_metricas(m, a["delta"])
+                _finalizar_metricas(m)
+            if metrica and (m.get(metrica, 0) or 0) == 0:
+                continue
+            if sum(m.get(k, 0) or 0 for k in METRICAS_RESUMEN[:4]) == 0 and m.get("pend_vencidos", 0) == 0:
+                continue
+            filas.append(_fila_metricas(pid, datos["nombres"][pid], m))
+            _sumar_metricas(totales, m)
+        _finalizar_metricas(totales)
+        return {
+            "anio": anio,
+            "nivel": "personas",
+            "mes": mes,
+            "plan_id": plan_id,
+            "metrica": metrica,
+            "mes_nombre": MESES_NOMBRES[mes - 1] if 1 <= mes <= 12 else "",
+            "plan_nombre": datos["plan_nombres"].get(plan_id or 0, ""),
+            "filas": filas,
+            "totales": totales,
+        }
+
+    if nivel == "planes":
+        if not mes:
+            raise ValueError("Seleccioná un mes para desglosar por plan")
+        filas = []
+        totales = _metricas_vacias()
+        for plid in sorted(
+            datos["plan_nombres"].keys(),
+            key=lambda x: datos["plan_nombres"][x],
+        ):
+            meses_data = datos["por_plan_mes"].get(plid, {})
+            m = meses_data.get(mes, _metricas_vacias())
+            if metrica and m.get(metrica, 0) == 0:
+                continue
+            if sum(m.get(k, 0) or 0 for k in METRICAS_RESUMEN[:4]) == 0 and m.get("pend_vencidos", 0) == 0:
+                continue
+            filas.append(_fila_metricas(plid, datos["plan_nombres"][plid], m))
+            _sumar_metricas(totales, m)
+        _finalizar_metricas(totales)
+        return {
+            "anio": anio,
+            "nivel": "planes",
+            "mes": mes,
+            "metrica": metrica,
+            "mes_nombre": MESES_NOMBRES[mes - 1] if 1 <= mes <= 12 else "",
+            "filas": filas,
+            "totales": totales,
+        }
+
+    # nivel programas (default): filas = meses
+    filas = []
+    totales = _metricas_vacias()
+    for i, nombre in enumerate(MESES_NOMBRES, start=1):
+        m = datos["por_mes"][i]
+        filas.append(_fila_metricas(i, nombre, m))
+        _sumar_metricas(totales, m)
+    _finalizar_metricas(totales)
+    return {
+        "anio": anio,
+        "nivel": "programas",
+        "filas": filas,
+        "totales": totales,
+    }
+
+
+def matriz_tabla(
+    empresa_id: int,
+    *,
+    anio: int | None = None,
+    plan_ids: list[int] | None = None,
+    tipos: list[str] | None = None,
+    empresas: list[int] | None = None,
+    persona_ids: list[int] | None = None,
+    puesto_ids: list[int] | None = None,
+    agrupar_por: str = "persona",
+) -> dict:
+    anio = anio or date.today().year
+    plan_ids = plan_ids or []
+    tipos = tipos or []
+    persona_ids = persona_ids or []
+    puesto_ids = puesto_ids or []
+    empresas = empresas or []
+    agrupar_por = (agrupar_por or "persona").lower()
+    if agrupar_por not in ("persona", "puesto"):
+        agrupar_por = "persona"
+
+    datos = _colectar_datos_anuales(
+        empresa_id,
+        anio=anio,
+        plan_ids=plan_ids,
+        tipos=tipos,
+        empresas=empresas,
+        persona_ids=persona_ids,
+        puesto_ids=puesto_ids,
     )
-    for persona in personas_filtradas:
-        nombres.setdefault(persona.id, persona.nombre_completo)
+    por_persona_mes = datos["por_persona_mes"]
+    por_puesto_mes = datos["por_puesto_mes"]
+    nombres = datos["nombres"]
+    puesto_nombres = datos["puesto_nombres"]
 
     filas = []
-    for pid in sorted(nombres.keys(), key=lambda x: nombres[x]):
-        meses_data = por_persona_mes.get(pid, {m: _metricas_vacias() for m in range(1, 13)})
-        anual = _metricas_vacias()
-        meses_cortos = {}
-        for mes in range(1, 13):
-            m = meses_data.get(mes, _metricas_vacias())
-            _sumar_metricas(anual, m)
-            meses_cortos[str(mes)] = _a_metricas_cortas(m)
-        _finalizar_metricas(anual)
-        meses_cortos["anual"] = _a_metricas_cortas(anual)
-        filas.append(
-            {
-                "persona_id": pid,
-                "persona": nombres[pid],
-                "meses": meses_cortos,
-            }
+    if agrupar_por == "puesto":
+        from gos.modulos.capacitacion.models import Puesto
+
+        puestos_filtrados = Puesto.query.filter_by(empresa_id=empresa_id, activo=True)
+        if puesto_ids:
+            puestos_filtrados = puestos_filtrados.filter(Puesto.id.in_(puesto_ids))
+        for puesto in puestos_filtrados.order_by(Puesto.nombre).all():
+            puesto_nombres.setdefault(puesto.id, puesto.nombre)
+        ids_ordenados = sorted(
+            puesto_nombres.keys(),
+            key=lambda x: (x == 0, puesto_nombres.get(x, "")),
         )
+        for puid in ids_ordenados:
+            meses_data = por_puesto_mes.get(puid, {m: _metricas_vacias() for m in range(1, 13)})
+            anual = _metricas_vacias()
+            meses_cortos = {}
+            for mes in range(1, 13):
+                m = meses_data.get(mes, _metricas_vacias())
+                _sumar_metricas(anual, m)
+                meses_cortos[str(mes)] = _a_metricas_cortas(m)
+            _finalizar_metricas(anual)
+            meses_cortos["anual"] = _a_metricas_cortas(anual)
+            if sum(anual.get(k, 0) or 0 for k in ("programados", "pendientes", "cumplidos")) == 0:
+                if puid not in por_puesto_mes and puesto_ids:
+                    continue
+            filas.append(
+                {
+                    "id": puid,
+                    "nombre": puesto_nombres.get(puid, "Sin puesto"),
+                    "meses": meses_cortos,
+                }
+            )
+    else:
+        personas_filtradas = _personas_filtradas(
+            empresa_id, persona_ids=persona_ids, puesto_ids=puesto_ids
+        )
+        for persona in personas_filtradas:
+            nombres.setdefault(persona.id, persona.nombre_completo)
+
+        for pid in sorted(nombres.keys(), key=lambda x: nombres[x]):
+            meses_data = por_persona_mes.get(pid, {m: _metricas_vacias() for m in range(1, 13)})
+            anual = _metricas_vacias()
+            meses_cortos = {}
+            for mes in range(1, 13):
+                m = meses_data.get(mes, _metricas_vacias())
+                _sumar_metricas(anual, m)
+                meses_cortos[str(mes)] = _a_metricas_cortas(m)
+            _finalizar_metricas(anual)
+            meses_cortos["anual"] = _a_metricas_cortas(anual)
+            if sum(anual.get(k, 0) or 0 for k in ("programados", "pendientes", "cumplidos")) == 0:
+                if pid not in por_persona_mes and (persona_ids or puesto_ids):
+                    continue
+            filas.append(
+                {
+                    "id": pid,
+                    "nombre": nombres[pid],
+                    "meses": meses_cortos,
+                }
+            )
 
     return {
         "anio": anio,
+        "agrupar_por": agrupar_por,
         "meses": [{"num": i, "nombre": n} for i, n in enumerate(MESES_NOMBRES, start=1)],
         "filas": filas,
         "hoy": date.today().isoformat(),
@@ -630,6 +949,7 @@ def matriz_analitica(
     persona_ids=None,
     puesto_ids=None,
     persona_id: int | None = None,
+    agrupar_por: str = "persona",
 ) -> dict:
     plan_ids = _parse_ids(plan_ids)
     tipos = [t.lower() for t in (tipos or []) if t]
@@ -669,6 +989,7 @@ def matriz_analitica(
             empresas=empresas,
             persona_ids=persona_ids,
             puesto_ids=puesto_ids,
+            agrupar_por=agrupar_por,
         )
 
     return {"vista": vista, "filtros": filtros, "data": data}
