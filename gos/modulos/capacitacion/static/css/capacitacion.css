@@ -1431,6 +1431,127 @@
 .cap-pill:hover { border-color: var(--cap-navy-light); }
 .cap-pill.active { background: var(--cap-navy); color: #fff; border-color: var(--cap-navy); }
 .cap-ma-vista { min-height: 200px; }
+.cap-ma-table-scroll {
+  overflow-x: auto;
+  margin-top: 0.5rem;
+  border: 1px solid var(--cap-border);
+  border-radius: 8px;
+}
+.cap-ma-resumen-table,
+.cap-ma-tabla-anual {
+  min-width: 960px;
+  font-size: 0.78rem;
+}
+.cap-ma-resumen-table th,
+.cap-ma-tabla-anual th {
+  white-space: nowrap;
+  font-size: 0.72rem;
+}
+.cap-ma-num { text-align: center; font-variant-numeric: tabular-nums; }
+.cap-ma-persona-col {
+  text-align: left;
+  min-width: 11rem;
+  max-width: 16rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cap-ma-anual { background: var(--cap-gray-bg); font-weight: 600; }
+.cap-ma-total-row { font-weight: 700; }
+.cap-ma-resumen-meta {
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--cap-muted);
+}
+.cap-ma-resumen-wrap {
+  display: flex;
+  gap: 0;
+  align-items: stretch;
+}
+.cap-ma-resumen-dims {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  min-width: 6.5rem;
+  border: 1px solid #c4c4c4;
+  border-right: 0;
+  border-radius: 8px 0 0 8px;
+  overflow: hidden;
+  background: #fff;
+}
+.cap-ma-resumen-dim {
+  flex: 1;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 0;
+  border-bottom: 1px solid #e5e5e5;
+  background: #fff;
+  color: var(--cap-navy);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.cap-ma-resumen-dim:last-child { border-bottom: 0; }
+.cap-ma-resumen-dim:hover { background: #fffde7; }
+.cap-ma-resumen-dim.active {
+  background: #fff176;
+  color: #1a1a1a;
+}
+.cap-ma-resumen-scroll {
+  flex: 1;
+  margin-top: 0;
+  border-radius: 0 8px 8px 0;
+}
+.cap-ma-resumen-table {
+  min-width: 640px;
+  border-collapse: collapse;
+}
+.cap-ma-resumen-table th,
+.cap-ma-resumen-table td {
+  border: 1px solid #c4c4c4;
+  padding: 0.45rem 0.65rem;
+}
+.cap-ma-resumen-anio,
+.cap-ma-mes-cell {
+  background: #fff176;
+  color: #1a1a1a;
+  font-weight: 700;
+  text-align: center;
+  min-width: 5.5rem;
+}
+.cap-ma-resumen-th {
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+.cap-ma-resumen-th--prog {
+  background: #595959;
+  color: #fff176;
+}
+.cap-ma-resumen-th--metric {
+  background: #fff176;
+  color: #1a1a1a;
+}
+.cap-ma-mes-cell--total { font-weight: 800; }
+.cap-ma-total-row .cap-ma-total-cell {
+  background: #fff176;
+  font-weight: 800;
+}
+.cap-ma-val--programados { color: #1a1a1a; font-weight: 700; }
+.cap-ma-val--pendientes { color: #2563eb; font-weight: 700; }
+.cap-ma-val--cumplidos { color: #7c3aed; font-weight: 700; }
+.cap-ma-val--puntuales { color: #16a34a; font-weight: 700; }
+.cap-ma-val--vencidos { color: #dc2626; font-weight: 700; }
+.cap-ma-filtro-grupo--destacado {
+  outline: 2px solid #fff176;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
 .cap-ma-cal-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

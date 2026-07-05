@@ -112,9 +112,12 @@ def test_matriz_analitica_filtros_y_vistas(app):
         cal = matriz_analitica(emp.id, vista="calendario", anio=2026)
         assert cal["vista"] == "calendario"
         assert "data" in cal
+        assert "filas" in cal["data"]
+        assert len(cal["data"]["filas"]) == 12
 
-        tabla = matriz_analitica(emp.id, vista="tabla")
-        assert "secciones" in tabla["data"]
+        tabla = matriz_analitica(emp.id, vista="tabla", anio=2026)
+        assert "filas" in tabla["data"]
+        assert "meses" in tabla["data"]
 
 
 def test_planes_cursos_endpoint(auth_client, app):

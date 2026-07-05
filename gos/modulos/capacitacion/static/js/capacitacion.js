@@ -45,6 +45,7 @@
   let matrizParticipanteId = window.CAP_INITIAL_PARTICIPANTE_ID || null;
   let matrizParticipanteNombre = null;
   let maVista = "calendario";
+  let maResumenDim = "programas";
   let maFiltros = { planes: [], tipos: [], empresas: [], personas: [], puestos: [] };
   let maFiltrosMeta = null;
   let encPlanesCache = [];
@@ -1658,29 +1659,94 @@
     });
   }
 
+  function maFmtRatio(val) {
+    if (val === null || val === undefined || val === "") return "—";
+    if (typeof val === "number") return String(val);
+    return val;
+  }
+
+  function maFmtCount(val) {
+    if (val === null || val === undefined || val === "") return "0";
+    if (typeof val === "number") return String(Math.round(val));
+    return val;
+  }
+
+  function applyMaResumenDimHighlight() {
+    document.querySelectorAll(".cap-ma-filtro-grupo").forEach((g) => {
+      const grupo = g.dataset.grupo;
+      const destacado =
+        (maResumenDim === "planes" && grupo === "planes") ||
+        (maResumenDim === "personas" && (grupo === "personas" || grupo === "puestos"));
+      g.classList.toggle("cap-ma-filtro-grupo--destacado", destacado);
+    });
+  }
+
+  function bindMaResumenDims(data) {
+    const wrap = document.getElementById("cap-ma-vista-calendario");
+    if (!wrap) return;
+    wrap.querySelectorAll("[data-ma-dim]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        maResumenDim = btn.dataset.maDim || "programas";
+        renderMaCalendario(data);
+      });
+    });
+    applyMaResumenDimHighlight();
+  }
+
   function renderMaCalendario(data) {
     const wrap = document.getElementById("cap-ma-vista-calendario");
     if (!wrap) return;
-    const meses = data.meses || {};
-    const nombres = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-    wrap.innerHTML = `<div class="cap-ma-cal-grid">${nombres.map((nombre, i) => {
-      const evs = meses[i + 1] || [];
-      const evHtml = evs.map((ev) => {
-        const ext = ev.tipo === "externo" ? " cap-ma-evento--externo" : "";
-        const col = ev.color ? ` cap-ma-evento--${ev.color}` : "";
-        const emp = ev.empresa_nombre ? ` · ${ev.empresa_nombre}` : "";
-        return `<button type="button" class="cap-ma-evento${ext}${col}" data-event="${encodeURIComponent(JSON.stringify(ev))}" title="${escapeHtml(ev.curso_nombre)}">
-          <strong>${ev.fecha?.slice(5) || ""}</strong> ${escapeHtml(ev.curso_nombre)}${escapeHtml(emp)}
-          <span class="cap-muted"> (${ev.personas_count || 0} pers.)</span>
-        </button>`;
-      }).join("");
-      return `<div class="cap-ma-mes"><div class="cap-ma-mes-title">${nombre}</div>${evHtml || '<span class="cap-muted">—</span>'}</div>`;
-    }).join("")}</div>`;
-    wrap.querySelectorAll("[data-event]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        try { openMaEventoModal(JSON.parse(decodeURIComponent(btn.dataset.event))); } catch (e) { console.error(e); }
-      });
-    });
+    const filas = data.filas || [];
+    const tot = data.totales || {};
+    const anio = data.anio || "";
+    const cols = [
+      ["programados", "Cursos Programados", "cap-ma-val--programados", "cap-ma-resumen-th--prog"],
+      ["pendientes", "Cursos Pendientes", "cap-ma-val--pendientes", "cap-ma-resumen-th--metric"],
+      ["cumplidos", "Cursos Cumplidos", "cap-ma-val--cumplidos", "cap-ma-resumen-th--metric"],
+      ["puntuales", "Cumplidos Puntuales", "cap-ma-val--puntuales", "cap-ma-resumen-th--metric"],
+      ["pend_vencidos", "Pendientes Vencidos", "cap-ma-val--vencidos", "cap-ma-resumen-th--metric"],
+    ];
+    const dims = [
+      ["programas", "Programas"],
+      ["planes", "Planes"],
+      ["personas", "Personas"],
+    ];
+    const rowCells = (row) => cols.map(([k, , cls]) =>
+      `<td class="cap-ma-num ${cls}">${maFmtCount(row[k])}</td>`
+    ).join("");
+    const totalCells = cols.map(([k, , cls]) =>
+      `<td class="cap-ma-num cap-ma-total-cell ${cls}">${maFmtCount(tot[k])}</td>`
+    ).join("");
+    wrap.innerHTML = `
+      <div class="cap-ma-resumen-wrap">
+        <div class="cap-ma-resumen-dims" id="cap-ma-resumen-dims" role="tablist" aria-label="Ámbito del resumen">
+          ${dims.map(([id, lbl]) =>
+            `<button type="button" role="tab" aria-selected="${maResumenDim === id}" class="cap-ma-resumen-dim${maResumenDim === id ? " active" : ""}" data-ma-dim="${id}">${lbl}</button>`
+          ).join("")}
+        </div>
+        <div class="cap-ma-table-scroll cap-ma-resumen-scroll">
+          <table class="cap-data-table cap-ma-resumen-table">
+            <thead>
+              <tr>
+                <th class="cap-ma-resumen-anio">${escapeHtml(String(anio))}</th>
+                ${cols.map(([, lbl, , thCls]) =>
+                  `<th class="cap-ma-resumen-th ${thCls}">${escapeHtml(lbl)}</th>`
+                ).join("")}
+              </tr>
+            </thead>
+            <tbody>
+              ${filas.map((f) =>
+                `<tr><th scope="row" class="cap-ma-mes-cell">${escapeHtml(f.nombre)}</th>${rowCells(f)}</tr>`
+              ).join("")}
+              <tr class="cap-ma-total-row">
+                <th scope="row" class="cap-ma-mes-cell cap-ma-mes-cell--total">Total</th>
+                ${totalCells}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    bindMaResumenDims(data);
   }
 
   function openMaEventoModal(ev) {
@@ -1710,32 +1776,40 @@
   function renderMaTabla(data) {
     const wrap = document.getElementById("cap-ma-vista-tabla");
     if (!wrap) return;
-    const secciones = data.secciones || [];
-    if (!secciones.length) {
+    const filas = data.filas || [];
+    const meses = data.meses || [];
+    const anio = data.anio || "";
+    const subs = ["Prog", "Pdtes", "Cumpl", "Cumpl/Prog"];
+    const subKeys = ["prog", "pdtes", "cumpl", "cumpl_prog"];
+    if (!filas.length) {
       wrap.innerHTML = '<p class="cap-empty">Sin datos para los filtros seleccionados</p>';
       return;
     }
-    wrap.innerHTML = secciones.map((sec) => {
-      const cursosHtml = (sec.cursos || []).map((c) => {
-        const prog = c.progreso || {};
-        const filas = (c.personas || []).map((p) =>
-          `<tr><td>${escapeHtml(p.persona)}</td><td>${escapeHtml(p.puesto || "—")}</td><td>${p.asistio === true ? "Sí" : p.asistio === false ? "No" : "—"}</td><td>${p.nota ?? "—"}</td><td>${estadoLabel(p.estado)}</td><td>${p.horas_acreditadas ?? 0}</td></tr>`
-        ).join("");
-        return `<div class="cap-ma-curso-block">
-          <div class="cap-ma-seccion-head">
-            <strong>${escapeHtml(c.curso_nombre)}</strong>
-            <span class="cap-badge">${escapeHtml(c.origen_badge)}</span>
-            <span class="cap-muted">${c.horas || 0} hs</span>
-          </div>
-          <div class="cap-ma-progreso" title="${prog.horas_acreditadas || 0} / ${prog.horas_requeridas || 0} hs">
-            <div class="cap-ma-progreso-bar cap-ma-progreso-bar--${prog.color || "rojo"}" style="width:${Math.min(prog.porcentaje || 0, 100)}%"></div>
-          </div>
-          <span class="cap-muted">${prog.porcentaje || 0}% cumplimiento</span>
-          <table class="cap-data-table cap-mt"><thead><tr><th>Persona</th><th>Puesto</th><th>Asistió</th><th>Nota</th><th>Estado</th><th>Hs acreditadas</th></tr></thead><tbody>${filas}</tbody></table>
-        </div>`;
+    const mesHead = meses.map((m) => `<th colspan="4">${escapeHtml(m.nombre)}</th>`).join("");
+    const subHead = [...meses, { num: "anual" }].map(() =>
+      subs.map((s) => `<th>${s}</th>`).join("")
+    ).join("");
+    const filaHtml = filas.map((f) => {
+      const md = f.meses || {};
+      const celdas = meses.map((m) => {
+        const v = md[String(m.num)] || {};
+        return subKeys.map((k) => `<td class="cap-ma-num">${maFmtRatio(v[k])}</td>`).join("");
       }).join("");
-      return `<div class="cap-ma-seccion"><div class="cap-ma-seccion-head"><h3 class="cap-subtitle">${escapeHtml(sec.plan_nombre)}</h3><span class="cap-muted">${escapeHtml(sec.programa_nombre || "")}</span></div>${cursosHtml}</div>`;
+      const anual = md.anual || {};
+      const anualCells = subKeys.map((k) => `<td class="cap-ma-num cap-ma-anual">${maFmtRatio(anual[k])}</td>`).join("");
+      return `<tr><th scope="row" class="cap-ma-persona-col">${escapeHtml(f.persona)}</th>${celdas}${anualCells}</tr>`;
     }).join("");
+    wrap.innerHTML = `
+      <div class="cap-ma-resumen-meta"><span>Planes:</span><span>Puestos</span></div>
+      <div class="cap-ma-table-scroll">
+        <table class="cap-data-table cap-ma-tabla-anual">
+          <thead>
+            <tr><th rowspan="2" class="cap-ma-persona-col">${escapeHtml(String(anio))}</th>${mesHead}<th colspan="4">Anual</th></tr>
+            <tr>${subHead}</tr>
+          </thead>
+          <tbody>${filaHtml}</tbody>
+        </table>
+      </div>`;
   }
 
   function renderMaPersona(data) {

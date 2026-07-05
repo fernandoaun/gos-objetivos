@@ -25,10 +25,11 @@ def test_export_matriz_analitica_tabla(app):
         from gos.models import Empresa
 
         emp = Empresa.query.first()
-        buf = exportar_matriz_analitica_excel(emp.id, vista="tabla")
+        buf = exportar_matriz_analitica_excel(emp.id, vista="tabla", anio=2026)
         wb = openpyxl.load_workbook(BytesIO(buf.getvalue()))
-        assert wb.active.title == "Matriz tabla"
-        assert wb.active.cell(1, 1).value == "Programa"
+        assert wb.active.title == "Capacitaciones"
+        assert wb.active.cell(1, 1).value == "Planes:"
+        assert wb.active.cell(2, 1).value == "Puestos"
 
 
 def test_puesto_con_sector(auth_client, app):
@@ -160,4 +161,4 @@ def test_export_matriz_analitica_endpoint(auth_client):
     assert r.status_code == 200
     assert "spreadsheetml" in r.content_type
     wb = openpyxl.load_workbook(BytesIO(r.data))
-    assert wb.active.title == "Matriz tabla"
+    assert wb.active.title == "Capacitaciones"

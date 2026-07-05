@@ -6,6 +6,7 @@ from datetime import date
 
 from gos.modulos.capacitacion.models import (
     Acreditacion,
+    AsistenciaEncuentro,
     EncuentroCapacitacion,
     Participante,
     PlanCurso,
@@ -24,6 +25,82 @@ PLAN_COLORES = {
     "induccion": "verde_claro",
     "inducción": "verde_claro",
 }
+
+MESES_NOMBRES = [
+    "Enero",
+    "Febrero",
+    "Marzo",
+    "Abril",
+    "Mayo",
+    "Junio",
+    "Julio",
+    "Agosto",
+    "Septiembre",
+    "Octubre",
+    "Noviembre",
+    "Diciembre",
+]
+
+
+def _metricas_vacias() -> dict:
+    return {
+        "programados": 0,
+        "pendientes": 0,
+        "cumplidos": 0,
+        "pct_cumpl_prog": None,
+        "puntuales": 0,
+        "pct_punt_prog": None,
+        "pend_vencidos": 0,
+        "pct_venc_prog": None,
+        "pend_sin_vencer": 0,
+        "pend_vencidos_det": 0,
+        "cumpl_puntuales": 0,
+        "cumpl_no_puntuales": 0,
+    }
+
+
+def _metricas_cortas_vacias() -> dict:
+    return {"prog": 0, "pdtes": 0, "cumpl": 0, "cumpl_prog": None}
+
+
+def _ratio(num: int, den: int) -> float | None:
+    if not den:
+        return None
+    return round(num / den, 4)
+
+
+def _sumar_metricas(dest: dict, src: dict) -> None:
+    for k in (
+        "programados",
+        "pendientes",
+        "cumplidos",
+        "puntuales",
+        "pend_vencidos",
+        "pend_sin_vencer",
+        "pend_vencidos_det",
+        "cumpl_puntuales",
+        "cumpl_no_puntuales",
+    ):
+        dest[k] += src.get(k, 0)
+
+
+def _finalizar_metricas(m: dict) -> dict:
+    prog = m["programados"]
+    m["pct_cumpl_prog"] = _ratio(m["cumplidos"], prog)
+    m["pct_punt_prog"] = _ratio(m["puntuales"], prog)
+    m["pct_venc_prog"] = _ratio(m["pend_vencidos"], prog)
+    m["pendientes"] = m["programados"] - m["cumplidos"]
+    m["cumpl_no_puntuales"] = m["cumplidos"] - m["cumpl_puntuales"]
+    return m
+
+
+def _a_metricas_cortas(m: dict) -> dict:
+    return {
+        "prog": m["programados"],
+        "pdtes": m["pendientes"],
+        "cumpl": m["cumplidos"],
+        "cumpl_prog": m["pct_cumpl_prog"],
+    }
 
 
 def _parse_ids(raw) -> list[int]:
@@ -179,6 +256,159 @@ def listar_planes_filtro(empresa_id: int) -> list[dict]:
     return list(vistos.values())
 
 
+def _encuentro_pasa_filtros(
+    enc: EncuentroCapacitacion,
+    *,
+    tipos: list[str],
+    empresas: list[int],
+    plan_ids_validos: set[int],
+    programa_ids: set[int],
+    plan_ids: list[int],
+) -> bool:
+    if tipos:
+        tipo_enc = "externo" if (enc.origen or "").startswith("extern") else "interno"
+        if tipo_enc not in tipos:
+            return False
+    if empresas and enc.empresa_capacitadora_id not in empresas:
+        return False
+    if plan_ids_validos and enc.plan_id and enc.plan_id not in plan_ids_validos:
+        return False
+    if programa_ids and enc.programa_id and enc.programa_id not in programa_ids:
+        if plan_ids:
+            return False
+    return True
+
+
+def _acr_para_asistencia(
+    asist: AsistenciaEncuentro,
+    enc: EncuentroCapacitacion,
+    cache: dict[int, Acreditacion | None],
+) -> Acreditacion | None:
+    if asist.id in cache:
+        return cache[asist.id]
+    acr = Acreditacion.query.filter_by(cronograma_persona_id=asist.id).first()
+    if not acr and enc.curso_id and enc.programa_id and enc.plan_id:
+        acr = Acreditacion.query.filter_by(
+            persona_id=asist.participante_id,
+            programa_id=enc.programa_id,
+            plan_id=enc.plan_id,
+            curso_id=enc.curso_id,
+        ).first()
+    cache[asist.id] = acr
+    return acr
+
+
+def _clasificar_asignacion(
+    asist: AsistenciaEncuentro,
+    enc: EncuentroCapacitacion,
+    acr: Acreditacion | None,
+    hoy: date,
+) -> dict:
+    cumplido = _estado_acreditacion(acr, hoy) == "aprobada" if acr else asist.aprobado is True
+    fecha_aprob = None
+    if acr and acr.fecha_aprobacion:
+        fecha_aprob = acr.fecha_aprobacion
+    elif asist.fecha_aprobacion:
+        fecha_aprob = asist.fecha_aprobacion
+
+    puntual = False
+    if cumplido and fecha_aprob and enc.fecha:
+        puntual = fecha_aprob <= enc.fecha
+    elif cumplido:
+        puntual = True
+
+    vencido = not cumplido and enc.fecha < hoy
+
+    return {
+        "programados": 1,
+        "cumplidos": 1 if cumplido else 0,
+        "puntuales": 1 if cumplido and puntual else 0,
+        "pend_vencidos": 1 if not cumplido and vencido else 0,
+        "pend_sin_vencer": 1 if not cumplido and not vencido else 0,
+        "pend_vencidos_det": 1 if not cumplido and vencido else 0,
+        "cumpl_puntuales": 1 if cumplido and puntual else 0,
+        "cumpl_no_puntuales": 1 if cumplido and not puntual else 0,
+    }
+
+
+def _colectar_metricas_anuales(
+    empresa_id: int,
+    *,
+    anio: int,
+    plan_ids: list[int],
+    tipos: list[str],
+    empresas: list[int],
+    persona_ids: list[int],
+    puesto_ids: list[int],
+) -> tuple[dict[int, dict[int, dict]], dict[int, dict], dict[int, str]]:
+    """Métricas por (persona, mes) y agregado por mes."""
+    refrescar_vigencias(empresa_id)
+    hoy = date.today()
+
+    programas = _programas_filtrados(empresa_id, plan_ids=plan_ids, tipos=tipos, puesto_ids=puesto_ids)
+    programa_ids = {p.id for p in programas}
+    plan_ids_validos: set[int] = set()
+    for p in programas:
+        for pl in p.planes.all():
+            if not plan_ids or pl.id in plan_ids:
+                plan_ids_validos.add(pl.id)
+
+    filas = (
+        AsistenciaEncuentro.query.join(EncuentroCapacitacion)
+        .join(Participante)
+        .filter(
+            EncuentroCapacitacion.empresa_id == empresa_id,
+            EncuentroCapacitacion.fecha >= date(anio, 1, 1),
+            EncuentroCapacitacion.fecha <= date(anio, 12, 31),
+            EncuentroCapacitacion.fecha_inicio.isnot(None),
+            Participante.activo.is_(True),
+        )
+        .all()
+    )
+
+    acr_cache: dict[int, Acreditacion | None] = {}
+    por_persona_mes: dict[int, dict[int, dict]] = {}
+    por_mes: dict[int, dict] = {m: _metricas_vacias() for m in range(1, 13)}
+    nombres: dict[int, str] = {}
+
+    for asist in filas:
+        enc = asist.encuentro
+        persona = asist.participante
+        if not enc or not persona:
+            continue
+        if persona_ids and persona.id not in persona_ids:
+            continue
+        if puesto_ids and persona.puesto_id not in puesto_ids:
+            continue
+        if not _encuentro_pasa_filtros(
+            enc,
+            tipos=tipos,
+            empresas=empresas,
+            plan_ids_validos=plan_ids_validos,
+            programa_ids=programa_ids,
+            plan_ids=plan_ids,
+        ):
+            continue
+
+        mes = enc.fecha.month
+        acr = _acr_para_asistencia(asist, enc, acr_cache)
+        delta = _clasificar_asignacion(asist, enc, acr, hoy)
+
+        nombres[persona.id] = persona.nombre_completo
+        if persona.id not in por_persona_mes:
+            por_persona_mes[persona.id] = {m: _metricas_vacias() for m in range(1, 13)}
+        _sumar_metricas(por_persona_mes[persona.id][mes], delta)
+        _sumar_metricas(por_mes[mes], delta)
+
+    for mes in range(1, 13):
+        _finalizar_metricas(por_mes[mes])
+    for pid, meses in por_persona_mes.items():
+        for mes in range(1, 13):
+            _finalizar_metricas(meses[mes])
+
+    return por_persona_mes, por_mes, nombres
+
+
 def matriz_calendario(
     empresa_id: int,
     *,
@@ -196,197 +426,85 @@ def matriz_calendario(
     persona_ids = persona_ids or []
     puesto_ids = puesto_ids or []
 
-    programas = _programas_filtrados(empresa_id, plan_ids=plan_ids, tipos=tipos, puesto_ids=puesto_ids)
-    programa_ids = {p.id for p in programas}
-    plan_ids_validos = set()
-    for p in programas:
-        for pl in p.planes.all():
-            if not plan_ids or pl.id in plan_ids:
-                plan_ids_validos.add(pl.id)
-
-    q = EncuentroCapacitacion.query.filter_by(empresa_id=empresa_id).filter(
-        EncuentroCapacitacion.fecha >= date(anio, 1, 1),
-        EncuentroCapacitacion.fecha <= date(anio, 12, 31),
+    _, por_mes, _ = _colectar_metricas_anuales(
+        empresa_id,
+        anio=anio,
+        plan_ids=plan_ids,
+        tipos=tipos,
+        empresas=empresas,
+        persona_ids=persona_ids,
+        puesto_ids=puesto_ids,
     )
-    if tipos:
-        origenes = []
-        if "interno" in tipos:
-            origenes.extend(["interna", "interno", None])
-        if "externo" in tipos:
-            origenes.extend(["externa", "externo"])
-        # filtrar en Python por flexibilidad con null
-    encuentros = q.order_by(EncuentroCapacitacion.fecha).all()
 
-    meses: dict[int, list] = {m: [] for m in range(1, 13)}
-    for enc in encuentros:
-        # Sin fecha_inicio explícita: planificado pero aún no calendarizado
-        if enc.fecha_inicio is None:
-            continue
-        if tipos:
-            tipo_enc = "externo" if (enc.origen or "").startswith("extern") else "interno"
-            if tipo_enc not in tipos:
-                continue
-        if empresas and enc.empresa_capacitadora_id not in empresas:
-            continue
-        if plan_ids_validos and enc.plan_id and enc.plan_id not in plan_ids_validos:
-            continue
-        if programa_ids and enc.programa_id and enc.programa_id not in programa_ids:
-            # permitir encuentros sin programa si no hay filtro de plan
-            if plan_ids:
-                continue
+    filas = []
+    totales = _metricas_vacias()
+    for i, nombre in enumerate(MESES_NOMBRES, start=1):
+        m = por_mes[i]
+        filas.append({"mes": i, "nombre": nombre, **m})
+        _sumar_metricas(totales, m)
+    _finalizar_metricas(totales)
 
-        personas = [
-            {
-                "id": a.participante_id,
-                "nombre": a.participante.nombre_completo if a.participante else None,
-                "asistio": a.asistencia == "presente",
-                "nota": float(a.nota) if a.nota is not None else None,
-                "aprobo": a.aprobado,
-            }
-            for a in enc.asistencias.all()
-            if a.participante and a.participante.activo
-        ]
-        if persona_ids:
-            personas = [p for p in personas if p["id"] in persona_ids]
-            if not personas:
-                continue
-        if puesto_ids:
-            personas = [
-                p
-                for p in personas
-                if any(
-                    part.id == p["id"] and part.puesto_id in puesto_ids
-                    for part in (a.participante for a in enc.asistencias.all())
-                )
-            ]
-            if not personas and enc.asistencias.count():
-                continue
-
-        plan_nombre = enc.plan.nombre if enc.plan else None
-        color = PLAN_COLORES.get((plan_nombre or "").lower(), "azul")
-        meses[enc.fecha.month].append(
-            {
-                "id": enc.id,
-                "curso_nombre": enc.curso.nombre if enc.curso else enc.titulo,
-                "fecha": enc.fecha.isoformat(),
-                "fecha_inicio": enc.fecha_inicio.isoformat() if enc.fecha_inicio else None,
-                "fecha_fin": enc.fecha_fin.isoformat() if enc.fecha_fin else None,
-                "empresa_nombre": enc.empresa_capacitadora.nombre if enc.empresa_capacitadora else None,
-                "tipo": "externo" if (enc.origen or "").startswith("extern") else "interno",
-                "plan_nombre": plan_nombre,
-                "color": color,
-                "estado": enc.estado,
-                "personas_count": len(personas) or enc.asistencias.count(),
-                "personas": personas,
-                "capacitador": enc.instructor,
-                "lugar": enc.lugar,
-                "link": enc.link_virtual,
-            }
-        )
-
-    return {"anio": anio, "meses": meses}
+    return {"anio": anio, "filas": filas, "totales": totales}
 
 
 def matriz_tabla(
     empresa_id: int,
     *,
+    anio: int | None = None,
     plan_ids: list[int] | None = None,
     tipos: list[str] | None = None,
     empresas: list[int] | None = None,
     persona_ids: list[int] | None = None,
     puesto_ids: list[int] | None = None,
 ) -> dict:
-    refrescar_vigencias(empresa_id)
+    anio = anio or date.today().year
     plan_ids = plan_ids or []
     tipos = tipos or []
     persona_ids = persona_ids or []
     puesto_ids = puesto_ids or []
     empresas = empresas or []
 
-    programas = _programas_filtrados(empresa_id, plan_ids=plan_ids, tipos=tipos, puesto_ids=puesto_ids)
-    personas = _personas_filtradas(empresa_id, persona_ids=persona_ids, puesto_ids=puesto_ids)
-    hoy = date.today()
+    por_persona_mes, _, nombres = _colectar_metricas_anuales(
+        empresa_id,
+        anio=anio,
+        plan_ids=plan_ids,
+        tipos=tipos,
+        empresas=empresas,
+        persona_ids=persona_ids,
+        puesto_ids=puesto_ids,
+    )
 
-    secciones = []
-    for programa in programas:
-        for plan in programa.planes.order_by(ProgramaPlan.orden).all():
-            if plan_ids and plan.id not in plan_ids:
-                continue
-            cursos_sec = []
-            for pc in plan.cursos.order_by(PlanCurso.orden).all():
-                curso = pc.curso
-                if not curso or not curso.activo:
-                    continue
-                filas = []
-                horas_req = float(curso.horas or 0)
-                horas_ok = 0.0
-                for persona in personas:
-                    if persona.puesto_id and not any(
-                        pp.puesto_id == persona.puesto_id for pp in programa.puestos_asignados.all()
-                    ):
-                        if programa.puesto_id != persona.puesto_id:
-                            continue
-                    acr = Acreditacion.query.filter_by(
-                        persona_id=persona.id,
-                        programa_id=programa.id,
-                        plan_id=plan.id,
-                        curso_id=curso.id,
-                    ).first()
-                    if empresas and not _acr_coincide_empresa(acr, empresas):
-                        continue
-                    estado = _estado_acreditacion(acr, hoy)
-                    if estado == "aprobada":
-                        horas_ok += float(acr.horas_acreditadas or curso.horas or 0)
-                    filas.append(
-                        {
-                            "persona_id": persona.id,
-                            "persona": persona.nombre_completo,
-                            "puesto": persona.puesto.nombre if persona.puesto else None,
-                            "asistio": _asistio_desde_acreditacion(acr),
-                            "nota": float(acr.nota) if acr and acr.nota is not None else None,
-                            "estado": estado,
-                            "horas_acreditadas": float(acr.horas_acreditadas)
-                            if acr and acr.horas_acreditadas is not None and estado == "aprobada"
-                            else 0,
-                            "fecha_vencimiento": acr.fecha_vencimiento.isoformat()
-                            if acr and acr.fecha_vencimiento
-                            else None,
-                        }
-                    )
-                if empresas and not filas:
-                    continue
-                total_req = horas_req * max(len(filas), 1)
-                pct = round((horas_ok / total_req) * 100, 1) if total_req else 0
-                cursos_sec.append(
-                    {
-                        "curso_id": curso.id,
-                        "curso_nombre": curso.nombre,
-                        "horas": horas_req,
-                        "origen_badge": _badge_origen(curso),
-                        "tiene_vigencia": curso.tiene_vigencia,
-                        "meses_vigencia": curso.vigencia_meses,
-                        "personas": filas,
-                        "progreso": {
-                            "horas_acreditadas": horas_ok,
-                            "horas_requeridas": total_req,
-                            "porcentaje": pct,
-                            "color": _progreso_color(pct),
-                        },
-                    }
-                )
-            if cursos_sec:
-                secciones.append(
-                    {
-                        "programa_id": programa.id,
-                        "programa_nombre": programa.nombre,
-                        "programa_tipo": programa.tipo,
-                        "plan_id": plan.id,
-                        "plan_nombre": plan.nombre,
-                        "color": PLAN_COLORES.get(plan.nombre.lower(), "azul"),
-                        "cursos": cursos_sec,
-                    }
-                )
-    return {"secciones": secciones, "hoy": hoy.isoformat()}
+    personas_filtradas = _personas_filtradas(
+        empresa_id, persona_ids=persona_ids, puesto_ids=puesto_ids
+    )
+    for persona in personas_filtradas:
+        nombres.setdefault(persona.id, persona.nombre_completo)
+
+    filas = []
+    for pid in sorted(nombres.keys(), key=lambda x: nombres[x]):
+        meses_data = por_persona_mes.get(pid, {m: _metricas_vacias() for m in range(1, 13)})
+        anual = _metricas_vacias()
+        meses_cortos = {}
+        for mes in range(1, 13):
+            m = meses_data.get(mes, _metricas_vacias())
+            _sumar_metricas(anual, m)
+            meses_cortos[str(mes)] = _a_metricas_cortas(m)
+        _finalizar_metricas(anual)
+        meses_cortos["anual"] = _a_metricas_cortas(anual)
+        filas.append(
+            {
+                "persona_id": pid,
+                "persona": nombres[pid],
+                "meses": meses_cortos,
+            }
+        )
+
+    return {
+        "anio": anio,
+        "meses": [{"num": i, "nombre": n} for i, n in enumerate(MESES_NOMBRES, start=1)],
+        "filas": filas,
+        "hoy": date.today().isoformat(),
+    }
 
 
 def matriz_persona(
@@ -545,6 +663,7 @@ def matriz_analitica(
     else:
         data = matriz_tabla(
             empresa_id,
+            anio=anio,
             plan_ids=plan_ids,
             tipos=tipos,
             empresas=empresas,

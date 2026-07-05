@@ -5,7 +5,10 @@ from io import BytesIO
 import openpyxl
 from openpyxl.styles import Font, PatternFill
 
-from gos.modulos.capacitacion.services.matriz_analitica_service import matriz_analitica
+from gos.modulos.capacitacion.services.matriz_analitica_service import (
+    MESES_NOMBRES,
+    matriz_analitica,
+)
 from gos.modulos.capacitacion.services.matriz_service import matriz_capacitaciones
 
 _HEADER_FILL = PatternFill(start_color="1B4332", end_color="1B4332", fill_type="solid")
@@ -18,12 +21,29 @@ _LEGACY_COLOR_MAP = {
     "gris": "D9D9D9",
 }
 
+_CAL_COLS = [
+    ("programados", "Cursos Programados"),
+    ("pendientes", "Cursos Pendientes"),
+    ("cumplidos", "Cursos Cumplidos"),
+    ("puntuales", "Cumplidos Puntuales"),
+    ("pend_vencidos", "Pendientes Vencidos"),
+]
+
+_TABLA_SUB = ("prog", "pdtes", "cumpl", "cumpl_prog")
+_TABLA_SUB_LABELS = ("Prog", "Pdtes", "Cumpl", "Cumpl/Prog")
+
 
 def _write_header(ws, headers: list[str]) -> None:
     for col, h in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=h)
         cell.fill = _HEADER_FILL
         cell.font = _HEADER_FONT
+
+
+def _fmt_pct(val) -> str | float | int:
+    if val is None:
+        return ""
+    return val
 
 
 def exportar_matriz_excel(empresa_id: int, **filtros) -> BytesIO:
@@ -51,6 +71,72 @@ def exportar_matriz_excel(empresa_id: int, **filtros) -> BytesIO:
     wb.save(buf)
     buf.seek(0)
     return buf
+
+
+def _export_calendario_resumen(ws, data: dict) -> None:
+    ws.title = "Capacitaciones"
+    anio = data.get("anio", "")
+    ws.cell(row=1, column=1, value="Programas")
+    ws.cell(row=2, column=1, value="Planes")
+    ws.cell(row=3, column=1, value="Personas")
+
+    row_head = 4
+    ws.cell(row=row_head, column=1, value=anio)
+    col = 3
+    for key, label in _CAL_COLS:
+        ws.cell(row=row_head, column=col, value=label)
+        col += 2
+
+    for i, fila in enumerate(data.get("filas") or [], start=row_head + 1):
+        ws.cell(row=i, column=1, value=fila.get("nombre"))
+        col = 3
+        for key, _ in _CAL_COLS:
+            ws.cell(row=i, column=col, value=_fmt_pct(fila.get(key)))
+            col += 2
+
+    tot = data.get("totales") or {}
+    row_tot = row_head + 1 + len(data.get("filas") or []) + 1
+    col = 3
+    for key, _ in _CAL_COLS:
+        ws.cell(row=row_tot, column=col, value=_fmt_pct(tot.get(key)))
+        col += 2
+
+
+def _export_tabla_personas(ws, data: dict) -> None:
+    ws.title = "Capacitaciones"
+    anio = data.get("anio", "")
+    meses = data.get("meses") or [{"num": i, "nombre": n} for i, n in enumerate(MESES_NOMBRES, start=1)]
+
+    ws.cell(row=1, column=1, value="Planes:")
+    ws.cell(row=2, column=1, value="Puestos")
+
+    row_mes = 3
+    row_sub = 4
+    ws.cell(row=row_sub, column=1, value=anio)
+
+    col = 3
+    for mes in meses:
+        ws.cell(row=row_mes, column=col, value=mes.get("nombre"))
+        for j, sub in enumerate(_TABLA_SUB_LABELS):
+            ws.cell(row=row_sub, column=col + j, value=sub)
+        col += 4
+
+    ws.cell(row=row_mes, column=col + 1, value="Anual")
+    for j, sub in enumerate(_TABLA_SUB_LABELS):
+        ws.cell(row=row_sub, column=col + 1 + j, value=sub)
+
+    for row_idx, fila in enumerate(data.get("filas") or [], start=row_sub + 2):
+        ws.cell(row=row_idx, column=1, value=fila.get("persona"))
+        meses_data = fila.get("meses") or {}
+        col = 3
+        for mes in meses:
+            m = meses_data.get(str(mes["num"]), {})
+            for j, sub in enumerate(_TABLA_SUB):
+                ws.cell(row=row_idx, column=col + j, value=_fmt_pct(m.get(sub)))
+            col += 4
+        anual = meses_data.get("anual", {})
+        for j, sub in enumerate(_TABLA_SUB):
+            ws.cell(row=row_idx, column=col + 1 + j, value=_fmt_pct(anual.get(sub)))
 
 
 def exportar_matriz_analitica_excel(
@@ -82,32 +168,7 @@ def exportar_matriz_analitica_excel(
     ws = wb.active
 
     if vista in ("calendar", "calendario"):
-        ws.title = "Calendario"
-        headers = [
-            "Fecha",
-            "Curso",
-            "Plan",
-            "Tipo",
-            "Empresa",
-            "Estado",
-            "Capacitador",
-            "Lugar",
-            "Personas",
-        ]
-        _write_header(ws, headers)
-        row_idx = 2
-        for mes in range(1, 13):
-            for ev in (data.get("meses") or {}).get(mes, []):
-                ws.cell(row=row_idx, column=1, value=ev.get("fecha"))
-                ws.cell(row=row_idx, column=2, value=ev.get("curso_nombre"))
-                ws.cell(row=row_idx, column=3, value=ev.get("plan_nombre"))
-                ws.cell(row=row_idx, column=4, value=ev.get("tipo"))
-                ws.cell(row=row_idx, column=5, value=ev.get("empresa_nombre"))
-                ws.cell(row=row_idx, column=6, value=ev.get("estado"))
-                ws.cell(row=row_idx, column=7, value=ev.get("capacitador"))
-                ws.cell(row=row_idx, column=8, value=ev.get("lugar"))
-                ws.cell(row=row_idx, column=9, value=ev.get("personas_count"))
-                row_idx += 1
+        _export_calendario_resumen(ws, data)
     elif vista in ("person", "persona"):
         ws.title = "Persona"
         persona = data.get("persona") or {}
@@ -131,39 +192,13 @@ def exportar_matriz_analitica_excel(
                 ws.cell(row=row_idx, column=4, value=curso.get("estado"))
                 ws.cell(row=row_idx, column=5, value=curso.get("nota"))
                 ws.cell(row=row_idx, column=6, value=curso.get("horas"))
-                ws.cell(row=row_idx, column=7, value=curso.get("empresa_dictada"))
+                ws.cell(row=row_idx, column=7, value=curso.get("empresa"))
                 ws.cell(row=row_idx, column=8, value=curso.get("fecha_vencimiento"))
                 row_idx += 1
         if row_idx == 2:
             ws.cell(row=2, column=1, value=persona.get("nombre"))
     else:
-        ws.title = "Matriz tabla"
-        headers = [
-            "Programa",
-            "Plan",
-            "Curso",
-            "Persona",
-            "Puesto",
-            "Estado",
-            "Nota",
-            "Horas acreditadas",
-            "Vencimiento",
-        ]
-        _write_header(ws, headers)
-        row_idx = 2
-        for sec in data.get("secciones") or []:
-            for curso in sec.get("cursos") or []:
-                for pers in curso.get("personas") or []:
-                    ws.cell(row=row_idx, column=1, value=sec.get("programa_nombre"))
-                    ws.cell(row=row_idx, column=2, value=sec.get("plan_nombre"))
-                    ws.cell(row=row_idx, column=3, value=curso.get("curso_nombre"))
-                    ws.cell(row=row_idx, column=4, value=pers.get("persona"))
-                    ws.cell(row=row_idx, column=5, value=pers.get("puesto"))
-                    ws.cell(row=row_idx, column=6, value=pers.get("estado"))
-                    ws.cell(row=row_idx, column=7, value=pers.get("nota"))
-                    ws.cell(row=row_idx, column=8, value=pers.get("horas_acreditadas"))
-                    ws.cell(row=row_idx, column=9, value=pers.get("fecha_vencimiento"))
-                    row_idx += 1
+        _export_tabla_personas(ws, data)
 
     buf = BytesIO()
     wb.save(buf)
