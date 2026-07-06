@@ -2780,32 +2780,6 @@
 
 
 
-  function bindSyncVacaciones() {
-
-    document.getElementById("cap-btn-sync-vacaciones")?.addEventListener("click", async () => {
-
-      if (!confirm("¿Importar legajos desde el módulo Vacaciones?")) return;
-
-      try {
-
-        const r = await postJson(`${API}/participantes/sincronizar-vacaciones`, {});
-
-        alert(`Sync: ${r.creados} creados, ${r.actualizados} actualizados, ${r.omitidos} omitidos`);
-
-        await loadPersonas();
-
-      } catch (e) {
-
-        alert(e.message);
-
-      }
-
-    });
-
-  }
-
-
-
   let encPuestosSeleccionados = new Set();
   let encPersonasCache = [];
 
@@ -5919,8 +5893,6 @@
     bindCertUpload();
 
     bindFotoUpload();
-
-    bindSyncVacaciones();
 
     bindEncuentroForm();
 
