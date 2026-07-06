@@ -33,6 +33,8 @@
 
   let metaPuestos = [];
 
+  let metaCentros = [];
+
   let personaEditId = null;
   let cursoEditId = null;
   let asistenciaEncuentroId = null;
@@ -233,6 +235,7 @@
   const SIMILAR_TIPO_LABELS = {
     sector: "sector",
     puesto: "puesto",
+    centro: "centro",
     instructor: "capacitador",
     empresa_capacitadora: "empresa capacitadora",
     taxonomia: "clasificación",
@@ -1112,11 +1115,13 @@
 
   async function loadMeta() {
 
-    const [sectores, puestos] = await Promise.all([
+    const [sectores, puestos, centros] = await Promise.all([
 
       fetchJson(`${API}/sectores`),
 
       fetchJson(`${API}/puestos`),
+
+      fetchJson(`${API}/centros`),
 
     ]);
 
@@ -1124,9 +1129,13 @@
 
     metaPuestos = puestos.puestos || [];
 
+    metaCentros = centros.centros || [];
+
     fillSelect("cap-p-sector", metaSectores, "— Sin sector —");
 
     fillSelect("cap-p-puesto", metaPuestos, "— Sin puesto —");
+
+    fillSelect("cap-p-centro", metaCentros, "— Sin centro —");
 
     fillSelect("cap-puesto-quick-sector", metaSectores, "— Sin sector —");
 
@@ -4038,7 +4047,7 @@
 
       document.getElementById("cap-p-email").value = item.email || "";
 
-      document.getElementById("cap-p-centro").value = item.centro || "";
+      if (item.centro_id) document.getElementById("cap-p-centro").value = item.centro_id;
 
       if (item.sector_id) document.getElementById("cap-p-sector").value = item.sector_id;
 
@@ -4053,6 +4062,8 @@
     togglePanel("cap-sector-quick", false);
 
     togglePanel("cap-puesto-quick", false);
+
+    togglePanel("cap-centro-quick", false);
 
     togglePanel("cap-persona-form-panel", true);
 
@@ -4096,6 +4107,8 @@
 
       togglePanel("cap-puesto-quick", false);
 
+      togglePanel("cap-centro-quick", false);
+
       togglePanel("cap-sector-quick", true);
 
     });
@@ -4104,13 +4117,27 @@
 
       togglePanel("cap-sector-quick", false);
 
+      togglePanel("cap-centro-quick", false);
+
       togglePanel("cap-puesto-quick", true);
+
+    });
+
+    document.getElementById("cap-p-centro-add")?.addEventListener("click", () => {
+
+      togglePanel("cap-sector-quick", false);
+
+      togglePanel("cap-puesto-quick", false);
+
+      togglePanel("cap-centro-quick", true);
 
     });
 
     document.getElementById("cap-sector-quick-cancel")?.addEventListener("click", () => togglePanel("cap-sector-quick", false));
 
     document.getElementById("cap-puesto-quick-cancel")?.addEventListener("click", () => togglePanel("cap-puesto-quick", false));
+
+    document.getElementById("cap-centro-quick-cancel")?.addEventListener("click", () => togglePanel("cap-centro-quick", false));
 
 
 
@@ -4222,6 +4249,60 @@
 
 
 
+    document.getElementById("cap-centro-quick-save")?.addEventListener("click", async () => {
+
+      const codigo = document.getElementById("cap-centro-quick-codigo")?.value.trim();
+
+      const nombre = document.getElementById("cap-centro-quick-nombre")?.value.trim();
+
+      if (!codigo || !nombre) {
+
+        setFormError("cap-persona-form-error", "Código y nombre del centro son obligatorios.");
+
+        return;
+
+      }
+
+      try {
+
+        const resolution = await resolveSimilarBeforeCreate({ tipo: "centro", nombre, codigo });
+
+        if (resolution.action === "cancel") return;
+
+        if (resolution.action === "use") {
+
+          await loadMeta();
+
+          document.getElementById("cap-p-centro").value = resolution.item.id;
+
+          togglePanel("cap-centro-quick", false);
+
+          setFormError("cap-persona-form-error", "");
+
+          return;
+
+        }
+
+        const data = await postJson(`${API}/centros`, { codigo, nombre });
+
+        await loadMeta();
+
+        document.getElementById("cap-p-centro").value = data.centro.id;
+
+        togglePanel("cap-centro-quick", false);
+
+        setFormError("cap-persona-form-error", "");
+
+      } catch (err) {
+
+        setFormError("cap-persona-form-error", err.message);
+
+      }
+
+    });
+
+
+
     form.addEventListener("submit", async (e) => {
 
       e.preventDefault();
@@ -4243,6 +4324,8 @@
       if (payload.sector_id) payload.sector_id = Number(payload.sector_id);
 
       if (payload.puesto_id) payload.puesto_id = Number(payload.puesto_id);
+
+      if (payload.centro_id) payload.centro_id = Number(payload.centro_id);
 
       try {
 
@@ -4309,7 +4392,7 @@
           ${renderLegajoCampo("Teléfono", p.telefono)}
           ${renderLegajoCampo("Sector", p.sector_nombre)}
           ${renderLegajoCampo("Puesto", p.puesto_nombre)}
-          ${renderLegajoCampo("Centro", p.centro)}
+          ${renderLegajoCampo("Centro", p.centro_nombre)}
           ${renderLegajoCampo("Fecha de ingreso", formatFecha(p.fecha_ingreso))}
           ${observaciones}
         </dl>
@@ -4620,7 +4703,7 @@
 
         email: p.email,
 
-        centro: p.centro,
+        centro_id: p.centro_id,
 
         sector_id: p.sector_id,
 

@@ -9,6 +9,7 @@ _COLUMN_UPGRADES = [
     ("cap_participantes", "dni", "VARCHAR(20)"),
     ("cap_participantes", "telefono", "VARCHAR(40)"),
     ("cap_participantes", "centro", "VARCHAR(150)"),
+    ("cap_participantes", "centro_id", "INTEGER"),
     ("cap_participantes", "fecha_ingreso", "DATE"),
     ("cap_participantes", "observaciones", "TEXT"),
     ("cap_participantes", "foto_path", "VARCHAR(500)"),
@@ -54,6 +55,7 @@ def ensure_capacitacion_schema() -> None:
         Acreditacion,
         AlertaCapacitacion,
         CapacitacionConfig,
+        Centro,
         CronogramaPuesto,
         EmpresaCapacitadora,
         Instructor,
@@ -76,6 +78,44 @@ def ensure_capacitacion_schema() -> None:
     _migrar_clasificacion_cursos()
     _migrar_estructura_programas()
     _migrar_sector_puesto()
+    _migrar_centros_texto()
+
+
+def _migrar_centros_texto() -> None:
+    """Convierte el campo texto centro en referencias al catálogo cap_centros."""
+    from gos.modulos.capacitacion.models import Centro, Participante
+    from gos.modulos.capacitacion.services.catalogo_service import centro_id_desde_texto
+
+    inspector = inspect(db.engine)
+    if not inspector.has_table("cap_participantes"):
+        return
+    cols = {c["name"] for c in inspector.get_columns("cap_participantes")}
+    if "centro" not in cols or "centro_id" not in cols:
+        return
+
+    cambios = False
+    with db.engine.connect() as conn:
+        rows = conn.execute(
+            text(
+                "SELECT id, empresa_id, centro FROM cap_participantes "
+                "WHERE centro IS NOT NULL AND centro_id IS NULL"
+            )
+        ).fetchall()
+
+    for row_id, empresa_id, centro_text in rows:
+        nombre = (centro_text or "").strip()
+        if not nombre:
+            continue
+        participante = Participante.query.get(row_id)
+        if not participante or participante.centro_id:
+            continue
+        centro_id = centro_id_desde_texto(empresa_id, centro_text)
+        if centro_id:
+            participante.centro_id = centro_id
+            cambios = True
+
+    if cambios:
+        db.session.commit()
 
 
 def _migrar_clasificacion_cursos() -> None:

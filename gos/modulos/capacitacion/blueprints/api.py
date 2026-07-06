@@ -14,6 +14,7 @@ from gos.modulos.capacitacion.services import (
     actualizar_programa,
     actualizar_puesto,
     actualizar_sector,
+    actualizar_centro,
     agregar_curso_a_plan,
     agregar_plan,
     analitico_participante,
@@ -28,6 +29,7 @@ from gos.modulos.capacitacion.services import (
     crear_participante,
     crear_programa,
     crear_puesto,
+    crear_centro,
     crear_requisito,
     crear_sector,
     cursos_de_puestos,
@@ -56,6 +58,7 @@ from gos.modulos.capacitacion.services import (
     listar_programas,
     listar_participantes_por_puestos,
     listar_puestos,
+    listar_centros,
     listar_requisitos,
     listar_sectores,
     marcar_alerta_leida,
@@ -223,7 +226,8 @@ def participantes():
                 "tiene_foto": bool(p.foto_path),
                 "sector_id": p.sector_id,
                 "puesto_id": p.puesto_id,
-                "centro": p.centro,
+                "centro_id": p.centro_id,
+                "centro_nombre": p.centro.nombre if p.centro else None,
                 "activo": p.activo,
             }
         )
@@ -463,6 +467,32 @@ def actualizar_puesto_route(puesto_id: int):
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify({"puesto": item})
+
+
+@bp.route("/centros", methods=["GET", "POST"])
+@login_required
+def centros():
+    if request.method == "POST":
+        if not _puede_editar():
+            return jsonify({"error": "No tenés permiso para esta acción."}), 403
+        try:
+            item = crear_centro(current_user.empresa_id, _json_body())
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"centro": item}), 201
+    return jsonify({"centros": listar_centros(current_user.empresa_id)})
+
+
+@bp.route("/centros/<int:centro_id>", methods=["PUT"])
+@login_required
+def actualizar_centro_route(centro_id: int):
+    if not _puede_editar():
+        return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    try:
+        item = actualizar_centro(current_user.empresa_id, centro_id, _json_body())
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"centro": item})
 
 
 @bp.route("/instructores", methods=["GET", "POST"])

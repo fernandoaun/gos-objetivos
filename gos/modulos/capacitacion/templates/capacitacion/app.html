@@ -618,9 +618,18 @@
               <input class="cap-input" id="cap-p-email" name="email" type="email" maxlength="150">
             </div>
           </div>
-          <div class="cap-form-row">
-            <label class="cap-label" for="cap-p-centro">Centro</label>
-            <input class="cap-input" id="cap-p-centro" name="centro" maxlength="150" placeholder="Centro de trabajo">
+          <div class="cap-form-row cap-form-row--2">
+            <div>
+              <label class="cap-label" for="cap-p-centro">Centro</label>
+              <div class="cap-input-group">
+                <select class="cap-input" id="cap-p-centro" name="centro_id">
+                  <option value="">— Sin centro —</option>
+                </select>
+                <button type="button" class="cap-btn cap-btn--icon" id="cap-p-centro-add" title="Agregar centro">
+                  <i class="bi bi-plus-lg"></i>
+                </button>
+              </div>
+            </div>
           </div>
           <div class="cap-form-row cap-form-row--2">
             <div>
@@ -647,6 +656,17 @@
             </div>
           </div>
           <p class="cap-form-hint" id="cap-persona-form-error"></p>
+          <div class="cap-quick-form cap-hidden" id="cap-centro-quick">
+            <p class="cap-quick-form-title">Nuevo centro</p>
+            <div class="cap-form-row cap-form-row--2">
+              <input class="cap-input" id="cap-centro-quick-codigo" placeholder="Código" maxlength="20">
+              <input class="cap-input" id="cap-centro-quick-nombre" placeholder="Nombre" maxlength="150">
+            </div>
+            <div class="cap-form-actions">
+              <button type="button" class="cap-btn cap-btn--ghost" id="cap-centro-quick-cancel">Cancelar</button>
+              <button type="button" class="cap-btn cap-btn--primary" id="cap-centro-quick-save">Guardar centro</button>
+            </div>
+          </div>
           <div class="cap-quick-form cap-hidden" id="cap-sector-quick">
             <p class="cap-quick-form-title">Nuevo sector</p>
             <div class="cap-form-row cap-form-row--2">

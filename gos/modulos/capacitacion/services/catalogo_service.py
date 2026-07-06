@@ -1,7 +1,7 @@
 from decimal import Decimal, InvalidOperation
 
 from gos.extensions import db
-from gos.modulos.capacitacion.models import Curso, EmpresaCapacitadora, Instructor, Participante, Puesto
+from gos.modulos.capacitacion.models import Centro, Curso, EmpresaCapacitadora, Instructor, Participante, Puesto
 from gos.modulos.capacitacion.services.taxonomia_service import (
     arbol_taxonomia,
     etiqueta_taxonomia,
@@ -35,6 +35,15 @@ def listar_puestos(empresa_id: int) -> list[dict]:
         .all()
     )
     return [_puesto_dict(p) for p in items]
+
+
+def listar_centros(empresa_id: int) -> list[dict]:
+    items = (
+        Centro.query.filter_by(empresa_id=empresa_id, activo=True)
+        .order_by(Centro.codigo)
+        .all()
+    )
+    return [_centro_dict(c) for c in items]
 
 
 def listar_participantes_por_puestos(empresa_id: int, puesto_ids: list[int]) -> list[dict]:
@@ -319,6 +328,7 @@ def obtener_participante(empresa_id: int, participante_id: int) -> dict:
     data = _participante_dict(participante)
     data["sector_nombre"] = participante.sector.nombre if participante.sector else None
     data["puesto_nombre"] = participante.puesto.nombre if participante.puesto else None
+    data["centro_nombre"] = participante.centro.nombre if participante.centro else None
     return data
 
 
@@ -341,6 +351,63 @@ def crear_puesto(empresa_id: int, data: dict) -> dict:
     db.session.add(puesto)
     db.session.commit()
     return _puesto_dict(puesto)
+
+
+def crear_centro(empresa_id: int, data: dict) -> dict:
+    codigo = (data.get("codigo") or "").strip()
+    nombre = (data.get("nombre") or "").strip()
+    if not codigo or not nombre:
+        raise ValueError("Código y nombre son obligatorios")
+    if Centro.query.filter_by(empresa_id=empresa_id, codigo=codigo).first():
+        raise ValueError(f"Ya existe un centro con el código «{codigo}»")
+
+    centro = Centro(empresa_id=empresa_id, codigo=codigo, nombre=nombre)
+    db.session.add(centro)
+    db.session.commit()
+    return _centro_dict(centro)
+
+
+def actualizar_centro(empresa_id: int, centro_id: int, data: dict) -> dict:
+    centro = _get_centro(empresa_id, centro_id)
+    codigo = (data.get("codigo") or "").strip()
+    nombre = (data.get("nombre") or "").strip()
+    if not codigo or not nombre:
+        raise ValueError("Código y nombre son obligatorios")
+    dup = (
+        Centro.query.filter_by(empresa_id=empresa_id, codigo=codigo)
+        .filter(Centro.id != centro_id)
+        .first()
+    )
+    if dup:
+        raise ValueError(f"Ya existe un centro con el código «{codigo}»")
+
+    centro.codigo = codigo
+    centro.nombre = nombre
+    db.session.commit()
+    return _centro_dict(centro)
+
+
+def centro_id_desde_texto(empresa_id: int, texto: str | None) -> int | None:
+    """Resuelve un centro por nombre; lo crea en catálogo si no existe."""
+    nombre = (texto or "").strip()
+    if not nombre:
+        return None
+    norm = nombre.lower()
+    for centro in Centro.query.filter_by(empresa_id=empresa_id, activo=True).all():
+        if centro.nombre.strip().lower() == norm:
+            return centro.id
+
+    base = "".join(ch for ch in nombre.upper() if ch.isalnum())[:12] or "CTR"
+    codigo = base
+    n = 1
+    while Centro.query.filter_by(empresa_id=empresa_id, codigo=codigo).first():
+        codigo = f"{base}{n}"
+        n += 1
+
+    centro = Centro(empresa_id=empresa_id, codigo=codigo, nombre=nombre)
+    db.session.add(centro)
+    db.session.flush()
+    return centro.id
 
 
 def crear_participante(empresa_id: int, data: dict) -> dict:
@@ -373,12 +440,15 @@ def crear_participante(empresa_id: int, data: dict) -> dict:
     else:
         puesto_id = None
 
+    centro_id = _parse_centro_id(empresa_id, data)
+    if centro_id is None and data.get("centro"):
+        centro_id = centro_id_desde_texto(empresa_id, data.get("centro"))
+
     email = (data.get("email") or "").strip() or None
     _validar_email_unico(empresa_id, email)
     apellido = (data.get("apellido") or "").strip() or None
     dni = (data.get("dni") or "").strip() or None
     telefono = (data.get("telefono") or "").strip() or None
-    centro = (data.get("centro") or "").strip() or None
     fecha_ingreso = _parse_date(data.get("fecha_ingreso"))
     observaciones = (data.get("observaciones") or "").strip() or None
 
@@ -390,7 +460,7 @@ def crear_participante(empresa_id: int, data: dict) -> dict:
         dni=dni,
         email=email,
         telefono=telefono,
-        centro=centro,
+        centro_id=centro_id,
         fecha_ingreso=fecha_ingreso,
         observaciones=observaciones,
         sector_id=sector_id,
@@ -442,6 +512,10 @@ def actualizar_participante(empresa_id: int, participante_id: int, data: dict) -
     else:
         puesto_id = None
 
+    centro_id = _parse_centro_id(empresa_id, data)
+    if centro_id is None and data.get("centro"):
+        centro_id = centro_id_desde_texto(empresa_id, data.get("centro"))
+
     email = (data.get("email") or "").strip() or None
     _validar_email_unico(empresa_id, email, exclude_id=participante_id)
 
@@ -451,7 +525,7 @@ def actualizar_participante(empresa_id: int, participante_id: int, data: dict) -
     participante.dni = (data.get("dni") or "").strip() or None
     participante.email = email
     participante.telefono = (data.get("telefono") or "").strip() or None
-    participante.centro = (data.get("centro") or "").strip() or None
+    participante.centro_id = centro_id
     participante.fecha_ingreso = _parse_date(data.get("fecha_ingreso"))
     participante.observaciones = (data.get("observaciones") or "").strip() or None
     if "activo" in data:
@@ -482,6 +556,23 @@ def _get_puesto(empresa_id: int, puesto_id: int) -> Puesto:
     if not puesto:
         raise ValueError("Puesto no encontrado")
     return puesto
+
+
+def _get_centro(empresa_id: int, centro_id: int) -> Centro:
+    centro = Centro.query.filter_by(id=centro_id, empresa_id=empresa_id, activo=True).first()
+    if not centro:
+        raise ValueError("Centro no encontrado")
+    return centro
+
+
+def _parse_centro_id(empresa_id: int, data: dict) -> int | None:
+    centro_id = data.get("centro_id")
+    if centro_id is not None and centro_id != "":
+        centro_id = int(centro_id)
+        if not Centro.query.filter_by(id=centro_id, empresa_id=empresa_id, activo=True).first():
+            raise ValueError("Centro no válido")
+        return centro_id
+    return None
 
 
 def _sector_dict(sector: Sector) -> dict:
@@ -526,7 +617,8 @@ def _participante_dict(p: Participante) -> dict:
         "dni": p.dni,
         "email": p.email,
         "telefono": p.telefono,
-        "centro": p.centro,
+        "centro_id": p.centro_id,
+        "centro_nombre": p.centro.nombre if p.centro else None,
         "fecha_ingreso": p.fecha_ingreso.isoformat() if p.fecha_ingreso else None,
         "observaciones": p.observaciones,
         "tiene_foto": bool(p.foto_path),
@@ -546,7 +638,8 @@ def _participante_resumen_dict(p: Participante) -> dict:
         "sector_id": p.sector_id,
         "puesto_id": p.puesto_id,
         "puesto_nombre": p.puesto.nombre if p.puesto else None,
-        "centro": p.centro,
+        "centro_id": p.centro_id,
+        "centro_nombre": p.centro.nombre if p.centro else None,
         "activo": p.activo,
     }
 
@@ -560,6 +653,10 @@ def _puesto_dict(puesto: Puesto) -> dict:
         "sector_id": puesto.sector_id,
         "sector_nombre": puesto.sector.nombre if puesto.sector else None,
     }
+
+
+def _centro_dict(centro: Centro) -> dict:
+    return {"id": centro.id, "codigo": centro.codigo, "nombre": centro.nombre}
 
 
 def _parse_sector_id(empresa_id: int, data: dict) -> int | None:

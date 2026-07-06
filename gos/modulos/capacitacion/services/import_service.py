@@ -5,7 +5,7 @@ from io import BytesIO
 import openpyxl
 
 from gos.extensions import db
-from gos.modulos.capacitacion.models import Curso, Participante, Puesto
+from gos.modulos.capacitacion.models import Centro, Curso, Participante, Puesto
 from gos.modulos.capacitacion.services.taxonomia_service import (
     clasificacion_desde_legacy,
     tipo_capacitacion_legacy,
@@ -38,12 +38,13 @@ def importar_participantes_excel(empresa_id: int, file_bytes: bytes) -> dict:
     if not required.issubset(headers):
         raise ValueError(
             "El Excel debe tener encabezados en la fila 1. Mínimo: nombre. "
-            "Opcionales: apellido, dni, email, telefono, centro, sector_codigo, "
+            "Opcionales: apellido, dni, email, telefono, centro, centro_codigo, sector_codigo, "
             "puesto_codigo, fecha_ingreso, observaciones. Obligatorio: nombre, legajo"
         )
 
     sectores = {s.codigo: s.id for s in Sector.query.filter_by(empresa_id=empresa_id, activo=True).all()}
     puestos = {p.codigo: p.id for p in Puesto.query.filter_by(empresa_id=empresa_id, activo=True).all()}
+    centros = {c.codigo: c.id for c in Centro.query.filter_by(empresa_id=empresa_id, activo=True).all()}
     legajos_existentes = {
         p.legajo for p in Participante.query.filter_by(empresa_id=empresa_id).all() if p.legajo
     }
@@ -72,14 +73,19 @@ def importar_participantes_excel(empresa_id: int, file_bytes: bytes) -> dict:
             continue
         sector_codigo = val("sector_codigo")
         puesto_codigo = val("puesto_codigo")
+        centro_codigo = val("centro_codigo")
         sector_id = sectores.get(sector_codigo) if sector_codigo else None
         puesto_id = puestos.get(puesto_codigo) if puesto_codigo else None
+        centro_id = centros.get(centro_codigo) if centro_codigo else None
 
         if sector_codigo and not sector_id:
             errores.append(f"Fila {row_idx}: sector «{sector_codigo}» no encontrado")
             continue
         if puesto_codigo and not puesto_id:
             errores.append(f"Fila {row_idx}: puesto «{puesto_codigo}» no encontrado")
+            continue
+        if centro_codigo and not centro_id:
+            errores.append(f"Fila {row_idx}: centro «{centro_codigo}» no encontrado")
             continue
 
         existente = None
@@ -99,6 +105,7 @@ def importar_participantes_excel(empresa_id: int, file_bytes: bytes) -> dict:
             "dni": val("dni") or None,
             "email": val("email") or None,
             "telefono": val("telefono") or None,
+            "centro_id": centro_id,
             "centro": val("centro") or None,
             "observaciones": val("observaciones") or None,
             "sector_id": sector_id,

@@ -6,17 +6,18 @@ import re
 import unicodedata
 from difflib import SequenceMatcher
 
-from gos.modulos.capacitacion.models import Curso, EmpresaCapacitadora, Instructor, Puesto
+from gos.modulos.capacitacion.models import Curso, EmpresaCapacitadora, Instructor, Puesto, Centro
 from gos.modulos.capacitacion.models.taxonomia_item import TaxonomiaItem
 from gos.modulos.objetivos.models.catalogos import Sector
 
 TIPOS_SIMILITUD = frozenset(
-    {"sector", "puesto", "instructor", "empresa_capacitadora", "taxonomia", "curso"}
+    {"sector", "puesto", "centro", "instructor", "empresa_capacitadora", "taxonomia", "curso"}
 )
 
 TIPO_LABELS = {
     "sector": "Sector",
     "puesto": "Puesto",
+    "centro": "Centro",
     "instructor": "Capacitador",
     "empresa_capacitadora": "Empresa capacitadora",
     "taxonomia": "Taxonomía",
@@ -112,6 +113,10 @@ def _listar_candidatos(empresa_id: int, tipo: str, nivel: str | None) -> list[di
 
     if tipo == "puesto":
         rows = Puesto.query.filter_by(empresa_id=empresa_id, activo=True).all()
+        return [{"id": r.id, "codigo": r.codigo, "nombre": r.nombre} for r in rows]
+
+    if tipo == "centro":
+        rows = Centro.query.filter_by(empresa_id=empresa_id, activo=True).all()
         return [{"id": r.id, "codigo": r.codigo, "nombre": r.nombre} for r in rows]
 
     if tipo == "instructor":

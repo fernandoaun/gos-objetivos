@@ -3,6 +3,22 @@ from gos.models.base import TimestampMixin
 from gos.modulos.capacitacion.models.taxonomia import MODALIDADES, TIPOS_CAPACITACION  # noqa: F401
 
 
+class Centro(db.Model, TimestampMixin):
+    """Catálogo de centros de trabajo."""
+
+    __tablename__ = "cap_centros"
+    __table_args__ = (db.UniqueConstraint("empresa_id", "codigo", name="uq_cap_centro_codigo"),)
+
+    id = db.Column(db.Integer, primary_key=True)
+    empresa_id = db.Column(db.Integer, db.ForeignKey("empresas.id"), nullable=False, index=True)
+    codigo = db.Column(db.String(20), nullable=False)
+    nombre = db.Column(db.String(150), nullable=False)
+    activo = db.Column(db.Boolean, default=True, nullable=False)
+
+    empresa = db.relationship("Empresa")
+    participantes = db.relationship("Participante", back_populates="centro", lazy="dynamic")
+
+
 class Puesto(db.Model, TimestampMixin):
     """Catálogo de puestos/cargos para requisitos y filtros."""
 
