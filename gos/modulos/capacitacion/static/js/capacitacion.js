@@ -4038,6 +4038,8 @@
 
       document.getElementById("cap-p-email").value = item.email || "";
 
+      document.getElementById("cap-p-centro").value = item.centro || "";
+
       if (item.sector_id) document.getElementById("cap-p-sector").value = item.sector_id;
 
       if (item.puesto_id) document.getElementById("cap-p-puesto").value = item.puesto_id;
@@ -4307,6 +4309,7 @@
           ${renderLegajoCampo("Teléfono", p.telefono)}
           ${renderLegajoCampo("Sector", p.sector_nombre)}
           ${renderLegajoCampo("Puesto", p.puesto_nombre)}
+          ${renderLegajoCampo("Centro", p.centro)}
           ${renderLegajoCampo("Fecha de ingreso", formatFecha(p.fecha_ingreso))}
           ${observaciones}
         </dl>
@@ -4616,6 +4619,8 @@
         legajo: p.legajo,
 
         email: p.email,
+
+        centro: p.centro,
 
         sector_id: p.sector_id,
 
@@ -5635,6 +5640,28 @@
       }
 
     });
+
+  }
+
+
+
+  function openSectorForm(item) {
+
+    const form = document.getElementById("cap-sector-form");
+
+    if (!form) return;
+
+    form.reset();
+
+    document.getElementById("cap-s-id").value = item?.id || "";
+
+    document.getElementById("cap-s-codigo").value = item?.codigo || "";
+
+    document.getElementById("cap-s-nombre").value = item?.nombre || "";
+
+    setFormError("cap-sector-form-error", "");
+
+    togglePanel("cap-sector-form-panel", true);
 
   }
 

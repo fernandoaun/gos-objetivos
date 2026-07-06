@@ -38,7 +38,7 @@ def importar_participantes_excel(empresa_id: int, file_bytes: bytes) -> dict:
     if not required.issubset(headers):
         raise ValueError(
             "El Excel debe tener encabezados en la fila 1. Mínimo: nombre. "
-            "Opcionales: apellido, dni, email, telefono, sector_codigo, "
+            "Opcionales: apellido, dni, email, telefono, centro, sector_codigo, "
             "puesto_codigo, fecha_ingreso, observaciones. Obligatorio: nombre, legajo"
         )
 
@@ -99,6 +99,7 @@ def importar_participantes_excel(empresa_id: int, file_bytes: bytes) -> dict:
             "dni": val("dni") or None,
             "email": val("email") or None,
             "telefono": val("telefono") or None,
+            "centro": val("centro") or None,
             "observaciones": val("observaciones") or None,
             "sector_id": sector_id,
             "puesto_id": puesto_id,

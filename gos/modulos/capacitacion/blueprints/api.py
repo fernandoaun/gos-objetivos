@@ -223,6 +223,7 @@ def participantes():
                 "tiene_foto": bool(p.foto_path),
                 "sector_id": p.sector_id,
                 "puesto_id": p.puesto_id,
+                "centro": p.centro,
                 "activo": p.activo,
             }
         )

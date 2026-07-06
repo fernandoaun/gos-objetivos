@@ -25,6 +25,7 @@ class Participante(db.Model, TimestampMixin):
     apellido = db.Column(db.String(150), nullable=True)
     email = db.Column(db.String(150), nullable=True)
     telefono = db.Column(db.String(40), nullable=True)
+    centro = db.Column(db.String(150), nullable=True)
     fecha_ingreso = db.Column(db.Date, nullable=True)
     observaciones = db.Column(db.Text, nullable=True)
     foto_path = db.Column(db.String(500), nullable=True)

@@ -8,6 +8,7 @@ _COLUMN_UPGRADES = [
     ("cap_participantes", "apellido", "VARCHAR(150)"),
     ("cap_participantes", "dni", "VARCHAR(20)"),
     ("cap_participantes", "telefono", "VARCHAR(40)"),
+    ("cap_participantes", "centro", "VARCHAR(150)"),
     ("cap_participantes", "fecha_ingreso", "DATE"),
     ("cap_participantes", "observaciones", "TEXT"),
     ("cap_participantes", "foto_path", "VARCHAR(500)"),

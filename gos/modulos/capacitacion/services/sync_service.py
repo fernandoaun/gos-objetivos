@@ -48,6 +48,7 @@ def sincronizar_legajos_vacaciones(empresa_id: int) -> dict:
 
             sector_id = _sector_id_por_nombre(empresa_id, row.sector)
             fecha_ingreso = row.fecha_ingreso.isoformat() if row.fecha_ingreso else None
+            centro = (row.centro or "").strip() or None
 
             existente = Participante.query.filter_by(empresa_id=empresa_id, legajo=legajo_str).first()
             if existente:
@@ -72,6 +73,9 @@ def sincronizar_legajos_vacaciones(empresa_id: int) -> dict:
 
                     existente.fecha_ingreso = date_cls.fromisoformat(fecha_ingreso)
                     changed = True
+                if centro and existente.centro != centro:
+                    existente.centro = centro
+                    changed = True
                 if changed:
                     actualizados += 1
                 else:
@@ -84,6 +88,7 @@ def sincronizar_legajos_vacaciones(empresa_id: int) -> dict:
                 "apellido": partes[1] if len(partes) > 1 else None,
                 "legajo": legajo_str,
                 "sector_id": sector_id,
+                "centro": centro,
                 "fecha_ingreso": fecha_ingreso,
             }
             try:

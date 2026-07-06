@@ -378,6 +378,7 @@ def crear_participante(empresa_id: int, data: dict) -> dict:
     apellido = (data.get("apellido") or "").strip() or None
     dni = (data.get("dni") or "").strip() or None
     telefono = (data.get("telefono") or "").strip() or None
+    centro = (data.get("centro") or "").strip() or None
     fecha_ingreso = _parse_date(data.get("fecha_ingreso"))
     observaciones = (data.get("observaciones") or "").strip() or None
 
@@ -389,6 +390,7 @@ def crear_participante(empresa_id: int, data: dict) -> dict:
         dni=dni,
         email=email,
         telefono=telefono,
+        centro=centro,
         fecha_ingreso=fecha_ingreso,
         observaciones=observaciones,
         sector_id=sector_id,
@@ -449,6 +451,7 @@ def actualizar_participante(empresa_id: int, participante_id: int, data: dict) -
     participante.dni = (data.get("dni") or "").strip() or None
     participante.email = email
     participante.telefono = (data.get("telefono") or "").strip() or None
+    participante.centro = (data.get("centro") or "").strip() or None
     participante.fecha_ingreso = _parse_date(data.get("fecha_ingreso"))
     participante.observaciones = (data.get("observaciones") or "").strip() or None
     if "activo" in data:
@@ -523,6 +526,7 @@ def _participante_dict(p: Participante) -> dict:
         "dni": p.dni,
         "email": p.email,
         "telefono": p.telefono,
+        "centro": p.centro,
         "fecha_ingreso": p.fecha_ingreso.isoformat() if p.fecha_ingreso else None,
         "observaciones": p.observaciones,
         "tiene_foto": bool(p.foto_path),
@@ -542,6 +546,7 @@ def _participante_resumen_dict(p: Participante) -> dict:
         "sector_id": p.sector_id,
         "puesto_id": p.puesto_id,
         "puesto_nombre": p.puesto.nombre if p.puesto else None,
+        "centro": p.centro,
         "activo": p.activo,
     }
 
