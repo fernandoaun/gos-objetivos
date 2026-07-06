@@ -2435,6 +2435,8 @@
   let programaCursosIds = [];
   let programaSeleccionadoId = null;
   let programasCache = [];
+  let progPlanesDraft = [];
+  let progPlanCatalogCache = [];
 
   function refreshProgramaCursoSelect() {
 
@@ -5315,48 +5317,220 @@
 
 
 
+  async function loadProgPlanCatalog() {
+    const data = await fetchJson(`${API}/planes`);
+    const seen = new Map();
+    (data.planes || []).forEach((p) => {
+      const nombre = (p.nombre || "").trim();
+      if (!nombre) return;
+      const key = nombre.toLowerCase();
+      if (!seen.has(key)) seen.set(key, nombre);
+    });
+    progPlanCatalogCache = Array.from(seen.values()).sort((a, b) => a.localeCompare(b, "es"));
+    return progPlanCatalogCache;
+  }
+
+  function progPlanesDraftNames() {
+    return new Set(progPlanesDraft.map((p) => p.nombre.trim().toLowerCase()).filter(Boolean));
+  }
+
+  function fillProgPlanSelect() {
+    const sel = document.getElementById("cap-prog-plan-select");
+    if (!sel) return;
+    const used = progPlanesDraftNames();
+    const disponibles = progPlanCatalogCache.filter((n) => !used.has(n.toLowerCase()));
+    sel.innerHTML = '<option value="">— Seleccionar plan —</option>';
+    disponibles.forEach((nombre) => {
+      const opt = document.createElement("option");
+      opt.value = nombre;
+      opt.textContent = nombre;
+      sel.appendChild(opt);
+    });
+    sel.innerHTML += '<option value="__nuevo__">+ Crear plan nuevo…</option>';
+  }
+
+  function fillDetallePlanSelect(planesActuales = [], selectId = "cap-detalle-plan-select") {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    const used = new Set((planesActuales || []).map((p) => (p.nombre || "").trim().toLowerCase()));
+    const disponibles = progPlanCatalogCache.filter((n) => !used.has(n.toLowerCase()));
+    sel.innerHTML = '<option value="">— Seleccionar plan —</option>';
+    disponibles.forEach((nombre) => {
+      const opt = document.createElement("option");
+      opt.value = nombre;
+      opt.textContent = nombre;
+      sel.appendChild(opt);
+    });
+    sel.innerHTML += '<option value="__nuevo__">+ Crear plan nuevo…</option>';
+  }
+
+  function renderProgPlanesDraft() {
+    const ul = document.getElementById("cap-prog-planes-list");
+    if (!ul) return;
+    if (!progPlanesDraft.length) {
+      ul.innerHTML = '<li class="cap-prog-planes-empty cap-muted">Agregá al menos un plan con el selector de abajo.</li>';
+      return;
+    }
+    ul.innerHTML = progPlanesDraft.map((p, i) => `
+      <li class="cap-prog-plan-item">
+        <span>${escapeHtml(p.nombre)}</span>
+        <button type="button" class="cap-btn cap-btn--sm cap-btn--danger" data-prog-plan-rm="${i}" title="Quitar"><i class="bi bi-trash"></i></button>
+      </li>`).join("");
+    ul.querySelectorAll("[data-prog-plan-rm]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        progPlanesDraft.splice(Number(btn.dataset.progPlanRm), 1);
+        renderProgPlanesDraft();
+        fillProgPlanSelect();
+      });
+    });
+  }
+
+  function addProgPlanDraft(nombre) {
+    const name = (nombre || "").trim();
+    if (!name) return false;
+    if (progPlanesDraftNames().has(name.toLowerCase())) {
+      setFormError("cap-programa-form-error", "Ese plan ya está en la lista");
+      return false;
+    }
+    setFormError("cap-programa-form-error", "");
+    progPlanesDraft.push({ nombre: name });
+    renderProgPlanesDraft();
+    fillProgPlanSelect();
+    return true;
+  }
+
+  async function resetProgPlanesDraft(programa = null) {
+    progPlanesDraft = (programa?.planes || []).map((p) => ({ id: p.id, nombre: p.nombre }));
+    try {
+      await loadProgPlanCatalog();
+    } catch (e) {
+      console.error(e);
+    }
+    renderProgPlanesDraft();
+    fillProgPlanSelect();
+    togglePanel("cap-prog-plan-quick", false);
+    const quickNombre = document.getElementById("cap-prog-plan-quick-nombre");
+    if (quickNombre) quickNombre.value = "";
+    const sel = document.getElementById("cap-prog-plan-select");
+    if (sel) sel.value = "";
+  }
+
+  function renderProgramaCardHtml(p) {
+    const tipoLabel = p.tipo === "externo" ? "Externo" : "Interno";
+    const badgeClass = p.tipo === "externo" ? "cap-badge--yellow" : "cap-badge--blue";
+    const expanded = p.id === programaSeleccionadoId;
+    const desc = (p.descripcion || "").trim();
+    const empresaExt = p.tipo === "externo" && p.empresa_capacitadora_nombre
+      ? `<p class="cap-prog-card-empresa"><i class="bi bi-building"></i> ${escapeHtml(p.empresa_capacitadora_nombre)}</p>`
+      : "";
+    return `
+    <article class="cap-prog-card${expanded ? " cap-prog-card--expanded" : ""}" data-programa-id="${p.id}">
+      <div class="cap-prog-card-summary" role="button" tabindex="0" aria-expanded="${expanded}">
+        <div class="cap-prog-card-head">
+          <h3 class="cap-prog-card-title">${escapeHtml(p.nombre)}</h3>
+          <span class="cap-badge ${badgeClass}">${tipoLabel}</span>
+        </div>
+        <div class="cap-prog-card-stats">
+          <span><i class="bi bi-diagram-3"></i> ${p.planes_count || 0} planes</span>
+          <span><i class="bi bi-journal-text"></i> ${p.cursos_count || 0} cursos</span>
+          <span><i class="bi bi-person-badge"></i> ${p.puestos_count || 0} puestos</span>
+        </div>
+        ${desc ? `<p class="cap-prog-card-desc">${escapeHtml(desc)}</p>` : ""}
+        ${empresaExt}
+        <div class="cap-prog-card-actions">
+          <button type="button" class="cap-btn cap-btn--primary cap-btn--sm" data-prog-toggle="${p.id}">
+            ${expanded ? "Cerrar" : "Abrir"}
+          </button>
+        </div>
+      </div>
+      <div class="cap-prog-card-detail${expanded ? "" : " cap-hidden"}"></div>
+    </article>`;
+  }
+
   async function loadProgramas() {
-    const cards = document.getElementById("cap-programas-cards");
-    if (!cards) return;
-    cards.innerHTML = '<div class="cap-loading">Cargando...</div>';
+    const grid = document.getElementById("cap-programas-grid");
+    if (!grid) return;
+    grid.innerHTML = '<p class="cap-loading">Cargando...</p>';
     const tipo = document.getElementById("cap-prog-filtro-tipo")?.value || "";
     const qs = tipo ? `?tipo=${encodeURIComponent(tipo)}` : "";
     const data = await fetchJson(`${API}/programas${qs}`);
     programasCache = data.programas || [];
     if (!programasCache.length) {
-      cards.innerHTML = '<div class="cap-empty">Todavía no hay programas. Creá el primero con <strong>Nuevo programa</strong>.</div>';
+      grid.innerHTML = '<p class="cap-empty">Todavía no hay programas. Usá <strong>+ Nuevo programa</strong> para agregar el primero.</p>';
       return;
     }
-    cards.innerHTML = programasCache.map((p) => {
-      const puestos = (p.puestos || []).map((x) => x.nombre).join(", ") || p.puesto_nombre || "Sin puestos";
-      const tipoLabel = p.tipo === "externo" ? "Externo" : "Interno";
-      const empresaExt = p.tipo === "externo" && p.empresa_capacitadora_nombre
-        ? `<p class="cap-card-sub"><i class="bi bi-building"></i> ${escapeHtml(p.empresa_capacitadora_nombre)}</p>`
-        : "";
-      return `
-      <article class="cap-card ${p.id === programaSeleccionadoId ? "cap-card--active" : ""}" data-programa-id="${p.id}">
-        <div class="cap-card-head">
-          <strong>${escapeHtml(p.nombre)}</strong>
-          <span class="cap-badge">${tipoLabel}</span>
+    grid.innerHTML = programasCache.map((p) => renderProgramaCardHtml(p)).join("");
+    if (programaSeleccionadoId) {
+      const stillVisible = programasCache.some((prog) => prog.id === programaSeleccionadoId);
+      if (!stillVisible) {
+        programaSeleccionadoId = null;
+        return;
+      }
+      const card = grid.querySelector(`[data-programa-id="${programaSeleccionadoId}"]`);
+      const detailEl = card?.querySelector(".cap-prog-card-detail");
+      const cached = programasCache.find((prog) => prog.id === programaSeleccionadoId);
+      if (detailEl && cached?.planes) {
+        renderProgramaDetalleEnCard(cached, detailEl);
+      }
+    }
+  }
+
+  function collapsePrograma() {
+    programaSeleccionadoId = null;
+    loadProgramas().catch(console.error);
+  }
+
+  async function togglePrograma(programaId) {
+    if (programaSeleccionadoId === programaId) {
+      collapsePrograma();
+      return;
+    }
+    await selectPrograma(programaId);
+  }
+
+  function renderProgramaDetalleEnCard(programa, containerEl) {
+    const tipoTxt = programa.tipo === "externo" ? "Externo" : "Interno";
+    const metaRows = [
+      programa.codigo ? `<div class="cap-prog-detail-row"><span class="cap-prog-detail-label">Código</span><span>${escapeHtml(programa.codigo)}</span></div>` : "",
+      `<div class="cap-prog-detail-row"><span class="cap-prog-detail-label">Tipo</span><span>${tipoTxt}</span></div>`,
+      programa.empresa_capacitadora_nombre
+        ? `<div class="cap-prog-detail-row"><span class="cap-prog-detail-label">Empresa</span><span>${escapeHtml(programa.empresa_capacitadora_nombre)}</span></div>`
+        : "",
+      programa.estado
+        ? `<div class="cap-prog-detail-row"><span class="cap-prog-detail-label">Estado</span><span>${escapeHtml(programaEstadoLabel(programa.estado))}</span></div>`
+        : "",
+    ].filter(Boolean).join("");
+    const puestosId = `cap-programa-puestos-detalle-${programa.id}`;
+    containerEl.innerHTML = `
+      <div class="cap-prog-detail-inner">
+        <div class="cap-prog-detail-head">
+          <div>
+            <h4 class="cap-prog-detail-title">Estructura del programa</h4>
+            <p class="cap-muted">${escapeHtml(programa.nombre)}</p>
+          </div>
+          <div class="cap-toolbar-actions">
+            <button type="button" class="cap-btn cap-btn--ghost cap-btn--sm" data-prog-edit="${programa.id}"><i class="bi bi-pencil"></i> Editar</button>
+            <button type="button" class="cap-btn cap-btn--primary cap-btn--sm" data-prog-add-plan><i class="bi bi-plus-lg"></i> Agregar plan</button>
+          </div>
         </div>
-        <div class="cap-card-meta">
-          <span><i class="bi bi-diagram-3"></i> ${p.planes_count || 0} planes</span>
-          <span><i class="bi bi-journal-text"></i> ${p.cursos_count || 0} cursos</span>
-          <span><i class="bi bi-person-badge"></i> ${p.puestos_count || 0} puestos</span>
+        ${programa.descripcion ? `<p class="cap-prog-detail-desc">${escapeHtml(programa.descripcion)}</p>` : ""}
+        <div class="cap-prog-detail-meta">${metaRows}</div>
+        <div data-prog-planes-wrap></div>
+        <div class="cap-prog-detail-puestos">
+          <h4 class="cap-subtitle">Puestos que aplican</h4>
+          <div class="cap-check-grid" id="${puestosId}"></div>
+          <p class="cap-form-hint cap-form-hint--error" id="cap-programa-puestos-error-${programa.id}"></p>
+          <button type="button" class="cap-btn cap-btn--primary cap-btn--sm cap-mt" data-prog-guardar-puestos="${programa.id}">Guardar puestos</button>
         </div>
-        <p class="cap-card-sub">${escapeHtml(puestos)}</p>
-        ${empresaExt}
-        <div class="cap-card-actions">
-          <button type="button" class="cap-btn cap-btn--sm cap-btn--primary" data-prog-open="${p.id}">Abrir</button>
-        </div>
-      </article>`;
-    }).join("");
-    cards.querySelectorAll("[data-prog-open], article[data-programa-id]").forEach((el) => {
-      el.addEventListener("click", (ev) => {
-        if (ev.target.closest("button") && !ev.target.closest("[data-prog-open]")) return;
-        const id = Number(el.dataset.progOpen || el.dataset.programaId);
-        selectPrograma(id).catch(console.error);
-      });
+      </div>`;
+    renderPuestosChecks(puestosId, (programa.puestos || []).map((p) => p.id));
+    const planesWrap = containerEl.querySelector("[data-prog-planes-wrap]");
+    renderProgramaPlanes(programa, planesWrap);
+    containerEl.querySelector("[data-prog-add-plan]")?.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const sel = containerEl.querySelector(`#cap-detalle-plan-select-${programa.id}`);
+      sel?.focus();
+      sel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
   }
 
@@ -5390,38 +5564,24 @@
 
   async function selectPrograma(programaId) {
     programaSeleccionadoId = programaId;
-    const detalle = document.getElementById("cap-programa-detalle");
-    const titleEl = document.getElementById("cap-programa-detalle-title");
-    const planesEl = document.getElementById("cap-programa-planes");
-    if (!detalle || !planesEl) return;
-    detalle.classList.remove("cap-hidden");
-    planesEl.innerHTML = '<div class="cap-loading">Cargando estructura...</div>';
+    await loadProgramas();
+    const card = document.querySelector(`.cap-prog-card[data-programa-id="${programaId}"]`);
+    const detailEl = card?.querySelector(".cap-prog-card-detail");
+    if (!detailEl) return;
+    detailEl.classList.remove("cap-hidden");
+    detailEl.innerHTML = '<div class="cap-loading">Cargando estructura...</div>';
     const data = await fetchJson(`${API}/programas/${programaId}`);
     const programa = data.programa;
     programasCache = programasCache.map((p) => (p.id === programa.id ? { ...p, ...programa } : p));
-    if (titleEl) {
-      const tipoTxt = programa.tipo === "externo" ? "Externo" : "Interno";
-      const empTxt = programa.tipo === "externo" && programa.empresa_capacitadora_nombre
-        ? ` · ${programa.empresa_capacitadora_nombre}`
-        : "";
-      titleEl.textContent = `${programa.nombre} (${tipoTxt}${empTxt})`;
-    }
-    renderPuestosChecks("cap-programa-puestos-detalle", (programa.puestos || []).map((p) => p.id));
-    renderProgramaPlanes(programa);
-    await loadProgramas();
-    detalle.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    renderProgramaDetalleEnCard(programa, detailEl);
+    card?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
-  function renderProgramaPlanes(programa) {
-    const planesEl = document.getElementById("cap-programa-planes");
+  function renderProgramaPlanes(programa, planesEl) {
     if (!planesEl) return;
     const planes = programa.planes || [];
-    if (!planes.length) {
-      planesEl.innerHTML = '<p class="cap-empty">Este programa no tiene planes. Agregá el primero.</p>';
-      return;
-    }
     const allCursos = window.capCursosCache || [];
-    planesEl.innerHTML = planes.map((plan) => {
+    const planesHtml = planes.length ? planes.map((plan) => {
       const usados = new Set((plan.cursos || []).map((c) => c.curso_id));
       const disponibles = allCursos.filter((c) => !usados.has(c.id));
       const cursosHtml = (plan.cursos || []).map((c, i) => {
@@ -5446,10 +5606,38 @@
           <button type="button" class="cap-btn cap-btn--primary" data-add-plan-curso="${plan.id}"><i class="bi bi-plus-lg"></i></button>
         </div>
       </section>`;
-    }).join("");
+    }).join("") : '<p class="cap-empty">Este programa no tiene planes. Agregá el primero abajo.</p>';
+
+    const planSelectId = `cap-detalle-plan-select-${programa.id}`;
+    const planQuickId = `cap-detalle-plan-quick-${programa.id}`;
+    const planQuickNombreId = `cap-detalle-plan-quick-nombre-${programa.id}`;
+
+    planesEl.innerHTML = `${planesHtml}
+      <div class="cap-prog-add-plan-row">
+        <label class="cap-label" for="${planSelectId}">Agregar plan</label>
+        <div class="cap-input-group">
+          <select class="cap-input" id="${planSelectId}" aria-label="Seleccionar plan">
+            <option value="">— Seleccionar plan —</option>
+          </select>
+          <button type="button" class="cap-btn cap-btn--icon" data-detalle-plan-add title="Agregar plan"><i class="bi bi-plus-lg"></i></button>
+        </div>
+        <div class="cap-quick-form cap-hidden" id="${planQuickId}">
+          <p class="cap-quick-form-title">Nuevo plan</p>
+          <input class="cap-input" id="${planQuickNombreId}" placeholder="Ej. Seguridad, Técnico, Liderazgo" maxlength="150">
+          <div class="cap-form-actions">
+            <button type="button" class="cap-btn cap-btn--ghost" data-detalle-plan-quick-cancel>Cancelar</button>
+            <button type="button" class="cap-btn cap-btn--primary" data-detalle-plan-quick-save>Agregar plan</button>
+          </div>
+        </div>
+      </div>`;
+
+    loadProgPlanCatalog()
+      .then(() => fillDetallePlanSelect(planes, planSelectId))
+      .catch(console.error);
 
     planesEl.querySelectorAll("[data-add-plan-curso]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
+      btn.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
         const planId = Number(btn.dataset.addPlanCurso);
         const sel = planesEl.querySelector(`[data-plan-curso-select="${planId}"]`);
         const cursoId = Number(sel?.value || 0);
@@ -5463,7 +5651,8 @@
       });
     });
     planesEl.querySelectorAll("[data-del-plan-curso]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
+      btn.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
         if (!confirm("¿Quitar este curso del plan?")) return;
         try {
           await deleteJson(`${API}/plan-cursos/${btn.dataset.delPlanCurso}`);
@@ -5474,7 +5663,8 @@
       });
     });
     planesEl.querySelectorAll("[data-del-plan]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
+      btn.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
         if (!confirm("¿Eliminar este plan y sus cursos?")) return;
         try {
           await deleteJson(`${API}/planes/${btn.dataset.delPlan}`);
@@ -5483,6 +5673,59 @@
           alert(err.message);
         }
       });
+    });
+
+    async function agregarPlanDetalle(nombre) {
+      const name = (nombre || "").trim();
+      if (!name || !programaSeleccionadoId) return;
+      await postJson(`${API}/programas/${programaSeleccionadoId}/planes`, { nombre: name });
+      await selectPrograma(programaSeleccionadoId);
+    }
+
+    planesEl.querySelector("[data-detalle-plan-add]")?.addEventListener("click", async (ev) => {
+      ev.stopPropagation();
+      const sel = document.getElementById(planSelectId);
+      const val = sel?.value || "";
+      if (val === "__nuevo__") {
+        togglePanel(planQuickId, true);
+        document.getElementById(planQuickNombreId)?.focus();
+        return;
+      }
+      if (!val) return;
+      try {
+        await agregarPlanDetalle(val);
+        togglePanel(planQuickId, false);
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+    document.getElementById(planSelectId)?.addEventListener("change", () => {
+      const val = document.getElementById(planSelectId)?.value;
+      if (val === "__nuevo__") {
+        togglePanel(planQuickId, true);
+        document.getElementById(planQuickNombreId)?.focus();
+      }
+    });
+    planesEl.querySelector("[data-detalle-plan-quick-cancel]")?.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      togglePanel(planQuickId, false);
+      const sel = document.getElementById(planSelectId);
+      if (sel) sel.value = "";
+      const inp = document.getElementById(planQuickNombreId);
+      if (inp) inp.value = "";
+    });
+    planesEl.querySelector("[data-detalle-plan-quick-save]")?.addEventListener("click", async (ev) => {
+      ev.stopPropagation();
+      const nombre = document.getElementById(planQuickNombreId)?.value.trim();
+      if (!nombre) return;
+      try {
+        await agregarPlanDetalle(nombre);
+        togglePanel(planQuickId, false);
+        const inp = document.getElementById(planQuickNombreId);
+        if (inp) inp.value = "";
+      } catch (err) {
+        alert(err.message);
+      }
     });
   }
 
@@ -5524,6 +5767,8 @@
     renderPuestosChecks("cap-prog-puestos", (programa?.puestos || []).map((p) => p.id));
     document.getElementById("cap-programa-submit").textContent = programa ? "Guardar cambios" : "Crear programa";
     togglePanel("cap-prog-empresa-quick", false);
+    togglePanel("cap-prog-plan-quick", false);
+    resetProgPlanesDraft(programa);
     loadProgEmpresas()
       .then(() => {
         const sel = document.getElementById("cap-prog-empresa");
@@ -5585,34 +5830,91 @@
       }
     });
     document.getElementById("cap-prog-filtro-tipo")?.addEventListener("change", () => {
+      collapsePrograma();
       loadProgramas().catch(console.error);
     });
-    document.getElementById("cap-btn-editar-programa")?.addEventListener("click", async () => {
-      if (!programaSeleccionadoId) return;
-      const data = await fetchJson(`${API}/programas/${programaSeleccionadoId}`);
-      openProgramaForm(data.programa);
-    });
-    document.getElementById("cap-btn-agregar-plan")?.addEventListener("click", async () => {
-      if (!programaSeleccionadoId) return;
-      const nombre = prompt("Nombre del plan (ej. Seguridad, Técnico, Liderazgo):");
-      if (!nombre || !nombre.trim()) return;
-      try {
-        await postJson(`${API}/programas/${programaSeleccionadoId}/planes`, { nombre: nombre.trim() });
-        await selectPrograma(programaSeleccionadoId);
-      } catch (err) {
-        alert(err.message);
+    document.getElementById("cap-programas-grid")?.addEventListener("click", async (ev) => {
+      const editBtn = ev.target.closest("[data-prog-edit]");
+      if (editBtn) {
+        ev.stopPropagation();
+        const id = Number(editBtn.dataset.progEdit);
+        const data = await fetchJson(`${API}/programas/${id}`);
+        openProgramaForm(data.programa);
+        return;
+      }
+      const guardarBtn = ev.target.closest("[data-prog-guardar-puestos]");
+      if (guardarBtn) {
+        ev.stopPropagation();
+        const id = Number(guardarBtn.dataset.progGuardarPuestos);
+        setFormError(`cap-programa-puestos-error-${id}`, "");
+        try {
+          await putJson(`${API}/programas/${id}`, {
+            puesto_ids: selectedPuestoIds(`cap-programa-puestos-detalle-${id}`),
+          });
+          await selectPrograma(id);
+        } catch (err) {
+          setFormError(`cap-programa-puestos-error-${id}`, err.message);
+        }
+        return;
+      }
+      const toggleBtn = ev.target.closest("[data-prog-toggle]");
+      if (toggleBtn) {
+        ev.stopPropagation();
+        togglePrograma(Number(toggleBtn.dataset.progToggle)).catch(console.error);
+        return;
+      }
+      const summary = ev.target.closest(".cap-prog-card-summary");
+      if (summary && !ev.target.closest("button, input, select, textarea, a, label")) {
+        const article = summary.closest("[data-programa-id]");
+        if (article) togglePrograma(Number(article.dataset.programaId)).catch(console.error);
       }
     });
-    document.getElementById("cap-btn-guardar-puestos")?.addEventListener("click", async () => {
-      if (!programaSeleccionadoId) return;
-      setFormError("cap-programa-puestos-error", "");
-      try {
-        await putJson(`${API}/programas/${programaSeleccionadoId}`, {
-          puesto_ids: selectedPuestoIds("cap-programa-puestos-detalle"),
-        });
-        await selectPrograma(programaSeleccionadoId);
-      } catch (err) {
-        setFormError("cap-programa-puestos-error", err.message);
+    document.getElementById("cap-programas-grid")?.addEventListener("keydown", (ev) => {
+      if (ev.key !== "Enter" && ev.key !== " ") return;
+      const summary = ev.target.closest(".cap-prog-card-summary");
+      if (!summary) return;
+      ev.preventDefault();
+      const article = summary.closest("[data-programa-id]");
+      if (article) togglePrograma(Number(article.dataset.programaId)).catch(console.error);
+    });
+    document.getElementById("cap-prog-plan-add")?.addEventListener("click", () => {
+      const sel = document.getElementById("cap-prog-plan-select");
+      const val = sel?.value || "";
+      if (val === "__nuevo__") {
+        togglePanel("cap-prog-plan-quick", true);
+        document.getElementById("cap-prog-plan-quick-nombre")?.focus();
+        return;
+      }
+      if (!val) {
+        togglePanel("cap-prog-plan-quick", true);
+        document.getElementById("cap-prog-plan-quick-nombre")?.focus();
+        return;
+      }
+      addProgPlanDraft(val);
+      if (sel) sel.value = "";
+    });
+    document.getElementById("cap-prog-plan-select")?.addEventListener("change", () => {
+      const val = document.getElementById("cap-prog-plan-select")?.value;
+      if (val === "__nuevo__") {
+        togglePanel("cap-prog-plan-quick", true);
+        document.getElementById("cap-prog-plan-quick-nombre")?.focus();
+      }
+    });
+    document.getElementById("cap-prog-plan-quick-cancel")?.addEventListener("click", () => {
+      togglePanel("cap-prog-plan-quick", false);
+      const sel = document.getElementById("cap-prog-plan-select");
+      if (sel) sel.value = "";
+      const inp = document.getElementById("cap-prog-plan-quick-nombre");
+      if (inp) inp.value = "";
+    });
+    document.getElementById("cap-prog-plan-quick-save")?.addEventListener("click", () => {
+      const nombre = document.getElementById("cap-prog-plan-quick-nombre")?.value.trim();
+      if (!nombre) return;
+      if (addProgPlanDraft(nombre)) {
+        togglePanel("cap-prog-plan-quick", false);
+        document.getElementById("cap-prog-plan-quick-nombre").value = "";
+        const sel = document.getElementById("cap-prog-plan-select");
+        if (sel) sel.value = "";
       }
     });
     document.getElementById("cap-programa-form")?.addEventListener("submit", async (e) => {
@@ -5628,6 +5930,15 @@
       if (body.tipo === "interno") {
         delete body.empresa_capacitadora_id;
       }
+      if (!progPlanesDraft.length) {
+        setFormError("cap-programa-form-error", "Agregá al menos un plan al programa");
+        return;
+      }
+      body.planes = progPlanesDraft.map((p, i) => ({
+        ...(p.id ? { id: p.id } : {}),
+        nombre: p.nombre,
+        orden: i + 1,
+      }));
       const id = body.id ? Number(body.id) : null;
       delete body.id;
       try {
@@ -5636,8 +5947,13 @@
           : await postJson(`${API}/programas`, body);
         togglePanel("cap-programa-form-panel", false);
         e.target.reset();
+        progPlanesDraft = [];
         await loadProgramas();
-        if (data.programa?.id) await selectPrograma(data.programa.id);
+        if (id && data.programa?.id) {
+          await selectPrograma(data.programa.id);
+        } else {
+          collapsePrograma();
+        }
       } catch (err) {
         setFormError("cap-programa-form-error", err.message);
       }

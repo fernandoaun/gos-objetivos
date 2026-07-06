@@ -366,6 +366,30 @@
                 </div>
               </div>
             </div>
+            <div class="cap-form-row" id="cap-prog-planes-wrap">
+              <div>
+                <label class="cap-label" for="cap-prog-plan-select">Planes *</label>
+                <ul class="cap-prog-planes-list" id="cap-prog-planes-list">
+                  <li class="cap-prog-planes-empty cap-muted">Agregá al menos un plan con el selector de abajo.</li>
+                </ul>
+                <div class="cap-input-group cap-mt">
+                  <select class="cap-input" id="cap-prog-plan-select" aria-label="Seleccionar plan">
+                    <option value="">— Seleccionar plan —</option>
+                  </select>
+                  <button type="button" class="cap-btn cap-btn--icon" id="cap-prog-plan-add" title="Agregar plan a la lista">
+                    <i class="bi bi-plus-lg"></i>
+                  </button>
+                </div>
+                <div class="cap-quick-form cap-hidden" id="cap-prog-plan-quick">
+                  <p class="cap-quick-form-title">Nuevo plan</p>
+                  <input class="cap-input" id="cap-prog-plan-quick-nombre" placeholder="Ej. Seguridad, Técnico, Liderazgo" maxlength="150">
+                  <div class="cap-form-actions">
+                    <button type="button" class="cap-btn cap-btn--ghost" id="cap-prog-plan-quick-cancel">Cancelar</button>
+                    <button type="button" class="cap-btn cap-btn--primary" id="cap-prog-plan-quick-save">Agregar plan</button>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div class="cap-form-row cap-form-row--2">
               <div>
                 <label class="cap-label" for="cap-prog-codigo">Código</label>
@@ -390,24 +414,9 @@
           </form>
         </div>
 
-        <div class="cap-cards-grid" id="cap-programas-cards">
-          <div class="cap-loading">Cargando...</div>
-        </div>
-
-        <div id="cap-programa-detalle" class="cap-hidden cap-mt">
-          <div class="cap-widget-head cap-widget-head--split cap-mb">
-            <h3 class="cap-subtitle" id="cap-programa-detalle-title">Detalle del programa</h3>
-            <div class="cap-toolbar-actions">
-              <button type="button" class="cap-btn cap-btn--ghost cap-btn--sm" id="cap-btn-editar-programa"><i class="bi bi-pencil"></i> Editar</button>
-              <button type="button" class="cap-btn cap-btn--primary cap-btn--sm" id="cap-btn-agregar-plan"><i class="bi bi-plus-lg"></i> Agregar plan</button>
-            </div>
-          </div>
-          <div id="cap-programa-planes"></div>
-          <div class="cap-form-panel cap-mt">
-            <h4 class="cap-subtitle">Puestos que aplican</h4>
-            <div class="cap-check-grid" id="cap-programa-puestos-detalle"></div>
-            <p class="cap-form-hint cap-form-hint--error" id="cap-programa-puestos-error"></p>
-            <button type="button" class="cap-btn cap-btn--primary cap-btn--sm cap-mt" id="cap-btn-guardar-puestos">Guardar puestos</button>
+        <div class="cap-programas-grid-wrap">
+          <div class="cap-programas-grid" id="cap-programas-grid">
+            <p class="cap-loading">Cargando...</p>
           </div>
         </div>
 
