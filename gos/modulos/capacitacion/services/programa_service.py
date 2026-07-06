@@ -89,6 +89,39 @@ def obtener_programa(empresa_id: int, programa_id: int) -> dict:
     return _programa_dict(programa, detalle=True)
 
 
+def _puesto_ids_programa(programa: ProgramaCapacitacion) -> set[int]:
+    ids: set[int] = set()
+    for pp in programa.puestos_asignados.all():
+        if pp.puesto_id:
+            ids.add(pp.puesto_id)
+    if programa.puesto_id:
+        ids.add(programa.puesto_id)
+    return ids
+
+
+def listar_participantes_cronograma(
+    empresa_id: int,
+    programa_id: int,
+    puesto_ids: list[int] | None = None,
+) -> list[dict]:
+    """Personas activas de los puestos convocados, validados contra el programa."""
+    from gos.modulos.capacitacion.services.catalogo_service import listar_participantes_por_puestos
+
+    programa = ProgramaCapacitacion.query.filter_by(
+        id=programa_id, empresa_id=empresa_id, activo=True
+    ).first()
+    if not programa:
+        raise ValueError("Programa no encontrado")
+
+    prog_puesto_ids = _puesto_ids_programa(programa)
+    if puesto_ids:
+        filtro = [pid for pid in puesto_ids if pid in prog_puesto_ids]
+    else:
+        filtro = list(prog_puesto_ids)
+
+    return listar_participantes_por_puestos(empresa_id, filtro)
+
+
 def crear_programa(empresa_id: int, data: dict) -> dict:
     nombre = (data.get("nombre") or "").strip()
     if not nombre:

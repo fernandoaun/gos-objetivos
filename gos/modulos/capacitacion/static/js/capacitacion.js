@@ -2963,6 +2963,25 @@
     return resolveEncPrograma(nombre, tipo, null);
   }
 
+  async function ensureEncProgramaDetalle() {
+    const programa = getEncProgramaActual();
+    if (!programa?.id) return null;
+    if (programa.puestos?.length) return programa;
+    try {
+      const data = await fetchJson(`${API}/programas/${programa.id}`);
+      const detalle = data.programa;
+      if (detalle) {
+        encProgramasCache = encProgramasCache.map((p) =>
+          (p.id === detalle.id ? { ...p, ...detalle } : p)
+        );
+        return detalle;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return programa;
+  }
+
   function encPlanesDelPrograma(programa) {
     if (!programa) return [];
     const planes = programa.planes || [];
@@ -3141,7 +3160,7 @@
 
   async function onEncPlanChange() {
     await loadEncCursos();
-    const programa = getEncProgramaActual();
+    const programa = await ensureEncProgramaDetalle();
     if (programa?.puestos?.length && encPuestosSeleccionados.size === 0) {
       encPuestosSeleccionados = new Set(
         programa.puestos.map((p) => normPuestoId(p.id)).filter((id) => id !== null)
@@ -3241,13 +3260,29 @@
 
     if (!el) return;
 
+    const planId = document.getElementById("cap-enc-plan")?.value;
+
+    if (!planId && !todas) {
+
+      encPersonasCache = [];
+
+      el.innerHTML = '<p class="cap-empty">Seleccioná un plan (paso 4) para continuar</p>';
+
+      if (countEl) countEl.textContent = "";
+
+      return;
+
+    }
+
+    const programa = await ensureEncProgramaDetalle();
+
     const puestoIds = getEncPuestosSeleccionados();
 
     if (!todas && !puestoIds.length) {
 
       encPersonasCache = [];
 
-      el.innerHTML = '<p class="cap-empty">Seleccioná un plan para ver las personas de los puestos del programa</p>';
+      el.innerHTML = '<p class="cap-empty">Seleccioná al menos un puesto en el paso 5</p>';
 
       if (countEl) countEl.textContent = "";
 
@@ -3261,7 +3296,11 @@
 
       ? `${API}/participantes?`
 
-      : `${API}/participantes?puesto_ids=${puestoIds.join(",")}`;
+      : programa?.id
+
+        ? `${API}/programas/${programa.id}/participantes?puesto_ids=${puestoIds.join(",")}`
+
+        : `${API}/participantes?puesto_ids=${puestoIds.join(",")}`;
 
     const data = await fetchJson(url);
 
@@ -3325,7 +3364,7 @@
 
         <input type="checkbox" value="${p.id}" data-enc-persona ${selected ? (selected.has(p.id) || selected.has(normPuestoId(p.id)) ? "checked" : "") : "checked"}>
 
-        <span>${p.nombre}${p.legajo ? ` <span class="cap-muted">(${p.legajo})</span>` : ""}${p.puesto_nombre ? "" : ' <span class="cap-muted">(sin puesto)</span>'}</span>
+        <span>${escapeHtml(p.nombre)}${p.legajo ? ` <span class="cap-muted">(${escapeHtml(p.legajo)})</span>` : ""}${p.puesto_nombre ? ` <span class="cap-muted">— ${escapeHtml(p.puesto_nombre)}</span>` : ""}</span>
 
       </label>`).join("")}`;
 

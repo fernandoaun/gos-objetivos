@@ -56,6 +56,7 @@ from gos.modulos.capacitacion.services import (
     listar_empresas_capacitadoras,
     listar_instructores,
     listar_programas,
+    listar_participantes_cronograma,
     listar_participantes_por_puestos,
     listar_puestos,
     listar_centros,
@@ -912,6 +913,21 @@ def programa_detalle(programa_id: int):
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify({"programa": item})
+
+
+@bp.route("/programas/<int:programa_id>/participantes", methods=["GET"])
+@login_required
+def programa_participantes(programa_id: int):
+    puesto_ids = _parse_id_list(request.args.get("puesto_ids"))
+    try:
+        items = listar_participantes_cronograma(
+            current_user.empresa_id,
+            programa_id,
+            puesto_ids or None,
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
+    return jsonify({"participantes": items})
 
 
 @bp.route("/programas/<int:programa_id>/planes", methods=["POST"])
