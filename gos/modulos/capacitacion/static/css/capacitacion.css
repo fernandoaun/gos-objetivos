@@ -1695,34 +1695,39 @@
   }
 }
 
-.cap-prog-planes-list {
-  list-style: none;
-  margin: 0 0 0.5rem;
-  padding: 0;
-  border: 1px solid var(--cap-border);
-  border-radius: 6px;
-  background: #fff;
-  min-height: 2.5rem;
-}
-
-.cap-prog-planes-empty {
-  padding: 0.65rem 0.85rem;
-  font-size: 0.82rem;
-  margin: 0;
-}
-
-.cap-prog-plan-item {
+.cap-prog-planes-tags {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.45rem 0.65rem;
-  border-bottom: 1px solid var(--cap-border);
-  font-size: 0.88rem;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
 }
 
-.cap-prog-plan-item:last-child {
-  border-bottom: 0;
+.cap-prog-plan-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  background: #eef2f6;
+  border-radius: 4px;
+  font-size: 0.82rem;
+  color: var(--cap-text);
+}
+
+.cap-prog-plan-tag-rm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  color: var(--cap-muted);
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+.cap-prog-plan-tag-rm:hover {
+  color: var(--cap-danger, #c0392b);
 }
 
 .cap-prog-add-plan-row {

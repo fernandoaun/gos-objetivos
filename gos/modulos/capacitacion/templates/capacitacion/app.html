@@ -334,8 +334,23 @@
             <input type="hidden" id="cap-prog-id" name="id" value="">
             <div class="cap-form-row cap-form-row--2">
               <div>
-                <label class="cap-label" for="cap-prog-nombre">Nombre *</label>
-                <input class="cap-input" id="cap-prog-nombre" name="nombre" required maxlength="200" placeholder="Ej. Formación Operativa">
+                <label class="cap-label" for="cap-prog-nombre-select">Nombre *</label>
+                <div class="cap-input-group">
+                  <select class="cap-input" id="cap-prog-nombre-select" name="nombre" required aria-label="Seleccionar nombre de programa">
+                    <option value="">— Seleccionar programa —</option>
+                  </select>
+                  <button type="button" class="cap-btn cap-btn--icon" id="cap-prog-nombre-add" title="Agregar nombre de programa">
+                    <i class="bi bi-plus-lg"></i>
+                  </button>
+                </div>
+                <div class="cap-quick-form cap-hidden" id="cap-prog-nombre-quick">
+                  <p class="cap-quick-form-title">Nuevo nombre de programa</p>
+                  <input class="cap-input" id="cap-prog-nombre-quick-nombre" placeholder="Ej. Formación Operativa" maxlength="200">
+                  <div class="cap-form-actions">
+                    <button type="button" class="cap-btn cap-btn--ghost" id="cap-prog-nombre-quick-cancel">Cancelar</button>
+                    <button type="button" class="cap-btn cap-btn--primary" id="cap-prog-nombre-quick-save">Agregar</button>
+                  </div>
+                </div>
               </div>
               <div>
                 <label class="cap-label" for="cap-prog-tipo">Tipo *</label>
@@ -369,10 +384,7 @@
             <div class="cap-form-row" id="cap-prog-planes-wrap">
               <div>
                 <label class="cap-label" for="cap-prog-plan-select">Planes *</label>
-                <ul class="cap-prog-planes-list" id="cap-prog-planes-list">
-                  <li class="cap-prog-planes-empty cap-muted">Agregá al menos un plan con el selector de abajo.</li>
-                </ul>
-                <div class="cap-input-group cap-mt">
+                <div class="cap-input-group">
                   <select class="cap-input" id="cap-prog-plan-select" aria-label="Seleccionar plan">
                     <option value="">— Seleccionar plan —</option>
                   </select>
@@ -380,6 +392,7 @@
                     <i class="bi bi-plus-lg"></i>
                   </button>
                 </div>
+                <div class="cap-prog-planes-tags cap-hidden" id="cap-prog-planes-tags"></div>
                 <div class="cap-quick-form cap-hidden" id="cap-prog-plan-quick">
                   <p class="cap-quick-form-title">Nuevo plan</p>
                   <input class="cap-input" id="cap-prog-plan-quick-nombre" placeholder="Ej. Seguridad, Técnico, Liderazgo" maxlength="150">

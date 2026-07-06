@@ -2437,6 +2437,7 @@
   let programasCache = [];
   let progPlanesDraft = [];
   let progPlanCatalogCache = [];
+  let progNombreCatalogCache = [];
 
   function refreshProgramaCursoSelect() {
 
@@ -5317,6 +5318,56 @@
 
 
 
+  async function loadProgNombreCatalog() {
+    const data = await fetchJson(`${API}/programas`);
+    const seen = new Map();
+    (data.programas || []).forEach((p) => {
+      const nombre = (p.nombre || "").trim();
+      if (!nombre) return;
+      const key = nombre.toLowerCase();
+      if (!seen.has(key)) seen.set(key, nombre);
+    });
+    progNombreCatalogCache = Array.from(seen.values()).sort((a, b) => a.localeCompare(b, "es"));
+    return progNombreCatalogCache;
+  }
+
+  function fillProgNombreSelect(currentNombre = "") {
+    const sel = document.getElementById("cap-prog-nombre-select");
+    if (!sel) return;
+    const names = [...progNombreCatalogCache];
+    const cur = (currentNombre || "").trim();
+    if (cur && !names.some((n) => n.toLowerCase() === cur.toLowerCase())) {
+      names.push(cur);
+      names.sort((a, b) => a.localeCompare(b, "es"));
+    }
+    sel.innerHTML = '<option value="">— Seleccionar programa —</option>';
+    names.forEach((nombre) => {
+      const opt = document.createElement("option");
+      opt.value = nombre;
+      opt.textContent = nombre;
+      sel.appendChild(opt);
+    });
+    sel.innerHTML += '<option value="__nuevo__">+ Crear nombre nuevo…</option>';
+    if (cur) sel.value = cur;
+  }
+
+  function appendProgNombreOption(nombre) {
+    const sel = document.getElementById("cap-prog-nombre-select");
+    if (!sel) return;
+    const name = (nombre || "").trim();
+    if (!name) return;
+    const exists = Array.from(sel.options).some((o) => o.value.toLowerCase() === name.toLowerCase());
+    if (!exists) {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      const nuevoOpt = sel.querySelector('option[value="__nuevo__"]');
+      if (nuevoOpt) sel.insertBefore(opt, nuevoOpt);
+      else sel.appendChild(opt);
+    }
+    sel.value = name;
+  }
+
   async function loadProgPlanCatalog() {
     const data = await fetchJson(`${API}/planes`);
     const seen = new Map();
@@ -5365,18 +5416,20 @@
   }
 
   function renderProgPlanesDraft() {
-    const ul = document.getElementById("cap-prog-planes-list");
-    if (!ul) return;
+    const tags = document.getElementById("cap-prog-planes-tags");
+    if (!tags) return;
     if (!progPlanesDraft.length) {
-      ul.innerHTML = '<li class="cap-prog-planes-empty cap-muted">Agregá al menos un plan con el selector de abajo.</li>';
+      tags.innerHTML = "";
+      tags.classList.add("cap-hidden");
       return;
     }
-    ul.innerHTML = progPlanesDraft.map((p, i) => `
-      <li class="cap-prog-plan-item">
+    tags.classList.remove("cap-hidden");
+    tags.innerHTML = progPlanesDraft.map((p, i) => `
+      <span class="cap-prog-plan-tag">
         <span>${escapeHtml(p.nombre)}</span>
-        <button type="button" class="cap-btn cap-btn--sm cap-btn--danger" data-prog-plan-rm="${i}" title="Quitar"><i class="bi bi-trash"></i></button>
-      </li>`).join("");
-    ul.querySelectorAll("[data-prog-plan-rm]").forEach((btn) => {
+        <button type="button" class="cap-prog-plan-tag-rm" data-prog-plan-rm="${i}" title="Quitar"><i class="bi bi-x-lg"></i></button>
+      </span>`).join("");
+    tags.querySelectorAll("[data-prog-plan-rm]").forEach((btn) => {
       btn.addEventListener("click", () => {
         progPlanesDraft.splice(Number(btn.dataset.progPlanRm), 1);
         renderProgPlanesDraft();
@@ -5779,7 +5832,6 @@
     if (form) form.reset();
     setFormError("cap-programa-form-error", "");
     document.getElementById("cap-prog-id").value = programa?.id || "";
-    document.getElementById("cap-prog-nombre").value = programa?.nombre || "";
     document.getElementById("cap-prog-codigo").value = programa?.codigo || "";
     document.getElementById("cap-prog-descripcion").value = programa?.descripcion || "";
     const tipo = programa?.tipo || "interno";
@@ -5790,19 +5842,21 @@
     document.getElementById("cap-programa-submit").textContent = programa ? "Guardar cambios" : "Crear programa";
     togglePanel("cap-prog-empresa-quick", false);
     togglePanel("cap-prog-plan-quick", false);
+    togglePanel("cap-prog-nombre-quick", false);
     resetProgPlanesDraft(programa);
-    loadProgEmpresas()
-      .then(() => {
+    Promise.all([
+      loadProgNombreCatalog().then(() => fillProgNombreSelect(programa?.nombre || "")),
+      loadProgEmpresas().then(() => {
         const sel = document.getElementById("cap-prog-empresa");
         if (sel && programa?.empresa_capacitadora_id) {
           sel.value = String(programa.empresa_capacitadora_id);
         }
         toggleProgEmpresa();
-      })
-      .catch(console.error);
+      }),
+    ]).catch(console.error);
     togglePanel("cap-programa-form-panel", true);
     toggleProgPlanesSection();
-    document.getElementById("cap-prog-nombre")?.focus();
+    document.getElementById("cap-prog-nombre-select")?.focus();
   }
 
   function bindProgramaForm() {
@@ -5812,9 +5866,35 @@
     document.getElementById("cap-programa-cancel")?.addEventListener("click", () => {
       togglePanel("cap-programa-form-panel", false);
       togglePanel("cap-prog-empresa-quick", false);
+      togglePanel("cap-prog-nombre-quick", false);
     });
     document.querySelectorAll('#cap-programa-form input[name="tipo"]').forEach((inp) => {
       inp.addEventListener("change", toggleProgEmpresa);
+    });
+    document.getElementById("cap-prog-nombre-add")?.addEventListener("click", () => {
+      togglePanel("cap-prog-nombre-quick", true);
+      document.getElementById("cap-prog-nombre-quick-nombre")?.focus();
+    });
+    document.getElementById("cap-prog-nombre-select")?.addEventListener("change", () => {
+      const val = document.getElementById("cap-prog-nombre-select")?.value;
+      if (val === "__nuevo__") {
+        togglePanel("cap-prog-nombre-quick", true);
+        document.getElementById("cap-prog-nombre-quick-nombre")?.focus();
+      }
+    });
+    document.getElementById("cap-prog-nombre-quick-cancel")?.addEventListener("click", () => {
+      togglePanel("cap-prog-nombre-quick", false);
+      const sel = document.getElementById("cap-prog-nombre-select");
+      if (sel?.value === "__nuevo__") sel.value = "";
+      const inp = document.getElementById("cap-prog-nombre-quick-nombre");
+      if (inp) inp.value = "";
+    });
+    document.getElementById("cap-prog-nombre-quick-save")?.addEventListener("click", () => {
+      const nombre = document.getElementById("cap-prog-nombre-quick-nombre")?.value.trim();
+      if (!nombre) return;
+      appendProgNombreOption(nombre);
+      document.getElementById("cap-prog-nombre-quick-nombre").value = "";
+      togglePanel("cap-prog-nombre-quick", false);
     });
     document.getElementById("cap-prog-empresa-add")?.addEventListener("click", () => {
       togglePanel("cap-prog-empresa-quick", true);
@@ -5945,6 +6025,10 @@
       if (body.tipo === "interno") {
         delete body.empresa_capacitadora_id;
       }
+      if (!body.nombre || body.nombre === "__nuevo__") {
+        setFormError("cap-programa-form-error", "Seleccioná o agregá el nombre del programa");
+        return;
+      }
       if (!progPlanesDraft.length) {
         setFormError("cap-programa-form-error", "Agregá al menos un plan al programa");
         return;
@@ -5974,7 +6058,7 @@
           toggleProgPlanesSection();
           setFormError("cap-programa-form-error", "");
           collapsePrograma();
-          document.getElementById("cap-prog-nombre")?.focus();
+          document.getElementById("cap-prog-nombre-select")?.focus();
         }
       } catch (err) {
         setFormError("cap-programa-form-error", err.message);
