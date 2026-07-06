@@ -5579,8 +5579,10 @@
             <p class="cap-muted">${escapeHtml(programa.nombre)}</p>
           </div>
           <div class="cap-toolbar-actions">
-            ${editable ? "" : `<button type="button" class="cap-btn cap-btn--ghost cap-btn--sm" data-prog-edit="${programa.id}"><i class="bi bi-pencil"></i> Editar</button>`}
-            <button type="button" class="cap-btn cap-btn--primary cap-btn--sm" data-prog-add-plan><i class="bi bi-plus-lg"></i> Agregar plan</button>
+            ${editable
+              ? `<button type="button" class="cap-btn cap-btn--ghost cap-btn--sm" data-prog-edit-done="${programa.id}"><i class="bi bi-check-lg"></i> Listo</button>
+                 <button type="button" class="cap-btn cap-btn--primary cap-btn--sm" data-prog-add-plan><i class="bi bi-plus-lg"></i> Agregar plan</button>`
+              : `<button type="button" class="cap-btn cap-btn--ghost cap-btn--sm" data-prog-edit="${programa.id}"><i class="bi bi-pencil"></i> Editar</button>`}
           </div>
         </div>
         ${programa.descripcion ? `<p class="cap-prog-detail-desc">${escapeHtml(programa.descripcion)}</p>` : ""}
@@ -5600,10 +5602,6 @@
     renderProgramaPlanes(programa, planesWrap, editable);
     containerEl.querySelector("[data-prog-add-plan]")?.addEventListener("click", (ev) => {
       ev.stopPropagation();
-      if (!programaDetalleEditable) {
-        programaDetalleEditable = true;
-        refreshProgramaDetalle();
-      }
       const sel = containerEl.querySelector(`#cap-detalle-plan-select-${programa.id}`);
       sel?.focus();
       sel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -5985,10 +5983,23 @@
         ev.stopPropagation();
         const id = Number(editBtn.dataset.progEdit);
         programaDetalleEditable = true;
+        if (!(window.capCursosCache || []).length) {
+          try {
+            const cursosData = await fetchJson(`${API}/cursos`);
+            window.capCursosCache = cursosData.cursos || [];
+          } catch (e) { console.error(e); }
+        }
         const data = await fetchJson(`${API}/programas/${id}`);
         programasCache = programasCache.map((p) => (p.id === data.programa.id ? { ...p, ...data.programa } : p));
         refreshProgramaDetalle();
-        openProgramaForm(data.programa);
+        return;
+      }
+      const editDoneBtn = ev.target.closest("[data-prog-edit-done]");
+      if (editDoneBtn) {
+        ev.stopPropagation();
+        programaDetalleEditable = false;
+        togglePanel("cap-programa-form-panel", false);
+        refreshProgramaDetalle();
         return;
       }
       const guardarBtn = ev.target.closest("[data-prog-guardar-puestos]");
