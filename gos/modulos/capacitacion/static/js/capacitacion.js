@@ -1139,8 +1139,6 @@
 
     fillSelect("cap-puesto-quick-sector", metaSectores, "— Sin sector —");
 
-    fillSelect("cap-enc-puesto-quick-sector", metaSectores, "— Sin sector —");
-
   }
 
 
@@ -2907,23 +2905,7 @@
 
     if (!items.length) {
 
-      el.innerHTML = `
-
-        <p class="cap-empty">No hay puestos cargados</p>
-
-        <button type="button" class="cap-btn cap-btn--sm cap-btn--ghost" id="cap-enc-puesto-add">Agregar puesto</button>`;
-
-      document.getElementById("cap-enc-puesto-add")?.addEventListener("click", () => {
-
-        togglePanel("cap-enc-instructor-quick", false);
-
-        togglePanel("cap-enc-empresa-quick", false);
-
-        togglePanel("cap-enc-puesto-quick", true);
-
-        document.getElementById("cap-enc-puesto-quick-codigo")?.focus();
-
-      });
+      el.innerHTML = `<p class="cap-empty">No hay puestos cargados</p>`;
 
       return;
 
@@ -2939,9 +2921,7 @@
 
         <span>${p.codigo} — ${p.nombre}</span>
 
-      </label>`).join("")}
-
-      <button type="button" class="cap-btn cap-btn--sm cap-btn--ghost cap-check-grid__action" id="cap-enc-puesto-add">+ Agregar puesto</button>`;
+      </label>`).join("")}`;
 
     el.querySelectorAll("[data-enc-puesto]").forEach((cb) => {
 
@@ -2958,18 +2938,6 @@
         onEncPuestosChange().catch(console.error);
 
       });
-
-    });
-
-    document.getElementById("cap-enc-puesto-add")?.addEventListener("click", () => {
-
-      togglePanel("cap-enc-instructor-quick", false);
-
-      togglePanel("cap-enc-empresa-quick", false);
-
-      togglePanel("cap-enc-puesto-quick", true);
-
-      document.getElementById("cap-enc-puesto-quick-codigo")?.focus();
 
     });
 
@@ -3400,8 +3368,6 @@
 
     togglePanel("cap-enc-instructor-quick", false);
 
-    togglePanel("cap-enc-puesto-quick", false);
-
   }
 
 
@@ -3741,8 +3707,6 @@
 
       togglePanel("cap-enc-instructor-quick", false);
 
-      togglePanel("cap-enc-puesto-quick", false);
-
       togglePanel("cap-enc-empresa-quick", true);
 
       document.getElementById("cap-enc-empresa-quick-nombre")?.focus();
@@ -3753,91 +3717,9 @@
 
       togglePanel("cap-enc-empresa-quick", false);
 
-      togglePanel("cap-enc-puesto-quick", false);
-
       togglePanel("cap-enc-instructor-quick", true);
 
       document.getElementById("cap-enc-instructor-quick-nombre")?.focus();
-
-    });
-
-    document.getElementById("cap-enc-puesto-quick-cancel")?.addEventListener("click", () => togglePanel("cap-enc-puesto-quick", false));
-
-    document.getElementById("cap-enc-puesto-quick-save")?.addEventListener("click", async () => {
-
-      const codigo = document.getElementById("cap-enc-puesto-quick-codigo")?.value.trim();
-
-      const nombre = document.getElementById("cap-enc-puesto-quick-nombre")?.value.trim();
-
-      const sectorId = document.getElementById("cap-enc-puesto-quick-sector")?.value || null;
-
-      if (!codigo || !nombre) {
-
-        setFormError("cap-encuentro-form-error", "Código y nombre del puesto son obligatorios.");
-
-        return;
-
-      }
-
-      try {
-
-        const resolution = await resolveSimilarBeforeCreate({ tipo: "puesto", nombre, codigo });
-
-        if (resolution.action === "cancel") return;
-
-        if (resolution.action === "use") {
-
-          await loadPuestosOptions();
-
-          const puestoId = normPuestoId(resolution.item.id);
-
-          if (puestoId !== null) encPuestosSeleccionados.add(puestoId);
-
-          document.getElementById("cap-enc-puesto-quick-codigo").value = "";
-
-          document.getElementById("cap-enc-puesto-quick-nombre").value = "";
-
-          togglePanel("cap-enc-puesto-quick", false);
-
-          setFormError("cap-encuentro-form-error", "");
-
-          renderEncPuestos();
-
-          await onEncPuestosChange();
-
-          return;
-
-        }
-
-        const payload = { codigo, nombre };
-
-        if (sectorId) payload.sector_id = Number(sectorId);
-
-        const data = await postJson(`${API}/puestos`, payload);
-
-        await loadPuestosOptions();
-
-        const puestoId = normPuestoId(data.puesto?.id);
-
-        if (puestoId !== null) encPuestosSeleccionados.add(puestoId);
-
-        document.getElementById("cap-enc-puesto-quick-codigo").value = "";
-
-        document.getElementById("cap-enc-puesto-quick-nombre").value = "";
-
-        togglePanel("cap-enc-puesto-quick", false);
-
-        setFormError("cap-encuentro-form-error", "");
-
-        renderEncPuestos();
-
-        await onEncPuestosChange();
-
-      } catch (err) {
-
-        setFormError("cap-encuentro-form-error", err.message);
-
-      }
 
     });
 
