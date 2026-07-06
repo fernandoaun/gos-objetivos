@@ -1662,25 +1662,138 @@
     return q;
   }
 
-  function renderMaPills(containerId, items, grupo, labelKey = "nombre", idKey = "id") {
+  const CAP_MS_OPTS = {
+    planes: { allLabel: "Todos los planes", searchable: false },
+    tipos: { allLabel: "Todos los tipos", searchable: false },
+    empresas: { allLabel: "Todas las empresas", searchable: true },
+    personas: { allLabel: "Todas las personas", searchable: true },
+    puestos: { allLabel: "Todos los puestos", searchable: true },
+  };
+
+  let capMultiSelectBound = false;
+
+  function bindCapMultiSelectGlobal() {
+    if (capMultiSelectBound) return;
+    capMultiSelectBound = true;
+    document.addEventListener("mousedown", (e) => {
+      if (e.target.closest(".cap-multi-select")) return;
+      document.querySelectorAll(".cap-multi-panel:not(.cap-hidden)").forEach((panel) => {
+        panel.classList.add("cap-hidden");
+        panel.closest(".cap-multi-select")?.querySelector(".cap-multi-btn")?.setAttribute("aria-expanded", "false");
+      });
+    });
+  }
+
+  function capMsItemLabel(it, labelKey = "nombre") {
+    const label = it[labelKey] || it.nombre || "";
+    const extra = it.legajo ? ` (${it.legajo})` : "";
+    return label + extra;
+  }
+
+  function capMsBtnLabel(items, grupo, selected) {
+    const opts = CAP_MS_OPTS[grupo] || { allLabel: "Todos" };
+    if (!selected.length) return opts.allLabel;
+    if (selected.length === 1) {
+      const sid = String(selected[0]);
+      const it = (items || []).find((i) => String(i.id) === sid);
+      return it ? capMsItemLabel(it) : "1 seleccionado";
+    }
+    return `${selected.length} seleccionados`;
+  }
+
+  function renderCapMultiSelect(containerId, items, grupo, filtros, onChange) {
+    bindCapMultiSelectGlobal();
     const el = document.getElementById(containerId);
     if (!el) return;
-    el.innerHTML = (items || []).map((it) => {
-      const id = it[idKey];
-      const active = maFiltros[grupo].includes(String(id)) || maFiltros[grupo].includes(id);
-      const label = it[labelKey] || it.nombre;
-      const extra = it.legajo ? ` (${it.legajo})` : "";
-      return `<button type="button" class="cap-pill${active ? " active" : ""}" data-grupo="${grupo}" data-id="${id}">${escapeHtml(label)}${escapeHtml(extra)}</button>`;
-    }).join("");
-    el.querySelectorAll(".cap-pill").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const g = btn.dataset.grupo;
-        const id = btn.dataset.id;
-        const idx = maFiltros[g].indexOf(id);
-        if (idx >= 0) maFiltros[g].splice(idx, 1);
-        else maFiltros[g].push(id);
-        loadMatrizAnalitica().catch(console.error);
+    const opts = CAP_MS_OPTS[grupo] || { allLabel: "Todos", searchable: true };
+    const selected = filtros[grupo] || [];
+    const isSelected = (id) => selected.some((s) => String(s) === String(id));
+    const btnLabel = capMsBtnLabel(items, grupo, selected);
+
+    el.innerHTML = `
+      <button type="button" class="cap-multi-btn" aria-expanded="false" aria-haspopup="listbox">
+        <span class="cap-multi-btn-label">${escapeHtml(btnLabel)}</span>
+        <span class="cap-multi-chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="cap-multi-panel cap-hidden" role="listbox">
+        ${opts.searchable ? '<div class="cap-multi-search"><input type="text" class="cap-multi-search-input" placeholder="Buscar..." autocomplete="off"></div>' : ""}
+        <div class="cap-multi-toolbar">
+          <button type="button" class="cap-multi-link" data-action="all">Seleccionar todos</button>
+          <button type="button" class="cap-multi-link" data-action="none">Limpiar</button>
+        </div>
+        <div class="cap-multi-list">
+          ${(items || []).map((it) => {
+            const id = it.id;
+            const checked = isSelected(id);
+            return `<label class="cap-multi-item"><input type="checkbox" value="${escapeHtml(String(id))}"${checked ? " checked" : ""}><span>${escapeHtml(capMsItemLabel(it))}</span></label>`;
+          }).join("") || '<p class="cap-multi-empty">Sin opciones</p>'}
+        </div>
+        <div class="cap-multi-footer"><span class="cap-multi-count">${selected.length} seleccionado(s)</span></div>
+      </div>`;
+
+    const btn = el.querySelector(".cap-multi-btn");
+    const panel = el.querySelector(".cap-multi-panel");
+    const btnLabelEl = el.querySelector(".cap-multi-btn-label");
+    const countEl = el.querySelector(".cap-multi-count");
+
+    const syncFromCheckboxes = () => {
+      filtros[grupo] = [...el.querySelectorAll(".cap-multi-item input:checked")].map((cb) => cb.value);
+      const sel = filtros[grupo];
+      btnLabelEl.textContent = capMsBtnLabel(items, grupo, sel);
+      countEl.textContent = `${sel.length} seleccionado(s)`;
+      onChange();
+    };
+
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const opening = panel.classList.contains("cap-hidden");
+      document.querySelectorAll(".cap-multi-panel:not(.cap-hidden)").forEach((p) => {
+        if (p !== panel) {
+          p.classList.add("cap-hidden");
+          p.closest(".cap-multi-select")?.querySelector(".cap-multi-btn")?.setAttribute("aria-expanded", "false");
+        }
       });
+      panel.classList.toggle("cap-hidden");
+      btn.setAttribute("aria-expanded", String(opening));
+      if (opening) el.querySelector(".cap-multi-search-input")?.focus();
+    });
+
+    panel.querySelectorAll(".cap-multi-link").forEach((link) => {
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (link.dataset.action === "all") {
+          filtros[grupo] = (items || []).map((it) => String(it.id));
+          el.querySelectorAll(".cap-multi-item input").forEach((cb) => { cb.checked = true; });
+        } else {
+          filtros[grupo] = [];
+          el.querySelectorAll(".cap-multi-item input").forEach((cb) => { cb.checked = false; });
+        }
+        btnLabelEl.textContent = capMsBtnLabel(items, grupo, filtros[grupo]);
+        countEl.textContent = `${filtros[grupo].length} seleccionado(s)`;
+        onChange();
+      });
+    });
+
+    el.querySelectorAll(".cap-multi-item input").forEach((cb) => {
+      cb.addEventListener("change", syncFromCheckboxes);
+    });
+
+    const searchInput = el.querySelector(".cap-multi-search-input");
+    if (searchInput) {
+      searchInput.addEventListener("input", () => {
+        const q = searchInput.value.toLowerCase().trim();
+        el.querySelectorAll(".cap-multi-item").forEach((label) => {
+          const text = label.textContent.toLowerCase();
+          label.classList.toggle("cap-hidden", q && !text.includes(q));
+        });
+      });
+      searchInput.addEventListener("click", (e) => e.stopPropagation());
+    }
+  }
+
+  function renderMaPills(containerId, items, grupo) {
+    renderCapMultiSelect(containerId, items, grupo, maFiltros, () => {
+      loadMatrizAnalitica().catch(console.error);
     });
   }
 
@@ -1844,26 +1957,10 @@
     };
   }
 
-  function renderCrPills(containerId, items, grupo, labelKey = "nombre", idKey = "id") {
-    const el = document.getElementById(containerId);
-    if (!el) return;
-    el.innerHTML = (items || []).map((it) => {
-      const id = it[idKey];
-      const active = crFiltros[grupo].includes(String(id)) || crFiltros[grupo].includes(id);
-      const label = it[labelKey] || it.nombre;
-      const extra = it.legajo ? ` (${it.legajo})` : "";
-      return `<button type="button" class="cap-pill${active ? " active" : ""}" data-grupo="${grupo}" data-id="${id}">${escapeHtml(label)}${escapeHtml(extra)}</button>`;
-    }).join("");
-    el.querySelectorAll(".cap-pill").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const g = btn.dataset.grupo;
-        const id = btn.dataset.id;
-        const idx = crFiltros[g].indexOf(id);
-        if (idx >= 0) crFiltros[g].splice(idx, 1);
-        else crFiltros[g].push(id);
-        crResetZoom();
-        loadCronogramaResumen().catch(console.error);
-      });
+  function renderCrPills(containerId, items, grupo) {
+    renderCapMultiSelect(containerId, items, grupo, crFiltros, () => {
+      crResetZoom();
+      loadCronogramaResumen().catch(console.error);
     });
   }
 
@@ -2240,11 +2337,7 @@
         if (sel) sel.value = String(matrizParticipanteId);
       }
     } else {
-      renderMaPills("cap-ma-pills-planes", maFiltrosMeta.planes, "planes");
-      renderMaPills("cap-ma-pills-tipos", maFiltrosMeta.tipos, "tipos");
-      renderMaPills("cap-ma-pills-empresas", maFiltrosMeta.empresas, "empresas");
-      renderMaPills("cap-ma-pills-personas", maFiltrosMeta.personas, "personas");
-      renderMaPills("cap-ma-pills-puestos", maFiltrosMeta.puestos, "puestos");
+      applyMaResumenDimHighlight();
     }
     const anioSel = document.getElementById("cap-ma-anio");
     if (anioSel && !anioSel.options.length) {
@@ -2274,6 +2367,13 @@
       });
       document.querySelectorAll(".cap-ma-vista").forEach((v) => v.classList.add("cap-hidden"));
       document.getElementById("cap-ma-vista-persona")?.classList.remove("cap-hidden");
+    }
+    if (maFiltrosMeta) {
+      renderMaPills("cap-ma-pills-planes", maFiltrosMeta.planes, "planes");
+      renderMaPills("cap-ma-pills-tipos", maFiltrosMeta.tipos, "tipos");
+      renderMaPills("cap-ma-pills-empresas", maFiltrosMeta.empresas, "empresas");
+      renderMaPills("cap-ma-pills-personas", maFiltrosMeta.personas, "personas");
+      renderMaPills("cap-ma-pills-puestos", maFiltrosMeta.puestos, "puestos");
     }
     await loadMatrizAnalitica();
   }
