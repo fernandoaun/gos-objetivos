@@ -58,15 +58,15 @@ def _register_context(app: Flask) -> None:
             "nav_items": _nav_items(),
             "current_endpoint": request.endpoint or "",
             "current_module": MODULE_NAME,
-            "module_nav_label": "HWO",
+            "module_nav_label": "Análisis",
         }
 
 
 def module_descriptor() -> dict:
     return {
         "code": MODULE_NAME,
-        "label": "Análisis HWO",
-        "description": "Dashboard operativo HWO: burn-up, equipos e incidencias.",
+        "label": "Análisis",
+        "description": "Dashboard operativo: equipos e incidencias.",
         "icon": "bi-bar-chart-line",
         "url": "/gos/hwo/",
     }
@@ -75,7 +75,7 @@ def module_descriptor() -> dict:
 def _nav_items():
     return [
         {
-            "label": "Dashboard HWO",
+            "label": "Dashboard",
             "endpoint": "hwo_main.index",
             "icon": "bi-speedometer2",
         },

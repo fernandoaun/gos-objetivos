@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Análisis HWO — GOS{% endblock %}
-{% block page_title %}Dashboard HWO{% endblock %}
+{% block title %}Análisis — GOS{% endblock %}
+{% block page_title %}Análisis{% endblock %}
 {% block extra_css %}
 <style>
   .pe-content:has(.hwo-shell) {
@@ -28,6 +28,6 @@
 {% endblock %}
 {% block content %}
 <div class="hwo-shell w-100">
-  <iframe class="hwo-frame" src="{{ url_for('hwo_main.app') }}" title="Análisis HWO"></iframe>
+  <iframe class="hwo-frame" src="{{ url_for('hwo_main.app') }}" title="Análisis"></iframe>
 </div>
 {% endblock %}

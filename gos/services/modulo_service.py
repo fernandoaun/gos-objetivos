@@ -7,7 +7,7 @@ MODULO_CODES = ("objetivos", "capacitacion", "hwo", "vacaciones")
 MODULO_LABELS = {
     "objetivos": "Objetivos",
     "capacitacion": "Capacitación",
-    "hwo": "Análisis HWO",
+    "hwo": "Análisis",
     "vacaciones": "Vacaciones",
 }
 
