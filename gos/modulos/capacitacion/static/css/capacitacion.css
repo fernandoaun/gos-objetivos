@@ -1582,7 +1582,117 @@
 }
 
 .cap-programas-list-wrap {
+  border: 1px solid var(--cap-border);
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.cap-prog-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: none;
+}
+
+.cap-prog-list > .cap-loading,
+.cap-prog-list > .cap-empty {
+  padding: 1.25rem;
+  text-align: center;
+  margin: 0;
+}
+
+.cap-prog-list-item {
+  border-bottom: 1px solid var(--cap-border);
+}
+
+.cap-prog-list-item:last-child {
+  border-bottom: 0;
+}
+
+.cap-prog-list-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  padding: 0.7rem 1rem;
+  cursor: pointer;
+  background: #fff;
+  transition: background 0.15s;
+}
+
+.cap-prog-list-row:hover {
+  background: var(--gos-yellow-soft);
+}
+
+.cap-prog-list-item--expanded .cap-prog-list-row {
+  background: var(--gos-success-soft);
+  border-left: 3px solid var(--gos-green);
+  padding-left: calc(1rem - 3px);
+}
+
+.cap-prog-list-name {
+  font-weight: 600;
+  color: var(--cap-navy);
+  min-width: 0;
+}
+
+.cap-prog-list-name small {
+  display: block;
+  font-weight: 400;
+  font-size: 0.78rem;
+  color: var(--cap-muted);
+  margin-top: 0.15rem;
+}
+
+.cap-prog-list-stats {
+  display: flex;
+  gap: 0.85rem;
+  font-size: 0.78rem;
+  color: var(--cap-muted);
+  white-space: nowrap;
+}
+
+.cap-prog-list-detail {
+  padding: 0 1rem 1rem calc(1rem + 3px);
+  background: #fafbfc;
   border-top: 1px solid var(--cap-border);
+}
+
+.cap-prog-list-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 0;
+  border-top: 1px dashed var(--cap-border);
+  background: #fafbfc;
+  color: var(--cap-navy);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.cap-prog-list-add-btn:hover {
+  background: var(--gos-yellow-soft);
+}
+
+.cap-prog-list-add-btn i {
+  font-size: 1rem;
+}
+
+@media (max-width: 700px) {
+  .cap-prog-list-row {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+  }
+
+  .cap-prog-list-stats {
+    grid-column: 1 / -1;
+  }
 }
 
 .cap-prog-planes-list {

@@ -5750,6 +5750,28 @@
       sel.value = "";
       togglePanel("cap-prog-empresa-quick", false);
     }
+    toggleProgPlanesSection();
+  }
+
+  function toggleProgPlanesSection() {
+    const tipo = document.querySelector('#cap-programa-form input[name="tipo"]:checked')?.value;
+    const wrap = document.getElementById("cap-prog-planes-wrap");
+    if (!wrap) return;
+    wrap.classList.toggle("cap-hidden", !tipo);
+  }
+
+  async function abrirFormularioPrograma(programa = null) {
+    if (!metaPuestos.length) {
+      try { await loadPuestosOptions(); } catch (e) { console.error(e); }
+    }
+    if (!(window.capCursosCache || []).length) {
+      try {
+        const data = await fetchJson(`${API}/cursos`);
+        window.capCursosCache = data.cursos || [];
+      } catch (e) { console.error(e); }
+    }
+    openProgramaForm(programa);
+    document.getElementById("cap-programa-form-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
   function openProgramaForm(programa = null) {
@@ -5779,21 +5801,13 @@
       })
       .catch(console.error);
     togglePanel("cap-programa-form-panel", true);
+    toggleProgPlanesSection();
     document.getElementById("cap-prog-nombre")?.focus();
   }
 
   function bindProgramaForm() {
-    document.getElementById("cap-btn-nuevo-programa")?.addEventListener("click", async () => {
-      if (!metaPuestos.length) {
-        try { await loadPuestosOptions(); } catch (e) { console.error(e); }
-      }
-      if (!(window.capCursosCache || []).length) {
-        try {
-          const data = await fetchJson(`${API}/cursos`);
-          window.capCursosCache = data.cursos || [];
-        } catch (e) { console.error(e); }
-      }
-      openProgramaForm();
+    document.getElementById("cap-btn-nuevo-programa")?.addEventListener("click", () => {
+      abrirFormularioPrograma().catch(console.error);
     });
     document.getElementById("cap-programa-cancel")?.addEventListener("click", () => {
       togglePanel("cap-programa-form-panel", false);
@@ -5857,6 +5871,7 @@
         }
         return;
       }
+      if (ev.target.closest(".cap-prog-card-detail")) return;
       const toggleBtn = ev.target.closest("[data-prog-toggle]");
       if (toggleBtn) {
         ev.stopPropagation();
@@ -5865,8 +5880,8 @@
       }
       const summary = ev.target.closest(".cap-prog-card-summary");
       if (summary && !ev.target.closest("button, input, select, textarea, a, label")) {
-        const article = summary.closest("[data-programa-id]");
-        if (article) togglePrograma(Number(article.dataset.programaId)).catch(console.error);
+        const card = summary.closest("[data-programa-id]");
+        if (card) togglePrograma(Number(card.dataset.programaId)).catch(console.error);
       }
     });
     document.getElementById("cap-programas-grid")?.addEventListener("keydown", (ev) => {
@@ -5874,8 +5889,8 @@
       const summary = ev.target.closest(".cap-prog-card-summary");
       if (!summary) return;
       ev.preventDefault();
-      const article = summary.closest("[data-programa-id]");
-      if (article) togglePrograma(Number(article.dataset.programaId)).catch(console.error);
+      const card = summary.closest("[data-programa-id]");
+      if (card) togglePrograma(Number(card.dataset.programaId)).catch(console.error);
     });
     document.getElementById("cap-prog-plan-add")?.addEventListener("click", () => {
       const sel = document.getElementById("cap-prog-plan-select");
@@ -5945,14 +5960,21 @@
         const data = id
           ? await putJson(`${API}/programas/${id}`, body)
           : await postJson(`${API}/programas`, body);
-        togglePanel("cap-programa-form-panel", false);
-        e.target.reset();
-        progPlanesDraft = [];
         await loadProgramas();
         if (id && data.programa?.id) {
+          togglePanel("cap-programa-form-panel", false);
+          e.target.reset();
+          progPlanesDraft = [];
           await selectPrograma(data.programa.id);
         } else {
+          e.target.reset();
+          document.getElementById("cap-prog-id").value = "";
+          progPlanesDraft = [];
+          await resetProgPlanesDraft();
+          toggleProgPlanesSection();
+          setFormError("cap-programa-form-error", "");
           collapsePrograma();
+          document.getElementById("cap-prog-nombre")?.focus();
         }
       } catch (err) {
         setFormError("cap-programa-form-error", err.message);
@@ -6340,7 +6362,13 @@
 
       try { await loadPuestosOptions(); } catch (e) { console.error(e); }
 
+      try { await loadProgPlanCatalog(); } catch (e) { console.error(e); }
+
       try { await loadProgramas(); } catch (e) { console.error(e); }
+
+      if (!programasCache.length) {
+        try { await abrirFormularioPrograma(); } catch (e) { console.error(e); }
+      }
 
     }
 
