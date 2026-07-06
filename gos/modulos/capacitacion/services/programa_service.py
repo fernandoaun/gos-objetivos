@@ -976,6 +976,8 @@ def _encuentro_dict(e: EncuentroCapacitacion) -> dict:
         "empresa_capacitadora_nombre": emp_cap.nombre if emp_cap else None,
         "estado": e.estado,
         "programa_id": e.programa_id,
+        "programa_nombre": e.programa.nombre if e.programa else None,
+        "programa_tipo": e.programa.tipo if e.programa else None,
         "plan_id": e.plan_id,
         "plan_nombre": e.plan.nombre if e.plan else None,
         "curso_id": e.curso_id,

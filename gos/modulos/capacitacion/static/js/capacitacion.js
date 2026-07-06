@@ -66,6 +66,7 @@
   let crFiltrosMeta = null;
   let crDetalleEventos = [];
   let encPlanesCache = [];
+  let encProgramasCache = [];
   let certUploadRegistroId = null;
   let taxonomiaCascada = null;
   let taxonomiaListas = null;
@@ -2895,17 +2896,294 @@
 
 
 
+  function encProgramaTienePlanesConCursos(programa) {
+    const planes = programa?.planes || [];
+    if (!planes.length && (programa?.planes_count || 0) > 0) return true;
+    return planes.some((pl) => (pl.cursos && pl.cursos.length > 0) || (pl.cursos_count || 0) > 0);
+  }
+
+  function encProgramasByNombre(nombre) {
+    const key = (nombre || "").trim().toLowerCase();
+    if (!key) return [];
+    return encProgramasCache.filter((p) => (p.nombre || "").trim().toLowerCase() === key);
+  }
+
+  function encProgramasViables(items) {
+    return (items || []).filter(encProgramaTienePlanesConCursos);
+  }
+
+  function encNombresDisponibles() {
+    const names = new Set();
+    encProgramasViables(encProgramasCache).forEach((p) => {
+      if ((p.nombre || "").trim()) names.add(p.nombre.trim());
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b, "es"));
+  }
+
+  function encTiposDisponibles(nombre) {
+    const tipos = new Set(
+      encProgramasViables(encProgramasByNombre(nombre)).map((p) => p.tipo || "interno")
+    );
+    return Array.from(tipos);
+  }
+
+  function encEmpresasDisponibles(nombre, tipo) {
+    const seen = new Map();
+    encProgramasViables(encProgramasByNombre(nombre))
+      .filter((p) => (p.tipo || "interno") === tipo)
+      .forEach((p) => {
+        if (!p.empresa_capacitadora_id) return;
+        seen.set(p.empresa_capacitadora_id, {
+          id: p.empresa_capacitadora_id,
+          nombre: p.empresa_capacitadora_nombre || `Empresa #${p.empresa_capacitadora_id}`,
+        });
+      });
+    return Array.from(seen.values()).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+  }
+
+  function resolveEncPrograma(nombre, tipo, empresaId) {
+    let items = encProgramasViables(encProgramasByNombre(nombre)).filter(
+      (p) => (p.tipo || "interno") === tipo
+    );
+    if (tipo === "externo") {
+      items = items.filter((p) => String(p.empresa_capacitadora_id) === String(empresaId));
+    }
+    return items[0] || null;
+  }
+
+  function getEncProgramaActual() {
+    const nombre = document.getElementById("cap-enc-programa")?.value || "";
+    const tipo = document.getElementById("cap-enc-tipo")?.value || "";
+    if (!nombre || !tipo) return null;
+    if (tipo === "externo") {
+      const empresaId = document.getElementById("cap-enc-empresa")?.value;
+      if (!empresaId) return null;
+      return resolveEncPrograma(nombre, tipo, empresaId);
+    }
+    return resolveEncPrograma(nombre, tipo, null);
+  }
+
+  function encPlanesDelPrograma(programa) {
+    if (!programa) return [];
+    const planes = programa.planes || [];
+    return planes.filter((pl) => (pl.cursos && pl.cursos.length > 0) || (pl.cursos_count || 0) > 0);
+  }
+
+  async function loadEncProgramas() {
+    const data = await fetchJson(`${API}/programas?detalle=1`);
+    encProgramasCache = (data.programas || []).filter((p) => p.activo !== false);
+    return encProgramasCache;
+  }
+
+  function fillEncProgramaSelect(selectedNombre = "") {
+    const sel = document.getElementById("cap-enc-programa");
+    if (!sel) return;
+    const nombres = encNombresDisponibles();
+    sel.innerHTML = '<option value="">— Seleccionar programa —</option>';
+    nombres.forEach((nombre) => {
+      const opt = document.createElement("option");
+      opt.value = nombre;
+      opt.textContent = nombre;
+      sel.appendChild(opt);
+    });
+    sel.disabled = nombres.length === 0;
+    if (selectedNombre && nombres.includes(selectedNombre)) sel.value = selectedNombre;
+  }
+
+  function fillEncTipoSelect(nombre, selectedTipo = "") {
+    const sel = document.getElementById("cap-enc-tipo");
+    if (!sel) return;
+    const tipos = encTiposDisponibles(nombre);
+    sel.innerHTML = '<option value="">— Seleccionar tipo —</option>';
+    if (tipos.includes("interno")) {
+      sel.innerHTML += '<option value="interno">GOS Interno</option>';
+    }
+    if (tipos.includes("externo")) {
+      sel.innerHTML += '<option value="externo">Externo</option>';
+    }
+    sel.disabled = !nombre || tipos.length === 0;
+    if (selectedTipo && tipos.includes(selectedTipo)) {
+      sel.value = selectedTipo;
+    } else if (tipos.length === 1) {
+      sel.value = tipos[0];
+    }
+  }
+
+  function fillEncEmpresaSelect(nombre, tipo, selectedEmpresaId = "") {
+    const sel = document.getElementById("cap-enc-empresa");
+    if (!sel) return;
+    const empresas = tipo === "externo" ? encEmpresasDisponibles(nombre, tipo) : [];
+    sel.innerHTML = '<option value="">— Seleccionar empresa —</option>';
+    empresas.forEach((e) => {
+      const opt = document.createElement("option");
+      opt.value = e.id;
+      opt.textContent = e.nombre;
+      sel.appendChild(opt);
+    });
+    sel.disabled = tipo !== "externo" || !nombre || empresas.length === 0;
+    if (selectedEmpresaId && empresas.some((e) => String(e.id) === String(selectedEmpresaId))) {
+      sel.value = String(selectedEmpresaId);
+    } else if (empresas.length === 1) {
+      sel.value = String(empresas[0].id);
+    }
+  }
+
+  function fillEncPlanSelect(selectedPlanId = "") {
+    const sel = document.getElementById("cap-enc-plan");
+    if (!sel) return;
+    const programa = getEncProgramaActual();
+    const planes = encPlanesDelPrograma(programa);
+    sel.innerHTML = '<option value="">— Seleccionar plan —</option>';
+    planes.forEach((pl) => {
+      const opt = document.createElement("option");
+      opt.value = pl.id;
+      opt.textContent = pl.nombre;
+      sel.appendChild(opt);
+    });
+    sel.disabled = !programa || planes.length === 0;
+    if (selectedPlanId && planes.some((pl) => String(pl.id) === String(selectedPlanId))) {
+      sel.value = String(selectedPlanId);
+    } else if (planes.length === 1) {
+      sel.value = String(planes[0].id);
+    }
+  }
+
+  function toggleEncEmpresaRow() {
+    const tipo = document.getElementById("cap-enc-tipo")?.value;
+    const row = document.getElementById("cap-enc-empresa-row");
+    const sel = document.getElementById("cap-enc-empresa");
+    if (!row) return;
+    const show = tipo === "externo";
+    row.classList.toggle("cap-hidden", !show);
+    if (sel) sel.required = show;
+  }
+
+  function resetEncCascadeFrom(level) {
+    if (level === "programa") {
+      fillEncTipoSelect("");
+      fillEncEmpresaSelect("", "");
+      fillEncPlanSelect();
+      toggleEncEmpresaRow();
+    } else if (level === "tipo") {
+      const nombre = document.getElementById("cap-enc-programa")?.value || "";
+      const tipo = document.getElementById("cap-enc-tipo")?.value || "";
+      fillEncEmpresaSelect(nombre, tipo);
+      fillEncPlanSelect();
+      toggleEncEmpresaRow();
+    } else if (level === "empresa") {
+      fillEncPlanSelect();
+    }
+    if (level !== "plan") {
+      encPuestosSeleccionados = new Set();
+      const cursoSel = document.getElementById("cap-enc-curso");
+      if (cursoSel) {
+        cursoSel.disabled = true;
+        cursoSel.innerHTML = '<option value="">— Seleccioná un plan primero —</option>';
+      }
+      document.getElementById("cap-enc-curso-meta")?.classList.add("cap-hidden");
+    }
+    if (level !== "plan") {
+      renderEncPuestos();
+      loadEncPersonas().catch(console.error);
+    }
+  }
+
+  function onEncProgramaChange() {
+    const nombre = document.getElementById("cap-enc-programa")?.value || "";
+    fillEncTipoSelect(nombre);
+    fillEncEmpresaSelect("", "");
+    fillEncPlanSelect();
+    toggleEncEmpresaRow();
+    encPuestosSeleccionados = new Set();
+    const cursoSel = document.getElementById("cap-enc-curso");
+    if (cursoSel) {
+      cursoSel.disabled = true;
+      cursoSel.innerHTML = '<option value="">— Seleccioná un plan primero —</option>';
+    }
+    document.getElementById("cap-enc-curso-meta")?.classList.add("cap-hidden");
+    renderEncPuestos();
+    loadEncPersonas().catch(console.error);
+    const tipo = document.getElementById("cap-enc-tipo")?.value || "";
+    if (nombre && tipo) onEncTipoChange();
+  }
+
+  function onEncTipoChange() {
+    const nombre = document.getElementById("cap-enc-programa")?.value || "";
+    const tipo = document.getElementById("cap-enc-tipo")?.value || "";
+    fillEncEmpresaSelect(nombre, tipo);
+    toggleEncEmpresaRow();
+    fillEncPlanSelect();
+    encPuestosSeleccionados = new Set();
+    const cursoSel = document.getElementById("cap-enc-curso");
+    if (cursoSel) {
+      cursoSel.disabled = true;
+      cursoSel.innerHTML = '<option value="">— Seleccioná un plan primero —</option>';
+    }
+    document.getElementById("cap-enc-curso-meta")?.classList.add("cap-hidden");
+    renderEncPuestos();
+    loadEncPersonas().catch(console.error);
+    const origenSel = document.getElementById("cap-enc-origen");
+    if (origenSel) origenSel.value = tipo === "externo" ? "externa" : "interna";
+    if (tipo === "interno" && nombre) {
+      fillEncPlanSelect();
+      if (document.getElementById("cap-enc-plan")?.value) onEncPlanChange().catch(console.error);
+    } else if (tipo === "externo" && document.getElementById("cap-enc-empresa")?.value) {
+      onEncEmpresaChange();
+    }
+  }
+
+  function onEncEmpresaChange() {
+    resetEncCascadeFrom("empresa");
+    fillEncPlanSelect();
+    const planSel = document.getElementById("cap-enc-plan");
+    if (planSel?.value) onEncPlanChange().catch(console.error);
+  }
+
+  async function onEncPlanChange() {
+    await loadEncCursos();
+    const programa = getEncProgramaActual();
+    if (programa?.puestos?.length && encPuestosSeleccionados.size === 0) {
+      encPuestosSeleccionados = new Set(
+        programa.puestos.map((p) => normPuestoId(p.id)).filter((id) => id !== null)
+      );
+    }
+    renderEncPuestos();
+    await onEncPuestosChange();
+  }
+
+  function getEncPuestosDelPrograma() {
+    const programa = getEncProgramaActual();
+    if (!programa) return [];
+    const puestosProg = programa.puestos || [];
+    return puestosProg.map((p) => {
+      const mp = (metaPuestos || []).find((m) => normPuestoId(m.id) === normPuestoId(p.id));
+      return mp || p;
+    });
+  }
+
+
+
   function renderEncPuestos() {
 
     const el = document.getElementById("cap-enc-puestos");
 
     if (!el) return;
 
-    const items = metaPuestos || [];
+    const planId = document.getElementById("cap-enc-plan")?.value;
+
+    if (!planId) {
+
+      el.innerHTML = '<p class="cap-empty">Seleccioná un plan para ver los puestos del programa</p>';
+
+      return;
+
+    }
+
+    const items = getEncPuestosDelPrograma();
 
     if (!items.length) {
 
-      el.innerHTML = `<p class="cap-empty">No hay puestos cargados</p>`;
+      el.innerHTML = '<p class="cap-empty">Este programa no tiene puestos asignados. Definilos en <strong>Programas</strong>.</p>';
 
       return;
 
@@ -2969,7 +3247,7 @@
 
       encPersonasCache = [];
 
-      el.innerHTML = '<p class="cap-empty">Seleccioná al menos un puesto</p>';
+      el.innerHTML = '<p class="cap-empty">Seleccioná un plan para ver las personas de los puestos del programa</p>';
 
       if (countEl) countEl.textContent = "";
 
@@ -3087,19 +3365,6 @@
 
 
 
-  async function loadEncPlanes() {
-    const data = await fetchJson(`${API}/planes`);
-    encPlanesCache = data.planes || [];
-    fillSelect(
-      "cap-enc-plan",
-      encPlanesCache.map((p) => ({
-        id: p.id,
-        nombre: `${p.nombre}${p.programa_nombre ? ` (${p.programa_nombre})` : ""}`,
-      })),
-      "— Seleccionar plan —"
-    );
-  }
-
   async function loadEncCursos() {
     const sel = document.getElementById("cap-enc-curso");
     const planId = document.getElementById("cap-enc-plan")?.value;
@@ -3111,8 +3376,13 @@
       return;
     }
     sel.disabled = false;
-    const data = await fetchJson(`${API}/planes/${planId}/cursos`);
-    const cursos = data.cursos || [];
+    const programa = getEncProgramaActual();
+    const planLocal = programa?.planes?.find((pl) => String(pl.id) === String(planId));
+    let cursos = planLocal?.cursos || [];
+    if (!cursos.length) {
+      const data = await fetchJson(`${API}/planes/${planId}/cursos`);
+      cursos = data.cursos || [];
+    }
     fillSelect("cap-enc-curso", cursos.map((c) => ({ id: c.curso_id || c.id, codigo: c.curso_codigo || c.codigo, nombre: c.curso_nombre || c.nombre })), "— Seleccionar curso —");
     onEncCursoChange();
   }
@@ -3134,31 +3404,19 @@
     const cursoId = document.getElementById("cap-enc-curso")?.value;
     const planId = document.getElementById("cap-enc-plan")?.value;
     if (!cursoId || !planId) return;
-    fetchJson(`${API}/planes/${planId}/cursos`).then((data) => {
-      const c = (data.cursos || []).find((x) => String(x.curso_id || x.id) === String(cursoId));
+    const programa = getEncProgramaActual();
+    const planLocal = programa?.planes?.find((pl) => String(pl.id) === String(planId));
+    const c = (planLocal?.cursos || []).find((x) => String(x.curso_id || x.id) === String(cursoId));
+    if (c) {
       showEncCursoMeta(c || null);
-      toggleEncEmpresaCapacitadora();
+      updateEncFechaFin();
+      return;
+    }
+    fetchJson(`${API}/planes/${planId}/cursos`).then((data) => {
+      const found = (data.cursos || []).find((x) => String(x.curso_id || x.id) === String(cursoId));
+      showEncCursoMeta(found || null);
       updateEncFechaFin();
     }).catch(console.error);
-  }
-
-  function toggleEncTipo() {
-    const tipo = document.getElementById("cap-enc-tipo")?.value || "interno";
-    const origenSel = document.getElementById("cap-enc-origen");
-    if (origenSel) origenSel.value = tipo === "externo" ? "externa" : "interna";
-    toggleEncEmpresaCapacitadora();
-  }
-
-  function toggleEncEmpresaCapacitadora() {
-    const tipo = document.getElementById("cap-enc-tipo")?.value;
-    const origen = document.getElementById("cap-enc-origen")?.value;
-    const wrap = document.getElementById("cap-enc-empresa-wrap");
-    const sel = document.getElementById("cap-enc-empresa");
-    if (!wrap || !sel) return;
-    const esExterna = tipo === "externo" || origen === "externa";
-    wrap.classList.toggle("cap-hidden", !esExterna);
-    sel.required = esExterna;
-    if (!esExterna) sel.value = "";
   }
 
   function toDatetimeLocalValue(d) {
@@ -3234,11 +3492,9 @@
 
     fillCascadeSelect("cap-enc-origen", taxListaEntries("origenes"), "— Seleccionar origen —", false);
 
-    const [instData, empData] = await Promise.all([
+    const [instData] = await Promise.all([
 
       fetchJson(`${API}/instructores`),
-
-      fetchJson(`${API}/empresas-capacitadoras`),
 
     ]);
 
@@ -3249,16 +3505,6 @@
       (instData.instructores || []).map((i) => ({ id: i.id, nombre: i.nombre })),
 
       "— Seleccionar capacitador —"
-
-    );
-
-    fillSelect(
-
-      "cap-enc-empresa",
-
-      (empData.empresas_capacitadoras || []).map((e) => ({ id: e.id, nombre: e.nombre })),
-
-      "— Seleccionar empresa —"
 
     );
 
@@ -3276,8 +3522,8 @@
 
     if (hint) {
       hint.textContent = editing
-        ? "Etapa A — Modificá la planificación del cronograma."
-        : "Etapa A — Planificación del cronograma.";
+        ? "Etapa A — Modificá la planificación. Programa → Tipo → Empresa (si externo) → Plan → Participantes."
+        : "Etapa A — Programa → Tipo → Empresa (si externo) → Plan → Participantes. Cada paso habilita el siguiente.";
     }
 
     if (submit) submit.textContent = editing ? "Guardar cambios" : "Guardar cronograma";
@@ -3388,13 +3634,11 @@
 
     updateEncuentroFormMode(false);
 
+    await loadEncProgramas();
+    fillEncProgramaSelect();
+    resetEncCascadeFrom("programa");
     renderEncPuestos();
-
     await loadEncPersonas();
-
-    await loadEncPlanes();
-    await loadEncCursos();
-    toggleEncTipo();
 
   }
 
@@ -3454,6 +3698,20 @@
 
     const data = await fetchJson(`${API}/encuentros/${encuentroId}`);
 
+    await loadEncProgramas();
+
+    let programa = encProgramasCache.find((p) => p.id === data.programa_id);
+    if (!programa && data.programa_id) {
+      try {
+        const pd = await fetchJson(`${API}/programas/${data.programa_id}`);
+        programa = pd.programa;
+        if (programa) encProgramasCache = encProgramasCache.map((p) => (p.id === programa.id ? { ...p, ...programa } : p));
+        if (programa && !encProgramasCache.some((p) => p.id === programa.id)) encProgramasCache.push(programa);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
     const participantes = data.participantes || [];
 
     const participanteIds = new Set(participantes.map((p) => p.participante_id));
@@ -3464,17 +3722,41 @@
 
     );
 
-    if (!encPuestosSeleccionados.size && metaPuestos.length) {
-
-      encPuestosSeleccionados = new Set(metaPuestos.map((p) => normPuestoId(p.id)).filter((id) => id !== null));
-
+    if (programa) {
+      const tipo = programa.tipo || data.tipo || "interno";
+      fillEncProgramaSelect(programa.nombre);
+      document.getElementById("cap-enc-programa").value = programa.nombre;
+      fillEncTipoSelect(programa.nombre, tipo);
+      toggleEncEmpresaRow();
+      if (tipo === "externo") {
+        fillEncEmpresaSelect(programa.nombre, tipo, data.empresa_capacitadora_id || programa.empresa_capacitadora_id);
+      }
+      fillEncPlanSelect(data.plan_id);
+      await onEncPlanChange();
+      if (!encPuestosSeleccionados.size && programa.puestos?.length) {
+        encPuestosSeleccionados = new Set(
+          programa.puestos.map((p) => normPuestoId(p.id)).filter((id) => id !== null)
+        );
+      }
+      renderEncPuestos();
+      await loadEncPersonas(participanteIds);
+    } else if (data.programa_nombre) {
+      const tipo = data.programa_tipo || data.tipo || "interno";
+      fillEncProgramaSelect(data.programa_nombre);
+      document.getElementById("cap-enc-programa").value = data.programa_nombre;
+      fillEncTipoSelect(data.programa_nombre, tipo);
+      toggleEncEmpresaRow();
+      if (tipo === "externo") {
+        fillEncEmpresaSelect(data.programa_nombre, tipo, data.empresa_capacitadora_id);
+      }
+      fillEncPlanSelect(data.plan_id);
+      await onEncPlanChange();
+      renderEncPuestos();
+      await loadEncPersonas(participanteIds);
+    } else {
+      renderEncPuestos();
+      await loadEncPersonas(participanteIds);
     }
-
-    renderEncPuestos();
-
-    await loadEncPersonas(participanteIds);
-
-    await loadEncCursos();
 
     const cursoSel = document.getElementById("cap-enc-curso");
 
@@ -3519,8 +3801,6 @@
     setEncFormVal("cap-enc-lugar", data.lugar || "");
 
     setEncFormVal("cap-enc-link", data.link_virtual || "");
-
-    toggleEncEmpresaCapacitadora();
 
     updateEncHoraFin();
 
@@ -3692,8 +3972,10 @@
 
     });
 
-    document.getElementById("cap-enc-plan")?.addEventListener("change", () => loadEncCursos().catch(console.error));
-    document.getElementById("cap-enc-tipo")?.addEventListener("change", toggleEncTipo);
+    document.getElementById("cap-enc-programa")?.addEventListener("change", () => onEncProgramaChange());
+    document.getElementById("cap-enc-tipo")?.addEventListener("change", () => onEncTipoChange());
+    document.getElementById("cap-enc-empresa")?.addEventListener("change", () => onEncEmpresaChange());
+    document.getElementById("cap-enc-plan")?.addEventListener("change", () => onEncPlanChange().catch(console.error));
     document.getElementById("cap-enc-curso")?.addEventListener("change", onEncCursoChange);
     document.getElementById("cap-enc-fecha")?.addEventListener("change", updateEncFechaFin);
     document.getElementById("cap-enc-hora-inicio")?.addEventListener("change", updateEncFechaFin);
@@ -3701,7 +3983,6 @@
     document.getElementById("cap-enc-fecha-fin")?.addEventListener("input", (e) => {
       e.target.dataset.userEdited = "1";
     });
-    document.getElementById("cap-enc-origen")?.addEventListener("change", toggleEncEmpresaCapacitadora);
 
     document.getElementById("cap-enc-empresa-add")?.addEventListener("click", () => {
 
@@ -3855,6 +4136,14 @@
 
       body.participante_ids = participanteIds;
 
+      const programa = getEncProgramaActual();
+      if (!programa) {
+        setFormError("cap-encuentro-form-error", "Completá programa, tipo y empresa (si es externo)");
+        return;
+      }
+      body.programa_id = programa.id;
+      body.tipo = document.getElementById("cap-enc-tipo")?.value || programa.tipo || "interno";
+
       if (!body.curso_id) {
 
         setFormError("cap-encuentro-form-error", "Seleccioná un curso");
@@ -3868,7 +4157,6 @@
         return;
       }
 
-      body.tipo = document.getElementById("cap-enc-tipo")?.value || "interno";
       body.puesto_ids = getEncPuestosSeleccionados();
       if (body.tipo === "externo" && !body.empresa_capacitadora_id) {
         setFormError("cap-encuentro-form-error", "Seleccioná la empresa externa");
@@ -6385,7 +6673,7 @@
     }
 
     if (view === "cronograma") {
-      try { await Promise.all([loadEncuentros(), loadPuestosOptions(), loadEncPlanes()]); } catch (e) { console.error(e); }
+      try { await Promise.all([loadEncuentros(), loadPuestosOptions()]); } catch (e) { console.error(e); }
     }
 
     if (view === "programas") {

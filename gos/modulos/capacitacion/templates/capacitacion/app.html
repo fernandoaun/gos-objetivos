@@ -171,24 +171,54 @@
 
         <div class="cap-form-row cap-form-row--2">
           <div>
-            <label class="cap-label" for="cap-enc-tipo">Tipo *</label>
-            <select class="cap-input" id="cap-enc-tipo" name="tipo" required>
-              <option value="interno">GOS Interno</option>
-              <option value="externo">Externo</option>
+            <label class="cap-label" for="cap-enc-programa">1. Programa *</label>
+            <select class="cap-input" id="cap-enc-programa" required disabled>
+              <option value="">— Seleccionar programa —</option>
             </select>
           </div>
           <div>
-            <label class="cap-label" for="cap-enc-plan">Plan *</label>
-            <select class="cap-input" id="cap-enc-plan" name="plan_id" required>
-              <option value="">— Seleccionar plan —</option>
+            <label class="cap-label" for="cap-enc-tipo">2. Tipo *</label>
+            <select class="cap-input" id="cap-enc-tipo" name="tipo" required disabled>
+              <option value="">— Seleccioná un programa —</option>
             </select>
           </div>
         </div>
 
-        <h3 class="cap-subtitle">1. Puestos convocados</h3>
+        <div class="cap-form-row cap-hidden" id="cap-enc-empresa-row">
+          <div>
+            <label class="cap-label" for="cap-enc-empresa">3. Empresa externa *</label>
+            <div class="cap-input-group">
+              <select class="cap-input" id="cap-enc-empresa" name="empresa_capacitadora_id" disabled>
+                <option value="">— Seleccionar empresa —</option>
+              </select>
+              <button type="button" class="cap-btn cap-btn--icon" id="cap-enc-empresa-add" title="Agregar empresa">
+                <i class="bi bi-plus-lg"></i>
+              </button>
+            </div>
+            <div class="cap-quick-form cap-hidden" id="cap-enc-empresa-quick">
+              <p class="cap-quick-form-title">Nueva empresa capacitadora</p>
+              <input class="cap-input" id="cap-enc-empresa-quick-nombre" placeholder="Nombre de la empresa" maxlength="200">
+              <div class="cap-form-actions">
+                <button type="button" class="cap-btn cap-btn--ghost" id="cap-enc-empresa-quick-cancel">Cancelar</button>
+                <button type="button" class="cap-btn cap-btn--primary" id="cap-enc-empresa-quick-save">Guardar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cap-form-row">
+          <div>
+            <label class="cap-label" for="cap-enc-plan">4. Plan *</label>
+            <select class="cap-input" id="cap-enc-plan" name="plan_id" required disabled>
+              <option value="">— Seleccioná el programa y tipo —</option>
+            </select>
+          </div>
+        </div>
+
+        <h3 class="cap-subtitle">5. Puestos convocados</h3>
         <div id="cap-enc-puestos" class="cap-check-grid"><p class="cap-empty">Cargando puestos...</p></div>
 
-        <h3 class="cap-subtitle">2. Personas a capacitar</h3>
+        <h3 class="cap-subtitle">6. Personas a capacitar</h3>
         <div class="cap-enc-personas-toolbar">
           <button type="button" class="cap-btn cap-btn--sm cap-btn--ghost" id="cap-enc-sel-todos">Seleccionar todas</button>
           <button type="button" class="cap-btn cap-btn--sm cap-btn--ghost" id="cap-enc-sel-ninguno">Quitar todas</button>
@@ -200,14 +230,14 @@
 
         <div class="cap-form-row cap-form-row--2 cap-mt">
           <div>
-            <label class="cap-label" for="cap-enc-curso">3. Curso *</label>
+            <label class="cap-label" for="cap-enc-curso">7. Curso *</label>
             <select class="cap-input" id="cap-enc-curso" name="curso_id" required disabled>
               <option value="">— Seleccioná un plan primero —</option>
             </select>
             <div class="cap-curso-meta cap-hidden" id="cap-enc-curso-meta"></div>
           </div>
           <div>
-            <label class="cap-label" for="cap-enc-fecha">4. Fecha inicio</label>
+            <label class="cap-label" for="cap-enc-fecha">8. Fecha inicio</label>
             <input class="cap-input" id="cap-enc-fecha" name="fecha" type="date">
           </div>
         </div>
@@ -229,30 +259,11 @@
               <option value="">—</option>
             </select>
           </div>
-          <div id="cap-enc-empresa-wrap" class="cap-hidden">
-            <label class="cap-label" for="cap-enc-empresa">Empresa externa *</label>
-            <div class="cap-input-group">
-              <select class="cap-input" id="cap-enc-empresa" name="empresa_capacitadora_id">
-                <option value="">— Seleccionar empresa —</option>
-              </select>
-              <button type="button" class="cap-btn cap-btn--icon" id="cap-enc-empresa-add" title="Agregar empresa">
-                <i class="bi bi-plus-lg"></i>
-              </button>
-            </div>
-            <div class="cap-quick-form cap-hidden" id="cap-enc-empresa-quick">
-              <p class="cap-quick-form-title">Nueva empresa capacitadora</p>
-              <input class="cap-input" id="cap-enc-empresa-quick-nombre" placeholder="Nombre de la empresa" maxlength="200">
-              <div class="cap-form-actions">
-                <button type="button" class="cap-btn cap-btn--ghost" id="cap-enc-empresa-quick-cancel">Cancelar</button>
-                <button type="button" class="cap-btn cap-btn--primary" id="cap-enc-empresa-quick-save">Guardar</button>
-              </div>
-            </div>
-          </div>
         </div>
 
         <div class="cap-form-row cap-form-row--2">
           <div>
-            <label class="cap-label" for="cap-enc-instructor">6. Capacitador</label>
+            <label class="cap-label" for="cap-enc-instructor">Capacitador</label>
             <div class="cap-input-group">
               <select class="cap-input" id="cap-enc-instructor" name="instructor_id">
                 <option value="">— Seleccionar capacitador —</option>
