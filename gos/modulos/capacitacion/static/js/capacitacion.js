@@ -4419,20 +4419,37 @@
   }
 
 
-  function getPersonaDetailEl(id) {
-    return document.getElementById(`cap-persona-detail-${id}`);
+  function collapsePersonaDetail() {
+    document.querySelectorAll(".cap-persona-item--expanded").forEach((el) => {
+      el.classList.remove("cap-persona-item--expanded");
+    });
+    const detail = document.getElementById("cap-persona-detail-active");
+    if (detail) {
+      detail.classList.add("cap-hidden");
+      detail.innerHTML = "";
+      detail.remove();
+    }
   }
 
-  function collapseAllPersonaDetails() {
-    document.querySelectorAll(".cap-persona-detail").forEach((el) => {
-      el.classList.add("cap-hidden");
-      el.innerHTML = "";
-    });
+  function mountPersonaDetailAfter(btn) {
+    let detail = document.getElementById("cap-persona-detail-active");
+    if (!detail) {
+      detail = document.createElement("div");
+      detail.id = "cap-persona-detail-active";
+      detail.className = "cap-persona-detail";
+    }
+    detail.classList.remove("cap-hidden");
+    if (detail.previousElementSibling !== btn) {
+      detail.remove();
+      btn.insertAdjacentElement("afterend", detail);
+    }
+    return detail;
   }
 
   function isPersonaExpanded(id) {
-    const el = getPersonaDetailEl(id);
-    return el && !el.classList.contains("cap-hidden");
+    if (String(personaSeleccionadaId) !== String(id)) return false;
+    const detail = document.getElementById("cap-persona-detail-active");
+    return detail && !detail.classList.contains("cap-hidden");
   }
 
 
@@ -4442,7 +4459,7 @@
 
     if (!row) return;
 
-
+    collapsePersonaDetail();
 
     row.innerHTML = '<p class="cap-empty">Cargando...</p>';
 
@@ -4489,8 +4506,6 @@
               <span class="cap-persona-card__legajo">${p.legajo || "—"}</span>
 
             </button>
-
-            <div class="cap-persona-detail cap-hidden" id="cap-persona-detail-${p.id}"></div>
 
           </div>`
 
@@ -4562,7 +4577,7 @@
 
     personaSeleccionadaId = null;
 
-    collapseAllPersonaDetails();
+    collapsePersonaDetail();
 
   }
 
@@ -4570,19 +4585,22 @@
 
   async function selectPersona(id, btn) {
 
-    collapseAllPersonaDetails();
+    if (!btn) {
+      btn = document.querySelector(`.cap-persona-card[data-id="${id}"]`);
+    }
+    if (!btn) return;
+
+    collapsePersonaDetail();
 
     document.querySelectorAll(".cap-persona-card").forEach((b) => b.classList.remove("active"));
 
-    if (btn) btn.classList.add("active");
+    btn.classList.add("active");
+
+    btn.closest(".cap-persona-item")?.classList.add("cap-persona-item--expanded");
 
     personaSeleccionadaId = id;
 
-    const detail = getPersonaDetailEl(id);
-
-    if (!detail) return;
-
-    detail.classList.remove("cap-hidden");
+    const detail = mountPersonaDetailAfter(btn);
 
     detail.innerHTML = '<p class="cap-loading">Cargando legajo...</p>';
 
@@ -4776,7 +4794,7 @@
 
     });
 
-    detail.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    btn.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
   }
 
