@@ -4387,13 +4387,10 @@
         <h3>Datos de la persona</h3>
         <dl class="cap-legajo-grid">
           ${renderLegajoCampo("Legajo", p.legajo)}
-          ${renderLegajoCampo("DNI", p.dni)}
           ${renderLegajoCampo("Email", p.email)}
-          ${renderLegajoCampo("Teléfono", p.telefono)}
           ${renderLegajoCampo("Sector", p.sector_nombre)}
           ${renderLegajoCampo("Puesto", p.puesto_nombre)}
           ${renderLegajoCampo("Centro", p.centro_nombre)}
-          ${renderLegajoCampo("Fecha de ingreso", formatFecha(p.fecha_ingreso))}
           ${observaciones}
         </dl>
       </div>

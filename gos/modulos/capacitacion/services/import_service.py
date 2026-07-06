@@ -5,14 +5,19 @@ from io import BytesIO
 import openpyxl
 
 from gos.extensions import db
-from gos.modulos.capacitacion.models import Centro, Curso, Participante, Puesto
+from gos.modulos.capacitacion.models import Centro, Curso, Participante
 from gos.modulos.capacitacion.services.taxonomia_service import (
     clasificacion_desde_legacy,
     tipo_capacitacion_legacy,
     validar_clasificacion,
 )
-from gos.modulos.capacitacion.services.catalogo_service import _parse_date, _parse_decimal, _parse_int
-from gos.modulos.objetivos.models.catalogos import Sector
+from gos.modulos.capacitacion.services.catalogo_service import (
+    _parse_decimal,
+    _parse_int,
+    centro_id_desde_texto,
+    puesto_id_desde_texto,
+    sector_id_desde_texto,
+)
 
 
 def _cell_str(value) -> str:
@@ -38,13 +43,10 @@ def importar_participantes_excel(empresa_id: int, file_bytes: bytes) -> dict:
     if not required.issubset(headers):
         raise ValueError(
             "El Excel debe tener encabezados en la fila 1. Mínimo: nombre. "
-            "Opcionales: apellido, dni, email, telefono, centro, centro_codigo, sector_codigo, "
-            "puesto_codigo, fecha_ingreso, observaciones. Obligatorio: nombre, legajo"
+            "Opcionales: apellido, email, centro, centro_codigo, sector, sector_codigo, "
+            "puesto, puesto_codigo, observaciones. Obligatorio: nombre, legajo"
         )
 
-    sectores = {s.codigo: s.id for s in Sector.query.filter_by(empresa_id=empresa_id, activo=True).all()}
-    puestos = {p.codigo: p.id for p in Puesto.query.filter_by(empresa_id=empresa_id, activo=True).all()}
-    centros = {c.codigo: c.id for c in Centro.query.filter_by(empresa_id=empresa_id, activo=True).all()}
     legajos_existentes = {
         p.legajo for p in Participante.query.filter_by(empresa_id=empresa_id).all() if p.legajo
     }
@@ -62,6 +64,13 @@ def importar_participantes_excel(empresa_id: int, file_bytes: bytes) -> dict:
                 return ""
             return _cell_str(row[col - 1])
 
+        def val_any(*keys: str) -> str:
+            for key in keys:
+                value = val(key)
+                if value:
+                    return value
+            return ""
+
         nombre = val("nombre")
         if not nombre:
             omitidos += 1
@@ -71,46 +80,43 @@ def importar_participantes_excel(empresa_id: int, file_bytes: bytes) -> dict:
         if not legajo:
             errores.append(f"Fila {row_idx}: el legajo es obligatorio")
             continue
-        sector_codigo = val("sector_codigo")
-        puesto_codigo = val("puesto_codigo")
-        centro_codigo = val("centro_codigo")
-        sector_id = sectores.get(sector_codigo) if sector_codigo else None
-        puesto_id = puestos.get(puesto_codigo) if puesto_codigo else None
-        centro_id = centros.get(centro_codigo) if centro_codigo else None
 
-        if sector_codigo and not sector_id:
-            errores.append(f"Fila {row_idx}: sector «{sector_codigo}» no encontrado")
-            continue
-        if puesto_codigo and not puesto_id:
-            errores.append(f"Fila {row_idx}: puesto «{puesto_codigo}» no encontrado")
-            continue
-        if centro_codigo and not centro_id:
-            errores.append(f"Fila {row_idx}: centro «{centro_codigo}» no encontrado")
-            continue
+        sector_texto = val_any("sector_codigo", "sector")
+        puesto_texto = val_any("puesto_codigo", "puesto")
+        centro_codigo = val("centro_codigo")
+        centro_texto = val_any("centro")
+
+        sector_id = sector_id_desde_texto(empresa_id, sector_texto) if sector_texto else None
+        puesto_id = (
+            puesto_id_desde_texto(empresa_id, puesto_texto, sector_id=sector_id)
+            if puesto_texto
+            else None
+        )
+        centro_id = None
+        if centro_codigo:
+            centro = Centro.query.filter_by(
+                empresa_id=empresa_id, codigo=centro_codigo, activo=True
+            ).first()
+            if not centro:
+                errores.append(f"Fila {row_idx}: centro «{centro_codigo}» no encontrado")
+                continue
+            centro_id = centro.id
+        elif centro_texto:
+            centro_id = centro_id_desde_texto(empresa_id, centro_texto)
 
         existente = None
         if legajo:
             existente = Participante.query.filter_by(empresa_id=empresa_id, legajo=legajo).first()
 
-        try:
-            fecha_ingreso = _parse_date(val("fecha_ingreso") or None)
-        except ValueError:
-            errores.append(f"Fila {row_idx}: fecha_ingreso inválida")
-            continue
-
         data = {
             "nombre": nombre,
             "apellido": val("apellido") or None,
             "legajo": legajo,
-            "dni": val("dni") or None,
             "email": val("email") or None,
-            "telefono": val("telefono") or None,
             "centro_id": centro_id,
-            "centro": val("centro") or None,
             "observaciones": val("observaciones") or None,
             "sector_id": sector_id,
             "puesto_id": puesto_id,
-            "fecha_ingreso": fecha_ingreso.isoformat() if fecha_ingreso else None,
         }
 
         if existente:

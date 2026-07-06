@@ -2,20 +2,11 @@ from __future__ import annotations
 
 from gos.extensions import db
 from gos.modulos.capacitacion.models import Participante
-from gos.modulos.capacitacion.services.catalogo_service import crear_participante, centro_id_desde_texto
-from gos.modulos.objetivos.models.catalogos import Sector
-
-
-def _sector_id_por_nombre(empresa_id: int, nombre: str | None) -> int | None:
-    if not nombre or not nombre.strip():
-        return None
-    norm = nombre.strip().lower()
-    sectores = Sector.query.filter_by(empresa_id=empresa_id, activo=True).all()
-    for s in sectores:
-        if s.nombre.strip().lower() == norm:
-            return s.id
-    return None
-
+from gos.modulos.capacitacion.services.catalogo_service import (
+    crear_participante,
+    centro_id_desde_texto,
+    sector_id_desde_texto,
+)
 
 def sincronizar_legajos_vacaciones(empresa_id: int) -> dict:
     """
@@ -46,7 +37,7 @@ def sincronizar_legajos_vacaciones(empresa_id: int) -> dict:
                 omitidos += 1
                 continue
 
-            sector_id = _sector_id_por_nombre(empresa_id, row.sector)
+            sector_id = sector_id_desde_texto(empresa_id, row.sector, crear_si_falta=False)
             fecha_ingreso = row.fecha_ingreso.isoformat() if row.fecha_ingreso else None
             centro_id = centro_id_desde_texto(empresa_id, row.centro)
 

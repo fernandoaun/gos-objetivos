@@ -387,6 +387,74 @@ def actualizar_centro(empresa_id: int, centro_id: int, data: dict) -> dict:
     return _centro_dict(centro)
 
 
+def _codigo_desde_texto(texto: str, fallback: str) -> str:
+    base = "".join(ch for ch in texto.upper() if ch.isalnum())[:12] or fallback
+    return base
+
+
+def sector_id_desde_texto(
+    empresa_id: int, texto: str | None, *, crear_si_falta: bool = True
+) -> int | None:
+    """Resuelve un sector por código o nombre; opcionalmente lo crea en catálogo."""
+    nombre = (texto or "").strip()
+    if not nombre:
+        return None
+    norm = nombre.lower()
+    for sector in Sector.query.filter_by(empresa_id=empresa_id, activo=True).all():
+        if sector.codigo.strip().lower() == norm or sector.nombre.strip().lower() == norm:
+            return sector.id
+    if not crear_si_falta:
+        return None
+
+    base = _codigo_desde_texto(nombre, "SEC")
+    codigo = base
+    n = 1
+    while Sector.query.filter_by(empresa_id=empresa_id, codigo=codigo).first():
+        codigo = f"{base}{n}"
+        n += 1
+
+    sector = Sector(empresa_id=empresa_id, codigo=codigo, nombre=nombre)
+    db.session.add(sector)
+    db.session.flush()
+    return sector.id
+
+
+def puesto_id_desde_texto(
+    empresa_id: int,
+    texto: str | None,
+    *,
+    sector_id: int | None = None,
+    crear_si_falta: bool = True,
+) -> int | None:
+    """Resuelve un puesto por código o nombre; opcionalmente lo crea en catálogo."""
+    nombre = (texto or "").strip()
+    if not nombre:
+        return None
+    norm = nombre.lower()
+    for puesto in Puesto.query.filter_by(empresa_id=empresa_id, activo=True).all():
+        if puesto.codigo.strip().lower() == norm or puesto.nombre.strip().lower() == norm:
+            return puesto.id
+    if not crear_si_falta:
+        return None
+
+    base = _codigo_desde_texto(nombre, "PST")
+    codigo = base
+    n = 1
+    while Puesto.query.filter_by(empresa_id=empresa_id, codigo=codigo).first():
+        codigo = f"{base}{n}"
+        n += 1
+
+    puesto = Puesto(
+        empresa_id=empresa_id,
+        codigo=codigo,
+        nombre=nombre,
+        sector_id=sector_id,
+    )
+    db.session.add(puesto)
+    db.session.flush()
+    return puesto.id
+
+
 def centro_id_desde_texto(empresa_id: int, texto: str | None) -> int | None:
     """Resuelve un centro por nombre; lo crea en catálogo si no existe."""
     nombre = (texto or "").strip()
@@ -522,11 +590,14 @@ def actualizar_participante(empresa_id: int, participante_id: int, data: dict) -
     participante.nombre = nombre
     participante.apellido = (data.get("apellido") or "").strip() or None
     participante.legajo = legajo
-    participante.dni = (data.get("dni") or "").strip() or None
+    if "dni" in data:
+        participante.dni = (data.get("dni") or "").strip() or None
     participante.email = email
-    participante.telefono = (data.get("telefono") or "").strip() or None
+    if "telefono" in data:
+        participante.telefono = (data.get("telefono") or "").strip() or None
     participante.centro_id = centro_id
-    participante.fecha_ingreso = _parse_date(data.get("fecha_ingreso"))
+    if "fecha_ingreso" in data:
+        participante.fecha_ingreso = _parse_date(data.get("fecha_ingreso"))
     participante.observaciones = (data.get("observaciones") or "").strip() or None
     if "activo" in data:
         participante.activo = bool(data["activo"])
