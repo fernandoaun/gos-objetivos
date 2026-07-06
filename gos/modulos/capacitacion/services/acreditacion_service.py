@@ -13,6 +13,7 @@ from gos.modulos.capacitacion.models import (
     Curso,
     EncuentroCapacitacion,
     Participante,
+    PlanCapacitacion,
     PlanCurso,
     ProgramaCapacitacion,
     ProgramaPlan,
@@ -52,6 +53,14 @@ def _siguiente_habil(dt: datetime) -> datetime:
     while dt.weekday() >= 5:
         dt = dt + timedelta(days=1)
     return dt
+
+
+def anterior_habil(d: date) -> date:
+    """Día hábil (lun-vie) inmediatamente anterior a la fecha indicada."""
+    actual = d - timedelta(days=1)
+    while actual.weekday() >= 5:
+        actual -= timedelta(days=1)
+    return actual
 
 
 def calcular_aprobacion(
@@ -221,8 +230,137 @@ def aplicar_resultado_asistencia(
         )
         if aprobo:
             _upsert_registro(empresa_id, encuentro, asist, curso)
+            if fecha_venc:
+                programar_renovacion_vigencia(empresa_id, encuentro, asist, curso, fecha_venc)
 
     return asist
+
+
+def programar_renovacion_vigencia(
+    empresa_id: int,
+    encuentro: EncuentroCapacitacion,
+    asist: AsistenciaEncuentro,
+    curso: Curso,
+    fecha_venc: date,
+) -> dict | None:
+    """Programa renovación el día hábil previo al vencimiento."""
+    if not fecha_venc or not curso.tiene_vigencia or not encuentro.curso_id:
+        return None
+
+    fecha_renov = anterior_habil(fecha_venc)
+    if fecha_renov <= date.today():
+        return None
+
+    participante_id = asist.participante_id
+    curso_id = encuentro.curso_id
+
+    renov_enc = _buscar_o_crear_encuentro_renovacion(empresa_id, encuentro, curso, fecha_renov)
+
+    plan = (
+        PlanCapacitacion.query.filter_by(
+            empresa_id=empresa_id,
+            participante_id=participante_id,
+            curso_id=curso_id,
+        )
+        .filter(PlanCapacitacion.estado.in_(("pendiente", "programado")))
+        .first()
+    )
+
+    obs = "Renovación automática por vencimiento"
+    if plan:
+        if not plan.fecha_planificada or plan.fecha_planificada > fecha_renov:
+            plan.fecha_planificada = fecha_renov
+        if renov_enc:
+            plan.encuentro_id = renov_enc.id
+            plan.estado = "programado"
+        if not plan.observaciones:
+            plan.observaciones = obs
+        if renov_enc:
+            _inscribir_en_renovacion(renov_enc, participante_id)
+        return {
+            "plan_id": plan.id,
+            "encuentro_id": renov_enc.id if renov_enc else None,
+            "fecha": fecha_renov.isoformat(),
+        }
+
+    plan = PlanCapacitacion(
+        empresa_id=empresa_id,
+        participante_id=participante_id,
+        curso_id=curso_id,
+        programa_id=encuentro.programa_id,
+        encuentro_id=renov_enc.id if renov_enc else None,
+        fecha_planificada=fecha_renov,
+        estado="programado" if renov_enc else "pendiente",
+        prioridad=2,
+        observaciones=obs,
+    )
+    db.session.add(plan)
+    if renov_enc:
+        _inscribir_en_renovacion(renov_enc, participante_id)
+    return {
+        "plan_id": plan.id,
+        "encuentro_id": renov_enc.id if renov_enc else None,
+        "fecha": fecha_renov.isoformat(),
+    }
+
+
+def _buscar_o_crear_encuentro_renovacion(
+    empresa_id: int,
+    encuentro: EncuentroCapacitacion,
+    curso: Curso,
+    fecha_renov: date,
+) -> EncuentroCapacitacion | None:
+    if not encuentro.programa_id:
+        return None
+
+    tag = f"renovacion_auto:{encuentro.id}"
+    existing = EncuentroCapacitacion.query.filter_by(
+        empresa_id=empresa_id,
+        curso_id=encuentro.curso_id,
+        programa_id=encuentro.programa_id,
+        plan_id=encuentro.plan_id,
+        fecha=fecha_renov,
+        estado="planificado",
+    ).first()
+    if existing:
+        return existing
+
+    nuevo = EncuentroCapacitacion(
+        empresa_id=empresa_id,
+        programa_id=encuentro.programa_id,
+        plan_id=encuentro.plan_id,
+        curso_id=encuentro.curso_id,
+        titulo=f"Renovación: {curso.nombre}",
+        fecha=fecha_renov,
+        hora_inicio=encuentro.hora_inicio,
+        hora_fin=encuentro.hora_fin,
+        lugar=encuentro.lugar,
+        link_virtual=encuentro.link_virtual,
+        instructor=encuentro.instructor,
+        instructor_id=encuentro.instructor_id,
+        origen=encuentro.origen,
+        empresa_capacitadora_id=encuentro.empresa_capacitadora_id,
+        estado="planificado",
+        observaciones=f"{tag} — programado automáticamente",
+    )
+    db.session.add(nuevo)
+    db.session.flush()
+    return nuevo
+
+
+def _inscribir_en_renovacion(encuentro: EncuentroCapacitacion, participante_id: int) -> None:
+    existe = AsistenciaEncuentro.query.filter_by(
+        encuentro_id=encuentro.id,
+        participante_id=participante_id,
+    ).first()
+    if not existe:
+        db.session.add(
+            AsistenciaEncuentro(
+                encuentro_id=encuentro.id,
+                participante_id=participante_id,
+                asistencia="inscripto",
+            )
+        )
 
 
 def _upsert_registro(

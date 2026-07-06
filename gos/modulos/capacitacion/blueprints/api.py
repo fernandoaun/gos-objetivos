@@ -70,6 +70,8 @@ from gos.modulos.capacitacion.services import (
     obtener_participante,
     obtener_programa,
     obtener_taxonomia_cursos,
+    agregar_periodo_vigencia,
+    listar_periodos_vigencia,
     participantes_encuentro,
     registrar_asistencias,
     reporte_iso,
@@ -146,6 +148,24 @@ def configuracion():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify({"config": cfg})
+
+
+@bp.route("/periodos-vigencia", methods=["GET", "POST"])
+@login_required
+def periodos_vigencia():
+    eid = current_user.empresa_id
+    if request.method == "GET":
+        return jsonify({"periodos": listar_periodos_vigencia(eid)})
+    if not _puede_editar():
+        return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    body = _json_body()
+    try:
+        meses = int(body.get("meses") or 0)
+        label = (body.get("label") or "").strip() or None
+        periodos = agregar_periodo_vigencia(eid, meses, label)
+    except (TypeError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"periodos": periodos})
 
 
 @bp.route("/busqueda")

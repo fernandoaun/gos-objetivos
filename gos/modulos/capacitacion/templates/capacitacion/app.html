@@ -802,17 +802,31 @@
                 <label class="cap-label" for="cap-c-horas">Horas</label>
                 <input class="cap-input" id="cap-c-horas" name="horas" type="number" min="0" step="0.5">
               </div>
-              <div>
-                <label class="cap-label" for="cap-c-vigencia">Vigencia (meses)</label>
-                <input class="cap-input" id="cap-c-vigencia" name="vigencia_meses" type="number" min="1" step="1">
-              </div>
-              <div>
+              <div id="cap-c-puntaje-wrap" class="cap-hidden">
                 <label class="cap-label" for="cap-c-puntaje">Puntaje mínimo</label>
                 <input class="cap-input" id="cap-c-puntaje" name="puntaje_minimo" type="number" min="0" max="10" step="0.1">
               </div>
-              <div class="cap-form-row" style="align-self:end">
+            </div>
+            <div class="cap-form-row cap-form-row--2" style="align-items:end">
+              <div>
                 <label class="cap-label"><input type="checkbox" id="cap-c-eval" name="requiere_evaluacion" value="1"> Requiere evaluación</label>
               </div>
+              <div>
+                <label class="cap-label"><input type="checkbox" id="cap-c-vigencia-chk"> Tiene fecha de vencimiento</label>
+              </div>
+            </div>
+            <div class="cap-form-row cap-form-row--2 cap-hidden" id="cap-c-vigencia-wrap">
+              <div>
+                <div class="cap-label-row">
+                  <label class="cap-label" for="cap-c-vigencia-periodo">Período de vigencia</label>
+                  <button type="button" class="cap-btn cap-btn--xs cap-btn--ghost" id="cap-c-vigencia-add" title="Agregar período"><i class="bi bi-plus-lg"></i></button>
+                </div>
+                <select class="cap-input" id="cap-c-vigencia-periodo">
+                  <option value="">— Seleccionar período —</option>
+                </select>
+                <input type="hidden" id="cap-c-vigencia" name="vigencia_meses">
+              </div>
+              <p class="cap-form-hint cap-mb-0">Al dictarse el curso se reprogramará automáticamente para el día hábil anterior al vencimiento.</p>
             </div>
             <p class="cap-form-hint cap-form-hint--error" id="cap-curso-form-error"></p>
             <div class="cap-form-actions">

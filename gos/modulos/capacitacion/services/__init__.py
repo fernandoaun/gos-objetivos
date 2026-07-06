@@ -31,7 +31,7 @@ from gos.modulos.capacitacion.services.catalogo_service import (
     listar_sectores,
     obtener_taxonomia_cursos,
 )
-from gos.modulos.capacitacion.services.config_service import guardar_config, obtener_config
+from gos.modulos.capacitacion.services.config_service import guardar_config, obtener_config, agregar_periodo_vigencia, listar_periodos_vigencia
 from gos.modulos.capacitacion.services.dashboard_service import (
     encuentros_cronograma,
     resumen_dashboard,
@@ -99,6 +99,8 @@ __all__ = [
     "marcar_alerta_leida",
     "obtener_config",
     "guardar_config",
+    "listar_periodos_vigencia",
+    "agregar_periodo_vigencia",
     "listar_cursos",
     "listar_instructores",
     "crear_instructor",

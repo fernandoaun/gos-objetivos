@@ -45,6 +45,7 @@ _COLUMN_UPGRADES = [
     ("cap_config", "emails_por_sector", "TEXT"),
     ("cap_config", "emails_por_rol", "TEXT"),
     ("cap_config", "ultimo_envio_notif", "TIMESTAMP"),
+    ("cap_config", "periodos_vigencia", "TEXT"),
     ("cap_puestos", "sector_id", "INTEGER"),
 ]
 

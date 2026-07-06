@@ -37,6 +37,7 @@
 
   let personaEditId = null;
   let cursoEditId = null;
+  let periodosVigenciaCache = null;
   let asistenciaEncuentroId = null;
   let chartPersonal = null;
   let chartCert = null;
@@ -3435,7 +3436,10 @@
     }
     const hs = curso.horas ?? curso.duracion_horas ?? "—";
     const ev = curso.requiere_evaluacion ? `Sí (mín. ${curso.puntaje_minimo ?? 0})` : "No";
-    meta.innerHTML = `<strong>Duración:</strong> ${hs} hs · <strong>Evaluación:</strong> ${ev}`;
+    const vig = curso.tiene_vigencia
+      ? `Sí (${curso.vigencia_meses} meses)`
+      : "No";
+    meta.innerHTML = `<strong>Duración:</strong> ${hs} hs · <strong>Evaluación:</strong> ${ev} · <strong>Vencimiento:</strong> ${vig}`;
     meta.classList.remove("cap-hidden");
   }
 
@@ -5212,6 +5216,84 @@
 
 
 
+  function syncCursoEvalFields() {
+    const evalChk = document.getElementById("cap-c-eval");
+    const puntWrap = document.getElementById("cap-c-puntaje-wrap");
+    if (evalChk && puntWrap) {
+      puntWrap.classList.toggle("cap-hidden", !evalChk.checked);
+    }
+  }
+
+
+
+  function syncCursoVigenciaFields() {
+    const chk = document.getElementById("cap-c-vigencia-chk");
+    const wrap = document.getElementById("cap-c-vigencia-wrap");
+    if (chk && wrap) {
+      wrap.classList.toggle("cap-hidden", !chk.checked);
+    }
+    if (!chk?.checked) {
+      const hidden = document.getElementById("cap-c-vigencia");
+      const sel = document.getElementById("cap-c-vigencia-periodo");
+      if (hidden) hidden.value = "";
+      if (sel) sel.value = "";
+    }
+  }
+
+
+
+  async function ensurePeriodosVigencia() {
+    if (periodosVigenciaCache) return periodosVigenciaCache;
+    const data = await fetchJson(`${API}/periodos-vigencia`);
+    periodosVigenciaCache = data.periodos || [];
+    return periodosVigenciaCache;
+  }
+
+
+
+  function fillPeriodosVigenciaSelect(periodos, selectedMeses) {
+    const sel = document.getElementById("cap-c-vigencia-periodo");
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— Seleccionar período —</option>';
+    periodos.forEach((p) => {
+      const opt = document.createElement("option");
+      opt.value = String(p.meses);
+      opt.textContent = p.label || `${p.meses} meses`;
+      sel.appendChild(opt);
+    });
+    if (selectedMeses) {
+      sel.value = String(selectedMeses);
+      const hidden = document.getElementById("cap-c-vigencia");
+      if (hidden) hidden.value = String(selectedMeses);
+    }
+  }
+
+
+
+  async function openVigenciaPeriodoAdd() {
+    const mesesStr = prompt("Cantidad de meses de vigencia (ej: 12 para un año):");
+    if (!mesesStr) return;
+    const meses = Number(mesesStr);
+    if (!Number.isInteger(meses) || meses < 1 || meses > 120) {
+      alert("Ingresá un número entero entre 1 y 120.");
+      return;
+    }
+    const defaultLabel = meses % 12 === 0 && meses >= 12
+      ? `${meses / 12} año${meses > 12 ? "s" : ""}`
+      : `${meses} meses`;
+    const label = prompt("Etiqueta del período (opcional):", defaultLabel);
+    try {
+      const r = await postJson(`${API}/periodos-vigencia`, { meses, label: label || undefined });
+      periodosVigenciaCache = r.periodos || [];
+      fillPeriodosVigenciaSelect(periodosVigenciaCache, meses);
+      syncCursoVigenciaFields();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+
+
   async function openCursoForm(item) {
 
     const form = document.getElementById("cap-curso-form");
@@ -5246,11 +5328,16 @@
 
     document.getElementById("cap-c-horas").value = item?.horas ?? "";
 
-    document.getElementById("cap-c-vigencia").value = item?.vigencia_meses ?? "";
+    const tieneVig = Boolean(item?.tiene_vigencia || (item?.vigencia_meses && item.vigencia_meses > 0));
+    document.getElementById("cap-c-vigencia-chk").checked = tieneVig;
+    const periodos = await ensurePeriodosVigencia();
+    fillPeriodosVigenciaSelect(periodos, tieneVig ? item?.vigencia_meses : null);
+    syncCursoVigenciaFields();
 
     document.getElementById("cap-c-puntaje").value = item?.puntaje_minimo ?? "";
 
     document.getElementById("cap-c-eval").checked = Boolean(item?.requiere_evaluacion);
+    syncCursoEvalFields();
 
     document.getElementById("cap-curso-baja")?.classList.toggle("cap-hidden", !cursoEditId);
 
@@ -5271,6 +5358,17 @@
 
 
     document.getElementById("cap-btn-nuevo-curso")?.addEventListener("click", () => openCursoForm(null));
+
+    document.getElementById("cap-c-eval")?.addEventListener("change", syncCursoEvalFields);
+
+    document.getElementById("cap-c-vigencia-chk")?.addEventListener("change", syncCursoVigenciaFields);
+
+    document.getElementById("cap-c-vigencia-periodo")?.addEventListener("change", (e) => {
+      const hidden = document.getElementById("cap-c-vigencia");
+      if (hidden) hidden.value = e.target.value || "";
+    });
+
+    document.getElementById("cap-c-vigencia-add")?.addEventListener("click", () => openVigenciaPeriodoAdd());
 
     document.getElementById("cap-btn-importar-cursos")?.addEventListener("click", () => {
 
@@ -5350,11 +5448,25 @@
 
       payload.requiere_evaluacion = document.getElementById("cap-c-eval")?.checked || false;
 
+      payload.tiene_vigencia = document.getElementById("cap-c-vigencia-chk")?.checked || false;
+
       if (payload.horas) payload.horas = Number(payload.horas);
 
-      if (payload.vigencia_meses) payload.vigencia_meses = Number(payload.vigencia_meses);
+      if (payload.tiene_vigencia) {
+        const meses = Number(document.getElementById("cap-c-vigencia")?.value || 0);
+        if (!meses) {
+          setFormError("cap-curso-form-error", "Seleccioná el período de vigencia.");
+          return;
+        }
+        payload.vigencia_meses = meses;
+      } else {
+        payload.tiene_vigencia = false;
+        delete payload.vigencia_meses;
+      }
 
-      if (payload.puntaje_minimo) payload.puntaje_minimo = Number(payload.puntaje_minimo);
+      if (!payload.requiere_evaluacion) delete payload.puntaje_minimo;
+
+      else if (payload.puntaje_minimo) payload.puntaje_minimo = Number(payload.puntaje_minimo);
 
       delete payload.id;
 
