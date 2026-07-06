@@ -4419,13 +4419,26 @@
   }
 
 
+  function getPersonaDetailEl(id) {
+    return document.getElementById(`cap-persona-detail-${id}`);
+  }
+
+  function collapseAllPersonaDetails() {
+    document.querySelectorAll(".cap-persona-detail").forEach((el) => {
+      el.classList.add("cap-hidden");
+      el.innerHTML = "";
+    });
+  }
+
+  function isPersonaExpanded(id) {
+    const el = getPersonaDetailEl(id);
+    return el && !el.classList.contains("cap-hidden");
+  }
+
+
   async function loadPersonas(selectId) {
 
     const row = document.getElementById("cap-personas-row");
-
-    const detail = document.getElementById("cap-persona-detail");
-
-    const legajoPanel = document.getElementById("cap-legajo-panel");
 
     if (!row) return;
 
@@ -4451,10 +4464,6 @@
 
       row.innerHTML = '<p class="cap-empty">Sin participantes cargados</p>';
 
-      if (detail) detail.innerHTML = '<p class="cap-empty">Agregá personas para ver el legajo.</p>';
-
-      legajoPanel?.classList.add("cap-hidden");
-
       personaSeleccionadaId = null;
 
       return;
@@ -4469,15 +4478,21 @@
 
         (p) =>
 
-          `<button type="button" class="cap-persona-card" data-id="${p.id}">
+          `<div class="cap-persona-item" data-id="${p.id}">
 
-            <span class="cap-persona-card__avatar">${renderPersonaAvatar(p)}</span>
+            <button type="button" class="cap-persona-card" data-id="${p.id}">
 
-            <span class="cap-persona-card__nombre">${p.nombre}</span>
+              <span class="cap-persona-card__avatar">${renderPersonaAvatar(p)}</span>
 
-            <span class="cap-persona-card__legajo">${p.legajo || "—"}</span>
+              <span class="cap-persona-card__nombre">${p.nombre}</span>
 
-          </button>`
+              <span class="cap-persona-card__legajo">${p.legajo || "—"}</span>
+
+            </button>
+
+            <div class="cap-persona-detail cap-hidden" id="cap-persona-detail-${p.id}"></div>
+
+          </div>`
 
       )
 
@@ -4491,9 +4506,7 @@
 
         const id = btn.dataset.id;
 
-        const legajoPanel = document.getElementById("cap-legajo-panel");
-
-        if (personaSeleccionadaId === id && legajoPanel && !legajoPanel.classList.contains("cap-hidden")) {
+        if (personaSeleccionadaId === id && isPersonaExpanded(id)) {
 
           deselectPersona();
 
@@ -4529,7 +4542,7 @@
 
       if (activeBtn) {
 
-        activeBtn.classList.add("active");
+        selectPersona(personaSeleccionadaId, activeBtn);
 
         return;
 
@@ -4549,13 +4562,7 @@
 
     personaSeleccionadaId = null;
 
-    const legajoPanel = document.getElementById("cap-legajo-panel");
-
-    const detail = document.getElementById("cap-persona-detail");
-
-    legajoPanel?.classList.add("cap-hidden");
-
-    if (detail) detail.innerHTML = '<p class="cap-empty">Seleccioná una persona para ver su legajo</p>';
+    collapseAllPersonaDetails();
 
   }
 
@@ -4563,19 +4570,19 @@
 
   async function selectPersona(id, btn) {
 
+    collapseAllPersonaDetails();
+
     document.querySelectorAll(".cap-persona-card").forEach((b) => b.classList.remove("active"));
 
     if (btn) btn.classList.add("active");
 
     personaSeleccionadaId = id;
 
-    const detail = document.getElementById("cap-persona-detail");
-
-    const legajoPanel = document.getElementById("cap-legajo-panel");
+    const detail = getPersonaDetailEl(id);
 
     if (!detail) return;
 
-    legajoPanel?.classList.remove("cap-hidden");
+    detail.classList.remove("cap-hidden");
 
     detail.innerHTML = '<p class="cap-loading">Cargando legajo...</p>';
 
@@ -4768,6 +4775,8 @@
       }
 
     });
+
+    detail.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
   }
 
