@@ -1581,6 +1581,27 @@
   padding: 0.85rem 1rem;
 }
 
+.cap-prog-puestos-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.65rem;
+}
+
+.cap-prog-puestos-list li {
+  font-size: 0.88rem;
+  padding: 0.2rem 0.55rem;
+  background: var(--cap-surface-2, #f4f6f8);
+  border-radius: 6px;
+  color: var(--cap-text);
+}
+
+.cap-plan-curso--readonly {
+  grid-template-columns: auto 1fr;
+}
+
 .cap-programas-list-wrap {
   border: 1px solid var(--cap-border);
   border-radius: 10px;

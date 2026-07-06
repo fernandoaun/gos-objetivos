@@ -2434,6 +2434,7 @@
 
   let programaCursosIds = [];
   let programaSeleccionadoId = null;
+  let programaDetalleEditable = false;
   let programasCache = [];
   let progPlanesDraft = [];
   let progPlanCatalogCache = [];
@@ -5523,14 +5524,25 @@
       const detailEl = card?.querySelector(".cap-prog-card-detail");
       const cached = programasCache.find((prog) => prog.id === programaSeleccionadoId);
       if (detailEl && cached?.planes) {
-        renderProgramaDetalleEnCard(cached, detailEl);
+        renderProgramaDetalleEnCard(cached, detailEl, programaDetalleEditable);
       }
     }
   }
 
   function collapsePrograma() {
     programaSeleccionadoId = null;
+    programaDetalleEditable = false;
     loadProgramas().catch(console.error);
+  }
+
+  function refreshProgramaDetalle() {
+    if (!programaSeleccionadoId) return;
+    const card = document.querySelector(`.cap-prog-card[data-programa-id="${programaSeleccionadoId}"]`);
+    const detailEl = card?.querySelector(".cap-prog-card-detail");
+    const programa = programasCache.find((p) => p.id === programaSeleccionadoId);
+    if (detailEl && programa?.planes) {
+      renderProgramaDetalleEnCard(programa, detailEl, programaDetalleEditable);
+    }
   }
 
   async function togglePrograma(programaId) {
@@ -5541,7 +5553,7 @@
     await selectPrograma(programaId);
   }
 
-  function renderProgramaDetalleEnCard(programa, containerEl) {
+  function renderProgramaDetalleEnCard(programa, containerEl, editable = false) {
     const tipoTxt = programa.tipo === "externo" ? "Externo" : "Interno";
     const metaRows = [
       programa.codigo ? `<div class="cap-prog-detail-row"><span class="cap-prog-detail-label">Código</span><span>${escapeHtml(programa.codigo)}</span></div>` : "",
@@ -5554,15 +5566,20 @@
         : "",
     ].filter(Boolean).join("");
     const puestosId = `cap-programa-puestos-detalle-${programa.id}`;
+    const puestosSection = editable
+      ? `<div class="cap-check-grid" id="${puestosId}"></div>
+          <p class="cap-form-hint cap-form-hint--error" id="cap-programa-puestos-error-${programa.id}"></p>
+          <button type="button" class="cap-btn cap-btn--primary cap-btn--sm cap-mt" data-prog-guardar-puestos="${programa.id}">Guardar puestos</button>`
+      : `<div class="cap-prog-puestos-readonly" id="${puestosId}"></div>`;
     containerEl.innerHTML = `
-      <div class="cap-prog-detail-inner">
+      <div class="cap-prog-detail-inner${editable ? " cap-prog-detail-inner--editable" : ""}">
         <div class="cap-prog-detail-head">
           <div>
             <h4 class="cap-prog-detail-title">Estructura del programa</h4>
             <p class="cap-muted">${escapeHtml(programa.nombre)}</p>
           </div>
           <div class="cap-toolbar-actions">
-            <button type="button" class="cap-btn cap-btn--ghost cap-btn--sm" data-prog-edit="${programa.id}"><i class="bi bi-pencil"></i> Editar</button>
+            ${editable ? "" : `<button type="button" class="cap-btn cap-btn--ghost cap-btn--sm" data-prog-edit="${programa.id}"><i class="bi bi-pencil"></i> Editar</button>`}
             <button type="button" class="cap-btn cap-btn--primary cap-btn--sm" data-prog-add-plan><i class="bi bi-plus-lg"></i> Agregar plan</button>
           </div>
         </div>
@@ -5571,16 +5588,22 @@
         <div data-prog-planes-wrap></div>
         <div class="cap-prog-detail-puestos">
           <h4 class="cap-subtitle">Puestos que aplican</h4>
-          <div class="cap-check-grid" id="${puestosId}"></div>
-          <p class="cap-form-hint cap-form-hint--error" id="cap-programa-puestos-error-${programa.id}"></p>
-          <button type="button" class="cap-btn cap-btn--primary cap-btn--sm cap-mt" data-prog-guardar-puestos="${programa.id}">Guardar puestos</button>
+          ${puestosSection}
         </div>
       </div>`;
-    renderPuestosChecks(puestosId, (programa.puestos || []).map((p) => p.id));
+    if (editable) {
+      renderPuestosChecks(puestosId, (programa.puestos || []).map((p) => p.id));
+    } else {
+      renderPuestosReadOnly(puestosId, programa.puestos || []);
+    }
     const planesWrap = containerEl.querySelector("[data-prog-planes-wrap]");
-    renderProgramaPlanes(programa, planesWrap);
+    renderProgramaPlanes(programa, planesWrap, editable);
     containerEl.querySelector("[data-prog-add-plan]")?.addEventListener("click", (ev) => {
       ev.stopPropagation();
+      if (!programaDetalleEditable) {
+        programaDetalleEditable = true;
+        refreshProgramaDetalle();
+      }
       const sel = containerEl.querySelector(`#cap-detalle-plan-select-${programa.id}`);
       sel?.focus();
       sel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -5610,13 +5633,26 @@
       </label>`).join("");
   }
 
+  function renderPuestosReadOnly(containerId, puestos = []) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    if (!puestos.length) {
+      el.innerHTML = '<p class="cap-empty">Ningún puesto asignado.</p>';
+      return;
+    }
+    el.innerHTML = `<ul class="cap-prog-puestos-list">${puestos.map((p) =>
+      `<li>${escapeHtml(p.nombre)}</li>`
+    ).join("")}</ul>`;
+  }
+
   function selectedPuestoIds(containerId) {
     return Array.from(document.querySelectorAll(`#${containerId} input[type="checkbox"]:checked`))
       .map((inp) => Number(inp.value));
   }
 
-  async function selectPrograma(programaId) {
+  async function selectPrograma(programaId, { resetEditMode = true } = {}) {
     programaSeleccionadoId = programaId;
+    if (resetEditMode) programaDetalleEditable = false;
     await loadProgramas();
     const card = document.querySelector(`.cap-prog-card[data-programa-id="${programaId}"]`);
     const detailEl = card?.querySelector(".cap-prog-card-detail");
@@ -5626,11 +5662,11 @@
     const data = await fetchJson(`${API}/programas/${programaId}`);
     const programa = data.programa;
     programasCache = programasCache.map((p) => (p.id === programa.id ? { ...p, ...programa } : p));
-    renderProgramaDetalleEnCard(programa, detailEl);
+    renderProgramaDetalleEnCard(programa, detailEl, programaDetalleEditable);
     card?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
-  function renderProgramaPlanes(programa, planesEl) {
+  function renderProgramaPlanes(programa, planesEl, editable = false) {
     if (!planesEl) return;
     const planes = programa.planes || [];
     const allCursos = window.capCursosCache || [];
@@ -5639,34 +5675,43 @@
       const disponibles = allCursos.filter((c) => !usados.has(c.id));
       const cursosHtml = (plan.cursos || []).map((c, i) => {
         const badges = (c.tambien_en || []).map((p) => `<span class="cap-badge cap-badge--soft">También en: ${escapeHtml(p.nombre)}</span>`).join(" ");
-        return `<li class="cap-plan-curso">
+        const quitarBtn = editable
+          ? `<button type="button" class="cap-btn cap-btn--sm cap-btn--danger" data-del-plan-curso="${c.id}" title="Quitar"><i class="bi bi-trash"></i></button>`
+          : "";
+        return `<li class="cap-plan-curso${editable ? "" : " cap-plan-curso--readonly"}">
           <span class="cap-col-num">${i + 1}</span>
           <span>${escapeHtml(c.curso_codigo)} — ${escapeHtml(c.curso_nombre)} ${badges}</span>
-          <button type="button" class="cap-btn cap-btn--sm cap-btn--danger" data-del-plan-curso="${c.id}" title="Quitar"><i class="bi bi-trash"></i></button>
+          ${quitarBtn}
         </li>`;
       }).join("") || '<li class="cap-empty">Sin cursos en este plan</li>';
-      return `<section class="cap-plan-block" data-plan-id="${plan.id}">
-        <div class="cap-plan-head">
-          <h4>${escapeHtml(plan.nombre)}</h4>
-          <button type="button" class="cap-btn cap-btn--sm cap-btn--danger" data-del-plan="${plan.id}" title="Eliminar plan"><i class="bi bi-trash"></i></button>
-        </div>
-        <ul class="cap-plan-cursos">${cursosHtml}</ul>
-        <div class="cap-input-group">
+      const delPlanBtn = editable
+        ? `<button type="button" class="cap-btn cap-btn--sm cap-btn--danger" data-del-plan="${plan.id}" title="Eliminar plan"><i class="bi bi-trash"></i></button>`
+        : "";
+      const addCursoRow = editable
+        ? `<div class="cap-input-group">
           <select class="cap-input" data-plan-curso-select="${plan.id}">
             <option value="">— Agregar curso —</option>
             ${disponibles.map((c) => `<option value="${c.id}">${escapeHtml(c.codigo)} — ${escapeHtml(c.nombre)}</option>`).join("")}
           </select>
           <button type="button" class="cap-btn cap-btn--primary" data-add-plan-curso="${plan.id}"><i class="bi bi-plus-lg"></i></button>
+        </div>`
+        : "";
+      return `<section class="cap-plan-block" data-plan-id="${plan.id}">
+        <div class="cap-plan-head">
+          <h4>${escapeHtml(plan.nombre)}</h4>
+          ${delPlanBtn}
         </div>
+        <ul class="cap-plan-cursos">${cursosHtml}</ul>
+        ${addCursoRow}
       </section>`;
-    }).join("") : '<p class="cap-empty">Este programa no tiene planes. Agregá el primero abajo.</p>';
+    }).join("") : `<p class="cap-empty">${editable ? "Este programa no tiene planes. Agregá el primero abajo." : "Este programa no tiene planes."}</p>`;
 
     const planSelectId = `cap-detalle-plan-select-${programa.id}`;
     const planQuickId = `cap-detalle-plan-quick-${programa.id}`;
     const planQuickNombreId = `cap-detalle-plan-quick-nombre-${programa.id}`;
 
-    planesEl.innerHTML = `${planesHtml}
-      <div class="cap-prog-add-plan-row">
+    const addPlanRow = editable
+      ? `<div class="cap-prog-add-plan-row">
         <label class="cap-label" for="${planSelectId}">Agregar plan</label>
         <div class="cap-input-group">
           <select class="cap-input" id="${planSelectId}" aria-label="Seleccionar plan">
@@ -5682,11 +5727,16 @@
             <button type="button" class="cap-btn cap-btn--primary" data-detalle-plan-quick-save>Agregar plan</button>
           </div>
         </div>
-      </div>`;
+      </div>`
+      : "";
 
-    loadProgPlanCatalog()
-      .then(() => fillDetallePlanSelect(planes, planSelectId))
-      .catch(console.error);
+    planesEl.innerHTML = `${planesHtml}${addPlanRow}`;
+
+    if (editable) {
+      loadProgPlanCatalog()
+        .then(() => fillDetallePlanSelect(planes, planSelectId))
+        .catch(console.error);
+    }
 
     planesEl.querySelectorAll("[data-add-plan-curso]").forEach((btn) => {
       btn.addEventListener("click", async (ev) => {
@@ -5697,7 +5747,7 @@
         if (!cursoId) return;
         try {
           await postJson(`${API}/planes/${planId}/cursos`, { curso_id: cursoId });
-          await selectPrograma(programaSeleccionadoId);
+          await selectPrograma(programaSeleccionadoId, { resetEditMode: false });
         } catch (err) {
           alert(err.message);
         }
@@ -5709,7 +5759,7 @@
         if (!confirm("¿Quitar este curso del plan?")) return;
         try {
           await deleteJson(`${API}/plan-cursos/${btn.dataset.delPlanCurso}`);
-          await selectPrograma(programaSeleccionadoId);
+          await selectPrograma(programaSeleccionadoId, { resetEditMode: false });
         } catch (err) {
           alert(err.message);
         }
@@ -5721,7 +5771,7 @@
         if (!confirm("¿Eliminar este plan y sus cursos?")) return;
         try {
           await deleteJson(`${API}/planes/${btn.dataset.delPlan}`);
-          await selectPrograma(programaSeleccionadoId);
+          await selectPrograma(programaSeleccionadoId, { resetEditMode: false });
         } catch (err) {
           alert(err.message);
         }
@@ -5732,8 +5782,10 @@
       const name = (nombre || "").trim();
       if (!name || !programaSeleccionadoId) return;
       await postJson(`${API}/programas/${programaSeleccionadoId}/planes`, { nombre: name });
-      await selectPrograma(programaSeleccionadoId);
+      await selectPrograma(programaSeleccionadoId, { resetEditMode: false });
     }
+
+    if (!editable) return;
 
     planesEl.querySelector("[data-detalle-plan-add]")?.addEventListener("click", async (ev) => {
       ev.stopPropagation();
@@ -5932,7 +5984,10 @@
       if (editBtn) {
         ev.stopPropagation();
         const id = Number(editBtn.dataset.progEdit);
+        programaDetalleEditable = true;
         const data = await fetchJson(`${API}/programas/${id}`);
+        programasCache = programasCache.map((p) => (p.id === data.programa.id ? { ...p, ...data.programa } : p));
+        refreshProgramaDetalle();
         openProgramaForm(data.programa);
         return;
       }
@@ -5945,7 +6000,7 @@
           await putJson(`${API}/programas/${id}`, {
             puesto_ids: selectedPuestoIds(`cap-programa-puestos-detalle-${id}`),
           });
-          await selectPrograma(id);
+          await selectPrograma(id, { resetEditMode: false });
         } catch (err) {
           setFormError(`cap-programa-puestos-error-${id}`, err.message);
         }
