@@ -788,7 +788,7 @@
 
 @media (min-width: 1050px) {
   .cap-taxonomia-grid {
-    grid-template-columns: repeat(4, minmax(140px, 1fr));
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
   }
 }
 

@@ -558,16 +558,14 @@
 
 
 
-  const taxSelected = { categoria: null, tipo: null, origen: null, modalidad: null };
+  const taxSelected = { tipo: null, modalidad: null };
 
-  const taxItemsCache = { categoria: [], tipo: [], origen: [], modalidad: [] };
+  const taxItemsCache = { tipo: [], modalidad: [] };
 
-  const TAX_NIVELES = ["categoria", "tipo", "origen", "modalidad"];
+  const TAX_NIVELES = ["tipo", "modalidad"];
 
   const TAX_NIVEL_LABELS = {
-    categoria: "categoría",
     tipo: "tipo",
-    origen: "origen",
     modalidad: "modalidad",
   };
 
@@ -813,11 +811,7 @@
 
     const labels = {
 
-      categoria: "Nueva categoría",
-
       tipo: "Nuevo tipo",
-
-      origen: "Nuevo origen",
 
       modalidad: "Nueva modalidad",
 
@@ -935,11 +929,7 @@
 
 
 
-    document.getElementById("cap-tax-btn-add-categoria")?.addEventListener("click", () => openTaxAdd("categoria"));
-
     document.getElementById("cap-tax-btn-add-tipo")?.addEventListener("click", () => openTaxAdd("tipo"));
-
-    document.getElementById("cap-tax-btn-add-origen")?.addEventListener("click", () => openTaxAdd("origen"));
 
     document.getElementById("cap-tax-btn-add-modalidad")?.addEventListener("click", () => openTaxAdd("modalidad"));
 
