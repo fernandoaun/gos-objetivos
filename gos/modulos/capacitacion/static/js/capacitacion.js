@@ -526,31 +526,19 @@
 
   function syncCursoCascada(prefill) {
 
-    const cat = prefill?.categoria ?? document.getElementById("cap-c-categoria")?.value ?? "";
-
     const tipo = prefill?.tipo ?? document.getElementById("cap-c-tipo")?.value ?? "";
-
-    const origen = prefill?.origen ?? document.getElementById("cap-c-origen")?.value ?? "";
 
     const modalidad = prefill?.modalidad ?? document.getElementById("cap-c-modalidad")?.value ?? "";
 
 
 
-    fillCascadeSelect("cap-c-categoria", taxListaEntries("categorias"), "— Seleccionar —", false);
-
     fillCascadeSelect("cap-c-tipo", taxListaEntries("tipos"), "— Seleccionar —", false);
-
-    fillCascadeSelect("cap-c-origen", taxListaEntries("origenes"), "— Seleccionar —", false);
 
     fillCascadeSelect("cap-c-modalidad", taxListaEntries("modalidades"), "— Seleccionar —", false);
 
 
 
-    if (cat) document.getElementById("cap-c-categoria").value = cat;
-
     if (tipo) document.getElementById("cap-c-tipo").value = tipo;
-
-    if (origen) document.getElementById("cap-c-origen").value = origen;
 
     if (modalidad) document.getElementById("cap-c-modalidad").value = modalidad;
 
@@ -801,11 +789,7 @@
 
     syncCursoCascada({
 
-      categoria: document.getElementById("cap-c-categoria")?.value,
-
       tipo: document.getElementById("cap-c-tipo")?.value,
-
-      origen: document.getElementById("cap-c-origen")?.value,
 
       modalidad: document.getElementById("cap-c-modalidad")?.value,
 
@@ -1025,11 +1009,7 @@
 
             const taxSelectIds = {
 
-              categoria: "cap-c-categoria",
-
               tipo: "cap-c-tipo",
-
-              origen: "cap-c-origen",
 
               modalidad: "cap-c-modalidad",
 
@@ -5316,11 +5296,7 @@
 
     syncCursoCascada({
 
-      categoria: item?.categoria || "",
-
       tipo: item?.tipo || "",
-
-      origen: item?.origen || "",
 
       modalidad: item?.modalidad || "",
 
