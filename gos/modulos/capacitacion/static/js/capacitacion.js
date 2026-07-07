@@ -5144,7 +5144,7 @@
 
     const tbody = document.getElementById("cap-cursos-body");
 
-    if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="cap-loading">Cargando...</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="cap-loading">Cargando...</td></tr>';
 
     const items = (await fetchJson(`${API}/cursos`)).cursos || [];
 
@@ -5156,7 +5156,7 @@
 
     if (!items.length) {
 
-      tbody.innerHTML = '<tr><td colspan="8" class="cap-empty">Sin cursos cargados</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" class="cap-empty">Sin cursos cargados</td></tr>';
 
       return;
 
@@ -5172,11 +5172,7 @@
 
         <td>${c.nombre}</td>
 
-        <td>${cursoClasificacionLabel(c, "categoria")}</td>
-
         <td>${cursoClasificacionLabel(c, "tipo")}</td>
-
-        <td>${cursoClasificacionLabel(c, "origen")}</td>
 
         <td>${cursoClasificacionLabel(c, "modalidad")}</td>
 
