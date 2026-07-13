@@ -163,7 +163,7 @@
                 <th class="r">Jornadas</th><th class="r">Operando</th>
                 <th class="r">SBSP</th><th class="r">SBCC</th>
                 <th class="r">FDS</th><th class="r">FDS Tol.</th><th class="r">FDS Rest.</th>
-                <th class="r">Real (serv.)</th><th class="r">Esp. del Mes</th>
+                <th class="r">Real (serv.)</th><th class="r">Esp. a fecha</th><th class="r">Esp. del Mes</th>
                 <th class="r">Desvío</th><th>% Oper.</th>
               </tr></thead>
               <tbody id="eq-tbody"></tbody>
@@ -602,6 +602,19 @@ function calcFdsTol(s,base){if(s==='lun-vie'||s==='lun-vie-sf')return 1;return(b
 function detectSchedule(tc,cfg){if(!tc||!cfg.periodDays)return'lun-lun';if(tc/cfg.periodDays>=1.8)return'24hs';if(cfg.weekdaysNoHol>0&&Math.abs(tc-cfg.weekdaysNoHol)<=1)return'lun-vie-sf';if(cfg.weekdays>0&&Math.abs(tc-cfg.weekdays)<=1)return'lun-vie';return'lun-lun';}
 function expectedOnDay(date,schedule,holidays){const dow=date.getDay();if(schedule==='24hs')return 2;if(schedule==='12hs'||schedule==='lun-lun')return 1;if(dow===0||dow===6)return 0;if(schedule==='lun-vie-sf'&&holidays.has(date.getTime()))return 0;return 1;}
 function expectedRange(schedule,from,to,holidays){let n=0;const d=new Date(from.getTime());while(d<=to){n+=expectedOnDay(d,schedule,holidays);d.setDate(d.getDate()+1);}return n;}
+/** Corte para Esp. a fecha: hoy si el mes está en curso; día de cierre si está cerrado. */
+function expectedCutoffDate(cfg, today = new Date()) {
+  if (!cfg?.periodStart) return null;
+  if (mesCerrado || isMesCerradoForPeriod(cfg.periodEnd, today)) return cfg.periodEnd || null;
+  let end = startOfDay(today);
+  if (cfg.periodEnd && end > startOfDay(cfg.periodEnd)) end = startOfDay(cfg.periodEnd);
+  if (end < startOfDay(cfg.periodStart)) end = startOfDay(cfg.periodStart);
+  return end;
+}
+function expectedNet(schedule, from, to, holidays, fdsTol) {
+  if (!from || !to || to < from) return 0;
+  return Math.max(0, expectedRange(schedule, from, to, holidays) - (fdsTol || 0));
+}
 
 
 // ════════════════════════════════════════════════════════════════
@@ -1373,13 +1386,13 @@ function calcEquipments(datasetName, prevEqs) {
   for (const [k, c] of Object.entries(cfg.eqs)) {
     const key = eqKey(k);
     const sched = lookupSavedSchedule(key, dsName) || prevEqSchedule(prevEqs, key) || detectSchedule(c.totalCompleto, cfg);
-    eqs[key] = { ...c, equipo: key, schedule: sched, _fdsTolBase: c.fdsTolerado || 0, fdsTolerado: calcFdsTol(sched, c.fdsTolerado), dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
+    eqs[key] = { ...c, equipo: key, schedule: sched, _fdsTolBase: c.fdsTolerado || 0, fdsTolerado: calcFdsTol(sched, c.fdsTolerado), dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, expectedMonth: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
   }
   for (const row of D.rows) {
     const k = eqKey(row.centro);
     if (!eqs[k]) {
       const sched = lookupSavedSchedule(k, dsName) || prevEqSchedule(prevEqs, k) || 'lun-lun';
-      eqs[k] = { equipo: k, cliente: row.cliente, totalCompleto: cfg.periodDays, _fdsTolBase: 2, fdsTolerado: calcFdsTol(sched, 2), proyectado: cfg.periodDays - 2, schedule: sched, dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
+      eqs[k] = { equipo: k, cliente: row.cliente, totalCompleto: cfg.periodDays, _fdsTolBase: 2, fdsTolerado: calcFdsTol(sched, 2), proyectado: cfg.periodDays - 2, schedule: sched, dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, expectedMonth: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
     }
     const e = eqs[k], st = stateOf(row), j = jpd(e.schedule);
     e.totalServ += row.cantServ;
@@ -1411,7 +1424,8 @@ function reCountEquipment(eq) {
   e.semaforo = mesCerrado ? (e.fds <= e.fdsTolerado ? 'green' : 'red') : (e.fdsRestante > 1 ? 'green' : e.fdsRestante === 1 ? 'yellow' : 'red');
   const cfg = D.config;
   e.jornadasPeriodo = (cfg.periodStart && cfg.periodEnd) ? expectedRange(e.schedule, cfg.periodStart, cfg.periodEnd, D.holidays) : 0;
-  e.expectedToDate = cfg.periodStart ? Math.max(0, expectedRange(e.schedule, cfg.periodStart, D.maxDate, D.holidays) - e.fdsTolerado) : 0;
+  e.expectedMonth = expectedNet(e.schedule, cfg.periodStart, cfg.periodEnd, D.holidays, e.fdsTolerado);
+  e.expectedToDate = expectedNet(e.schedule, cfg.periodStart, expectedCutoffDate(cfg), D.holidays, e.fdsTolerado);
   e.desvioServ = e.totalServ - e.expectedToDate;
   e.pctCumpl = e.expectedToDate > 0 ? (e.totalServ / e.expectedToDate) * 100 : null;
   const den = e.totalServ + e.fds;
@@ -1421,10 +1435,12 @@ function reCountEquipment(eq) {
 function detectHolidays() { return buildHolidaySet(D.config.periodStart, D.config.periodEnd); }
 
 function addExpectedToDate() {
-  const cfg = D.config; if (!cfg.periodStart || !D.maxDate) return;
+  const cfg = D.config; if (!cfg.periodStart) return;
+  const cutoff = expectedCutoffDate(cfg);
   for (const e of Object.values(D.eqs)) {
     e.jornadasPeriodo = cfg.periodEnd ? expectedRange(e.schedule, cfg.periodStart, cfg.periodEnd, D.holidays) : 0;
-    e.expectedToDate = Math.max(0, expectedRange(e.schedule, cfg.periodStart, D.maxDate, D.holidays) - e.fdsTolerado);
+    e.expectedMonth = expectedNet(e.schedule, cfg.periodStart, cfg.periodEnd, D.holidays, e.fdsTolerado);
+    e.expectedToDate = expectedNet(e.schedule, cfg.periodStart, cutoff, D.holidays, e.fdsTolerado);
     e.desvioServ = e.totalServ - e.expectedToDate;
     e.pctCumpl = e.expectedToDate > 0 ? (e.totalServ / e.expectedToDate) * 100 : null;
     const den = e.totalServ + e.fds;
@@ -1566,13 +1582,13 @@ function renderEquipmentTable() {
     const fdsRest = e.fdsRestante >= 0 ? `<span class="badge b-${e.semaforo === 'green' ? 'green' : e.semaforo === 'yellow' ? 'yellow' : 'red'}">${e.fdsRestante}</span>` : `<span class="badge b-neg">${e.fdsRestante}</span>`;
     let desvBadge = '—';
     if (e.expectedToDate > 0) { const d = e.desvioServ, cls = d >= 0 ? 'b-green' : d >= -2 ? 'b-yellow' : 'b-red'; desvBadge = `<span class="badge ${cls}">${d >= 0 ? '+' : ''}${d}</span>`; }
-    return `<tr><td class="r eq-num">${i + 1}</td><td><span class="dot dot-${e.semaforo}"></span></td><td><span class="eq-name">${e.equipo}</span></td><td><span class="cli-name">${e.cliente}</span></td><td><select class="sched-sel" data-eq="${e.equipo}" onchange="setSchedule(this)">${SCHEDULES.map(s => `<option value="${s}"${e.schedule === s ? ' selected' : ''}>${SCHEDULE_LABEL[s]}</option>`).join('')}</select></td><td class="r">${e.jornadasPeriodo || 0}</td><td class="r"><span class="badge b-green">${e.op}</span></td><td class="r"><span class="badge b-blue">${e.sbsp}</span></td><td class="r"><span class="badge ${e.sbcc > 0 ? 'b-yellow' : 'b-gray'}">${e.sbcc}</span></td><td class="r"><span class="badge ${e.fds > 0 ? 'b-red' : 'b-gray'}">${e.fds}</span></td><td class="r">${e.fdsTolerado}</td><td class="r">${fdsRest}</td><td class="r"><strong>${e.totalServ}</strong></td><td class="r">${e.expectedToDate}</td><td class="r">${desvBadge}</td><td><span class="pbar-wrap"><span class="pbar-fill" style="width:${Math.min(pctC, 100).toFixed(0)}%;background:${pctColor}"></span></span><span style="font-size:11px;font-weight:700;color:${pctColor}">${pctStr}</span></td></tr>`;
+    return `<tr><td class="r eq-num">${i + 1}</td><td><span class="dot dot-${e.semaforo}"></span></td><td><span class="eq-name">${e.equipo}</span></td><td><span class="cli-name">${e.cliente}</span></td><td><select class="sched-sel" data-eq="${e.equipo}" onchange="setSchedule(this)">${SCHEDULES.map(s => `<option value="${s}"${e.schedule === s ? ' selected' : ''}>${SCHEDULE_LABEL[s]}</option>`).join('')}</select></td><td class="r">${e.jornadasPeriodo || 0}</td><td class="r"><span class="badge b-green">${e.op}</span></td><td class="r"><span class="badge b-blue">${e.sbsp}</span></td><td class="r"><span class="badge ${e.sbcc > 0 ? 'b-yellow' : 'b-gray'}">${e.sbcc}</span></td><td class="r"><span class="badge ${e.fds > 0 ? 'b-red' : 'b-gray'}">${e.fds}</span></td><td class="r">${e.fdsTolerado}</td><td class="r">${fdsRest}</td><td class="r"><strong>${e.totalServ}</strong></td><td class="r">${e.expectedToDate}</td><td class="r">${e.expectedMonth}</td><td class="r">${desvBadge}</td><td><span class="pbar-wrap"><span class="pbar-fill" style="width:${Math.min(pctC, 100).toFixed(0)}%;background:${pctColor}"></span></span><span style="font-size:11px;font-weight:700;color:${pctColor}">${pctStr}</span></td></tr>`;
   }).join('');
   const tot = f => eqList.reduce((s, e) => s + (e[f] || 0), 0);
-  const totServ = tot('totalServ'), totExp = tot('expectedToDate'), totFDS = tot('fds'), totDesv = totServ - totExp;
+  const totServ = tot('totalServ'), totExp = tot('expectedToDate'), totExpMes = tot('expectedMonth'), totFDS = tot('fds'), totDesv = totServ - totExp;
   const pctG = (totServ + totFDS) > 0 ? (totServ / (totServ + totFDS) * 100).toFixed(1) + '%' : '—';
   const desvB = totExp > 0 ? `<span class="badge ${totDesv >= 0 ? 'b-green' : 'b-red'}">${totDesv >= 0 ? '+' : ''}${totDesv}</span>` : '—';
-  document.getElementById('eq-tfoot').innerHTML = `<td class="r"></td><td></td><td>TOTAL</td><td></td><td></td><td class="r">${tot('jornadasPeriodo')}</td><td class="r">${tot('op')}</td><td class="r">${tot('sbsp')}</td><td class="r">${tot('sbcc')}</td><td class="r">${totFDS}</td><td class="r">${tot('fdsTolerado')}</td><td class="r">${tot('fdsRestante')}</td><td class="r"><strong>${totServ}</strong></td><td class="r">${totExp}</td><td class="r">${desvB}</td><td>${pctG}</td>`;
+  document.getElementById('eq-tfoot').innerHTML = `<td class="r"></td><td></td><td>TOTAL</td><td></td><td></td><td class="r">${tot('jornadasPeriodo')}</td><td class="r">${tot('op')}</td><td class="r">${tot('sbsp')}</td><td class="r">${tot('sbcc')}</td><td class="r">${totFDS}</td><td class="r">${tot('fdsTolerado')}</td><td class="r">${tot('fdsRestante')}</td><td class="r"><strong>${totServ}</strong></td><td class="r">${totExp}</td><td class="r">${totExpMes}</td><td class="r">${desvB}</td><td>${pctG}</td>`;
   document.querySelectorAll('#eq-tbody .sched-sel').forEach(sel => { const e = D.eqs[sel.dataset.eq]; if (e) sel.value = e.schedule; });
 }
 
