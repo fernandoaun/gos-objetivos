@@ -629,21 +629,37 @@ body {
   white-space: nowrap;
 }
 
-.hwo-date-field {
+.hwo-period-group {
   display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
   align-items: center;
-  gap: 6px;
-  color: var(--muted);
-  white-space: nowrap;
 }
 
-.hwo-date-field input[type="date"] {
-  border: 1px solid var(--border);
-  border-radius: var(--gos-radius-sm);
-  padding: 4px 8px;
-  font-size: 12px;
-  color: var(--text);
+.hwo-period-btn {
   background: #fff;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  padding: 5px 10px;
+  border-radius: var(--gos-radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  min-width: 2.6em;
+}
+
+.hwo-period-btn:hover {
+  border-color: var(--accent);
+  color: var(--gos-green-dark);
+  background: var(--gos-yellow-soft);
+}
+
+.hwo-period-btn.active {
+  border-color: var(--gos-green-dark);
+  color: #fff;
+  background: var(--gos-green-dark);
 }
 
 .hwo-date-filter-status {
