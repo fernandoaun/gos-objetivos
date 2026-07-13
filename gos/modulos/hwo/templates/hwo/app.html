@@ -598,7 +598,13 @@ function buildHolidaySet(ps,pe){const set=new Set();if(!ps||!pe)return set;const
 const SCHEDULES=['24hs','12hs','lun-lun','lun-vie','lun-vie-sf'];
 const SCHEDULE_LABEL={'24hs':'24hs (2j/día)','12hs':'12hs (1j/día)','lun-lun':'Lun–Lun (7d)','lun-vie':'Lun–Vie','lun-vie-sf':'L–V s/fer.'};
 function jpd(s){return s==='24hs'?2:1;}
-function calcFdsTol(s,base){if(s==='lun-vie'||s==='lun-vie-sf')return 1;return(base||0)*jpd(s);}
+/** EHW 30 es el único equipo sin tolerancia FDS. */
+function calcFdsTol(s, base, equipo) {
+  const name = (equipo || '').toString().trim().toUpperCase().replace(/\s+/g, '');
+  if (name === 'EHW30') return 0;
+  if (s === 'lun-vie' || s === 'lun-vie-sf') return 1;
+  return (base || 0) * jpd(s);
+}
 function detectSchedule(tc,cfg){if(!tc||!cfg.periodDays)return'lun-lun';if(tc/cfg.periodDays>=1.8)return'24hs';if(cfg.weekdaysNoHol>0&&Math.abs(tc-cfg.weekdaysNoHol)<=1)return'lun-vie-sf';if(cfg.weekdays>0&&Math.abs(tc-cfg.weekdays)<=1)return'lun-vie';return'lun-lun';}
 function expectedOnDay(date,schedule,holidays){const dow=date.getDay();if(schedule==='24hs')return 2;if(schedule==='12hs'||schedule==='lun-lun')return 1;if(dow===0||dow===6)return 0;if(schedule==='lun-vie-sf'&&holidays.has(date.getTime()))return 0;return 1;}
 function expectedRange(schedule,from,to,holidays){let n=0;const d=new Date(from.getTime());while(d<=to){n+=expectedOnDay(d,schedule,holidays);d.setDate(d.getDate()+1);}return n;}
@@ -614,6 +620,16 @@ function expectedCutoffDate(cfg, today = new Date()) {
 function expectedNet(schedule, from, to, holidays, fdsTol) {
   if (!from || !to || to < from) return 0;
   return Math.max(0, expectedRange(schedule, from, to, holidays) - (fdsTol || 0));
+}
+/** Avance del período según calendario (hoy / cierre), no según el último dato cargado. */
+function periodProgress(cfg) {
+  if (!cfg?.periodStart || !cfg?.periodEnd) return null;
+  const asOf = expectedCutoffDate(cfg);
+  if (!asOf) return null;
+  const elapsed = Math.min(cfg.periodDays, Math.max(0, daysBetween(cfg.periodStart, asOf) + 1));
+  const remaining = Math.max(0, daysBetween(asOf, cfg.periodEnd));
+  const pct = cfg.periodDays > 0 ? Math.min(100, (elapsed / cfg.periodDays) * 100) : 0;
+  return { elapsed, remaining, pct, asOf };
 }
 
 
@@ -700,7 +716,7 @@ function applyModalidad(datasetName) {
     const saved = lookupSavedSchedule(k, dsName);
     if (saved && e.schedule !== saved) {
       e.schedule = saved;
-      e.fdsTolerado = calcFdsTol(saved, e._fdsTolBase);
+      e.fdsTolerado = calcFdsTol(saved, e._fdsTolBase, k);
       reCountEquipment(k);
     }
   }
@@ -1386,13 +1402,13 @@ function calcEquipments(datasetName, prevEqs) {
   for (const [k, c] of Object.entries(cfg.eqs)) {
     const key = eqKey(k);
     const sched = lookupSavedSchedule(key, dsName) || prevEqSchedule(prevEqs, key) || detectSchedule(c.totalCompleto, cfg);
-    eqs[key] = { ...c, equipo: key, schedule: sched, _fdsTolBase: c.fdsTolerado || 0, fdsTolerado: calcFdsTol(sched, c.fdsTolerado), dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, expectedMonth: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
+    eqs[key] = { ...c, equipo: key, schedule: sched, _fdsTolBase: c.fdsTolerado || 0, fdsTolerado: calcFdsTol(sched, c.fdsTolerado, key), dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, expectedMonth: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
   }
   for (const row of D.rows) {
     const k = eqKey(row.centro);
     if (!eqs[k]) {
       const sched = lookupSavedSchedule(k, dsName) || prevEqSchedule(prevEqs, k) || 'lun-lun';
-      eqs[k] = { equipo: k, cliente: row.cliente, totalCompleto: cfg.periodDays, _fdsTolBase: 2, fdsTolerado: calcFdsTol(sched, 2), proyectado: cfg.periodDays - 2, schedule: sched, dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, expectedMonth: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
+      eqs[k] = { equipo: k, cliente: row.cliente, totalCompleto: cfg.periodDays, _fdsTolBase: 2, fdsTolerado: calcFdsTol(sched, 2, k), proyectado: cfg.periodDays - 2, schedule: sched, dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, expectedMonth: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
     }
     const e = eqs[k], st = stateOf(row), j = jpd(e.schedule);
     if (st === 'op') { e.op += j; e.dias += j; }
@@ -1414,7 +1430,7 @@ function reCountEquipment(eq) {
   const e = D.eqs[key]; if (!e) return;
   const j = jpd(e.schedule);
   e.dias = 0; e.op = 0; e.fds = 0; e.sbsp = 0; e.sbcc = 0; e.totalServ = 0; e.incidents = [];
-  e.fdsTolerado = calcFdsTol(e.schedule, e._fdsTolBase);
+  e.fdsTolerado = calcFdsTol(e.schedule, e._fdsTolBase, key);
   for (const row of D.rows) {
     if (row.centro !== key) continue; const st = stateOf(row);
     if (st === 'op') { e.op += j; e.dias += j; }
@@ -1544,7 +1560,8 @@ function renderTopbar() {
 function renderToolbarInfo() {
   const cfg = D.config; let html = '';
   if (cfg.periodStart && cfg.periodEnd) {
-    if (D.maxDate) { const el = daysBetween(cfg.periodStart, D.maxDate) + 1; const rem = Math.max(0, daysBetween(D.maxDate, cfg.periodEnd)); html += `Día <strong>${el}</strong> de ${cfg.periodDays} · ${rem} restante${rem !== 1 ? 's' : ''}`; }
+    const prog = periodProgress(cfg);
+    if (prog) html += `Día <strong>${prog.elapsed}</strong> de ${cfg.periodDays} · ${prog.remaining} restante${prog.remaining !== 1 ? 's' : ''}`;
   }
   if (D.holidays && D.holidays.size > 0) {
     const names = [...D.holidays].sort().map(t => { const d = new Date(t); const k = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; return FERIADO_NOMBRES[k] || fmt(d); });
@@ -1563,19 +1580,20 @@ function renderToolbarInfo() {
 }
 
 function renderProgressBar() {
-  const cfg = D.config; if (!cfg.periodStart || !cfg.periodEnd || !D.maxDate) return;
-  const el = daysBetween(cfg.periodStart, D.maxDate) + 1; const rem = Math.max(0, daysBetween(D.maxDate, cfg.periodEnd));
-  const pct = Math.min(100, (el / cfg.periodDays) * 100);
-  document.getElementById('period-fill').style.width = pct + '%';
-  document.getElementById('period-bar-label').textContent = `Día ${el} de ${cfg.periodDays} · ${pct.toFixed(0)}% del período`;
-  document.getElementById('period-bar-right').textContent = `${rem} día${rem !== 1 ? 's' : ''} restante${rem !== 1 ? 's' : ''}`;
+  const cfg = D.config;
+  const prog = periodProgress(cfg);
+  if (!prog) return;
+  document.getElementById('period-fill').style.width = prog.pct + '%';
+  document.getElementById('period-bar-label').textContent = `Día ${prog.elapsed} de ${cfg.periodDays} · ${prog.pct.toFixed(0)}% del período`;
+  document.getElementById('period-bar-right').textContent = `${prog.remaining} día${prog.remaining !== 1 ? 's' : ''} restante${prog.remaining !== 1 ? 's' : ''}`;
 }
 
 function renderKPIs() {
   const eqList = Object.values(D.eqs);
   const totServ = eqList.reduce((s, e) => s + e.totalServ, 0), totExp = eqList.reduce((s, e) => s + e.expectedToDate, 0), totFDS = eqList.reduce((s, e) => s + e.fds, 0);
   const enRiesgo = eqList.filter(e => e.semaforo !== 'green').length, enRojo = eqList.filter(e => e.semaforo === 'red').length, enAmari = eqList.filter(e => e.semaforo === 'yellow').length;
-  const cfg = D.config, elapsed = (cfg.periodStart && D.maxDate) ? daysBetween(cfg.periodStart, D.maxDate) + 1 : 0, remaining = (cfg.periodEnd && D.maxDate) ? Math.max(0, daysBetween(D.maxDate, cfg.periodEnd)) : 0;
+  const cfg = D.config, prog = periodProgress(cfg);
+  const elapsed = prog?.elapsed || 0, remaining = prog?.remaining || 0;
   const pctOp = (totServ + totFDS) > 0 ? (totServ / (totServ + totFDS) * 100) : 0, vsExp = totExp > 0 ? ((totServ / totExp) - 1) * 100 : 0;
   document.getElementById('kpi-grid').innerHTML = [
     { label: 'Operatividad global', value: `${pctOp.toFixed(1)}%`, sub: `${totServ} servicios · ${totFDS} día${totFDS !== 1 ? 's' : ''} FDS`, color: pctOp >= 95 ? 'c-green' : pctOp >= 85 ? 'c-yellow' : 'c-red' },
