@@ -163,7 +163,7 @@
                 <th class="r">Jornadas</th><th class="r">Operando</th>
                 <th class="r">SBSP</th><th class="r">SBCC</th>
                 <th class="r">FDS</th><th class="r">FDS Tol.</th><th class="r">FDS Rest.</th>
-                <th class="r">Esp. a fecha</th><th class="r">Real (serv.)</th>
+                <th class="r">Real (serv.)</th><th class="r">Esp. a fecha</th>
                 <th class="r">Desvío</th><th>% Oper.</th>
               </tr></thead>
               <tbody id="eq-tbody"></tbody>
@@ -374,10 +374,33 @@ function updateDateFilterStatus() {
   if (dateFilter.from || dateFilter.to) {
     const fromTxt = dateFilter.from ? fmt(dateFilter.from) : '…';
     const toTxt = dateFilter.to ? fmt(dateFilter.to) : '…';
+    if (shown === 0 && total > 0) {
+      const bounds = dataDateBounds();
+      const dataRange = bounds
+        ? ` · los datos van del ${fmt(bounds.min)} al ${fmt(bounds.max)}`
+        : '';
+      el.textContent = `0 de ${total} registros en ${fromTxt} — ${toTxt}${dataRange}. Probá "Mes en curso" o "Todo el período".`;
+      return;
+    }
     el.textContent = `${shown} de ${total} registros · ${fromTxt} — ${toTxt}`;
   } else {
     el.textContent = total ? `${total} registro${total !== 1 ? 's' : ''}` : '';
   }
+}
+
+function dataDateBounds() {
+  let minT = Infinity, maxT = -Infinity;
+  for (const ds of datasets) {
+    if (ds.service === 'all' || !ds.source?.rows?.length) continue;
+    for (const r of ds.source.rows) {
+      const t = r.fecha?.getTime?.();
+      if (typeof t !== 'number') continue;
+      if (t < minT) minT = t;
+      if (t > maxT) maxT = t;
+    }
+  }
+  if (minT === Infinity) return null;
+  return { min: new Date(minT), max: new Date(maxT) };
 }
 
 function applyDateFilterFromInputs() {
@@ -418,31 +441,23 @@ function setDateFilterRange(periodStart, periodEnd) {
 }
 
 function latestDataDate() {
-  let maxT = -Infinity;
-  for (const ds of datasets) {
-    if (ds.service === 'all' || !ds.source?.rows?.length) continue;
-    for (const r of ds.source.rows) {
-      const t = r.fecha?.getTime?.();
-      if (typeof t === 'number' && t > maxT) maxT = t;
-    }
-  }
-  return maxT === -Infinity ? null : new Date(maxT);
+  return dataDateBounds()?.max || null;
 }
 
 function filterToCurrentPeriod() {
-  const { periodStart, periodEnd } = currentOperationalPeriod();
+  // Mes en curso = período del último dato (si hay), no el del calendario vacío.
+  const anchor = latestDataDate() || new Date();
+  const { periodStart, periodEnd } = periodContaining(anchor);
   setDateFilterRange(periodStart, periodEnd);
 }
 
-function previousOperationalPeriod(today = new Date()) {
-  const { periodStart } = currentOperationalPeriod(today);
-  if (!periodStart) return { periodStart: null, periodEnd: null };
-  const prevDay = new Date(periodStart.getFullYear(), periodStart.getMonth(), periodStart.getDate() - 1);
-  return periodContaining(prevDay);
-}
-
 function filterToPreviousPeriod() {
-  const { periodStart, periodEnd } = previousOperationalPeriod();
+  // Un período atrás desde el filtro actual, o desde el período de los datos.
+  const base = dateFilter.from
+    || periodContaining(latestDataDate() || new Date()).periodStart;
+  if (!base) return;
+  const prevDay = new Date(base.getFullYear(), base.getMonth(), base.getDate() - 1);
+  const { periodStart, periodEnd } = periodContaining(prevDay);
   setDateFilterRange(periodStart, periodEnd);
 }
 
@@ -1551,13 +1566,13 @@ function renderEquipmentTable() {
     const fdsRest = e.fdsRestante >= 0 ? `<span class="badge b-${e.semaforo === 'green' ? 'green' : e.semaforo === 'yellow' ? 'yellow' : 'red'}">${e.fdsRestante}</span>` : `<span class="badge b-neg">${e.fdsRestante}</span>`;
     let desvBadge = '—';
     if (e.expectedToDate > 0) { const d = e.desvioServ, cls = d >= 0 ? 'b-green' : d >= -2 ? 'b-yellow' : 'b-red'; desvBadge = `<span class="badge ${cls}">${d >= 0 ? '+' : ''}${d}</span>`; }
-    return `<tr><td class="r eq-num">${i + 1}</td><td><span class="dot dot-${e.semaforo}"></span></td><td><span class="eq-name">${e.equipo}</span></td><td><span class="cli-name">${e.cliente}</span></td><td><select class="sched-sel" data-eq="${e.equipo}" onchange="setSchedule(this)">${SCHEDULES.map(s => `<option value="${s}"${e.schedule === s ? ' selected' : ''}>${SCHEDULE_LABEL[s]}</option>`).join('')}</select></td><td class="r">${e.jornadasPeriodo || 0}</td><td class="r"><span class="badge b-green">${e.op}</span></td><td class="r"><span class="badge b-blue">${e.sbsp}</span></td><td class="r"><span class="badge ${e.sbcc > 0 ? 'b-yellow' : 'b-gray'}">${e.sbcc}</span></td><td class="r"><span class="badge ${e.fds > 0 ? 'b-red' : 'b-gray'}">${e.fds}</span></td><td class="r">${e.fdsTolerado}</td><td class="r">${fdsRest}</td><td class="r">${e.expectedToDate}</td><td class="r"><strong>${e.totalServ}</strong></td><td class="r">${desvBadge}</td><td><span class="pbar-wrap"><span class="pbar-fill" style="width:${Math.min(pctC, 100).toFixed(0)}%;background:${pctColor}"></span></span><span style="font-size:11px;font-weight:700;color:${pctColor}">${pctStr}</span></td></tr>`;
+    return `<tr><td class="r eq-num">${i + 1}</td><td><span class="dot dot-${e.semaforo}"></span></td><td><span class="eq-name">${e.equipo}</span></td><td><span class="cli-name">${e.cliente}</span></td><td><select class="sched-sel" data-eq="${e.equipo}" onchange="setSchedule(this)">${SCHEDULES.map(s => `<option value="${s}"${e.schedule === s ? ' selected' : ''}>${SCHEDULE_LABEL[s]}</option>`).join('')}</select></td><td class="r">${e.jornadasPeriodo || 0}</td><td class="r"><span class="badge b-green">${e.op}</span></td><td class="r"><span class="badge b-blue">${e.sbsp}</span></td><td class="r"><span class="badge ${e.sbcc > 0 ? 'b-yellow' : 'b-gray'}">${e.sbcc}</span></td><td class="r"><span class="badge ${e.fds > 0 ? 'b-red' : 'b-gray'}">${e.fds}</span></td><td class="r">${e.fdsTolerado}</td><td class="r">${fdsRest}</td><td class="r"><strong>${e.totalServ}</strong></td><td class="r">${e.expectedToDate}</td><td class="r">${desvBadge}</td><td><span class="pbar-wrap"><span class="pbar-fill" style="width:${Math.min(pctC, 100).toFixed(0)}%;background:${pctColor}"></span></span><span style="font-size:11px;font-weight:700;color:${pctColor}">${pctStr}</span></td></tr>`;
   }).join('');
   const tot = f => eqList.reduce((s, e) => s + (e[f] || 0), 0);
   const totServ = tot('totalServ'), totExp = tot('expectedToDate'), totFDS = tot('fds'), totDesv = totServ - totExp;
   const pctG = (totServ + totFDS) > 0 ? (totServ / (totServ + totFDS) * 100).toFixed(1) + '%' : '—';
   const desvB = totExp > 0 ? `<span class="badge ${totDesv >= 0 ? 'b-green' : 'b-red'}">${totDesv >= 0 ? '+' : ''}${totDesv}</span>` : '—';
-  document.getElementById('eq-tfoot').innerHTML = `<td class="r"></td><td></td><td>TOTAL</td><td></td><td></td><td class="r">${tot('jornadasPeriodo')}</td><td class="r">${tot('op')}</td><td class="r">${tot('sbsp')}</td><td class="r">${tot('sbcc')}</td><td class="r">${totFDS}</td><td class="r">${tot('fdsTolerado')}</td><td class="r">${tot('fdsRestante')}</td><td class="r">${totExp}</td><td class="r"><strong>${totServ}</strong></td><td class="r">${desvB}</td><td>${pctG}</td>`;
+  document.getElementById('eq-tfoot').innerHTML = `<td class="r"></td><td></td><td>TOTAL</td><td></td><td></td><td class="r">${tot('jornadasPeriodo')}</td><td class="r">${tot('op')}</td><td class="r">${tot('sbsp')}</td><td class="r">${tot('sbcc')}</td><td class="r">${totFDS}</td><td class="r">${tot('fdsTolerado')}</td><td class="r">${tot('fdsRestante')}</td><td class="r"><strong>${totServ}</strong></td><td class="r">${totExp}</td><td class="r">${desvB}</td><td>${pctG}</td>`;
   document.querySelectorAll('#eq-tbody .sched-sel').forEach(sel => { const e = D.eqs[sel.dataset.eq]; if (e) sel.value = e.schedule; });
 }
 
