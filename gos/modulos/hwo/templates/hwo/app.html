@@ -1395,14 +1395,17 @@ function calcEquipments(datasetName, prevEqs) {
       eqs[k] = { equipo: k, cliente: row.cliente, totalCompleto: cfg.periodDays, _fdsTolBase: 2, fdsTolerado: calcFdsTol(sched, 2), proyectado: cfg.periodDays - 2, schedule: sched, dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, expectedMonth: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
     }
     const e = eqs[k], st = stateOf(row), j = jpd(e.schedule);
-    e.totalServ += row.cantServ;
     if (st === 'op') { e.op += j; e.dias += j; }
     else if (st === 'fds') { e.fds += j; e.dias += j; e.incidents.push({ fecha: row.fecha, estado: row.sitReal, sitProg: row.sitProg, ubicacion: row.ubicacion, obs: row.obs, cliente: row.cliente, st }); }
     else if (st === 'sbsp') { e.sbsp += j; e.dias += j; }
     else if (st === 'sbcc') { e.sbcc += j; e.dias += j; e.incidents.push({ fecha: row.fecha, estado: row.sitReal, sitProg: row.sitProg, ubicacion: row.ubicacion, obs: row.obs, cliente: row.cliente, st }); }
     else e.dias += j;
   }
-  for (const e of Object.values(eqs)) { e.fdsRestante = e.fdsTolerado - e.fds; e.semaforo = e.fdsRestante > 1 ? 'green' : e.fdsRestante === 1 ? 'yellow' : 'red'; }
+  for (const e of Object.values(eqs)) {
+    e.totalServ = e.op + e.sbcc;
+    e.fdsRestante = e.fdsTolerado - e.fds;
+    e.semaforo = e.fdsRestante > 1 ? 'green' : e.fdsRestante === 1 ? 'yellow' : 'red';
+  }
   return eqs;
 }
 
@@ -1413,13 +1416,14 @@ function reCountEquipment(eq) {
   e.dias = 0; e.op = 0; e.fds = 0; e.sbsp = 0; e.sbcc = 0; e.totalServ = 0; e.incidents = [];
   e.fdsTolerado = calcFdsTol(e.schedule, e._fdsTolBase);
   for (const row of D.rows) {
-    if (row.centro !== key) continue; const st = stateOf(row); e.totalServ += row.cantServ;
+    if (row.centro !== key) continue; const st = stateOf(row);
     if (st === 'op') { e.op += j; e.dias += j; }
     else if (st === 'fds') { e.fds += j; e.dias += j; e.incidents.push({ fecha: row.fecha, estado: row.sitReal, sitProg: row.sitProg, ubicacion: row.ubicacion, obs: row.obs, cliente: row.cliente, st }); }
     else if (st === 'sbsp') { e.sbsp += j; e.dias += j; }
     else if (st === 'sbcc') { e.sbcc += j; e.dias += j; e.incidents.push({ fecha: row.fecha, estado: row.sitReal, sitProg: row.sitProg, ubicacion: row.ubicacion, obs: row.obs, cliente: row.cliente, st }); }
     else e.dias += j;
   }
+  e.totalServ = e.op + e.sbcc;
   e.fdsRestante = e.fdsTolerado - e.fds;
   e.semaforo = mesCerrado ? (e.fds <= e.fdsTolerado ? 'green' : 'red') : (e.fdsRestante > 1 ? 'green' : e.fdsRestante === 1 ? 'yellow' : 'red');
   const cfg = D.config;
@@ -1453,7 +1457,14 @@ function calcBurnup() {
   if (!cfg.periodStart || !D.maxDate) return { labels: [], real: [], proj: [], dailyReal: [], dailyProj: [], scope: 0 };
   const totalScope = Object.values(D.eqs).reduce((s, e) => s + (e.jornadasPeriodo || 0), 0);
   const actualByDate = {};
-  for (const row of D.rows) { const t = row.fecha.getTime(); actualByDate[t] = (actualByDate[t] || 0) + row.cantServ; }
+  for (const row of D.rows) {
+    const st = stateOf(row);
+    if (st !== 'op' && st !== 'sbcc') continue;
+    const eq = D.eqs[eqKey(row.centro)];
+    const j = jpd(eq?.schedule || 'lun-lun');
+    const t = row.fecha.getTime();
+    actualByDate[t] = (actualByDate[t] || 0) + j;
+  }
   const labels = [], real = [], proj = [], dailyReal = [], dailyProj = [];
   let cumReal = 0, cumProj = 0;
   const d = new Date(cfg.periodStart.getTime());
