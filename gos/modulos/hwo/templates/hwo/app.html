@@ -1065,17 +1065,41 @@ function formatMergeMessage(added, updated, total) {
   return `Merge por fecha+equipo · ${parts.join(' · ')} · ${total} registros`;
 }
 
+function looksLikeHtmlExcelExport(bytes) {
+  const n = Math.min(bytes.length, 200);
+  let head = '';
+  for (let i = 0; i < n; i++) head += String.fromCharCode(bytes[i]);
+  const h = head.toLowerCase().replace(/^\uFEFF/, '').trimStart();
+  return h.startsWith('<html') || h.includes('xmlns:x="urn:schemas-microsoft-com:office:excel"');
+}
+
 function loadFile(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = async ev => {
       try {
-        const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array', cellDates: true });
+        const bytes = new Uint8Array(ev.target.result);
+        if (looksLikeHtmlExcelExport(bytes)) {
+          alert(
+            `"${file.name}" no es un Excel real (.xls/.xlsx): es una página web exportada desde Excel.\n\n` +
+            'Abrilo en Excel → Archivo → Guardar como → Libro de Excel (.xlsx) y volvé a cargarlo.'
+          );
+          resolve();
+          return;
+        }
+        const wb = XLSX.read(bytes, { type: 'array', cellDates: true });
         const filename = file.name.replace(/\.[^.]+$/, '');
         const service = resolveUploadService(filename, wb.SheetNames || []);
         if (!service) { alert('Tipo de servicio inválido. Usá PH, SW o HWO.'); resolve(); return; }
         const results = processWorkbook(wb, filename, service);
-        if (!results.length) { alert(`No se encontraron hojas de datos en "${file.name}".`); resolve(); return; }
+        if (!results.length) {
+          alert(
+            `No se encontraron hojas de datos en "${file.name}".\n\n` +
+            'La primera fila de la hoja tiene que incluir la columna "Fecha" (y Centro Prog, Situación Real, etc.).'
+          );
+          resolve();
+          return;
+        }
         const messages = [];
         for (const { sheetName, tabName, source: incoming } of results) {
           const memIdx = datasets.findIndex(d => d.name === tabName);
@@ -1447,9 +1471,9 @@ function reCountEquipment(eq) {
   e.expectedMonth = expectedNet(e.schedule, cfg.periodStart, cfg.periodEnd, D.holidays, e.fdsTolerado);
   e.expectedToDate = expectedNet(e.schedule, cfg.periodStart, expectedCutoffDate(cfg), D.holidays, e.fdsTolerado);
   e.desvioServ = e.totalServ - e.expectedToDate;
-  e.pctCumpl = e.expectedToDate > 0 ? (e.totalServ / e.expectedToDate) * 100 : null;
-  const den = e.totalServ + e.fds;
-  e.pctOp = den > 0 ? (e.totalServ / den) * 100 : (e.dias > 0 ? (e.op / e.dias) * 100 : null);
+  // % Oper. = Real (serv.) / Esp. a fecha
+  e.pctOp = e.expectedToDate > 0 ? (e.totalServ / e.expectedToDate) * 100 : null;
+  e.pctCumpl = e.pctOp;
 }
 
 function detectHolidays() { return buildHolidaySet(D.config.periodStart, D.config.periodEnd); }
@@ -1462,9 +1486,8 @@ function addExpectedToDate() {
     e.expectedMonth = expectedNet(e.schedule, cfg.periodStart, cfg.periodEnd, D.holidays, e.fdsTolerado);
     e.expectedToDate = expectedNet(e.schedule, cfg.periodStart, cutoff, D.holidays, e.fdsTolerado);
     e.desvioServ = e.totalServ - e.expectedToDate;
-    e.pctCumpl = e.expectedToDate > 0 ? (e.totalServ / e.expectedToDate) * 100 : null;
-    const den = e.totalServ + e.fds;
-    e.pctOp = den > 0 ? (e.totalServ / den) * 100 : (e.dias > 0 ? (e.op / e.dias) * 100 : null);
+    e.pctOp = e.expectedToDate > 0 ? (e.totalServ / e.expectedToDate) * 100 : null;
+    e.pctCumpl = e.pctOp;
   }
 }
 
@@ -1590,13 +1613,13 @@ function renderProgressBar() {
 
 function renderKPIs() {
   const eqList = Object.values(D.eqs);
-  const totServ = eqList.reduce((s, e) => s + e.totalServ, 0), totExp = eqList.reduce((s, e) => s + e.expectedToDate, 0), totFDS = eqList.reduce((s, e) => s + e.fds, 0);
+  const totServ = eqList.reduce((s, e) => s + e.totalServ, 0), totExp = eqList.reduce((s, e) => s + e.expectedToDate, 0);
   const enRiesgo = eqList.filter(e => e.semaforo !== 'green').length, enRojo = eqList.filter(e => e.semaforo === 'red').length, enAmari = eqList.filter(e => e.semaforo === 'yellow').length;
   const cfg = D.config, prog = periodProgress(cfg);
   const elapsed = prog?.elapsed || 0, remaining = prog?.remaining || 0;
-  const pctOp = (totServ + totFDS) > 0 ? (totServ / (totServ + totFDS) * 100) : 0, vsExp = totExp > 0 ? ((totServ / totExp) - 1) * 100 : 0;
+  const pctOp = totExp > 0 ? (totServ / totExp) * 100 : 0, vsExp = totExp > 0 ? ((totServ / totExp) - 1) * 100 : 0;
   document.getElementById('kpi-grid').innerHTML = [
-    { label: 'Operatividad global', value: `${pctOp.toFixed(1)}%`, sub: `${totServ} servicios · ${totFDS} día${totFDS !== 1 ? 's' : ''} FDS`, color: pctOp >= 95 ? 'c-green' : pctOp >= 85 ? 'c-yellow' : 'c-red' },
+    { label: 'Operatividad global', value: `${pctOp.toFixed(1)}%`, sub: `${totServ} / ${totExp} · Real / Esp. a fecha`, color: pctOp >= 95 ? 'c-green' : pctOp >= 85 ? 'c-yellow' : 'c-red' },
     { label: 'Equipos en riesgo (FDS)', value: enRiesgo, sub: `${enRojo} en rojo · ${enAmari} en amarillo`, color: enRiesgo === 0 ? 'c-green' : enRojo > 0 ? 'c-red' : 'c-yellow' },
     { label: 'Avance del período', value: `${elapsed} / ${cfg.periodDays} días`, sub: `${remaining} día${remaining !== 1 ? 's' : ''} restante${remaining !== 1 ? 's' : ''}`, color: '' },
     { label: 'Serv. real vs esperado', value: `${totServ} / ${totExp}`, sub: `${vsExp >= 0 ? '+' : ''}${vsExp.toFixed(1)}% vs esperado`, color: vsExp >= 0 ? 'c-green' : vsExp >= -5 ? 'c-yellow' : 'c-red' },
@@ -1615,7 +1638,7 @@ function renderEquipmentTable() {
   }).join('');
   const tot = f => eqList.reduce((s, e) => s + (e[f] || 0), 0);
   const totServ = tot('totalServ'), totExp = tot('expectedToDate'), totExpMes = tot('expectedMonth'), totFDS = tot('fds'), totDesv = totServ - totExp;
-  const pctG = (totServ + totFDS) > 0 ? (totServ / (totServ + totFDS) * 100).toFixed(1) + '%' : '—';
+  const pctG = totExp > 0 ? ((totServ / totExp) * 100).toFixed(1) + '%' : '—';
   const desvB = totExp > 0 ? `<span class="badge ${totDesv >= 0 ? 'b-green' : 'b-red'}">${totDesv >= 0 ? '+' : ''}${totDesv}</span>` : '—';
   document.getElementById('eq-tfoot').innerHTML = `<td class="r"></td><td></td><td>TOTAL</td><td></td><td></td><td class="r">${tot('jornadasPeriodo')}</td><td class="r">${tot('op')}</td><td class="r">${tot('sbsp')}</td><td class="r">${tot('sbcc')}</td><td class="r">${totFDS}</td><td class="r">${tot('fdsTolerado')}</td><td class="r">${tot('fdsRestante')}</td><td class="r"><strong>${totServ}</strong></td><td class="r">${totExp}</td><td class="r">${totExpMes}</td><td class="r">${desvB}</td><td>${pctG}</td>`;
   document.querySelectorAll('#eq-tbody .sched-sel').forEach(sel => { const e = D.eqs[sel.dataset.eq]; if (e) sel.value = e.schedule; });
