@@ -92,6 +92,7 @@
       <button type="button" class="hwo-toolbar-btn" id="btn-apply-date-filter">Aplicar</button>
       <button type="button" class="hwo-toolbar-btn" id="btn-clear-date-filter">Todo el período</button>
       <button type="button" class="hwo-toolbar-btn" id="btn-current-period">Mes en curso</button>
+      <button type="button" class="hwo-toolbar-btn" id="btn-previous-period">Mes anterior</button>
       <span class="hwo-date-filter-status" id="filter-status"></span>
     </div>
 
@@ -403,8 +404,7 @@ function clearDateFilter() {
   applyDateFilterFromInputs();
 }
 
-function filterToCurrentPeriod() {
-  const { periodStart, periodEnd } = currentOperationalPeriod();
+function setDateFilterRange(periodStart, periodEnd) {
   if (!periodStart || !periodEnd) return;
   dateFilter.from = periodStart;
   dateFilter.to = periodEnd;
@@ -417,10 +417,42 @@ function filterToCurrentPeriod() {
   renderAll();
 }
 
+function latestDataDate() {
+  let maxT = -Infinity;
+  for (const ds of datasets) {
+    if (ds.service === 'all' || !ds.source?.rows?.length) continue;
+    for (const r of ds.source.rows) {
+      const t = r.fecha?.getTime?.();
+      if (typeof t === 'number' && t > maxT) maxT = t;
+    }
+  }
+  return maxT === -Infinity ? null : new Date(maxT);
+}
+
+function filterToCurrentPeriod() {
+  const { periodStart, periodEnd } = currentOperationalPeriod();
+  setDateFilterRange(periodStart, periodEnd);
+}
+
+function previousOperationalPeriod(today = new Date()) {
+  const { periodStart } = currentOperationalPeriod(today);
+  if (!periodStart) return { periodStart: null, periodEnd: null };
+  const prevDay = new Date(periodStart.getFullYear(), periodStart.getMonth(), periodStart.getDate() - 1);
+  return periodContaining(prevDay);
+}
+
+function filterToPreviousPeriod() {
+  const { periodStart, periodEnd } = previousOperationalPeriod();
+  setDateFilterRange(periodStart, periodEnd);
+}
+
 function ensureDefaultCurrentPeriodFilter() {
   if (dateFilter.from || dateFilter.to) return false;
   if (!datasets.some(d => d.service !== 'all' && d.source?.rows?.length)) return false;
-  const { periodStart, periodEnd } = currentOperationalPeriod();
+  // Anclar al último dato cargado: si el Excel es del mes cerrado, no ocultarlo
+  // con el "mes en curso" del calendario de hoy.
+  const anchor = latestDataDate() || new Date();
+  const { periodStart, periodEnd } = periodContaining(anchor);
   if (!periodStart || !periodEnd) return false;
   dateFilter.from = periodStart;
   dateFilter.to = periodEnd;
@@ -1683,6 +1715,7 @@ async function initApp() {
   document.getElementById('btn-apply-date-filter')?.addEventListener('click', applyDateFilterFromInputs);
   document.getElementById('btn-clear-date-filter')?.addEventListener('click', clearDateFilter);
   document.getElementById('btn-current-period')?.addEventListener('click', filterToCurrentPeriod);
+  document.getElementById('btn-previous-period')?.addEventListener('click', filterToPreviousPeriod);
   document.getElementById('filter-date-from')?.addEventListener('change', applyDateFilterFromInputs);
   document.getElementById('filter-date-to')?.addEventListener('change', applyDateFilterFromInputs);
   const loaded = await loadAllFromAPI();
