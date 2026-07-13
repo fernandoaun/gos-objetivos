@@ -189,6 +189,20 @@ def vacaciones_db_path() -> Path:
     return BASE_DIR / "instance" / "vacaciones" / "indicadores.db"
 
 
+def ralenti_data_dir() -> Path:
+    custom = _get("GOS_RALENTI_DATA_DIR")
+    if custom:
+        return Path(custom).resolve()
+    return BASE_DIR / "instance" / "ralenti"
+
+
+def ralenti_db_path() -> Path:
+    custom = _get("GOS_RALENTI_DB_PATH")
+    if custom:
+        return Path(custom).resolve()
+    return ralenti_data_dir() / "gos_ralenti.db"
+
+
 def kpi_excel_path() -> Path | None:
     custom = _get("GOS_KPI_EXCEL_PATH")
     if custom:

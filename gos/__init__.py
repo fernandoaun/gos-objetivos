@@ -71,11 +71,13 @@ def create_app(config_name: str | None = None) -> Flask:
             from gos.modulos.objetivos import module_descriptor as objetivos_descriptor
             from gos.modulos.vacaciones import module_descriptor as vacaciones_descriptor
             from gos.modulos.capacitacion import module_descriptor as capacitacion_descriptor
+            from gos.modulos.ralenti import module_descriptor as ralenti_descriptor
 
             modules.append(objetivos_descriptor())
             modules.append(capacitacion_descriptor())
             modules.append(hwo_descriptor())
             modules.append(vacaciones_descriptor())
+            modules.append(ralenti_descriptor())
 
         modules = modulos_para_usuario(current_user, modules)
 
@@ -88,6 +90,8 @@ def create_app(config_name: str | None = None) -> Flask:
             current_module = "vacaciones"
         elif request.path.startswith("/gos/capacitacion"):
             current_module = "capacitacion"
+        elif request.path.startswith("/gos/ralenti"):
+            current_module = "ralenti"
 
         return {
             "gos_modules": modules,
@@ -103,6 +107,7 @@ def _ensure_schema() -> None:
     from gos.models import Empresa, Perfil, Usuario  # noqa: F401
     from gos.modulos.hwo.models import HwoDataset, HwoModalidad  # noqa: F401
     from gos.modulos.vacaciones.models import Registro, Vacacion  # noqa: F401
+    from gos.modulos.ralenti.models import RalentiConfig, RalentiEvent, RalentiFile  # noqa: F401
     from gos.schema_upgrade import ensure_core_schema
 
     ensure_core_schema()
@@ -133,10 +138,12 @@ def _register_modules(app: Flask) -> None:
     from gos.modulos.objetivos import register as register_objetivos
     from gos.modulos.vacaciones import register as register_vacaciones
     from gos.modulos.capacitacion import register as register_capacitacion
+    from gos.modulos.ralenti import register as register_ralenti
 
     register_objetivos(app)
     register_capacitacion(app)
     register_hwo(app)
+    register_ralenti(app)
     register_vacaciones(app)
 
 
@@ -156,6 +163,7 @@ def _register_module_access_guard(app: Flask) -> None:
             "capacitacion_static.static",
             "hwo_static.static",
             "vacaciones_static.static",
+            "ralenti_static.static",
         ):
             return
 
@@ -181,6 +189,7 @@ def _register_auto_login(app: Flask) -> None:
             "capacitacion_static.static",
             "hwo_static.static",
             "vacaciones_static.static",
+            "ralenti_static.static",
         ):
             return
         if current_user.is_authenticated:

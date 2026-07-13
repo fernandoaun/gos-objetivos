@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Ralentí — GOS{% endblock %}
+{% block page_title %}Ralentí{% endblock %}
+{% block extra_css %}
+<style>
+  .pe-content:has(.ralenti-shell) {
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .ralenti-shell {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+  }
+  .ralenti-frame {
+    flex: 1;
+    border: 0;
+    width: 100%;
+    min-height: calc(100vh - 120px);
+    background: var(--pe-bg);
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="ralenti-shell w-100">
+  <iframe class="ralenti-frame" src="{{ url_for('ralenti_main.app') }}" title="Ralentí"></iframe>
+</div>
+{% endblock %}
