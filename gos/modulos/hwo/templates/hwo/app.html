@@ -1059,10 +1059,10 @@ document.getElementById('app').addEventListener('drop', e => {
 
 function formatMergeMessage(added, updated, total) {
   const parts = [];
-  if (added) parts.push(`${added} fecha${added !== 1 ? 's' : ''} nueva${added !== 1 ? 's' : ''}`);
-  if (updated) parts.push(`${updated} actualizada${updated !== 1 ? 's' : ''}`);
+  if (added) parts.push(`${added} nueva${added !== 1 ? 's' : ''}`);
+  if (updated) parts.push(`${updated} sobrescrita${updated !== 1 ? 's' : ''} (fecha+equipo)`);
   if (!parts.length) return `Sin cambios · ${total} registros en total`;
-  return `Sumado al archivo · ${parts.join(' · ')} · ${total} registros`;
+  return `Merge por fecha+equipo · ${parts.join(' · ')} · ${total} registros`;
 }
 
 function loadFile(file) {
