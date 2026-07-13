@@ -118,7 +118,7 @@
               <div>
                 <span class="leg"><span class="leg-dot" style="background:#76b947"></span>Real acumulado</span>
                 <span class="leg"><span class="leg-dot" style="background:#f9e29c;opacity:.9"></span>Proyectado acumulado</span>
-                <span class="leg"><span class="leg-dot" style="background:#94a3b8"></span>Scope</span>
+                <span class="leg"><span class="leg-dot" style="background:#94a3b8"></span>Esp. del Mes (neto)</span>
               </div>
             </div>
             <div class="chart-body"><div class="chart-wrap" style="height:260px"><canvas id="chart-burnup-dash"></canvas></div></div>
@@ -589,6 +589,17 @@ function calcFdsTol(s, base, equipo) {
 function detectSchedule(tc,cfg){if(!tc||!cfg.periodDays)return'lun-lun';if(tc/cfg.periodDays>=1.8)return'24hs';if(cfg.weekdaysNoHol>0&&Math.abs(tc-cfg.weekdaysNoHol)<=1)return'lun-vie-sf';if(cfg.weekdays>0&&Math.abs(tc-cfg.weekdays)<=1)return'lun-vie';return'lun-lun';}
 function expectedOnDay(date,schedule,holidays){const dow=date.getDay();if(schedule==='24hs')return 2;if(schedule==='12hs'||schedule==='lun-lun')return 1;if(dow===0||dow===6)return 0;if(schedule==='lun-vie-sf'&&holidays.has(date.getTime()))return 0;return 1;}
 function expectedRange(schedule,from,to,holidays){let n=0;const d=new Date(from.getTime());while(d<=to){n+=expectedOnDay(d,schedule,holidays);d.setDate(d.getDate()+1);}return n;}
+/** Proyectado diario neto: jornadas del día × (Esp. del Mes / jornadas brutas), prorrateando FDS Tol. */
+function projectedOnDay(date, eq, holidays) {
+  const gross = expectedOnDay(date, eq.schedule, holidays);
+  if (!gross) return 0;
+  const jornadas = eq.jornadasPeriodo || 0;
+  if (!jornadas) return gross;
+  const net = eq.expectedMonth != null
+    ? eq.expectedMonth
+    : Math.max(0, jornadas - (eq.fdsTolerado || 0));
+  return gross * (net / jornadas);
+}
 /** Corte para Esp. a fecha: hoy si el mes está en curso; día de cierre si está cerrado. */
 function expectedCutoffDate(cfg, today = new Date()) {
   if (!cfg?.periodStart) return null;
@@ -1475,7 +1486,8 @@ function addExpectedToDate() {
 function calcBurnup() {
   const cfg = D.config;
   if (!cfg.periodStart || !D.maxDate) return { labels: [], real: [], proj: [], dailyReal: [], dailyProj: [], scope: 0 };
-  const totalScope = Object.values(D.eqs).reduce((s, e) => s + (e.jornadasPeriodo || 0), 0);
+  // Scope = Esp. del Mes neto (jornadas − FDS Tol), no el total bruto.
+  const totalScope = Object.values(D.eqs).reduce((s, e) => s + (e.expectedMonth || 0), 0);
   const actualByDate = {};
   for (const row of D.rows) {
     const st = stateOf(row);
@@ -1491,7 +1503,7 @@ function calcBurnup() {
   while (d <= D.maxDate) {
     const t = d.getTime();
     const dayReal = actualByDate[t] || 0;
-    const dayProj = Object.values(D.eqs).reduce((s, e) => s + expectedOnDay(d, e.schedule, D.holidays), 0);
+    const dayProj = Object.values(D.eqs).reduce((s, e) => s + projectedOnDay(d, e, D.holidays), 0);
     cumReal += dayReal;
     cumProj += dayProj;
     labels.push(fmtShort(d));
@@ -1501,7 +1513,7 @@ function calcBurnup() {
     proj.push(+(cumProj.toFixed(1)));
     d.setDate(d.getDate() + 1);
   }
-  return { labels, real, proj, dailyReal, dailyProj, scope: totalScope };
+  return { labels, real, proj, dailyReal, dailyProj, scope: +totalScope.toFixed(1) };
 }
 
 function calcDailyStates() {
@@ -1740,7 +1752,7 @@ function renderBurnupChart(canvasId) {
   charts[canvasId] = new Chart(ctx.getContext('2d'), {
     type: 'line',
     data: { labels: bu.labels, datasets: [
-      { label: 'Scope total', data: scope, borderColor: '#94a3b8', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0, fill: false, order: 3 },
+      { label: 'Esp. del Mes (neto)', data: scope, borderColor: '#94a3b8', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0, fill: false, order: 3 },
       { label: 'Proyectado acumulado', data: bu.proj, borderColor: '#f9e29c', backgroundColor: 'rgba(249,226,156,.15)', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, fill: 'origin', order: 2 },
       { label: 'Real acumulado', data: bu.real, borderColor: '#76b947', backgroundColor: 'rgba(118,185,71,.15)', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, fill: 'origin', tension: 0.25, order: 1 },
     ] },
@@ -1749,7 +1761,7 @@ function renderBurnupChart(canvasId) {
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12, usePointStyle: true } },
-        tooltip: { callbacks: { afterBody: ctx => { const real = ctx.find(c => c.dataset.label === 'Real acumulado')?.raw ?? 0; const proj = ctx.find(c => c.dataset.label === 'Proyectado acumulado')?.raw ?? 0; const sc = ctx.find(c => c.dataset.label === 'Scope total')?.raw ?? 0; return [`Desvío vs proy: ${(real - proj) >= 0 ? '+' : ''}${(real - proj).toFixed(1)}`, `Restante: ${(sc - real).toFixed(1)}`]; } } },
+        tooltip: { callbacks: { afterBody: ctx => { const real = ctx.find(c => c.dataset.label === 'Real acumulado')?.raw ?? 0; const proj = ctx.find(c => c.dataset.label === 'Proyectado acumulado')?.raw ?? 0; const sc = ctx.find(c => c.dataset.label === 'Esp. del Mes (neto)')?.raw ?? 0; return [`Desvío vs proy: ${(real - proj) >= 0 ? '+' : ''}${(real - proj).toFixed(1)}`, `Restante: ${(sc - real).toFixed(1)}`]; } } },
       },
       scales: {
         x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, maxRotation: 45, maxTicksLimit: 20 } },
