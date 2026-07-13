@@ -114,7 +114,7 @@
         <div class="charts-grid">
           <div class="section">
             <div class="section-head">
-              <div class="section-title">Burn-Up acumulado</div>
+              <div class="section-title">Burn-Up acumulado <span class="section-sub">· clic en un día</span></div>
               <div>
                 <span class="leg"><span class="leg-dot" style="background:#76b947"></span>Real acumulado</span>
                 <span class="leg"><span class="leg-dot" style="background:#f9e29c;opacity:.9"></span>Proyectado acumulado</span>
@@ -130,7 +130,7 @@
         </div>
         <div class="section section--wide">
           <div class="section-head">
-            <div class="section-title">Servicios realizados y proyectados — día a día</div>
+            <div class="section-title">Servicios realizados y proyectados — día a día <span class="section-sub">· clic en un día</span></div>
             <div>
               <span class="leg"><span class="leg-dot" style="background:#76b947"></span>Servicios realizados</span>
               <span class="leg"><span class="leg-dot" style="background:#f9e29c;opacity:.9"></span>Servicios proyectados</span>
@@ -204,6 +204,20 @@
       </div>
 
     </div>
+  </div>
+</div>
+
+<div id="day-detail-modal" class="hwo-modal hidden" aria-hidden="true">
+  <div class="hwo-modal-backdrop" id="day-detail-backdrop"></div>
+  <div class="hwo-modal-panel" role="dialog" aria-modal="true" aria-labelledby="day-detail-title">
+    <div class="hwo-modal-head">
+      <div>
+        <div class="hwo-modal-title" id="day-detail-title">Detalle del día</div>
+        <div class="hwo-modal-sub" id="day-detail-sub"></div>
+      </div>
+      <button type="button" class="hwo-modal-close" id="day-detail-close" aria-label="Cerrar">×</button>
+    </div>
+    <div class="hwo-modal-body" id="day-detail-body"></div>
   </div>
 </div>
 
@@ -1485,7 +1499,7 @@ function addExpectedToDate() {
 
 function calcBurnup() {
   const cfg = D.config;
-  if (!cfg.periodStart || !D.maxDate) return { labels: [], real: [], proj: [], dailyReal: [], dailyProj: [], scope: 0 };
+  if (!cfg.periodStart || !D.maxDate) return { labels: [], dates: [], real: [], proj: [], dailyReal: [], dailyProj: [], scope: 0 };
   // Scope = Esp. del Mes neto (jornadas − FDS Tol), no el total bruto.
   const totalScope = Object.values(D.eqs).reduce((s, e) => s + (e.expectedMonth || 0), 0);
   const actualByDate = {};
@@ -1497,7 +1511,7 @@ function calcBurnup() {
     const t = row.fecha.getTime();
     actualByDate[t] = (actualByDate[t] || 0) + j;
   }
-  const labels = [], real = [], proj = [], dailyReal = [], dailyProj = [];
+  const labels = [], dates = [], real = [], proj = [], dailyReal = [], dailyProj = [];
   let cumReal = 0, cumProj = 0;
   const d = new Date(cfg.periodStart.getTime());
   while (d <= D.maxDate) {
@@ -1507,13 +1521,14 @@ function calcBurnup() {
     cumReal += dayReal;
     cumProj += dayProj;
     labels.push(fmtShort(d));
+    dates.push(new Date(t));
     dailyReal.push(+(dayReal.toFixed(1)));
     dailyProj.push(+(dayProj.toFixed(1)));
     real.push(+(cumReal.toFixed(1)));
     proj.push(+(cumProj.toFixed(1)));
     d.setDate(d.getDate() + 1);
   }
-  return { labels, real, proj, dailyReal, dailyProj, scope: +totalScope.toFixed(1) };
+  return { labels, dates, real, proj, dailyReal, dailyProj, scope: +totalScope.toFixed(1) };
 }
 
 function calcDailyStates() {
@@ -1660,6 +1675,107 @@ function renderChartsForView(name) {
 const CHART_AXIS_X = { grid: { color: '#f1f5f9', display: false }, ticks: { font: { size: 10 }, maxRotation: 45, maxTicksLimit: 31 } };
 const CHART_AXIS_Y = { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } }, beginAtZero: true };
 
+const STATE_BADGE = { op: 'b-green', sbsp: 'b-blue', sbcc: 'b-yellow', fds: 'b-red', other: 'b-gray' };
+
+function chartDayFromClick(evt, chart) {
+  const pts = chart.getElementsAtEventForMode(evt, 'index', { intersect: false }, true);
+  if (!pts.length) return null;
+  return D.burnup?.dates?.[pts[0].index] || null;
+}
+
+function buildDayEquipmentRows(date) {
+  const day = startOfDay(date);
+  if (!day) return [];
+  const t = day.getTime();
+  const byEq = {};
+  for (const row of D.rows || []) {
+    if (row.fecha.getTime() !== t) continue;
+    const k = eqKey(row.centro);
+    byEq[k] = row;
+  }
+  const list = [];
+  for (const e of Object.values(D.eqs || {})) {
+    const row = byEq[e.equipo];
+    const st = row ? stateOf(row) : null;
+    const proy = projectedOnDay(day, e, D.holidays);
+    const realServ = row && (st === 'op' || st === 'sbcc') ? jpd(e.schedule) : 0;
+    if (!row && proy <= 0) continue;
+    list.push({
+      equipo: e.equipo,
+      cliente: row?.cliente || e.cliente || '',
+      sitReal: row?.sitReal || '—',
+      sitProg: row?.sitProg || '—',
+      st,
+      ubicacion: row?.ubicacion || '',
+      obs: row?.obs || '',
+      proyectado: proy,
+      realServ,
+      hasData: !!row,
+    });
+  }
+  const order = { fds: 0, sbcc: 1, sbsp: 2, other: 3, op: 4 };
+  return list.sort((a, b) => {
+    const oa = a.st != null ? (order[a.st] ?? 5) : 6;
+    const ob = b.st != null ? (order[b.st] ?? 5) : 6;
+    return oa - ob || a.equipo.localeCompare(b.equipo);
+  });
+}
+
+function openDayDetail(date) {
+  const day = startOfDay(date);
+  if (!day) return;
+  const modal = document.getElementById('day-detail-modal');
+  const body = document.getElementById('day-detail-body');
+  const title = document.getElementById('day-detail-title');
+  const sub = document.getElementById('day-detail-sub');
+  if (!modal || !body) return;
+
+  const rows = buildDayEquipmentRows(day);
+  const totReal = rows.reduce((s, r) => s + r.realServ, 0);
+  const totProy = rows.reduce((s, r) => s + r.proyectado, 0);
+  const conDato = rows.filter(r => r.hasData).length;
+
+  title.textContent = `Detalle del día · ${fmt(day)}`;
+  sub.textContent = `${conDato} equipo${conDato !== 1 ? 's' : ''} con dato · Real ${totReal.toFixed(1)} · Proy. ${totProy.toFixed(1)}`;
+
+  if (!rows.length) {
+    body.innerHTML = '<div class="hwo-modal-empty">Sin equipos con actividad o proyección para este día.</div>';
+  } else {
+    body.innerHTML = `<div style="overflow:auto"><table>
+      <thead><tr>
+        <th>Equipo</th><th>Cliente</th><th>Estado</th><th>Sit. prog.</th>
+        <th class="r">Real</th><th class="r">Proy.</th><th>Ubicación</th><th>Observaciones</th>
+      </tr></thead>
+      <tbody>${rows.map(r => {
+        const badge = r.st
+          ? `<span class="badge ${STATE_BADGE[r.st] || 'b-gray'}">${escHtml(r.sitReal)}</span>`
+          : '<span class="badge b-gray">Sin dato</span>';
+        const obs = escHtml(r.obs || '');
+        return `<tr>
+          <td><span class="eq-name">${escHtml(r.equipo)}</span></td>
+          <td><span class="cli-name">${escHtml(r.cliente)}</span></td>
+          <td>${badge}</td>
+          <td style="font-size:11px;color:var(--muted)">${escHtml(r.sitProg)}</td>
+          <td class="r">${r.realServ ? r.realServ.toFixed(1) : '—'}</td>
+          <td class="r">${r.proyectado ? r.proyectado.toFixed(1) : '—'}</td>
+          <td style="font-size:11px">${escHtml(r.ubicacion) || '—'}</td>
+          <td class="obs-cell" title="${obs}">${obs || '—'}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+  }
+
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeDayDetail() {
+  const modal = document.getElementById('day-detail-modal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
 function renderDailyBurnupChart(canvasId) {
   const bu = D.burnup; if (!bu || !bu.labels.length) return;
   const ctx = document.getElementById(canvasId); if (!ctx) return;
@@ -1690,6 +1806,14 @@ function renderDailyBurnupChart(canvasId) {
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
+      onClick: (evt, _els, chart) => {
+        const day = chartDayFromClick(evt, chart);
+        if (day) openDayDetail(day);
+      },
+      onHover: (evt, els) => {
+        const target = evt.native?.target;
+        if (target) target.style.cursor = els.length ? 'pointer' : 'default';
+      },
       plugins: {
         legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12, usePointStyle: true } },
         tooltip: {
@@ -1699,7 +1823,7 @@ function renderDailyBurnupChart(canvasId) {
               const real = items.find(c => c.dataset.label === 'Servicios realizados')?.parsed.y ?? 0;
               const proj = items.find(c => c.dataset.label === 'Servicios proyectados')?.parsed.y ?? 0;
               const diff = real - proj;
-              return [`Desvío del día: ${diff >= 0 ? '+' : ''}${diff.toFixed(1)}`];
+              return [`Desvío del día: ${diff >= 0 ? '+' : ''}${diff.toFixed(1)}`, 'Clic para ver equipos'];
             },
           },
         },
@@ -1759,9 +1883,28 @@ function renderBurnupChart(canvasId) {
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
+      onClick: (evt, _els, chart) => {
+        const day = chartDayFromClick(evt, chart);
+        if (day) openDayDetail(day);
+      },
+      onHover: (evt, els) => {
+        const target = evt.native?.target;
+        if (target) target.style.cursor = els.length ? 'pointer' : 'default';
+      },
       plugins: {
         legend: { position: 'top', labels: { font: { size: 11 }, boxWidth: 12, usePointStyle: true } },
-        tooltip: { callbacks: { afterBody: ctx => { const real = ctx.find(c => c.dataset.label === 'Real acumulado')?.raw ?? 0; const proj = ctx.find(c => c.dataset.label === 'Proyectado acumulado')?.raw ?? 0; const sc = ctx.find(c => c.dataset.label === 'Esp. del Mes (neto)')?.raw ?? 0; return [`Desvío vs proy: ${(real - proj) >= 0 ? '+' : ''}${(real - proj).toFixed(1)}`, `Restante: ${(sc - real).toFixed(1)}`]; } } },
+        tooltip: { callbacks: {
+          afterBody: ctx => {
+            const real = ctx.find(c => c.dataset.label === 'Real acumulado')?.raw ?? 0;
+            const proj = ctx.find(c => c.dataset.label === 'Proyectado acumulado')?.raw ?? 0;
+            const sc = ctx.find(c => c.dataset.label === 'Esp. del Mes (neto)')?.raw ?? 0;
+            return [
+              `Desvío vs proy: ${(real - proj) >= 0 ? '+' : ''}${(real - proj).toFixed(1)}`,
+              `Restante: ${(sc - real).toFixed(1)}`,
+              'Clic para ver equipos',
+            ];
+          },
+        } },
       },
       scales: {
         x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, maxRotation: 45, maxTicksLimit: 20 } },
@@ -1796,6 +1939,11 @@ async function initApp() {
   document.getElementById('filter-month-btns')?.addEventListener('click', e => {
     const btn = e.target.closest('[data-month]');
     if (btn) selectFilterMonth(btn.dataset.month);
+  });
+  document.getElementById('day-detail-close')?.addEventListener('click', closeDayDetail);
+  document.getElementById('day-detail-backdrop')?.addEventListener('click', closeDayDetail);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeDayDetail();
   });
   const loaded = await loadAllFromAPI();
   if (!loaded) await renderSavedPanel();
