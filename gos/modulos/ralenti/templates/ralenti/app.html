@@ -29,7 +29,7 @@
   <button data-page="registros">&#128203; Registros</button>
   <button data-page="politica">&#128203; Pol&iacute;tica</button>
   <button data-page="unidades">&#128663; Unidades</button>
-  <button class="btn-import-fab" data-page="importar" title="Importar">&#43;<span class="fab-label">Importar</span></button>
+  <button data-page="importar" id="nav-archivos">&#128193; Archivos <span class="nav-badge" id="nav-files-badge" hidden>0</span></button>
 </nav>
 <div class="page active" id="page-dashboard">
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px;align-items:stretch">
@@ -189,24 +189,28 @@
   </div>
 </div>
 <div class="page" id="page-importar">
-  <div style="max-width:680px">
+  <div style="max-width:720px">
+    <div class="card files-card" style="margin-bottom:15px">
+      <div class="files-head">
+        <h3>Mis archivos cargados</h3>
+        <span class="files-count" id="files-count">0 archivos</span>
+      </div>
+      <p class="files-hint">Ac&aacute; ves todo lo que importaste. Si subiste uno por error, eliminalo con el bot&oacute;n rojo.</p>
+      <div id="flist"><div class="loading" style="padding:20px">Sin archivos cargados.</div></div>
+    </div>
     <div class="card" style="margin-bottom:15px">
-      <h3>Importar Archivo</h3>
+      <h3>Importar archivo nuevo</h3>
       <div class="drop-zone" id="dz" onclick="document.getElementById('fi').click()"
            ondragover="event.preventDefault();this.classList.add('over')"
            ondragleave="this.classList.remove('over')"
            ondrop="doDrop(event)">
-        <div class="ico">&#128202;</div>
-        <p>Arrastra tus archivos aca o <strong>hace clic para seleccionar</strong></p>
+        <div class="ico">&#128193;</div>
+        <p>Arrastra tus archivos ac&aacute; o <strong>hace clic para seleccionar</strong></p>
         <p style="font-size:.75rem;margin-top:4px;color:#bbb">Excel (.xlsx) y CSV compatibles</p>
       </div>
       <input type="file" id="fi" accept=".csv,.txt,.xlsx,.xls" multiple style="display:none" onchange="doFiles(this.files)">
       <div id="prog"></div>
-    </div>
-    <div class="card">
-      <h3>Archivos Cargados</h3>
-      <div id="flist"><div class="loading" style="padding:20px">Sin archivos cargados.</div></div>
-      <div style="background:#e8f5e9;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:.8rem;color:#2e7d32;border-left:3px solid #5CB85C"><strong>Formatos soportados:</strong> Excel (.xlsx, .xls) y CSV UTF-8.</div>
+      <div style="background:#e8f5e9;border-radius:8px;padding:10px 14px;margin-top:12px;font-size:.8rem;color:#2e7d32;border-left:3px solid #5CB85C"><strong>Formatos soportados:</strong> Excel (.xlsx, .xls) y CSV UTF-8.</div>
       <div class="ib" style="margin-top:12px">
         <strong>Tasa de consumo:</strong> <span id="cfgL">3.5</span> L/h en ralenti &nbsp;|&nbsp;
         <strong>Tolerancia:</strong> eventos &ge;<span id="cfgT">5</span> min
@@ -778,10 +782,27 @@ async function delFile(fname){
     toast('Eliminado: '+fname);
   }catch(e){toast('Error al eliminar',3000);}
 }
+function updFilesBadge(){
+  var n=DB.files.length;
+  var badge=document.getElementById('nav-files-badge');
+  var countEl=document.getElementById('files-count');
+  if(badge){badge.textContent=String(n);badge.hidden=n===0;}
+  if(countEl){countEl.textContent=n===1?'1 archivo':(n+' archivos');}
+}
 function rFiles(){
   var el=document.getElementById('flist');
-  if(!DB.files.length){el.innerHTML='<div class="loading" style="padding:18px">Sin archivos. Importa un CSV o Excel arriba.</div>';return;}
-  el.innerHTML=DB.files.map(function(f){return'<div class="fi"><span style="font-size:1.1rem">&#128202;</span><div><strong>'+f.name+'</strong><br><span style="font-size:.75rem;color:#666">'+f.events+' eventos &middot; '+f.persons.join(', ')+(f.importedAt?' &middot; Importado: '+f.importedAt:'')+'</span></div><button class="fi-del" onclick="delFile(\''+f.name.replace(/\'/g,"\\'")+'\')">&#x2715;</button></div>';}).join('');
+  updFilesBadge();
+  if(!DB.files.length){
+    el.innerHTML='<div class="files-empty">Todav&iacute;a no hay archivos. Import&aacute; un CSV o Excel abajo.</div>';
+    return;
+  }
+  el.innerHTML=DB.files.map(function(f){
+    var safe=f.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    var meta=f.events+' eventos';
+    if(f.persons&&f.persons.length)meta+=' &middot; '+f.persons.join(', ');
+    if(f.importedAt)meta+=' &middot; Importado: '+f.importedAt;
+    return'<div class="fi"><div class="fi-ico">&#128196;</div><div class="fi-body"><strong>'+f.name+'</strong><span class="fi-meta">'+meta+'</span></div><button type="button" class="fi-del" onclick="delFile(\''+safe+'\')" title="Eliminar archivo">Eliminar</button></div>';
+  }).join('');
 }
 var TIP=document.getElementById('cv-tip');
 var hitAreas={};

@@ -127,20 +127,20 @@ body {
 }
 
 #saved-panel h3 {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: rgba(255, 255, 255, 0.35);
-  margin-bottom: 10px;
+  letter-spacing: 0.06em;
+  color: rgba(255, 255, 255, 0.85);
+  margin-bottom: 6px;
   text-align: center;
 }
 
 .saved-list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  align-items: stretch;
 }
 
 .saved-hint {
@@ -148,30 +148,31 @@ body {
   line-height: 1.5;
   color: rgba(255, 255, 255, 0.65);
   text-align: center;
-  margin: 0;
-  padding: 8px 12px;
+  margin: 0 0 14px;
+  padding: 0 8px;
 }
 
 .saved-item {
-  background: rgba(255, 255, 255, 0.07);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 9px;
-  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  padding: 12px 14px;
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 12px;
   cursor: pointer;
   transition: all 0.2s;
-  max-width: 280px;
+  width: 100%;
+  max-width: none;
 }
 
 .saved-item:hover {
-  background: rgba(118, 185, 71, 0.2);
+  background: rgba(118, 185, 71, 0.22);
   border-color: var(--accent);
 }
 
 .saved-item-icon {
-  font-size: 18px;
+  font-size: 20px;
   flex-shrink: 0;
 }
 
@@ -181,61 +182,64 @@ body {
 }
 
 .saved-item-name {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 800;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .saved-item-date {
-  font-size: 11px;
-  color: rgba(255, 255, 255, 0.4);
-  margin-top: 1px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  margin-top: 2px;
 }
 
 .saved-item-sub {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.25);
-  margin-top: 1px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.4);
+  margin-top: 2px;
 }
 
 .saved-item-del {
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
+  border-radius: 7px;
   border: none;
   cursor: pointer;
-  background: rgba(239, 68, 68, 0.15);
-  color: #fca5a5;
-  font-size: 13px;
-  display: flex;
+  background: #c0392b;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   transition: background 0.15s;
+  width: auto;
+  height: auto;
+  padding: 8px 12px;
 }
 
 .saved-item-del:hover {
-  background: rgba(239, 68, 68, 0.4);
+  background: #a93226;
   color: #fff;
 }
 
 #btn-clear-all {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.3);
-  padding: 4px 12px;
-  border-radius: 5px;
-  font-size: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.55);
+  padding: 8px 14px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
-  margin: 10px auto 0;
+  margin: 4px auto 0;
   display: block;
   transition: all 0.2s;
 }
 
 #btn-clear-all:hover {
-  border-color: rgba(239, 68, 68, 0.4);
+  border-color: rgba(239, 68, 68, 0.55);
   color: #fca5a5;
 }
 
@@ -394,6 +398,18 @@ body {
   background: var(--gos-yellow-soft);
 }
 
+.hwo-toolbar-btn--files {
+  border-color: var(--gos-green-dark);
+  color: var(--gos-green-dark);
+  background: var(--gos-success-soft);
+  font-weight: 700;
+}
+
+.hwo-toolbar-btn--files:hover {
+  border-color: var(--green);
+  background: var(--gos-yellow-soft);
+}
+
 /* Barra de navegación horizontal */
 .hwo-toolbar {
   display: flex;
@@ -518,6 +534,25 @@ body {
   color: var(--gos-green-dark);
   border-color: color-mix(in srgb, var(--green) 40%, var(--border));
   background: #fff;
+}
+
+.hwo-service-tab-del {
+  margin-left: 2px;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.hwo-service-tab-del:hover {
+  background: var(--gos-danger-soft);
+  color: var(--gos-danger);
 }
 
 .hwo-file-bar {

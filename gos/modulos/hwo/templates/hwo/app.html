@@ -26,7 +26,8 @@
     <input type="file" id="file-input" accept=".xlsx,.xls" style="display:none" multiple>
   </div>
   <div id="saved-panel" class="hidden">
-    <h3>— Datos guardados —</h3>
+    <h3>Archivos / datos cargados</h3>
+    <p class="saved-hint">Si subiste un Excel por error, eliminalo ac&aacute;. PH, SW y HWO se guardan por separado.</p>
     <div class="saved-list" id="saved-list"></div>
   </div>
 </div>
@@ -51,6 +52,7 @@
           <button type="button" class="hwo-toolbar-btn" onclick="pickFilesForService('PH')">+ PH</button>
           <button type="button" class="hwo-toolbar-btn" onclick="pickFilesForService('SW')">+ SW</button>
           <button type="button" class="hwo-toolbar-btn" onclick="pickFilesForService('HWO')">+ HWO</button>
+          <button type="button" class="hwo-toolbar-btn hwo-toolbar-btn--files" onclick="goToUpload()" title="Ver y eliminar datos cargados">Archivos</button>
         </div>
       </div>
     </div>
@@ -791,10 +793,29 @@ function rebuildDataset(raw, datasetName) {
 
 async function renderSavedPanel() {
   const all = await apiLoadAll();
-  const panel = document.getElementById('saved-panel'); const list = document.getElementById('saved-list');
-  if (!all.length) { panel.classList.add('hidden'); return; }
+  const panel = document.getElementById('saved-panel');
+  const list = document.getElementById('saved-list');
+  const items = (all || []).filter(item => item.name !== COMBINED_NAME);
+  if (!items.length) {
+    panel.classList.add('hidden');
+    list.innerHTML = '';
+    return;
+  }
   panel.classList.remove('hidden');
-  list.innerHTML = `<p class="saved-hint">Hay <strong>${all.length}</strong> archivo(s) en la base de datos. Se cargan automáticamente al abrir el dashboard.</p>`;
+  list.innerHTML = items.map(item => {
+    const safe = String(item.name).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const when = item.saved_at ? new Date(item.saved_at).toLocaleString('es-AR') : '—';
+    const rows = item.row_count != null ? `${item.row_count} registros` : '';
+    return `<div class="saved-item" onclick="loadFromAPI('${safe}')" title="Abrir ${escHtml(item.name)}">
+      <div class="saved-item-icon">📁</div>
+      <div class="saved-item-info">
+        <div class="saved-item-name">${escHtml(item.name)}</div>
+        <div class="saved-item-date">Guardado: ${when}</div>
+        ${rows ? `<div class="saved-item-sub">${rows}</div>` : ''}
+      </div>
+      <button type="button" class="saved-item-del" title="Eliminar ${escHtml(item.name)}" onclick="event.stopPropagation(); deleteSavedItem('${safe}')">Eliminar</button>
+    </div>`;
+  }).join('') + `<button type="button" id="btn-clear-all" onclick="clearAllSaved()">Borrar todos</button>`;
 }
 
 async function loadAllFromAPI() {
@@ -875,16 +896,40 @@ async function loadFromAPI(name) {
 }
 
 async function deleteSavedItem(name) {
+  if (!confirm(`¿Eliminar los datos de "${name}"?`)) return;
   await apiDeleteDataset(name);
   const idx = datasets.findIndex(d => d.name === name);
-  if (idx >= 0) closeDataset(idx);
-  if (!datasets.length) { await renderSavedPanel(); goToUpload(); }
-  else renderSavedPanel();
+  if (idx >= 0) {
+    const ds = datasets[idx];
+    if (ds.locked || SERVICE_SET.has(ds.name)) {
+      const source = emptySource();
+      datasets[idx] = {
+        name: ds.name,
+        service: ds.service,
+        locked: true,
+        source,
+        D: buildViewFromSource(source, ds.name),
+      };
+    } else {
+      datasets.splice(idx, 1);
+    }
+  }
+  ensureServiceSlots();
+  const hasData = datasets.some(d => d.service !== 'all' && d.source?.rows?.length);
+  if (!hasData) {
+    datasets = [];
+    activeIdx = -1;
+    D = {};
+  }
+  await renderSavedPanel();
+  goToUpload();
 }
 async function clearAllSaved() {
   if (!confirm('¿Borrar todos los datos guardados?')) return;
   await apiClearAll();
-  datasets = []; activeIdx = -1; D = {};
+  datasets = [];
+  activeIdx = -1;
+  D = {};
   goToUpload();
   await renderSavedPanel();
 }
@@ -1029,11 +1074,7 @@ function showApp(updateText, detailText) {
 function goToUpload() {
   document.getElementById('upload-zone').classList.remove('hidden');
   document.getElementById('app').classList.add('hidden');
-  if (datasets.length) {
-    document.getElementById('saved-panel').classList.add('hidden');
-  } else {
-    renderSavedPanel();
-  }
+  renderSavedPanel();
 }
 
 function escHtml(s) {
@@ -1058,9 +1099,13 @@ function renderServiceModules() {
     const title = m.key === 'all'
       ? 'Vista combinada de PH, SW y HWO'
       : `Módulo ${m.label}${count ? ` · ${count} registros` : ' · sin datos aún'}`;
+    const del = (m.key !== 'all' && count > 0)
+      ? `<span class="hwo-service-tab-del" title="Eliminar datos de ${m.label}" onclick="event.stopPropagation(); closeDatasetByService('${m.key}')">✕</span>`
+      : '';
     return `<button type="button" class="hwo-service-tab${isActive ? ' active' : ''}${emptyCls}" data-service="${m.key}" title="${title}" onclick="switchServiceModule('${m.key}')">
       <span class="hwo-service-tab-name">${m.label}</span>
       <span class="hwo-service-tab-count">${count}</span>
+      ${del}
     </button>`;
   }).join('');
 }
@@ -1070,6 +1115,11 @@ function switchServiceModule(key) {
   const idx = datasets.findIndex(d => (key === 'all' ? d.service === 'all' : d.service === key));
   if (idx < 0) return;
   switchDataset(idx);
+}
+
+function closeDatasetByService(key) {
+  const idx = datasets.findIndex(d => d.service === key);
+  if (idx >= 0) closeDataset(idx);
 }
 
 function renderFileBar() {
