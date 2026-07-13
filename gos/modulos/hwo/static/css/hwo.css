@@ -398,6 +398,12 @@ body {
   background: var(--gos-yellow-soft);
 }
 
+.hwo-toolbar-btn.active {
+  border-color: var(--gos-green-dark);
+  color: #fff;
+  background: var(--gos-green-dark);
+}
+
 .hwo-toolbar-btn--files {
   border-color: var(--gos-green-dark);
   color: var(--gos-green-dark);

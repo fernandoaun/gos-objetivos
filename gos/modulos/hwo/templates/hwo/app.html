@@ -437,6 +437,10 @@ function yearMonthFromPeriodEnd(periodEnd) {
   return { year: periodEnd.getFullYear(), month: periodEnd.getMonth() + 1 };
 }
 
+function hasPeriodFilter() {
+  return !!(dateFilter.year && dateFilter.month && dateFilter.from && dateFilter.to);
+}
+
 function syncPeriodButtons() {
   document.querySelectorAll('#filter-year-btns .hwo-period-btn').forEach(btn => {
     btn.classList.toggle('active', Number(btn.dataset.year) === dateFilter.year);
@@ -444,6 +448,8 @@ function syncPeriodButtons() {
   document.querySelectorAll('#filter-month-btns .hwo-period-btn').forEach(btn => {
     btn.classList.toggle('active', Number(btn.dataset.month) === dateFilter.month);
   });
+  const todoBtn = document.getElementById('btn-clear-date-filter');
+  if (todoBtn) todoBtn.classList.toggle('active', !hasPeriodFilter());
 }
 
 function applyYearMonthFilter(year, month, { render = true } = {}) {
@@ -540,10 +546,25 @@ function lastClosedPeriodEnd(today = new Date()) {
   return new Date(periodStart.getFullYear(), periodStart.getMonth(), 20);
 }
 
+/** Cantidad de meses operativos (cierres día 20) cubiertos por el rango. */
+function countOperationalMonths(periodStart, periodEnd) {
+  if (!periodStart || !periodEnd || periodEnd < periodStart) return 1;
+  let n = 0;
+  let cursor = periodContaining(periodStart).periodEnd;
+  const endT = startOfDay(periodEnd).getTime();
+  while (cursor && startOfDay(cursor).getTime() <= endT) {
+    n++;
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 20);
+    if (n > 240) break;
+  }
+  return Math.max(1, n);
+}
+
 function fillPeriodMeta(cfg) {
   if (!cfg.periodStart || !cfg.periodEnd) return cfg;
   cfg.periodDays = daysBetween(cfg.periodStart, cfg.periodEnd) + 1;
   cfg.weekdays = countWeekdays(cfg.periodStart, cfg.periodEnd);
+  cfg.periodCount = countOperationalMonths(cfg.periodStart, cfg.periodEnd);
   const hSet = buildHolidaySet(cfg.periodStart, cfg.periodEnd);
   let wdHol = 0;
   for (const t of hSet) { const dow = new Date(t).getDay(); if (dow !== 0 && dow !== 6) wdHol++; }
@@ -554,11 +575,19 @@ function fillPeriodMeta(cfg) {
 
 function applyOperationalPeriod(config, rows) {
   const cfg = { ...config, eqs: { ...(config?.eqs || {}) } };
+  // Con mes elegido: usar ese período completo (21→20), no solo hasta el último dato.
+  if (hasPeriodFilter()) {
+    cfg.periodStart = dateFilter.from;
+    cfg.periodEnd = dateFilter.to;
+    return fillPeriodMeta(cfg);
+  }
+  // "Todo": el período abarca desde el primer hasta el último dato (alineado a 21→20).
   if (!rows?.length) return cfg;
-  const maxDate = new Date(Math.max(...rows.map(r => r.fecha.getTime())));
-  const p = periodContaining(maxDate);
-  cfg.periodStart = p.periodStart;
-  cfg.periodEnd = p.periodEnd;
+  const times = rows.map(r => r.fecha.getTime());
+  const minDate = new Date(Math.min(...times));
+  const maxDate = new Date(Math.max(...times));
+  cfg.periodStart = periodContaining(minDate).periodStart;
+  cfg.periodEnd = periodContaining(maxDate).periodEnd;
   return fillPeriodMeta(cfg);
 }
 
@@ -821,6 +850,7 @@ function mergeConfigs(existing, incoming) {
   if (cfg.periodStart && cfg.periodEnd) {
     cfg.periodDays = daysBetween(cfg.periodStart, cfg.periodEnd) + 1;
     cfg.weekdays = countWeekdays(cfg.periodStart, cfg.periodEnd);
+    cfg.periodCount = countOperationalMonths(cfg.periodStart, cfg.periodEnd);
     const hSet = buildHolidaySet(cfg.periodStart, cfg.periodEnd);
     let wdHol = 0;
     for (const t of hSet) { const dow = new Date(t).getDay(); if (dow !== 0 && dow !== 6) wdHol++; }
@@ -834,7 +864,7 @@ function finalizeDataset(ds, datasetName, prevEqs) {
   D = {};
   D.rows = ds.rows || [];
   D.maxDate = D.rows.length ? new Date(Math.max(...D.rows.map(r => r.fecha.getTime()))) : null;
-  // El período operativo sigue al último dato: 21 → 20. Lo anterior al día 20 queda cerrado.
+  // Con filtro de mes: ese período 21→20. Con "Todo": desde el primer hasta el último dato.
   D.config = applyOperationalPeriod(ds.config || {}, D.rows);
   D.eqs = calcEquipments(datasetName, prevEqs); D.holidays = detectHolidays();
   applyModalidad(datasetName); addExpectedToDate(); D.burnup = calcBurnup(); D.dailyStates = calcDailyStates();
@@ -1436,16 +1466,18 @@ function prevEqSchedule(prevEqs, key) {
 function calcEquipments(datasetName, prevEqs) {
   const eqs = {}, cfg = D.config;
   const dsName = datasetName || datasets[activeIdx]?.name || '';
+  const months = cfg.periodCount || 1;
   for (const [k, c] of Object.entries(cfg.eqs)) {
     const key = eqKey(k);
     const sched = lookupSavedSchedule(key, dsName) || prevEqSchedule(prevEqs, key) || detectSchedule(c.totalCompleto, cfg);
-    eqs[key] = { ...c, equipo: key, schedule: sched, _fdsTolBase: c.fdsTolerado || 0, fdsTolerado: calcFdsTol(sched, c.fdsTolerado, key), dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, expectedMonth: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
+    const tolBase = c.fdsTolerado || 0;
+    eqs[key] = { ...c, equipo: key, schedule: sched, _fdsTolBase: tolBase, fdsTolerado: calcFdsTol(sched, tolBase, key) * months, dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, expectedMonth: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
   }
   for (const row of D.rows) {
     const k = eqKey(row.centro);
     if (!eqs[k]) {
       const sched = lookupSavedSchedule(k, dsName) || prevEqSchedule(prevEqs, k) || 'lun-lun';
-      eqs[k] = { equipo: k, cliente: row.cliente, totalCompleto: cfg.periodDays, _fdsTolBase: 2, fdsTolerado: calcFdsTol(sched, 2, k), proyectado: cfg.periodDays - 2, schedule: sched, dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, expectedMonth: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
+      eqs[k] = { equipo: k, cliente: row.cliente, totalCompleto: cfg.periodDays, _fdsTolBase: 2, fdsTolerado: calcFdsTol(sched, 2, k) * months, proyectado: cfg.periodDays - 2, schedule: sched, dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, expectedMonth: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
     }
     const e = eqs[k], st = stateOf(row), j = jpd(e.schedule);
     if (st === 'op') { e.op += j; e.dias += j; }
@@ -1467,7 +1499,7 @@ function reCountEquipment(eq) {
   const e = D.eqs[key]; if (!e) return;
   const j = jpd(e.schedule);
   e.dias = 0; e.op = 0; e.fds = 0; e.sbsp = 0; e.sbcc = 0; e.totalServ = 0; e.incidents = [];
-  e.fdsTolerado = calcFdsTol(e.schedule, e._fdsTolBase, key);
+  e.fdsTolerado = calcFdsTol(e.schedule, e._fdsTolBase, key) * (D.config.periodCount || 1);
   for (const row of D.rows) {
     if (row.centro !== key) continue; const st = stateOf(row);
     if (st === 'op') { e.op += j; e.dias += j; }
@@ -1622,6 +1654,14 @@ function renderProgressBar() {
   const prog = periodProgress(cfg);
   if (!prog) return;
   document.getElementById('period-fill').style.width = prog.pct + '%';
+  const months = cfg.periodCount || 1;
+  if (!hasPeriodFilter() && months > 1) {
+    document.getElementById('period-bar-label').textContent =
+      `${fmt(cfg.periodStart)} — ${fmt(cfg.periodEnd)} · ${months} meses · ${prog.pct.toFixed(0)}%`;
+    document.getElementById('period-bar-right').textContent =
+      `${prog.remaining} día${prog.remaining !== 1 ? 's' : ''} restante${prog.remaining !== 1 ? 's' : ''}`;
+    return;
+  }
   document.getElementById('period-bar-label').textContent = `Día ${prog.elapsed} de ${cfg.periodDays} · ${prog.pct.toFixed(0)}% del período`;
   document.getElementById('period-bar-right').textContent = `${prog.remaining} día${prog.remaining !== 1 ? 's' : ''} restante${prog.remaining !== 1 ? 's' : ''}`;
 }
@@ -1632,11 +1672,20 @@ function renderKPIs() {
   const enRiesgo = eqList.filter(e => e.semaforo !== 'green').length, enRojo = eqList.filter(e => e.semaforo === 'red').length, enAmari = eqList.filter(e => e.semaforo === 'yellow').length;
   const cfg = D.config, prog = periodProgress(cfg);
   const elapsed = prog?.elapsed || 0, remaining = prog?.remaining || 0;
+  const months = cfg.periodCount || 1;
+  const allMode = !hasPeriodFilter() && months > 1;
   const pctOp = totExp > 0 ? (totServ / totExp) * 100 : 0, vsExp = totExp > 0 ? ((totServ / totExp) - 1) * 100 : 0;
   document.getElementById('kpi-grid').innerHTML = [
     { label: 'Operatividad global', value: `${pctOp.toFixed(1)}%`, sub: `${totServ} / ${totExp} · Real / Esp. a fecha`, color: pctOp >= 95 ? 'c-green' : pctOp >= 85 ? 'c-yellow' : 'c-red' },
     { label: 'Equipos en riesgo (FDS)', value: enRiesgo, sub: `${enRojo} en rojo · ${enAmari} en amarillo`, color: enRiesgo === 0 ? 'c-green' : enRojo > 0 ? 'c-red' : 'c-yellow' },
-    { label: 'Avance del período', value: `${elapsed} / ${cfg.periodDays} días`, sub: `${remaining} día${remaining !== 1 ? 's' : ''} restante${remaining !== 1 ? 's' : ''}`, color: '' },
+    {
+      label: allMode ? 'Rango de datos' : 'Avance del período',
+      value: allMode ? `${months} meses` : `${elapsed} / ${cfg.periodDays} días`,
+      sub: allMode
+        ? `${fmt(cfg.periodStart)} — ${fmt(cfg.periodEnd)}`
+        : `${remaining} día${remaining !== 1 ? 's' : ''} restante${remaining !== 1 ? 's' : ''}`,
+      color: '',
+    },
     { label: 'Serv. real vs esperado', value: `${totServ} / ${totExp}`, sub: `${vsExp >= 0 ? '+' : ''}${vsExp.toFixed(1)}% vs esperado`, color: vsExp >= 0 ? 'c-green' : vsExp >= -5 ? 'c-yellow' : 'c-red' },
   ].map(k => `<div class="kpi-card ${k.color}"><div class="kpi-label">${k.label}</div><div class="kpi-value">${k.value}</div><div class="kpi-sub">${k.sub}</div></div>`).join('');
 }
