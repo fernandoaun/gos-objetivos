@@ -100,6 +100,20 @@ body {
   background: var(--gos-green-dark);
 }
 
+.upload-service-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.hwo-add-dates {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .upload-hint {
   margin-top: 14px;
   font-size: 12px;
@@ -432,16 +446,70 @@ body {
   color: var(--gos-primary, #1a56db);
 }
 
-.hwo-file-bar {
+.hwo-service-nav {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 16px 8px;
+  align-items: stretch;
+  gap: 0;
+  padding: 0 16px;
   overflow-x: auto;
   border-top: 1px solid var(--border);
+  background: var(--card);
 }
 
-.hwo-file-bar:empty {
+.hwo-service-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+
+.hwo-service-tab:hover {
+  color: var(--gos-green-dark);
+  background: var(--gos-yellow-soft);
+}
+
+.hwo-service-tab.active {
+  color: var(--gos-green-dark);
+  border-bottom-color: var(--green);
+  background: var(--gos-success-soft);
+}
+
+.hwo-service-tab--empty .hwo-service-tab-count {
+  opacity: 0.45;
+}
+
+.hwo-service-tab-name {
+  letter-spacing: 0.02em;
+}
+
+.hwo-service-tab-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--gos-radius-sm);
+  padding: 1px 7px;
+  min-width: 1.5em;
+  text-align: center;
+}
+
+.hwo-service-tab.active .hwo-service-tab-count {
+  color: var(--gos-green-dark);
+  border-color: color-mix(in srgb, var(--green) 40%, var(--border));
+  background: #fff;
+}
+
+.hwo-file-bar {
   display: none;
 }
 

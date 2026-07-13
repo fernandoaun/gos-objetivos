@@ -16,9 +16,13 @@
   <div class="upload-card" id="drop-zone">
     <div class="upload-icon">📊</div>
     <h2>Análisis</h2>
-    <p>Arrastrá Excels de <strong>PH</strong>, <strong>SW</strong> o <strong>HWO</strong>. Cada servicio queda en su pestaña; <strong>Todos</strong> combina los tres.</p>
-    <button class="btn-primary" onclick="document.getElementById('file-input').click()">Seleccionar archivo(s)</button>
-    <div class="upload-hint">Incluí PH, SW o HWO en el nombre del archivo · después podés sumar solo fechas nuevas y filtrar por rango</div>
+    <p>Cargá cada Excel en su servicio. PH, SW y HWO se guardan por separado; <strong>Todos</strong> combina los que tengas.</p>
+    <div class="upload-service-actions">
+      <button type="button" class="btn-primary" onclick="pickFilesForService('PH')">Cargar PH</button>
+      <button type="button" class="btn-primary" onclick="pickFilesForService('SW')">Cargar SW</button>
+      <button type="button" class="btn-primary" onclick="pickFilesForService('HWO')">Cargar HWO</button>
+    </div>
+    <div class="upload-hint">También podés arrastrar un archivo y elegir el servicio · después sumá fechas nuevas por tipo</div>
     <input type="file" id="file-input" accept=".xlsx,.xls" style="display:none" multiple>
   </div>
   <div id="saved-panel" class="hidden">
@@ -43,7 +47,11 @@
         </div>
         <span class="last-update" id="last-update"></span>
         <button class="btn-closed" id="btn-closed" onclick="toggleMesCerrado()">✓ Mes cerrado</button>
-        <button type="button" class="hwo-toolbar-btn" onclick="document.getElementById('file-input-add').click()">+ Fechas nuevas</button>
+        <div class="hwo-add-dates" title="Sumar fechas nuevas por servicio">
+          <button type="button" class="hwo-toolbar-btn" onclick="pickFilesForService('PH')">+ PH</button>
+          <button type="button" class="hwo-toolbar-btn" onclick="pickFilesForService('SW')">+ SW</button>
+          <button type="button" class="hwo-toolbar-btn" onclick="pickFilesForService('HWO')">+ HWO</button>
+        </div>
       </div>
     </div>
 
@@ -62,7 +70,7 @@
           <span class="hwo-nav-badge" id="nav-badge-inc" style="display:none"></span>
         </button>
       </nav>
-      <div class="hwo-file-bar" id="hwo-file-list"></div>
+      <nav class="hwo-service-nav" id="hwo-service-nav" aria-label="Módulos de servicio"></nav>
     </div>
 
     <div class="period-bar">
@@ -185,8 +193,6 @@
   </div>
 </div>
 
-<input type="file" id="file-input-add" accept=".xlsx,.xls" style="display:none" multiple>
-
 <script src="{{ url_for('static', filename='js/iframe-theme.js') }}?v={{ app_version }}"></script>
 <script>
 'use strict';
@@ -198,6 +204,7 @@ let activeIdx  = -1;
 let activeView = 'dashboard';
 let mesCerrado = false;
 let dateFilter = { from: null, to: null };
+let uploadTargetService = null;
 
 const SERVICE_ORDER = ['PH', 'SW', 'HWO'];
 const COMBINED_NAME = 'Todos';
@@ -211,10 +218,32 @@ function detectServiceType(...texts) {
 
 function askServiceType(filename) {
   const raw = (prompt(
-    `No se detectó el tipo de servicio en "${filename}".\nIngresá PH, SW o HWO:`,
-    'PH'
+    `¿A qué servicio corresponde "${filename}"?\nIngresá PH, SW o HWO:`,
+    datasets[activeIdx]?.service && datasets[activeIdx].service !== 'all'
+      ? datasets[activeIdx].service
+      : 'PH'
   ) || '').trim().toUpperCase();
   return SERVICE_SET.has(raw) ? raw : null;
+}
+
+function pickFilesForService(service) {
+  if (!SERVICE_SET.has(service)) return;
+  uploadTargetService = service;
+  const input = document.getElementById('file-input');
+  if (!input) return;
+  input.value = '';
+  input.click();
+}
+
+function resolveUploadService(filename, sheetNames) {
+  if (uploadTargetService && SERVICE_SET.has(uploadTargetService)) {
+    return uploadTargetService;
+  }
+  const active = datasets[activeIdx]?.service;
+  if (active && SERVICE_SET.has(active)) return active;
+  const detected = detectServiceType(filename, ...(sheetNames || []));
+  if (detected) return detected;
+  return askServiceType(filename || 'archivo');
 }
 
 function parseISODate(s) {
@@ -285,19 +314,7 @@ function rebuildTodos() {
     .map(svc => datasets.find(d => d.service === svc && d.source?.rows?.length))
     .filter(Boolean);
   const todosIdx = datasets.findIndex(d => d.service === 'all');
-
-  if (parts.length < 2) {
-    if (todosIdx >= 0) {
-      const wasActive = activeIdx === todosIdx;
-      datasets.splice(todosIdx, 1);
-      if (wasActive) activeIdx = Math.min(todosIdx, datasets.length - 1);
-      else if (activeIdx > todosIdx) activeIdx -= 1;
-    }
-    sortDatasets();
-    return;
-  }
-
-  const source = mergeSources(parts);
+  const source = parts.length ? mergeSources(parts) : emptySource();
   const prevEqs = todosIdx >= 0 ? datasets[todosIdx].D?.eqs : null;
   const entry = {
     name: COMBINED_NAME,
@@ -308,6 +325,22 @@ function rebuildTodos() {
   };
   if (todosIdx >= 0) datasets[todosIdx] = entry;
   else datasets.push(entry);
+  sortDatasets();
+}
+
+function ensureServiceSlots() {
+  for (const svc of SERVICE_ORDER) {
+    if (datasets.some(d => d.service === svc)) continue;
+    const source = emptySource();
+    datasets.push({
+      name: svc,
+      service: svc,
+      locked: true,
+      source,
+      D: buildViewFromSource(source, svc),
+    });
+  }
+  rebuildTodos();
   sortDatasets();
 }
 
@@ -713,8 +746,7 @@ async function loadAllFromAPI() {
   if (!loaded.length) return false;
   datasets = loaded;
   activeIdx = 0;
-  rebuildTodos();
-  sortDatasets();
+  ensureServiceSlots();
   D = datasets[activeIdx].D;
   syncDateFilterBounds();
   const n = datasets.filter(d => d.service !== 'all').length;
@@ -741,9 +773,9 @@ async function loadFromAPI(name) {
   const existing = datasets.findIndex(d => d.name === tabName);
   if (existing >= 0) datasets[existing] = { ...datasets[existing], ...entry };
   else datasets.push(entry);
-  rebuildTodos();
-  sortDatasets();
+  ensureServiceSlots();
   activeIdx = datasets.findIndex(d => d.name === tabName);
+  if (activeIdx < 0) activeIdx = 0;
   D = datasets[activeIdx].D;
   syncDateFilterBounds();
   showApp('Datos guardados · ' + new Date(raw.savedAt).toLocaleString('es-AR'));
@@ -777,17 +809,39 @@ function switchView(name) {
 }
 
 // ── File handling ────────────────────────────
-async function onFilesPicked(files) {
-  for (const f of Array.from(files)) await loadFile(f);
+async function onFilesPicked(files, forcedService) {
+  const list = Array.from(files || []);
+  if (!list.length) {
+    uploadTargetService = null;
+    return;
+  }
+  if (forcedService && SERVICE_SET.has(forcedService)) uploadTargetService = forcedService;
+  try {
+    for (const f of list) await loadFile(f);
+  } finally {
+    uploadTargetService = null;
+  }
 }
-document.getElementById('file-input').addEventListener('change', e => { onFilesPicked(e.target.files); e.target.value = ''; });
-document.getElementById('file-input-add').addEventListener('change', e => { onFilesPicked(e.target.files); e.target.value = ''; });
+document.getElementById('file-input').addEventListener('change', e => {
+  onFilesPicked(e.target.files);
+  e.target.value = '';
+});
 const dropZone = document.getElementById('drop-zone');
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); onFilesPicked(e.dataTransfer.files); });
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  onFilesPicked(e.dataTransfer.files);
+});
 document.getElementById('app').addEventListener('dragover', e => e.preventDefault());
-document.getElementById('app').addEventListener('drop', e => { e.preventDefault(); if (e.dataTransfer.files.length) onFilesPicked(e.dataTransfer.files); });
+document.getElementById('app').addEventListener('drop', e => {
+  e.preventDefault();
+  if (!e.dataTransfer.files.length) return;
+  const active = datasets[activeIdx]?.service;
+  if (active && SERVICE_SET.has(active)) uploadTargetService = active;
+  onFilesPicked(e.dataTransfer.files);
+});
 
 function formatMergeMessage(added, updated, total) {
   const parts = [];
@@ -804,11 +858,8 @@ function loadFile(file) {
       try {
         const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array', cellDates: true });
         const filename = file.name.replace(/\.[^.]+$/, '');
-        let service = detectServiceType(filename, ...(wb.SheetNames || []));
-        if (!service) {
-          service = askServiceType(file.name);
-          if (!service) { alert('Tipo de servicio inválido. Usá PH, SW o HWO.'); resolve(); return; }
-        }
+        const service = resolveUploadService(filename, wb.SheetNames || []);
+        if (!service) { alert('Tipo de servicio inválido. Usá PH, SW o HWO.'); resolve(); return; }
         const results = processWorkbook(wb, filename, service);
         if (!results.length) { alert(`No se encontraron hojas de datos en "${file.name}".`); resolve(); return; }
         const messages = [];
@@ -844,8 +895,7 @@ function loadFile(file) {
           messages.push(`${tabName}: ${msg}`);
         }
         await persistModalidadCache();
-        rebuildTodos();
-        sortDatasets();
+        ensureServiceSlots();
         activeIdx = datasets.findIndex(d => d.name === service);
         if (activeIdx < 0) activeIdx = 0;
         D = datasets[activeIdx].D;
@@ -896,26 +946,40 @@ function escHtml(s) {
   return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
 }
 
-function renderFileBar() {
-  document.getElementById('hwo-file-list').innerHTML = datasets.map((ds, i) => {
-    const isCombined = ds.service === 'all';
-    const count = ds.source?.rows?.length || 0;
-    const ren = ds.locked
-      ? ''
-      : `<span class="hwo-file-ren" onclick="event.stopPropagation();startRenameTab(${i})" title="Renombrar">✎</span>`;
-    const del = isCombined
-      ? ''
-      : `<span class="hwo-file-del" onclick="event.stopPropagation();closeDataset(${i})" title="${ds.locked ? 'Eliminar servicio' : 'Cerrar'}">×</span>`;
-    const title = isCombined
-      ? 'Combinado PH + SW + HWO'
-      : `${escHtml(ds.name)} · ${count} registros${ds.locked ? '' : ' (doble clic para renombrar)'}`;
-    return `
-    <div class="hwo-file-item ${i === activeIdx ? 'active' : ''} ${ds.locked ? 'hwo-file-item--service' : ''} ${isCombined ? 'hwo-file-item--all' : ''}" onclick="switchDataset(${i})">
-      <span class="hwo-file-name" title="${title}" ${ds.locked ? '' : `ondblclick="event.stopPropagation();startRenameTab(${i})"`}>${escHtml(ds.name)}</span>
-      <span class="hwo-file-count">${count}</span>
-      ${ren}${del}
-    </div>`;
+function renderServiceModules() {
+  const nav = document.getElementById('hwo-service-nav');
+  if (!nav) return;
+  const mods = [
+    { key: 'PH', label: 'PH' },
+    { key: 'SW', label: 'SW' },
+    { key: 'HWO', label: 'HWO' },
+    { key: 'all', label: 'Todos' },
+  ];
+  const active = datasets[activeIdx];
+  nav.innerHTML = mods.map(m => {
+    const ds = datasets.find(d => (m.key === 'all' ? d.service === 'all' : d.service === m.key));
+    const count = ds?.source?.rows?.length || 0;
+    const isActive = !!active && (m.key === 'all' ? active.service === 'all' : active.service === m.key);
+    const emptyCls = count === 0 ? ' hwo-service-tab--empty' : '';
+    const title = m.key === 'all'
+      ? 'Vista combinada de PH, SW y HWO'
+      : `Módulo ${m.label}${count ? ` · ${count} registros` : ' · sin datos aún'}`;
+    return `<button type="button" class="hwo-service-tab${isActive ? ' active' : ''}${emptyCls}" data-service="${m.key}" title="${title}" onclick="switchServiceModule('${m.key}')">
+      <span class="hwo-service-tab-name">${m.label}</span>
+      <span class="hwo-service-tab-count">${count}</span>
+    </button>`;
   }).join('');
+}
+
+function switchServiceModule(key) {
+  ensureServiceSlots();
+  const idx = datasets.findIndex(d => (key === 'all' ? d.service === 'all' : d.service === key));
+  if (idx < 0) return;
+  switchDataset(idx);
+}
+
+function renderFileBar() {
+  renderServiceModules();
 }
 
 function startRenameTab(idx) {
@@ -1006,13 +1070,26 @@ function switchDataset(idx) {
 async function closeDataset(idx) {
   const ds = datasets[idx];
   if (!ds || ds.service === 'all') return;
-  const label = ds.locked ? `¿Eliminar los datos de ${ds.name}?` : `¿Cerrar la pestaña "${ds.name}"?`;
+  const label = ds.locked ? `¿Vaciar los datos de ${ds.name}?` : `¿Cerrar la pestaña "${ds.name}"?`;
   if (!confirm(label)) return;
-  if (ds.locked || SERVICE_SET.has(ds.name)) await apiDeleteDataset(ds.name);
-  datasets.splice(idx, 1);
-  rebuildTodos();
-  sortDatasets();
-  if (!datasets.length) { goToUpload(); return; }
+  if (ds.locked || SERVICE_SET.has(ds.name)) {
+    await apiDeleteDataset(ds.name);
+    const source = emptySource();
+    datasets[idx] = {
+      name: ds.name,
+      service: ds.service,
+      locked: true,
+      source,
+      D: buildViewFromSource(source, ds.name),
+    };
+  } else {
+    datasets.splice(idx, 1);
+  }
+  ensureServiceSlots();
+  if (!datasets.some(d => d.service !== 'all' && d.source?.rows?.length)) {
+    goToUpload();
+    return;
+  }
   activeIdx = Math.min(idx, datasets.length - 1);
   D = datasets[activeIdx].D;
   syncDateFilterBounds();
