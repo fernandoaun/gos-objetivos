@@ -473,10 +473,69 @@ body {
   font-weight: 600;
 }
 
+.hwo-file-item--service {
+  font-weight: 600;
+}
+
+.hwo-file-item--all {
+  border-style: dashed;
+}
+
+.hwo-file-count {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.hwo-file-item.active .hwo-file-count {
+  color: var(--gos-green-dark);
+}
+
 .hwo-file-name {
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+}
+
+.hwo-date-filter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 12px;
+}
+
+.hwo-date-filter-label {
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.hwo-date-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.hwo-date-field input[type="date"] {
+  border: 1px solid var(--border);
+  border-radius: var(--gos-radius-sm);
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--text);
+  background: #fff;
+}
+
+.hwo-date-filter-status {
+  color: var(--muted);
+  font-size: 11px;
+  margin-left: auto;
 }
 
 .hwo-file-ren {

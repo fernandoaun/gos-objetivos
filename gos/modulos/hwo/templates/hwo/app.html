@@ -16,9 +16,9 @@
   <div class="upload-card" id="drop-zone">
     <div class="upload-icon">📊</div>
     <h2>Análisis</h2>
-    <p>Arrastrá un Excel para cargar o actualizar. Podés subir <strong>solo las fechas nuevas</strong>: se suman al archivo guardado.</p>
+    <p>Arrastrá Excels de <strong>PH</strong>, <strong>SW</strong> o <strong>HWO</strong>. Cada servicio queda en su pestaña; <strong>Todos</strong> combina los tres.</p>
     <button class="btn-primary" onclick="document.getElementById('file-input').click()">Seleccionar archivo(s)</button>
-    <div class="upload-hint">La primera vez cargá el archivo completo · después solo las fechas que falten</div>
+    <div class="upload-hint">Incluí PH, SW o HWO en el nombre del archivo · después podés sumar solo fechas nuevas y filtrar por rango</div>
     <input type="file" id="file-input" accept=".xlsx,.xls" style="display:none" multiple>
   </div>
   <div id="saved-panel" class="hidden">
@@ -69,6 +69,19 @@
       <span id="period-bar-label" style="white-space:nowrap">—</span>
       <div class="period-track"><div class="period-fill" id="period-fill" style="width:0%"></div></div>
       <span id="period-bar-right" style="white-space:nowrap">—</span>
+    </div>
+
+    <div class="hwo-date-filter" id="hwo-date-filter">
+      <span class="hwo-date-filter-label">Filtrar por fecha</span>
+      <label class="hwo-date-field">Desde
+        <input type="date" id="filter-date-from" aria-label="Fecha desde">
+      </label>
+      <label class="hwo-date-field">Hasta
+        <input type="date" id="filter-date-to" aria-label="Fecha hasta">
+      </label>
+      <button type="button" class="hwo-toolbar-btn" id="btn-apply-date-filter">Aplicar</button>
+      <button type="button" class="hwo-toolbar-btn" id="btn-clear-date-filter">Todo el período</button>
+      <span class="hwo-date-filter-status" id="filter-status"></span>
     </div>
 
     <div id="content">
@@ -184,6 +197,203 @@ let datasets   = [];
 let activeIdx  = -1;
 let activeView = 'dashboard';
 let mesCerrado = false;
+let dateFilter = { from: null, to: null };
+
+const SERVICE_ORDER = ['PH', 'SW', 'HWO'];
+const COMBINED_NAME = 'Todos';
+const SERVICE_SET = new Set(SERVICE_ORDER);
+
+function detectServiceType(...texts) {
+  const raw = texts.filter(Boolean).join(' ').toUpperCase();
+  const m = raw.match(/(?:^|[^A-Z0-9])(HWO|PH|SW)(?:[^A-Z0-9]|$)/);
+  return m ? m[1] : null;
+}
+
+function askServiceType(filename) {
+  const raw = (prompt(
+    `No se detectó el tipo de servicio en "${filename}".\nIngresá PH, SW o HWO:`,
+    'PH'
+  ) || '').trim().toUpperCase();
+  return SERVICE_SET.has(raw) ? raw : null;
+}
+
+function parseISODate(s) {
+  if (!s) return null;
+  const [y, m, d] = s.split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d);
+}
+
+function toISODate(d) {
+  if (!d) return '';
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function emptySource() {
+  return {
+    config: { periodStart: null, periodEnd: null, feriados: 0, periodDays: 31, weekdays: 22, weekdaysNoHol: 20, eqs: {} },
+    rows: [],
+  };
+}
+
+function filterRowsByDate(rows) {
+  if (!dateFilter.from && !dateFilter.to) return rows;
+  return rows.filter(r => {
+    const t = r.fecha.getTime();
+    if (dateFilter.from && t < dateFilter.from.getTime()) return false;
+    if (dateFilter.to && t > dateFilter.to.getTime()) return false;
+    return true;
+  });
+}
+
+function buildViewFromSource(source, name, prevEqs) {
+  const rows = filterRowsByDate(source.rows || []);
+  return finalizeDataset({ config: { ...source.config, eqs: { ...(source.config.eqs || {}) } }, rows }, name, prevEqs);
+}
+
+function sortDatasets() {
+  const order = { PH: 0, SW: 1, HWO: 2, [COMBINED_NAME]: 3 };
+  const activeName = activeIdx >= 0 ? datasets[activeIdx]?.name : null;
+  datasets.sort((a, b) => {
+    const oa = order[a.name] ?? 50;
+    const ob = order[b.name] ?? 50;
+    return oa - ob || a.name.localeCompare(b.name);
+  });
+  if (activeName) {
+    const i = datasets.findIndex(d => d.name === activeName);
+    if (i >= 0) activeIdx = i;
+  }
+}
+
+function mergeSources(parts) {
+  let config = emptySource().config;
+  const map = new Map();
+  for (const part of parts) {
+    config = mergeConfigs(config, part.source.config);
+    for (const r of part.source.rows) {
+      const tagged = { ...r, servicio: part.service || r.servicio || part.name };
+      const k = `${rowKey(tagged)}|${tagged.servicio}`;
+      map.set(k, tagged);
+    }
+  }
+  const rows = [...map.values()].sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+  return { config, rows };
+}
+
+function rebuildTodos() {
+  const parts = SERVICE_ORDER
+    .map(svc => datasets.find(d => d.service === svc && d.source?.rows?.length))
+    .filter(Boolean);
+  const todosIdx = datasets.findIndex(d => d.service === 'all');
+
+  if (parts.length < 2) {
+    if (todosIdx >= 0) {
+      const wasActive = activeIdx === todosIdx;
+      datasets.splice(todosIdx, 1);
+      if (wasActive) activeIdx = Math.min(todosIdx, datasets.length - 1);
+      else if (activeIdx > todosIdx) activeIdx -= 1;
+    }
+    sortDatasets();
+    return;
+  }
+
+  const source = mergeSources(parts);
+  const prevEqs = todosIdx >= 0 ? datasets[todosIdx].D?.eqs : null;
+  const entry = {
+    name: COMBINED_NAME,
+    service: 'all',
+    locked: true,
+    source,
+    D: buildViewFromSource(source, COMBINED_NAME, prevEqs),
+  };
+  if (todosIdx >= 0) datasets[todosIdx] = entry;
+  else datasets.push(entry);
+  sortDatasets();
+}
+
+function refreshAllViews(preferName) {
+  for (const ds of datasets) {
+    if (ds.service === 'all') continue;
+    if (!ds.source) ds.source = { config: ds.D?.config || emptySource().config, rows: ds.D?.rows || [] };
+    ds.D = buildViewFromSource(ds.source, ds.name, ds.D?.eqs);
+  }
+  rebuildTodos();
+  if (preferName) {
+    const i = datasets.findIndex(d => d.name === preferName);
+    if (i >= 0) activeIdx = i;
+  }
+  if (activeIdx < 0 || activeIdx >= datasets.length) activeIdx = datasets.length ? 0 : -1;
+  D = activeIdx >= 0 ? datasets[activeIdx].D : {};
+  updateDateFilterStatus();
+}
+
+function updateDateFilterStatus() {
+  const el = document.getElementById('filter-status');
+  if (!el) return;
+  const ds = datasets[activeIdx];
+  if (!ds?.source) { el.textContent = ''; return; }
+  const total = ds.source.rows.length;
+  const shown = ds.D?.rows?.length ?? 0;
+  if (dateFilter.from || dateFilter.to) {
+    const fromTxt = dateFilter.from ? fmt(dateFilter.from) : '…';
+    const toTxt = dateFilter.to ? fmt(dateFilter.to) : '…';
+    el.textContent = `${shown} de ${total} registros · ${fromTxt} — ${toTxt}`;
+  } else {
+    el.textContent = total ? `${total} registro${total !== 1 ? 's' : ''}` : '';
+  }
+}
+
+function applyDateFilterFromInputs() {
+  dateFilter.from = parseISODate(document.getElementById('filter-date-from')?.value);
+  dateFilter.to = parseISODate(document.getElementById('filter-date-to')?.value);
+  if (dateFilter.from && dateFilter.to && dateFilter.from > dateFilter.to) {
+    const tmp = dateFilter.from;
+    dateFilter.from = dateFilter.to;
+    dateFilter.to = tmp;
+    document.getElementById('filter-date-from').value = toISODate(dateFilter.from);
+    document.getElementById('filter-date-to').value = toISODate(dateFilter.to);
+  }
+  const name = datasets[activeIdx]?.name;
+  refreshAllViews(name);
+  mesCerrado = false;
+  document.getElementById('btn-closed')?.classList.remove('active');
+  renderAll();
+}
+
+function clearDateFilter() {
+  dateFilter = { from: null, to: null };
+  const fromEl = document.getElementById('filter-date-from');
+  const toEl = document.getElementById('filter-date-to');
+  if (fromEl) fromEl.value = '';
+  if (toEl) toEl.value = '';
+  applyDateFilterFromInputs();
+}
+
+function syncDateFilterBounds() {
+  const fromEl = document.getElementById('filter-date-from');
+  const toEl = document.getElementById('filter-date-to');
+  if (!fromEl || !toEl) return;
+  let minT = Infinity, maxT = -Infinity;
+  for (const ds of datasets) {
+    if (ds.service === 'all' || !ds.source?.rows?.length) continue;
+    for (const r of ds.source.rows) {
+      const t = r.fecha.getTime();
+      if (t < minT) minT = t;
+      if (t > maxT) maxT = t;
+    }
+  }
+  if (minT === Infinity) {
+    fromEl.removeAttribute('min');
+    fromEl.removeAttribute('max');
+    toEl.removeAttribute('min');
+    toEl.removeAttribute('max');
+    return;
+  }
+  const min = toISODate(new Date(minT));
+  const max = toISODate(new Date(maxT));
+  fromEl.min = min; fromEl.max = max;
+  toEl.min = min; toEl.max = max;
+}
 
 // ── Dates ──────────────────────────────────
 function parseDate(val){if(!val)return null;if(val instanceof Date){if(isNaN(val.getTime()))return null;return new Date(val.getFullYear(),val.getMonth(),val.getDate());}if(typeof val==='number'){const ms=Math.round((val-25569)*86400000);const d=new Date(ms);return new Date(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate());}const s=val.toString().trim();const m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);if(m)return new Date(+m[3],+m[2]-1,+m[1]);return null;}
@@ -433,6 +643,21 @@ function mergeIntoDataset(existing, incoming, datasetName) {
   return { D, added, updated, total: rows.length };
 }
 
+function mergeSourceData(existing, incoming) {
+  const map = new Map();
+  let updated = 0, added = 0;
+  for (const r of existing.rows) map.set(rowKey(r), r);
+  for (const r of incoming.rows) {
+    const k = rowKey(r);
+    if (map.has(k)) updated++;
+    else added++;
+    map.set(k, r);
+  }
+  const rows = [...map.values()].sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+  const config = mergeConfigs(existing.config, incoming.config);
+  return { source: { config, rows }, added, updated, total: rows.length };
+}
+
 function rebuildDataset(raw, datasetName) {
   const { config, rows } = deserializeDataset(raw);
   return finalizeDataset({ config, rows }, datasetName || raw.name);
@@ -449,33 +674,78 @@ async function renderSavedPanel() {
 async function loadAllFromAPI() {
   const all = await apiLoadAll();
   if (!all.length) return false;
-  const loaded = [];
+  const byName = new Map();
   for (const item of all) {
+    if (item.name === COMBINED_NAME) continue;
     const raw = await apiLoadDataset(item.name);
     if (!raw) {
       console.warn('No se pudo cargar dataset:', item.name);
       continue;
     }
-    loaded.push({ name: item.name, D: rebuildDataset(raw, item.name), savedAt: raw.savedAt || item.saved_at });
+    const { config, rows } = deserializeDataset(raw);
+    const service = detectServiceType(item.name);
+    const name = service || item.name;
+    const source = { config, rows: rows.map(r => ({ ...r, servicio: service || r.servicio || null })) };
+    if (byName.has(name)) {
+      const prev = byName.get(name);
+      const merged = mergeSourceData(prev.source, source);
+      prev.source = merged.source;
+      prev.D = buildViewFromSource(prev.source, name, prev.D?.eqs);
+      prev.savedAt = raw.savedAt || item.saved_at || prev.savedAt;
+      if (service && item.name !== name) await apiDeleteDataset(item.name);
+      await apiSaveDataset(name, { config: prev.source.config, rows: prev.source.rows });
+    } else {
+      byName.set(name, {
+        name,
+        service: service || null,
+        locked: !!service,
+        source,
+        D: buildViewFromSource(source, name),
+        savedAt: raw.savedAt || item.saved_at,
+      });
+      if (service && item.name !== name) {
+        await apiSaveDataset(name, { config: source.config, rows: source.rows });
+        await apiDeleteDataset(item.name);
+      }
+    }
   }
+  const loaded = [...byName.values()];
   if (!loaded.length) return false;
   datasets = loaded;
   activeIdx = 0;
+  rebuildTodos();
+  sortDatasets();
   D = datasets[activeIdx].D;
-  const n = datasets.length;
+  syncDateFilterBounds();
+  const n = datasets.filter(d => d.service !== 'all').length;
   const when = new Date(datasets[0].savedAt || all[0].saved_at).toLocaleString('es-AR');
-  showApp(n === 1 ? `Datos cargados · ${when}` : `${n} archivos cargados · último: ${when}`);
+  showApp(n === 1 ? `Datos cargados · ${when}` : `${n} servicios cargados · último: ${when}`);
   return true;
 }
 
 async function loadFromAPI(name) {
   const raw = await apiLoadDataset(name);
   if (!raw) { console.warn('Dataset no encontrado:', name); return; }
-  const ds = rebuildDataset(raw, name);
-  const existing = datasets.findIndex(d => d.name === name);
-  if (existing >= 0) { datasets[existing].D = ds; activeIdx = existing; }
-  else { datasets.push({ name, D: ds, savedAt: raw.savedAt }); activeIdx = datasets.length - 1; }
+  const { config, rows } = deserializeDataset(raw);
+  const service = detectServiceType(name);
+  const tabName = service || name;
+  const source = { config, rows };
+  const entry = {
+    name: tabName,
+    service: service || null,
+    locked: !!service,
+    source,
+    D: buildViewFromSource(source, tabName),
+    savedAt: raw.savedAt,
+  };
+  const existing = datasets.findIndex(d => d.name === tabName);
+  if (existing >= 0) datasets[existing] = { ...datasets[existing], ...entry };
+  else datasets.push(entry);
+  rebuildTodos();
+  sortDatasets();
+  activeIdx = datasets.findIndex(d => d.name === tabName);
   D = datasets[activeIdx].D;
+  syncDateFilterBounds();
   showApp('Datos guardados · ' + new Date(raw.savedAt).toLocaleString('es-AR'));
 }
 
@@ -534,33 +804,52 @@ function loadFile(file) {
       try {
         const wb = XLSX.read(new Uint8Array(ev.target.result), { type: 'array', cellDates: true });
         const filename = file.name.replace(/\.[^.]+$/, '');
-        const results = processWorkbook(wb, filename);
+        let service = detectServiceType(filename, ...(wb.SheetNames || []));
+        if (!service) {
+          service = askServiceType(file.name);
+          if (!service) { alert('Tipo de servicio inválido. Usá PH, SW o HWO.'); resolve(); return; }
+        }
+        const results = processWorkbook(wb, filename, service);
         if (!results.length) { alert(`No se encontraron hojas de datos en "${file.name}".`); resolve(); return; }
         const messages = [];
-        for (const { sheetName, tabName, D: newDs } of results) {
+        for (const { sheetName, tabName, source: incoming } of results) {
           const memIdx = datasets.findIndex(d => d.name === tabName);
-          let existingDs = memIdx >= 0 ? datasets[memIdx].D : null;
-          if (!existingDs) {
+          let existingSource = memIdx >= 0 ? datasets[memIdx].source : null;
+          if (!existingSource) {
             const raw = await apiLoadDataset(tabName);
-            if (raw) existingDs = rebuildDataset(raw, tabName);
+            if (raw) {
+              const des = deserializeDataset(raw);
+              existingSource = { config: des.config, rows: des.rows };
+            }
           }
-          let finalDs, msg;
-          if (existingDs?.rows?.length) {
-            const merged = mergeIntoDataset(existingDs, newDs, tabName);
-            finalDs = merged.D;
+          let finalSource, msg;
+          if (existingSource?.rows?.length) {
+            const merged = mergeSourceData(existingSource, incoming);
+            finalSource = merged.source;
             msg = formatMergeMessage(merged.added, merged.updated, merged.total);
           } else {
-            finalDs = newDs;
-            msg = `Cargado · ${finalDs.rows.length} registros`;
+            finalSource = incoming;
+            msg = `Cargado · ${finalSource.rows.length} registros`;
           }
-          const idx = datasets.findIndex(d => d.name === tabName);
-          if (idx >= 0) { datasets[idx].D = finalDs; activeIdx = idx; }
-          else { datasets.push({ name: tabName, D: finalDs }); activeIdx = datasets.length - 1; }
-          await apiSaveDataset(tabName, finalDs);
+          const entry = {
+            name: tabName,
+            service,
+            locked: true,
+            source: finalSource,
+            D: buildViewFromSource(finalSource, tabName, memIdx >= 0 ? datasets[memIdx].D?.eqs : null),
+          };
+          if (memIdx >= 0) datasets[memIdx] = { ...datasets[memIdx], ...entry };
+          else datasets.push(entry);
+          await apiSaveDataset(tabName, { config: finalSource.config, rows: finalSource.rows });
           messages.push(`${tabName}: ${msg}`);
         }
         await persistModalidadCache();
+        rebuildTodos();
+        sortDatasets();
+        activeIdx = datasets.findIndex(d => d.name === service);
+        if (activeIdx < 0) activeIdx = 0;
         D = datasets[activeIdx].D;
+        syncDateFilterBounds();
         showApp(
           summarizeLoadMessages(messages),
           messages.length > 1 ? messages.join(' · ') : undefined
@@ -576,7 +865,9 @@ function loadFile(file) {
 function summarizeLoadMessages(messages) {
   if (!messages.length) return '';
   if (messages.length === 1) return messages[0];
-  const totalRegs = datasets.reduce((s, d) => s + (d.D.rows?.length || 0), 0);
+  const totalRegs = datasets
+    .filter(d => d.service !== 'all')
+    .reduce((s, d) => s + (d.source?.rows?.length || 0), 0);
   return `${messages.length} hojas procesadas · ${totalRegs} registros en total`;
 }
 
@@ -606,18 +897,31 @@ function escHtml(s) {
 }
 
 function renderFileBar() {
-  document.getElementById('hwo-file-list').innerHTML = datasets.map((ds, i) => `
-    <div class="hwo-file-item ${i === activeIdx ? 'active' : ''}" onclick="switchDataset(${i})">
-      <span class="hwo-file-name" title="${escHtml(ds.name)} (doble clic para renombrar)" ondblclick="event.stopPropagation();startRenameTab(${i})">${escHtml(ds.name)}</span>
-      <span class="hwo-file-ren" onclick="event.stopPropagation();startRenameTab(${i})" title="Renombrar">✎</span>
-      <span class="hwo-file-del" onclick="event.stopPropagation();closeDataset(${i})" title="Cerrar">×</span>
-    </div>`).join('');
+  document.getElementById('hwo-file-list').innerHTML = datasets.map((ds, i) => {
+    const isCombined = ds.service === 'all';
+    const count = ds.source?.rows?.length || 0;
+    const ren = ds.locked
+      ? ''
+      : `<span class="hwo-file-ren" onclick="event.stopPropagation();startRenameTab(${i})" title="Renombrar">✎</span>`;
+    const del = isCombined
+      ? ''
+      : `<span class="hwo-file-del" onclick="event.stopPropagation();closeDataset(${i})" title="${ds.locked ? 'Eliminar servicio' : 'Cerrar'}">×</span>`;
+    const title = isCombined
+      ? 'Combinado PH + SW + HWO'
+      : `${escHtml(ds.name)} · ${count} registros${ds.locked ? '' : ' (doble clic para renombrar)'}`;
+    return `
+    <div class="hwo-file-item ${i === activeIdx ? 'active' : ''} ${ds.locked ? 'hwo-file-item--service' : ''} ${isCombined ? 'hwo-file-item--all' : ''}" onclick="switchDataset(${i})">
+      <span class="hwo-file-name" title="${title}" ${ds.locked ? '' : `ondblclick="event.stopPropagation();startRenameTab(${i})"`}>${escHtml(ds.name)}</span>
+      <span class="hwo-file-count">${count}</span>
+      ${ren}${del}
+    </div>`;
+  }).join('');
 }
 
 function startRenameTab(idx) {
   const container = document.getElementById('hwo-file-list');
   const item = container.children[idx];
-  if (!item || !datasets[idx]) return;
+  if (!item || !datasets[idx] || datasets[idx].locked) return;
   const nameEl = item.querySelector('.hwo-file-name');
   if (!nameEl) return;
   const ds = datasets[idx];
@@ -646,9 +950,16 @@ function startRenameTab(idx) {
 }
 
 async function renameDataset(idx, newName) {
-  const oldName = datasets[idx]?.name;
+  const ds = datasets[idx];
+  if (!ds || ds.locked) { renderFileBar(); return; }
+  const oldName = ds.name;
   newName = (newName || '').trim();
   if (!oldName || !newName || newName === oldName) { renderFileBar(); return; }
+  if (SERVICE_SET.has(newName.toUpperCase()) || newName === COMBINED_NAME) {
+    alert('Ese nombre está reservado para las pestañas de servicio.');
+    renderFileBar();
+    return;
+  }
   if (datasets.some((d, i) => i !== idx && d.name === newName)) {
     alert('Ya existe una pestaña con ese nombre.');
     renderFileBar();
@@ -688,38 +999,49 @@ function switchDataset(idx) {
   D.burnup = calcBurnup();
   D.dailyStates = calcDailyStates();
   mesCerrado = false; document.getElementById('btn-closed').classList.remove('active');
+  updateDateFilterStatus();
   renderAll();
 }
 
-function closeDataset(idx) {
+async function closeDataset(idx) {
+  const ds = datasets[idx];
+  if (!ds || ds.service === 'all') return;
+  const label = ds.locked ? `¿Eliminar los datos de ${ds.name}?` : `¿Cerrar la pestaña "${ds.name}"?`;
+  if (!confirm(label)) return;
+  if (ds.locked || SERVICE_SET.has(ds.name)) await apiDeleteDataset(ds.name);
   datasets.splice(idx, 1);
+  rebuildTodos();
+  sortDatasets();
   if (!datasets.length) { goToUpload(); return; }
   activeIdx = Math.min(idx, datasets.length - 1);
-  D = datasets[activeIdx].D; renderAll();
+  D = datasets[activeIdx].D;
+  syncDateFilterBounds();
+  renderAll();
 }
 
 // ── Workbook ─────────────────────────────────
-function processWorkbook(wb, filename) {
+function processWorkbook(wb, filename, service) {
   const baseCfg = readConfig(wb);
   const dataSheets = [];
   for (const shName of wb.SheetNames) {
     const raw = XLSX.utils.sheet_to_json(wb.Sheets[shName], { header: 1, raw: true, defval: '' });
     if (!isDataSheet(shName, raw)) continue;
-    const rows = parseDataRows(raw);
+    const rows = parseDataRows(raw).map(r => ({ ...r, servicio: service }));
     if (!rows.length) continue;
     dataSheets.push({ shName, rows });
   }
-  const multi = dataSheets.length > 1;
-  const results = [];
-  for (const { shName, rows } of dataSheets) {
-    const tabName = multi ? `${filename} · ${shName}` : filename;
-    const D = finalizeDataset({
-      config: { ...baseCfg, eqs: { ...baseCfg.eqs } },
-      rows,
-    }, tabName);
-    results.push({ sheetName: shName, tabName, D });
+  if (!dataSheets.length) return [];
+  // Todas las hojas del archivo se acumulan en la pestaña del servicio (PH / SW / HWO)
+  const allRows = [];
+  let config = { ...baseCfg, eqs: { ...baseCfg.eqs } };
+  for (const { rows } of dataSheets) {
+    for (const r of rows) allRows.push(r);
   }
-  return results;
+  // Deduplicar por fecha|centro dentro del mismo archivo
+  const map = new Map();
+  for (const r of allRows) map.set(rowKey(r), r);
+  const rows = [...map.values()].sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+  return [{ sheetName: dataSheets.map(s => s.shName).join(', '), tabName: service, source: { config, rows } }];
 }
 
 function readConfig(wb) {
@@ -909,6 +1231,8 @@ function renderAll() {
   renderTopbar(); renderToolbarInfo(); renderFileBar();
   renderProgressBar(); renderKPIs(); renderEquipmentTable();
   renderIncidents(); renderChartsForView(activeView);
+  syncDateFilterBounds();
+  updateDateFilterStatus();
 }
 
 function renderTopbar() {
@@ -1133,6 +1457,10 @@ async function initApp() {
   await initModalidad();
   checkConnection();
   setInterval(checkConnection, 30000);
+  document.getElementById('btn-apply-date-filter')?.addEventListener('click', applyDateFilterFromInputs);
+  document.getElementById('btn-clear-date-filter')?.addEventListener('click', clearDateFilter);
+  document.getElementById('filter-date-from')?.addEventListener('change', applyDateFilterFromInputs);
+  document.getElementById('filter-date-to')?.addEventListener('change', applyDateFilterFromInputs);
   const loaded = await loadAllFromAPI();
   if (!loaded) await renderSavedPanel();
 }
