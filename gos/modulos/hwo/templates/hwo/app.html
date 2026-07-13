@@ -46,7 +46,7 @@
           <span id="conn-label">Conectando...</span>
         </div>
         <span class="last-update" id="last-update"></span>
-        <button class="btn-closed" id="btn-closed" onclick="toggleMesCerrado()">✓ Mes cerrado</button>
+        <button type="button" class="btn-closed" id="btn-closed" disabled title="Se define solo: cerrado hasta el día 20; después mes en curso">Mes en curso</button>
         <div class="hwo-add-dates" title="Sumar fechas nuevas por servicio">
           <button type="button" class="hwo-toolbar-btn" onclick="pickFilesForService('PH')">+ PH</button>
           <button type="button" class="hwo-toolbar-btn" onclick="pickFilesForService('SW')">+ SW</button>
@@ -89,6 +89,7 @@
       </label>
       <button type="button" class="hwo-toolbar-btn" id="btn-apply-date-filter">Aplicar</button>
       <button type="button" class="hwo-toolbar-btn" id="btn-clear-date-filter">Todo el período</button>
+      <button type="button" class="hwo-toolbar-btn" id="btn-current-period">Mes en curso</button>
       <span class="hwo-date-filter-status" id="filter-status"></span>
     </div>
 
@@ -388,8 +389,6 @@ function applyDateFilterFromInputs() {
   }
   const name = datasets[activeIdx]?.name;
   refreshAllViews(name);
-  mesCerrado = false;
-  document.getElementById('btn-closed')?.classList.remove('active');
   renderAll();
 }
 
@@ -400,6 +399,34 @@ function clearDateFilter() {
   if (fromEl) fromEl.value = '';
   if (toEl) toEl.value = '';
   applyDateFilterFromInputs();
+}
+
+function filterToCurrentPeriod() {
+  const { periodStart, periodEnd } = currentOperationalPeriod();
+  if (!periodStart || !periodEnd) return;
+  dateFilter.from = periodStart;
+  dateFilter.to = periodEnd;
+  const fromEl = document.getElementById('filter-date-from');
+  const toEl = document.getElementById('filter-date-to');
+  if (fromEl) fromEl.value = toISODate(periodStart);
+  if (toEl) toEl.value = toISODate(periodEnd);
+  const name = datasets[activeIdx]?.name;
+  refreshAllViews(name);
+  renderAll();
+}
+
+function ensureDefaultCurrentPeriodFilter() {
+  if (dateFilter.from || dateFilter.to) return false;
+  if (!datasets.some(d => d.service !== 'all' && d.source?.rows?.length)) return false;
+  const { periodStart, periodEnd } = currentOperationalPeriod();
+  if (!periodStart || !periodEnd) return false;
+  dateFilter.from = periodStart;
+  dateFilter.to = periodEnd;
+  const fromEl = document.getElementById('filter-date-from');
+  const toEl = document.getElementById('filter-date-to');
+  if (fromEl) fromEl.value = toISODate(periodStart);
+  if (toEl) toEl.value = toISODate(periodEnd);
+  return true;
 }
 
 function syncDateFilterBounds() {
@@ -436,6 +463,82 @@ function pad(n){return String(n).padStart(2,'0');}
 function daysBetween(a,b){return Math.round((b-a)/86400000);}
 function parseNum(v){if(v===null||v===undefined||v==='')return 0;if(typeof v==='number')return isNaN(v)?0:v;const s=v.toString().replace(/\./g,'').replace(',','.').replace(/[^0-9.\-]/g,'');return parseFloat(s)||0;}
 function countWeekdays(from,to){let n=0;const d=new Date(from.getTime());while(d<=to){if(d.getDay()!==0&&d.getDay()!==6)n++;d.setDate(d.getDate()+1);}return n;}
+function startOfDay(d){if(!d)return null;return new Date(d.getFullYear(),d.getMonth(),d.getDate());}
+
+/** Período operativo: del 21 al 20 inclusive. El día 20 cierra el mes. */
+function periodContaining(date) {
+  const d = startOfDay(date);
+  if (!d) return { periodStart: null, periodEnd: null };
+  let y = d.getFullYear(), m = d.getMonth();
+  if (d.getDate() <= 20) {
+    let sm = m - 1, sy = y;
+    if (sm < 0) { sm = 11; sy--; }
+    return { periodStart: new Date(sy, sm, 21), periodEnd: new Date(y, m, 20) };
+  }
+  return { periodStart: new Date(y, m, 21), periodEnd: new Date(y, m + 1, 20) };
+}
+
+function currentOperationalPeriod(today = new Date()) {
+  return periodContaining(today);
+}
+
+/** Corte: día 20 del mes anterior al período en curso (= fin del último mes cerrado). */
+function lastClosedPeriodEnd(today = new Date()) {
+  const { periodStart } = currentOperationalPeriod(today);
+  if (!periodStart) return null;
+  return new Date(periodStart.getFullYear(), periodStart.getMonth(), 20);
+}
+
+function fillPeriodMeta(cfg) {
+  if (!cfg.periodStart || !cfg.periodEnd) return cfg;
+  cfg.periodDays = daysBetween(cfg.periodStart, cfg.periodEnd) + 1;
+  cfg.weekdays = countWeekdays(cfg.periodStart, cfg.periodEnd);
+  const hSet = buildHolidaySet(cfg.periodStart, cfg.periodEnd);
+  let wdHol = 0;
+  for (const t of hSet) { const dow = new Date(t).getDay(); if (dow !== 0 && dow !== 6) wdHol++; }
+  cfg.feriados = wdHol;
+  cfg.weekdaysNoHol = Math.max(0, cfg.weekdays - wdHol);
+  return cfg;
+}
+
+function applyOperationalPeriod(config, rows) {
+  const cfg = { ...config, eqs: { ...(config?.eqs || {}) } };
+  if (!rows?.length) return cfg;
+  const maxDate = new Date(Math.max(...rows.map(r => r.fecha.getTime())));
+  const p = periodContaining(maxDate);
+  cfg.periodStart = p.periodStart;
+  cfg.periodEnd = p.periodEnd;
+  return fillPeriodMeta(cfg);
+}
+
+function isMesCerradoForPeriod(periodEnd, today = new Date()) {
+  if (!periodEnd) return false;
+  // Hasta el día 20 inclusive el período ya cerró si hoy es posterior a ese día 20.
+  return startOfDay(today).getTime() > startOfDay(periodEnd).getTime();
+}
+
+function applySemaforos() {
+  for (const e of Object.values(D.eqs || {})) {
+    e.semaforo = mesCerrado
+      ? (e.fds <= e.fdsTolerado ? 'green' : 'red')
+      : (e.fdsRestante > 1 ? 'green' : e.fdsRestante === 1 ? 'yellow' : 'red');
+  }
+}
+
+function syncMesCerradoState() {
+  const closed = isMesCerradoForPeriod(D.config?.periodEnd);
+  mesCerrado = closed;
+  const btn = document.getElementById('btn-closed');
+  if (btn) {
+    btn.classList.toggle('active', closed);
+    btn.classList.toggle('btn-closed--open', !closed);
+    btn.textContent = closed ? '✓ Mes cerrado' : '● Mes en curso';
+    btn.title = closed
+      ? 'Período cerrado: termina el día 20. Todo lo anterior al mes en curso.'
+      : 'Mes en curso: desde el día 21 hasta el día 20 próximo.';
+  }
+  applySemaforos();
+}
 
 // ── Feriados ───────────────────────────────
 const FERIADOS_ARG={2026:['2026-01-01','2026-02-16','2026-02-17','2026-03-24','2026-04-02','2026-04-03','2026-05-01','2026-05-25','2026-06-15','2026-06-20','2026-07-09','2026-08-17','2026-10-12','2026-11-23','2026-12-08','2026-12-25'].map(s=>{const[y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d).getTime();})};
@@ -638,20 +741,10 @@ function mergeConfigs(existing, incoming) {
 
 function finalizeDataset(ds, datasetName, prevEqs) {
   D = {};
-  D.config = { ...ds.config, eqs: { ...(ds.config?.eqs || {}) } };
   D.rows = ds.rows || [];
   D.maxDate = D.rows.length ? new Date(Math.max(...D.rows.map(r => r.fecha.getTime()))) : null;
-  if (!D.config.periodStart && D.rows.length) {
-    const minT = Math.min(...D.rows.map(r => r.fecha.getTime())); const minD = new Date(minT);
-    let yr = minD.getFullYear(), mo = minD.getMonth();
-    if (minD.getDate() < 21) { mo--; if (mo < 0) { mo = 11; yr--; } }
-    D.config.periodStart = new Date(yr, mo, 21); D.config.periodEnd = new Date(yr, mo + 1, 20);
-    D.config.periodDays = daysBetween(D.config.periodStart, D.config.periodEnd) + 1;
-    D.config.weekdays = countWeekdays(D.config.periodStart, D.config.periodEnd);
-    const hSet = buildHolidaySet(D.config.periodStart, D.config.periodEnd);
-    let wdHol = 0; for (const t of hSet) { const dow = new Date(t).getDay(); if (dow !== 0 && dow !== 6) wdHol++; }
-    D.config.feriados = wdHol; D.config.weekdaysNoHol = Math.max(0, D.config.weekdays - wdHol);
-  }
+  // El período operativo sigue al último dato: 21 → 20. Lo anterior al día 20 queda cerrado.
+  D.config = applyOperationalPeriod(ds.config || {}, D.rows);
   D.eqs = calcEquipments(datasetName, prevEqs); D.holidays = detectHolidays();
   applyModalidad(datasetName); addExpectedToDate(); D.burnup = calcBurnup(); D.dailyStates = calcDailyStates();
   snapshotModalidadFromEqs(D.eqs, datasetName);
@@ -927,8 +1020,9 @@ function showApp(updateText, detailText) {
   const el = document.getElementById('last-update');
   el.textContent = updateText;
   el.title = detailText || updateText;
-  mesCerrado = false;
-  document.getElementById('btn-closed').classList.remove('active');
+  if (ensureDefaultCurrentPeriodFilter()) {
+    refreshAllViews(datasets[activeIdx]?.name);
+  }
   renderAll();
 }
 
@@ -1062,7 +1156,6 @@ function switchDataset(idx) {
   addExpectedToDate();
   D.burnup = calcBurnup();
   D.dailyStates = calcDailyStates();
-  mesCerrado = false; document.getElementById('btn-closed').classList.remove('active');
   updateDateFilterStatus();
   renderAll();
 }
@@ -1294,17 +1387,20 @@ function calcDailyStates() {
 }
 
 function toggleMesCerrado() {
-  mesCerrado = !mesCerrado;
-  document.getElementById('btn-closed').classList.toggle('active', mesCerrado);
-  for (const e of Object.values(D.eqs))
-    e.semaforo = mesCerrado ? (e.fds <= e.fdsTolerado ? 'green' : 'red') : (e.fdsRestante > 1 ? 'green' : e.fdsRestante === 1 ? 'yellow' : 'red');
+  // Estado automático según día 20; se mantiene por compatibilidad.
+  syncMesCerradoState();
   renderEquipmentTable(); renderKPIs();
+}
+
+function syncAndRenderPeriodStatus() {
+  syncMesCerradoState();
 }
 
 // ═══════════════════════════════════════════
 //  RENDER
 // ═══════════════════════════════════════════
 function renderAll() {
+  syncMesCerradoState();
   renderTopbar(); renderToolbarInfo(); renderFileBar();
   renderProgressBar(); renderKPIs(); renderEquipmentTable();
   renderIncidents(); renderChartsForView(activeView);
@@ -1536,6 +1632,7 @@ async function initApp() {
   setInterval(checkConnection, 30000);
   document.getElementById('btn-apply-date-filter')?.addEventListener('click', applyDateFilterFromInputs);
   document.getElementById('btn-clear-date-filter')?.addEventListener('click', clearDateFilter);
+  document.getElementById('btn-current-period')?.addEventListener('click', filterToCurrentPeriod);
   document.getElementById('filter-date-from')?.addEventListener('change', applyDateFilterFromInputs);
   document.getElementById('filter-date-to')?.addEventListener('change', applyDateFilterFromInputs);
   const loaded = await loadAllFromAPI();

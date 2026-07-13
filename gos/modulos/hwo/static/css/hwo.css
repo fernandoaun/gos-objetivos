@@ -364,6 +364,17 @@ body {
   border-color: var(--green);
 }
 
+.btn-closed--open {
+  background: var(--gos-yellow-soft);
+  color: var(--gos-green-dark);
+  border-color: var(--gos-success-border);
+}
+
+.btn-closed:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
 .hwo-toolbar-btn {
   background: transparent;
   border: 1px solid var(--border);
