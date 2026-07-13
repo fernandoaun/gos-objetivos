@@ -121,7 +121,7 @@
         <div class="charts-grid">
           <div class="section">
             <div class="section-head">
-              <div class="section-title">Burn-Up acumulado <span class="section-sub">· clic en un día</span></div>
+              <div class="section-title">Burn-Up acumulado <span class="section-sub" id="hint-burnup">· clic en un día</span></div>
               <div>
                 <span class="leg"><span class="leg-dot" style="background:#76b947"></span>Real acumulado</span>
                 <span class="leg"><span class="leg-dot" style="background:#f9e29c;opacity:.9"></span>Proyectado acumulado</span>
@@ -137,7 +137,7 @@
         </div>
         <div class="section section--wide">
           <div class="section-head">
-            <div class="section-title">Servicios realizados y proyectados — día a día <span class="section-sub">· clic en un día</span></div>
+            <div class="section-title" id="title-daily-serv">Servicios realizados y proyectados — día a día <span class="section-sub" id="hint-daily-serv">· clic en un día</span></div>
             <div>
               <span class="leg"><span class="leg-dot" style="background:#76b947"></span>Servicios realizados</span>
               <span class="leg"><span class="leg-dot" style="background:#f9e29c;opacity:.9"></span>Servicios proyectados</span>
@@ -148,7 +148,7 @@
         <div class="charts-grid charts-grid--daily">
           <div class="section section--wide">
             <div class="section-head">
-              <div class="section-title">Estados por día (jornadas)</div>
+              <div class="section-title" id="title-daily-states">Estados por día (jornadas)</div>
               <div>
                 <span class="leg"><span class="leg-dot" style="background:#76b947"></span>Operando</span>
                 <span class="leg"><span class="leg-dot" style="background:#dc3545"></span>FDS</span>
@@ -1536,9 +1536,46 @@ function addExpectedToDate() {
   }
 }
 
+/** Vista "Todo" con varios meses: gráficos por mes operativo, no por día. */
+function isAllPeriodsMode() {
+  return !hasPeriodFilter() && (D.config?.periodCount || 1) > 1;
+}
+
+function eachOperationalPeriod(periodStart, periodEnd) {
+  const periods = [];
+  if (!periodStart || !periodEnd) return periods;
+  let start = periodContaining(periodStart).periodStart;
+  const endT = startOfDay(periodEnd).getTime();
+  while (start && start.getTime() <= endT) {
+    const p = periodContaining(start);
+    periods.push(p);
+    start = new Date(p.periodEnd.getFullYear(), p.periodEnd.getMonth(), p.periodEnd.getDate() + 1);
+    if (periods.length > 240) break;
+  }
+  return periods;
+}
+
+function fmtPeriodLabel(periodEnd) {
+  const { year, month } = yearMonthFromPeriodEnd(periodEnd);
+  if (!year || !month) return '';
+  return `${MONTH_NAMES[month].slice(0, 3)} ${year}`;
+}
+
+function sumProjectedOnDayRange(from, to) {
+  let n = 0;
+  const d = new Date(from.getTime());
+  while (d <= to) {
+    n += Object.values(D.eqs).reduce((s, e) => s + projectedOnDay(d, e, D.holidays), 0);
+    d.setDate(d.getDate() + 1);
+  }
+  return n;
+}
+
 function calcBurnup() {
   const cfg = D.config;
-  if (!cfg.periodStart || !D.maxDate) return { labels: [], dates: [], real: [], proj: [], dailyReal: [], dailyProj: [], scope: 0 };
+  if (!cfg.periodStart || !D.maxDate) {
+    return { labels: [], dates: [], real: [], proj: [], dailyReal: [], dailyProj: [], scope: 0, grain: 'day' };
+  }
   // Scope = Esp. del Mes neto (jornadas − FDS Tol), no el total bruto.
   const totalScope = Object.values(D.eqs).reduce((s, e) => s + (e.expectedMonth || 0), 0);
   const actualByDate = {};
@@ -1550,6 +1587,32 @@ function calcBurnup() {
     const t = row.fecha.getTime();
     actualByDate[t] = (actualByDate[t] || 0) + j;
   }
+
+  if (isAllPeriodsMode()) {
+    const labels = [], dates = [], real = [], proj = [], dailyReal = [], dailyProj = [];
+    let cumReal = 0, cumProj = 0;
+    for (const p of eachOperationalPeriod(cfg.periodStart, cfg.periodEnd)) {
+      if (p.periodStart > D.maxDate) break;
+      const dayEnd = p.periodEnd.getTime() <= D.maxDate.getTime() ? p.periodEnd : D.maxDate;
+      let monthReal = 0;
+      const d = new Date(p.periodStart.getTime());
+      while (d <= dayEnd) {
+        monthReal += actualByDate[d.getTime()] || 0;
+        d.setDate(d.getDate() + 1);
+      }
+      const monthProj = sumProjectedOnDayRange(p.periodStart, dayEnd);
+      cumReal += monthReal;
+      cumProj += monthProj;
+      labels.push(fmtPeriodLabel(p.periodEnd));
+      dates.push(new Date(p.periodEnd.getTime()));
+      dailyReal.push(+monthReal.toFixed(1));
+      dailyProj.push(+monthProj.toFixed(1));
+      real.push(+cumReal.toFixed(1));
+      proj.push(+cumProj.toFixed(1));
+    }
+    return { labels, dates, real, proj, dailyReal, dailyProj, scope: +totalScope.toFixed(1), grain: 'month' };
+  }
+
   const labels = [], dates = [], real = [], proj = [], dailyReal = [], dailyProj = [];
   let cumReal = 0, cumProj = 0;
   const d = new Date(cfg.periodStart.getTime());
@@ -1567,17 +1630,17 @@ function calcBurnup() {
     proj.push(+(cumProj.toFixed(1)));
     d.setDate(d.getDate() + 1);
   }
-  return { labels, dates, real, proj, dailyReal, dailyProj, scope: +totalScope.toFixed(1) };
+  return { labels, dates, real, proj, dailyReal, dailyProj, scope: +totalScope.toFixed(1), grain: 'day' };
 }
 
 function calcDailyStates() {
   const cfg = D.config;
-  if (!cfg.periodStart || !D.maxDate) return { labels: [], op: [], fds: [], sbcc: [], sbsp: [] };
+  if (!cfg.periodStart || !D.maxDate) return { labels: [], op: [], fds: [], sbcc: [], sbsp: [], grain: 'day' };
   const byDate = {};
   for (const row of D.rows) {
     const t = row.fecha.getTime();
     if (!byDate[t]) byDate[t] = { op: 0, fds: 0, sbcc: 0, sbsp: 0 };
-    const e = D.eqs[row.centro];
+    const e = D.eqs[eqKey(row.centro)];
     const j = e ? jpd(e.schedule) : 1;
     const st = stateOf(row);
     if (st === 'op') byDate[t].op += j;
@@ -1585,6 +1648,25 @@ function calcDailyStates() {
     else if (st === 'sbcc') byDate[t].sbcc += j;
     else if (st === 'sbsp') byDate[t].sbsp += j;
   }
+
+  if (isAllPeriodsMode()) {
+    const labels = [], op = [], fds = [], sbcc = [], sbsp = [];
+    for (const p of eachOperationalPeriod(cfg.periodStart, cfg.periodEnd)) {
+      if (p.periodStart > D.maxDate) break;
+      const dayEnd = p.periodEnd.getTime() <= D.maxDate.getTime() ? p.periodEnd : D.maxDate;
+      let mop = 0, mfds = 0, msbcc = 0, msbsp = 0;
+      const d = new Date(p.periodStart.getTime());
+      while (d <= dayEnd) {
+        const day = byDate[d.getTime()] || { op: 0, fds: 0, sbcc: 0, sbsp: 0 };
+        mop += day.op; mfds += day.fds; msbcc += day.sbcc; msbsp += day.sbsp;
+        d.setDate(d.getDate() + 1);
+      }
+      labels.push(fmtPeriodLabel(p.periodEnd));
+      op.push(mop); fds.push(mfds); sbcc.push(msbcc); sbsp.push(msbsp);
+    }
+    return { labels, op, fds, sbcc, sbsp, grain: 'month' };
+  }
+
   const labels = [], op = [], fds = [], sbcc = [], sbsp = [];
   const d = new Date(cfg.periodStart.getTime());
   while (d <= D.maxDate) {
@@ -1593,7 +1675,7 @@ function calcDailyStates() {
     op.push(day.op); fds.push(day.fds); sbcc.push(day.sbcc); sbsp.push(day.sbsp);
     d.setDate(d.getDate() + 1);
   }
-  return { labels, op, fds, sbcc, sbsp };
+  return { labels, op, fds, sbcc, sbsp, grain: 'day' };
 }
 
 function toggleMesCerrado() {
@@ -1720,12 +1802,27 @@ function renderIncidents() {
 
 function renderChartsForView(name) {
   Object.values(charts).forEach(c => c.destroy()); charts = {};
+  updateChartSectionTitles();
   if (name === 'dashboard') {
     renderBurnupChart('chart-burnup-dash');
     renderStatesChart('chart-states-dash');
     renderDailyBurnupChart('chart-daily-dash');
     renderDailyStatesChart('chart-daily-states-dash');
   }
+}
+
+function updateChartSectionTitles() {
+  const monthly = D.burnup?.grain === 'month';
+  const titleDaily = document.getElementById('title-daily-serv');
+  const titleStates = document.getElementById('title-daily-states');
+  const hintBurnup = document.getElementById('hint-burnup');
+  if (hintBurnup) hintBurnup.textContent = monthly ? '· clic en un mes' : '· clic en un día';
+  if (titleDaily) {
+    titleDaily.innerHTML = monthly
+      ? 'Servicios realizados y proyectados — mes a mes <span class="section-sub" id="hint-daily-serv">· clic en un mes</span>'
+      : 'Servicios realizados y proyectados — día a día <span class="section-sub" id="hint-daily-serv">· clic en un día</span>';
+  }
+  if (titleStates) titleStates.textContent = monthly ? 'Estados por mes (jornadas)' : 'Estados por día (jornadas)';
 }
 
 const CHART_AXIS_X = { grid: { color: '#f1f5f9', display: false }, ticks: { font: { size: 10 }, maxRotation: 45, maxTicksLimit: 31 } };
@@ -1765,7 +1862,14 @@ function openDayDetailFromChart(evt, elements, chart) {
   const idx = chartDayIndexFromEvent(evt, elements, chart);
   if (idx < 0) return;
   const day = D.burnup.dates[idx];
-  if (day) openDayDetail(day);
+  if (!day) return;
+  // En vista "Todo" cada punto es un mes: filtrar a ese período para ver el detalle día a día.
+  if (D.burnup?.grain === 'month') {
+    const { year, month } = yearMonthFromPeriodEnd(day);
+    if (year && month) applyYearMonthFilter(year, month);
+    return;
+  }
+  openDayDetail(day);
 }
 
 function buildDayEquipmentRows(date) {
@@ -1864,11 +1968,12 @@ function closeDayDetail() {
 function renderDailyBurnupChart(canvasId) {
   const bu = D.burnup; if (!bu || !bu.labels.length) return;
   const ctx = document.getElementById(canvasId); if (!ctx) return;
+  const monthly = bu.grain === 'month';
   charts[canvasId] = new Chart(ctx.getContext('2d'), {
     type: 'bar',
     data: { labels: bu.labels, datasets: [
       {
-        label: 'Servicios proyectados',
+        label: monthly ? 'Servicios proyectados (mes)' : 'Servicios proyectados',
         data: bu.dailyProj,
         backgroundColor: 'rgba(249,226,156,.85)',
         borderColor: '#e6c45c',
@@ -1878,7 +1983,7 @@ function renderDailyBurnupChart(canvasId) {
         categoryPercentage: 0.72,
       },
       {
-        label: 'Servicios realizados',
+        label: monthly ? 'Servicios realizados (mes)' : 'Servicios realizados',
         data: bu.dailyReal,
         backgroundColor: 'rgba(118,185,71,.92)',
         borderColor: '#5f9938',
@@ -1902,19 +2007,24 @@ function renderDailyBurnupChart(canvasId) {
           callbacks: {
             label: c => `  ${c.dataset.label}: ${c.parsed.y}`,
             afterBody: items => {
-              const real = items.find(c => c.dataset.label === 'Servicios realizados')?.parsed.y ?? 0;
-              const proj = items.find(c => c.dataset.label === 'Servicios proyectados')?.parsed.y ?? 0;
+              const realKey = monthly ? 'Servicios realizados (mes)' : 'Servicios realizados';
+              const projKey = monthly ? 'Servicios proyectados (mes)' : 'Servicios proyectados';
+              const real = items.find(c => c.dataset.label === realKey)?.parsed.y ?? 0;
+              const proj = items.find(c => c.dataset.label === projKey)?.parsed.y ?? 0;
               const diff = real - proj;
-              return [`Desvío del día: ${diff >= 0 ? '+' : ''}${diff.toFixed(1)}`, 'Clic para ver equipos'];
+              return [
+                `Desvío del ${monthly ? 'mes' : 'día'}: ${diff >= 0 ? '+' : ''}${diff.toFixed(1)}`,
+                monthly ? 'Clic para filtrar ese mes' : 'Clic para ver equipos',
+              ];
             },
           },
         },
       },
       scales: {
-        x: { ...CHART_AXIS_X, title: { display: true, text: 'Fecha', font: { size: 11 } } },
+        x: { ...CHART_AXIS_X, title: { display: true, text: monthly ? 'Mes' : 'Fecha', font: { size: 11 } }, ticks: { ...CHART_AXIS_X.ticks, maxTicksLimit: monthly ? 24 : 31 } },
         y: {
           ...CHART_AXIS_Y,
-          title: { display: true, text: 'Servicios del día', font: { size: 11 } },
+          title: { display: true, text: monthly ? 'Servicios del mes' : 'Servicios del día', font: { size: 11 } },
           ticks: { ...CHART_AXIS_Y.ticks, stepSize: 1 },
         },
       },
@@ -1955,12 +2065,13 @@ function renderBurnupChart(canvasId) {
   const bu = D.burnup; if (!bu || !bu.labels.length) return;
   const scope = Array(bu.labels.length).fill(bu.scope);
   const ctx = document.getElementById(canvasId); if (!ctx) return;
+  const monthly = bu.grain === 'month';
   charts[canvasId] = new Chart(ctx.getContext('2d'), {
     type: 'line',
     data: { labels: bu.labels, datasets: [
       { label: 'Esp. del Mes (neto)', data: scope, borderColor: '#94a3b8', backgroundColor: 'transparent', borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0, pointHitRadius: 18, fill: false, order: 3 },
-      { label: 'Proyectado acumulado', data: bu.proj, borderColor: '#f9e29c', backgroundColor: 'rgba(249,226,156,.15)', borderWidth: 2, borderDash: [6, 4], pointRadius: 0, pointHitRadius: 18, fill: 'origin', order: 2 },
-      { label: 'Real acumulado', data: bu.real, borderColor: '#76b947', backgroundColor: 'rgba(118,185,71,.15)', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, pointHitRadius: 18, fill: 'origin', tension: 0.25, order: 1 },
+      { label: 'Proyectado acumulado', data: bu.proj, borderColor: '#f9e29c', backgroundColor: 'rgba(249,226,156,.15)', borderWidth: 2, borderDash: [6, 4], pointRadius: monthly ? 3 : 0, pointHitRadius: 18, fill: 'origin', order: 2 },
+      { label: 'Real acumulado', data: bu.real, borderColor: '#76b947', backgroundColor: 'rgba(118,185,71,.15)', borderWidth: 2.5, pointRadius: 3, pointHoverRadius: 5, pointHitRadius: 18, fill: 'origin', tension: monthly ? 0.15 : 0.25, order: 1 },
     ] },
     options: {
       responsive: true, maintainAspectRatio: false,
@@ -1980,13 +2091,13 @@ function renderBurnupChart(canvasId) {
             return [
               `Desvío vs proy: ${(real - proj) >= 0 ? '+' : ''}${(real - proj).toFixed(1)}`,
               `Restante: ${(sc - real).toFixed(1)}`,
-              'Clic para ver equipos',
+              monthly ? 'Clic para filtrar ese mes' : 'Clic para ver equipos',
             ];
           },
         } },
       },
       scales: {
-        x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, maxRotation: 45, maxTicksLimit: 20 } },
+        x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 }, maxRotation: 45, maxTicksLimit: monthly ? 24 : 20 } },
         y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } }, beginAtZero: true },
       },
     },
