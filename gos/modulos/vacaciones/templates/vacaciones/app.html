@@ -85,8 +85,8 @@
   <label class="card dropzone" id="dropzone" for="file-input">
     <div style="font-size:2.5rem;">📂</div>
     <h3 id="drop-title">Arrastrá el archivo Excel aquí</h3>
-    <p id="drop-sub">o hacé clic para seleccionar · .xlsx / .xls</p>
-    <input type="file" id="file-input" accept=".xlsx,.xls,.xlsm">
+    <p id="drop-sub">o hacé clic para seleccionar · .xlsx / .xlsm</p>
+    <input type="file" id="file-input" accept=".xlsx,.xlsm">
   </label>
 
   <button type="button" class="btn hidden" id="btn-import" style="width:100%;margin-top:16px;padding:14px;">Importar datos</button>
@@ -335,8 +335,8 @@ fileInput.onchange = () => {
 function handleFileSelected(f) {
   if (!f) return;
   const ext = f.name.toLowerCase();
-  if (!ext.endsWith('.xlsx') && !ext.endsWith('.xls') && !ext.endsWith('.xlsm')) {
-    showImportError('Solo se aceptan archivos Excel (.xlsx, .xls)');
+  if (!ext.endsWith('.xlsx') && !ext.endsWith('.xlsm')) {
+    showImportError('Solo se aceptan archivos Excel .xlsx o .xlsm. Si tenés un .xls antiguo, abrilo en Excel y guardalo como .xlsx.');
     return;
   }
   state.file = f;
@@ -361,7 +361,7 @@ function showImportError(msg) {
   res.className = 'card result-err';
   res.innerHTML = `<h3 style="color:var(--red);">Error al importar</h3><p style="font-size:.85rem;margin-top:8px;">${msg}</p>`;
   res.classList.remove('hidden');
-  document.getElementById('drop-sub').textContent = 'o hacé clic para seleccionar · .xlsx / .xls';
+  document.getElementById('drop-sub').textContent = 'o hacé clic para seleccionar · .xlsx / .xlsm';
 }
 
 async function runImport() {

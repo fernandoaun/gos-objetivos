@@ -67,8 +67,13 @@ def importar_excel():
     upload = request.files.get("file")
     if not upload or not upload.filename:
         return jsonify({"error": "No se recibió archivo"}), 400
-    if not upload.filename.lower().endswith((".xlsx", ".xls", ".xlsm")):
-        return jsonify({"error": "Solo se aceptan archivos Excel (.xlsx, .xls)"}), 400
+    if not upload.filename.lower().endswith((".xlsx", ".xlsm")):
+        return jsonify(
+            {
+                "error": "Solo se aceptan archivos Excel .xlsx o .xlsm. "
+                "Si tenés un .xls antiguo, abrilo en Excel y guardalo como .xlsx."
+            }
+        ), 400
 
     tmp_path = None
     try:
