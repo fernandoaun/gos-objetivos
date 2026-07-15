@@ -1546,6 +1546,20 @@
   color: var(--cap-navy);
 }
 
+.cap-prog-detail-head-main {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.cap-prog-nombre-edit {
+  margin-top: 0.35rem;
+  max-width: 420px;
+}
+
+.cap-prog-nombre-edit .cap-btn {
+  white-space: nowrap;
+}
+
 .cap-prog-detail-desc {
   margin: 0;
   font-size: 0.88rem;

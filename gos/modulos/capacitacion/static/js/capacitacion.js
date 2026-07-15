@@ -5884,14 +5884,21 @@
     containerEl.innerHTML = `
       <div class="cap-prog-detail-inner${editable ? " cap-prog-detail-inner--editable" : ""}">
         <div class="cap-prog-detail-head">
-          <div>
+          <div class="cap-prog-detail-head-main">
             <h4 class="cap-prog-detail-title">Estructura del programa</h4>
-            <p class="cap-muted">${escapeHtml(programa.nombre)}</p>
+            ${editable
+              ? `<div class="cap-input-group cap-prog-nombre-edit">
+                   <input type="text" id="cap-prog-nombre-edit-${programa.id}" class="cap-input" value="${escapeHtml(programa.nombre)}" maxlength="200" aria-label="Nombre del programa">
+                   <button type="button" class="cap-btn cap-btn--primary cap-btn--sm" data-prog-guardar-nombre="${programa.id}">Guardar nombre</button>
+                 </div>
+                 <p class="cap-form-hint cap-form-hint--error" id="cap-prog-nombre-error-${programa.id}"></p>`
+              : `<p class="cap-muted">${escapeHtml(programa.nombre)}</p>`}
           </div>
           <div class="cap-toolbar-actions">
             ${editable
               ? `<button type="button" class="cap-btn cap-btn--ghost cap-btn--sm" data-prog-edit-done="${programa.id}"><i class="bi bi-check-lg"></i> Listo</button>
-                 <button type="button" class="cap-btn cap-btn--primary cap-btn--sm" data-prog-add-plan><i class="bi bi-plus-lg"></i> Agregar plan</button>`
+                 <button type="button" class="cap-btn cap-btn--primary cap-btn--sm" data-prog-add-plan><i class="bi bi-plus-lg"></i> Agregar plan</button>
+                 <button type="button" class="cap-btn cap-btn--danger cap-btn--sm" data-prog-eliminar="${programa.id}"><i class="bi bi-trash"></i> Eliminar</button>`
               : `<button type="button" class="cap-btn cap-btn--ghost cap-btn--sm" data-prog-edit="${programa.id}"><i class="bi bi-pencil"></i> Editar</button>`}
           </div>
         </div>
@@ -6324,6 +6331,37 @@
           await selectPrograma(id, { resetEditMode: false });
         } catch (err) {
           setFormError(`cap-programa-puestos-error-${id}`, err.message);
+        }
+        return;
+      }
+      const guardarNombreBtn = ev.target.closest("[data-prog-guardar-nombre]");
+      if (guardarNombreBtn) {
+        ev.stopPropagation();
+        const id = Number(guardarNombreBtn.dataset.progGuardarNombre);
+        const nombre = (document.getElementById(`cap-prog-nombre-edit-${id}`)?.value || "").trim();
+        setFormError(`cap-prog-nombre-error-${id}`, "");
+        if (!nombre) {
+          setFormError(`cap-prog-nombre-error-${id}`, "El nombre es obligatorio");
+          return;
+        }
+        try {
+          await putJson(`${API}/programas/${id}`, { nombre });
+          await selectPrograma(id, { resetEditMode: false });
+        } catch (err) {
+          setFormError(`cap-prog-nombre-error-${id}`, err.message);
+        }
+        return;
+      }
+      const eliminarBtn = ev.target.closest("[data-prog-eliminar]");
+      if (eliminarBtn) {
+        ev.stopPropagation();
+        const id = Number(eliminarBtn.dataset.progEliminar);
+        if (!confirm("¿Eliminar este programa? Esta acción no se puede deshacer.")) return;
+        try {
+          await deleteJson(`${API}/programas/${id}`);
+          collapsePrograma();
+        } catch (err) {
+          alert(err.message);
         }
         return;
       }

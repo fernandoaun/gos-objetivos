@@ -251,6 +251,18 @@ def actualizar_programa(empresa_id: int, programa_id: int, data: dict) -> dict:
     return _programa_dict(programa, detalle=True)
 
 
+def eliminar_programa(empresa_id: int, programa_id: int) -> dict:
+    """Baja lógica de un programa (deja de aparecer en listados)."""
+    programa = ProgramaCapacitacion.query.filter_by(
+        id=programa_id, empresa_id=empresa_id, activo=True
+    ).first()
+    if not programa:
+        raise ValueError("Programa no encontrado")
+    programa.activo = False
+    db.session.commit()
+    return {"id": programa_id, "eliminado": True}
+
+
 def agregar_plan(empresa_id: int, programa_id: int, data: dict) -> dict:
     programa = ProgramaCapacitacion.query.filter_by(
         id=programa_id, empresa_id=empresa_id, activo=True

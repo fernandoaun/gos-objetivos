@@ -43,6 +43,7 @@ from gos.modulos.capacitacion.services import (
     eliminar_encuentro,
     eliminar_foto_participante,
     eliminar_plan,
+    eliminar_programa,
     eliminar_requisito,
     encuentros_cronograma,
     enviar_notificaciones_alertas,
@@ -917,7 +918,7 @@ def programas():
     })
 
 
-@bp.route("/programas/<int:programa_id>", methods=["GET", "PUT"])
+@bp.route("/programas/<int:programa_id>", methods=["GET", "PUT", "DELETE"])
 @login_required
 def programa_detalle(programa_id: int):
     if request.method == "GET":
@@ -928,6 +929,12 @@ def programa_detalle(programa_id: int):
         return jsonify({"programa": item})
     if not _puede_editar():
         return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    if request.method == "DELETE":
+        try:
+            result = eliminar_programa(current_user.empresa_id, programa_id)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify(result)
     try:
         item = actualizar_programa(current_user.empresa_id, programa_id, _json_body())
     except ValueError as exc:
