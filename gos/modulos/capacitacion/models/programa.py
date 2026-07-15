@@ -120,7 +120,10 @@ class EncuentroCapacitacion(db.Model, TimestampMixin):
     curso_id = db.Column(db.Integer, db.ForeignKey("cap_cursos.id"), nullable=True, index=True)
     numero = db.Column(db.Integer, nullable=True)  # encuentro 1, 2, 3...
     titulo = db.Column(db.String(200), nullable=False)
+    # Planificación: se programa el mes (se almacena el día 1 del mes previsto).
     fecha = db.Column(db.Date, nullable=False, index=True)
+    # Cierre: día exacto en que se dictó el curso (se carga al completar).
+    fecha_realizacion = db.Column(db.Date, nullable=True, index=True)
     hora_inicio = db.Column(db.Time, nullable=True)
     hora_fin = db.Column(db.Time, nullable=True)
     fecha_inicio = db.Column(db.DateTime, nullable=True)

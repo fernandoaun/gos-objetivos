@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from calendar import monthrange
 from datetime import date
 
 from gos.modulos.capacitacion.models import (
@@ -75,6 +76,11 @@ def _ratio(num: int, den: int) -> float | None:
     if not den:
         return None
     return round(num / den, 4)
+
+
+def _fin_de_mes(d: date) -> date:
+    """Último día del mes de la fecha indicada (mes programado)."""
+    return date(d.year, d.month, monthrange(d.year, d.month)[1])
 
 
 def _sumar_metricas(dest: dict, src: dict) -> None:
@@ -323,13 +329,15 @@ def _clasificar_asignacion(
     elif asist.fecha_aprobacion:
         fecha_aprob = asist.fecha_aprobacion
 
+    # El cumplimiento se compara contra el MES programado: se considera "puntual"
+    # (a tiempo) si el curso se dictó dentro de ese mes o antes de fin de mes.
     puntual = False
     if cumplido and fecha_aprob and enc.fecha:
-        puntual = fecha_aprob <= enc.fecha
+        puntual = fecha_aprob <= _fin_de_mes(enc.fecha)
     elif cumplido:
         puntual = True
 
-    vencido = not cumplido and enc.fecha < hoy
+    vencido = not cumplido and enc.fecha and _fin_de_mes(enc.fecha) < hoy
 
     return {
         "programados": 1,
@@ -461,6 +469,7 @@ def _colectar_datos_anuales(
                 "encuentro_id": enc.id,
                 "curso_nombre": curso.nombre if curso else enc.titulo,
                 "fecha": enc.fecha.isoformat() if enc.fecha else None,
+                "fecha_realizacion": enc.fecha_realizacion.isoformat() if enc.fecha_realizacion else None,
                 "capacitador": enc.instructor or (enc.instructor_rel.nombre if enc.instructor_rel else None),
                 "lugar": enc.lugar,
                 "link": enc.link_virtual,
@@ -616,6 +625,7 @@ def matriz_resumen(
                     "plan_nombre": a["plan_nombre"],
                     "empresa_nombre": a["empresa_nombre"],
                     "fecha": a["fecha"],
+                    "fecha_realizacion": a.get("fecha_realizacion"),
                     "capacitador": a["capacitador"],
                     "lugar": a["lugar"],
                     "link": a["link"],

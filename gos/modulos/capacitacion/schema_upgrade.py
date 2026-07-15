@@ -28,6 +28,7 @@ _COLUMN_UPGRADES = [
     ("cap_encuentros", "plan_id", "INTEGER"),
     ("cap_encuentros", "fecha_inicio", "TIMESTAMP"),
     ("cap_encuentros", "fecha_fin", "TIMESTAMP"),
+    ("cap_encuentros", "fecha_realizacion", "DATE"),
     ("cap_encuentros", "material_adjunto_url", "VARCHAR(500)"),
     ("cap_encuentros", "resultados_adjunto_url", "VARCHAR(500)"),
     ("cap_asistencias", "fecha_aprobacion", "DATE"),

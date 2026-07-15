@@ -16,6 +16,18 @@
 
   const DOW = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"];
 
+  function fmtMesProgramado(fechaIso) {
+    if (!fechaIso) return "";
+    const [yy, mm] = String(fechaIso).slice(0, 7).split("-");
+    return `${MESES[Number(mm) - 1] || ""} ${yy}`.trim();
+  }
+
+  function fmtDiaReal(iso) {
+    if (!iso) return "";
+    const p = String(iso).split("-");
+    return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : String(iso);
+  }
+
 
 
   let calYear = new Date().getFullYear();
@@ -1161,7 +1173,9 @@
 
   function encuentrosDelDia(y, m, d) {
 
-    return encuentros.filter((e) => e.fecha === isoDate(y, m, d));
+    const iso = isoDate(y, m, d);
+
+    return encuentros.filter((e) => (e.fecha_realizacion || e.fecha) === iso);
 
   }
 
@@ -2047,7 +2061,7 @@
         const n = (ev.personas || []).length;
         return `<button type="button" class="cap-ma-evento cap-ma-evento--detalle" data-cr-ev-idx="${i}">
           <strong>${escapeHtml(ev.curso_nombre || "Curso")}</strong>
-          <span class="cap-muted">${escapeHtml(ev.fecha || "")} · ${escapeHtml(ev.plan_nombre || "")} · ${n} persona(s)</span>
+          <span class="cap-muted">${escapeHtml(ev.fecha_realizacion ? fmtDiaReal(ev.fecha_realizacion) : fmtMesProgramado(ev.fecha))} · ${escapeHtml(ev.plan_nombre || "")} · ${n} persona(s)</span>
         </button>`;
       }).join("");
       body.querySelectorAll("[data-cr-ev-idx]").forEach((btn) => {
@@ -2179,7 +2193,7 @@
     }).join("");
     body.innerHTML = `
       <p><strong>Plan:</strong> ${escapeHtml(ev.plan_nombre || "—")} · <strong>Empresa:</strong> ${escapeHtml(emp)}</p>
-      <p><strong>Fecha:</strong> ${escapeHtml(ev.fecha || "")} · <strong>Capacitador:</strong> ${escapeHtml(ev.capacitador || "—")}</p>
+      <p><strong>Mes programado:</strong> ${escapeHtml(fmtMesProgramado(ev.fecha))}${ev.fecha_realizacion ? ` · <strong>Realizado:</strong> ${escapeHtml(fmtDiaReal(ev.fecha_realizacion))}` : ""} · <strong>Capacitador:</strong> ${escapeHtml(ev.capacitador || "—")}</p>
       <p><strong>Lugar:</strong> ${escapeHtml(ev.lugar || "—")} · <strong>Link:</strong> ${ev.link ? `<a href="${escapeHtml(ev.link)}" target="_blank" rel="noopener">${escapeHtml(ev.link)}</a>` : "—"}</p>
       <table class="cap-data-table cap-mt"><thead><tr><th>Persona</th><th>Asistió</th><th>Nota</th><th>Estado</th></tr></thead><tbody>${filas || '<tr><td colspan="4" class="cap-empty">Sin personas</td></tr>'}</tbody></table>`;
     modal.classList.remove("cap-hidden");
@@ -3486,6 +3500,11 @@
       if (finEl) finEl.value = "";
       return;
     }
+    // Planificación por mes: el campo es YYYY-MM, no se calcula fecha fin exacta.
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha || "")) {
+      finEl.value = "";
+      return;
+    }
     const planId = document.getElementById("cap-enc-plan")?.value;
     if (!planId) return;
     fetchJson(`${API}/planes/${planId}/cursos`).then((data) => {
@@ -3799,7 +3818,7 @@
 
     }
 
-    setEncFormVal("cap-enc-fecha", data.fecha);
+    setEncFormVal("cap-enc-fecha", data.mes || (data.fecha ? String(data.fecha).slice(0, 7) : ""));
 
     setEncFormVal("cap-enc-hora-inicio", formatTimeInput(data.hora_inicio));
 
@@ -3877,17 +3896,27 @@
 
     if (fechaEl) {
 
-      const parts = (ev.fecha || "").split("-");
+      const mes = ev.mes || (ev.fecha ? String(ev.fecha).slice(0, 7) : "");
 
-      const fechaTxt = parts.length === 3
+      let txt = "";
 
-        ? `${parts[2]}/${parts[1]}/${parts[0]}`
+      if (mes) {
 
-        : (ev.fecha || "");
+        const [yy, mm] = mes.split("-");
 
-      const hora = ev.hora_inicio ? ` · ${formatTimeInput(ev.hora_inicio)}` : "";
+        txt = `Programado: ${MESES[Number(mm) - 1] || ""} ${yy}`;
 
-      fechaEl.textContent = `${fechaTxt}${hora}`;
+      }
+
+      if (ev.fecha_realizacion) {
+
+        const p = String(ev.fecha_realizacion).split("-");
+
+        if (p.length === 3) txt += `${txt ? " · " : ""}Realizado el ${p[2]}/${p[1]}/${p[0]}`;
+
+      }
+
+      fechaEl.textContent = txt;
 
     }
 
@@ -4175,18 +4204,16 @@
         setFormError("cap-encuentro-form-error", "Seleccioná la empresa externa");
         return;
       }
-      const fechaVal = document.getElementById("cap-enc-fecha")?.value;
-      const horaVal = document.getElementById("cap-enc-hora-inicio")?.value || "09:00";
-      if (fechaVal) {
-        body.fecha_inicio = `${fechaVal}T${horaVal}`;
+      // Planificación por mes: el input es YYYY-MM; se guarda el día 1 del mes.
+      const mesVal = document.getElementById("cap-enc-fecha")?.value;
+      if (mesVal) {
+        body.fecha = `${mesVal}-01`;
+        body.fecha_inicio = `${mesVal}-01T09:00`;
       } else {
         delete body.fecha;
         delete body.fecha_inicio;
       }
-      const finVal = document.getElementById("cap-enc-fecha-fin")?.value;
-      if (finVal) {
-        body.fecha_fin = finVal.length === 16 ? `${finVal}:00` : finVal;
-      }
+      delete body.fecha_fin;
 
       try {
 
@@ -6467,6 +6494,21 @@
     if (capEl) capEl.value = data.instructor || "";
     if (lugEl) lugEl.value = data.lugar || "";
     if (linkEl) linkEl.value = data.link_virtual || "";
+    const fechaRealEl = document.getElementById("cap-cierre-fecha");
+    if (fechaRealEl) {
+      const hoyIso = new Date().toISOString().slice(0, 10);
+      fechaRealEl.value = data.fecha_realizacion || hoyIso;
+    }
+    const fechaHintEl = document.getElementById("cap-cierre-fecha-hint");
+    if (fechaHintEl) {
+      const mes = data.mes || (data.fecha ? String(data.fecha).slice(0, 7) : "");
+      if (mes) {
+        const [yy, mm] = mes.split("-");
+        fechaHintEl.textContent = `Programado para ${MESES[Number(mm) - 1] || ""} ${yy}`;
+      } else {
+        fechaHintEl.textContent = "";
+      }
+    }
     const participantes = data.participantes || [];
     tbody.innerHTML = participantes.map((p) => {
       const asistio = p.asistio === true ? "presente" : (p.asistio === false ? "ausente" : (p.asistencia || "inscripto"));
@@ -6517,8 +6559,14 @@
         alert("Registrá la asistencia de al menos una persona");
         return;
       }
+      const fechaReal = document.getElementById("cap-cierre-fecha")?.value || "";
+      if (!fechaReal) {
+        alert("Indicá la fecha de realización del curso");
+        return;
+      }
       const payload = {
         personas: registros,
+        fecha_realizacion: fechaReal,
         capacitador: document.getElementById("cap-cierre-capacitador")?.value || null,
         lugar: document.getElementById("cap-cierre-lugar")?.value || null,
         link: document.getElementById("cap-cierre-link")?.value || null,

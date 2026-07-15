@@ -269,6 +269,8 @@ def encuentros_cronograma(empresa_id: int, desde: date, hasta: date) -> list[dic
             "id": e.id,
             "titulo": e.titulo,
             "fecha": e.fecha.isoformat(),
+            "mes": e.fecha.strftime("%Y-%m") if e.fecha else None,
+            "fecha_realizacion": e.fecha_realizacion.isoformat() if e.fecha_realizacion else None,
             "hora_inicio": e.hora_inicio.isoformat() if e.hora_inicio else None,
             "hora_fin": e.hora_fin.isoformat() if e.hora_fin else None,
             "lugar": e.lugar,

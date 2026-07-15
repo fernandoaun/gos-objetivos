@@ -211,7 +211,8 @@ def aplicar_resultado_asistencia(
     fecha_aprob = None
     fecha_venc = None
     if aprobo:
-        fecha_aprob = encuentro.fecha or date.today()
+        # Día real del cierre; si falta, cae al mes programado / hoy.
+        fecha_aprob = encuentro.fecha_realizacion or encuentro.fecha or date.today()
         fecha_venc = calcular_fecha_vencimiento(True, fecha_aprob, curso)
     asist.fecha_aprobacion = fecha_aprob
     asist.fecha_vencimiento = fecha_venc
@@ -369,11 +370,12 @@ def _upsert_registro(
     asist: AsistenciaEncuentro,
     curso: Curso | None,
 ) -> None:
+    fecha_real = encuentro.fecha_realizacion or encuentro.fecha
     existente = (
         RegistroCapacitacion.query.filter_by(
             participante_id=asist.participante_id,
             curso_id=encuentro.curso_id,
-            fecha_realizacion=encuentro.fecha,
+            fecha_realizacion=fecha_real,
         )
         .order_by(RegistroCapacitacion.id.desc())
         .first()
@@ -392,7 +394,7 @@ def _upsert_registro(
             participante_id=asist.participante_id,
             curso_id=encuentro.curso_id,
             programa_id=encuentro.programa_id,
-            fecha_realizacion=encuentro.fecha,
+            fecha_realizacion=fecha_real,
             nota=asist.nota,
             aprobado=bool(asist.aprobado),
             horas=curso.horas if curso else None,

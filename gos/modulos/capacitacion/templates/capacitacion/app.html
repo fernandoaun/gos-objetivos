@@ -237,11 +237,12 @@
             <div class="cap-curso-meta cap-hidden" id="cap-enc-curso-meta"></div>
           </div>
           <div>
-            <label class="cap-label" for="cap-enc-fecha">8. Fecha inicio</label>
-            <input class="cap-input" id="cap-enc-fecha" name="fecha" type="date">
+            <label class="cap-label" for="cap-enc-fecha">8. Mes programado</label>
+            <input class="cap-input" id="cap-enc-fecha" name="fecha" type="month">
+            <p class="cap-muted">Se programa el mes en que se dictará el curso. El día exacto se registra al cerrar el cronograma.</p>
           </div>
         </div>
-        <div class="cap-form-row cap-form-row--2">
+        <div class="cap-form-row cap-form-row--2 cap-hidden" aria-hidden="true">
           <div>
             <label class="cap-label" for="cap-enc-hora-inicio">Hora inicio</label>
             <input class="cap-input" id="cap-enc-hora-inicio" name="hora_inicio" type="time">
@@ -972,6 +973,11 @@
       </div>
       <div class="cap-widget-body">
         <div class="cap-form-row cap-form-row--3 cap-mb">
+          <div>
+            <label class="cap-label" for="cap-cierre-fecha">Fecha de realización *</label>
+            <input class="cap-input" id="cap-cierre-fecha" type="date">
+            <p class="cap-muted" id="cap-cierre-fecha-hint"></p>
+          </div>
           <div>
             <label class="cap-label" for="cap-cierre-capacitador">Capacitador final</label>
             <input class="cap-input" id="cap-cierre-capacitador" type="text">

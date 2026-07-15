@@ -442,13 +442,14 @@ def crear_encuentro(empresa_id: int, data: dict) -> dict:
     hora_inicio = _parse_time(data.get("hora_inicio"))
     hora_fin = _parse_time(data.get("hora_fin"))
     fecha_inicio_dt = _parse_datetime(data.get("fecha_inicio"))
-    if fecha_inicio_dt is None and fecha is not None:
-        fecha_inicio_dt = _combine_datetime(fecha, hora_inicio)
     if fecha is None and fecha_inicio_dt is not None:
         fecha = fecha_inicio_dt.date()
-    # fecha_inicio opcional: sin fecha no aparece en calendario (matriz filtra por fecha_inicio)
+    # Planificación por mes: se guarda el día 1 del mes previsto.
+    fecha = _primer_dia_mes(fecha)
+    # fecha_inicio opcional: sin mes no aparece en el calendario ni en la matriz.
+    fecha_inicio_dt = _combine_datetime(fecha, time(9, 0)) if fecha else None
     if fecha is None:
-        fecha = date.today()  # NOT NULL en BD; calendario usa fecha_inicio
+        fecha = _primer_dia_mes(date.today())  # NOT NULL en BD
 
     fecha_fin_dt = _parse_datetime(data.get("fecha_fin"))
     if fecha_fin_dt is None and fecha_inicio_dt is not None:
@@ -504,8 +505,12 @@ def actualizar_encuentro(empresa_id: int, encuentro_id: int, data: dict) -> dict
 
     if "titulo" in data:
         enc.titulo = (data["titulo"] or "").strip()
-    if "fecha" in data:
-        enc.fecha = _parse_date(data["fecha"])
+    if "fecha" in data or "fecha_inicio" in data:
+        nueva_fecha = _parse_date(data.get("fecha") or data.get("fecha_inicio"))
+        nueva_fecha = _primer_dia_mes(nueva_fecha)
+        if nueva_fecha is not None:
+            enc.fecha = nueva_fecha
+            enc.fecha_inicio = _combine_datetime(nueva_fecha, time(9, 0))
     if "hora_inicio" in data:
         enc.hora_inicio = _parse_time(data.get("hora_inicio"))
     if "hora_fin" in data:
@@ -698,6 +703,10 @@ def cerrar_cronograma(empresa_id: int, encuentro_id: int, data: dict) -> dict:
     registros = data.get("personas") or data.get("registros") or []
     if not registros:
         raise ValueError("Un cronograma no puede cerrarse sin registrar asistencia de al menos una persona")
+
+    # Día exacto en que se dictó el curso (se compara contra el mes programado).
+    fecha_real = _parse_date(data.get("fecha_realizacion")) or date.today()
+    enc.fecha_realizacion = fecha_real
 
     if "capacitador" in data or "instructor" in data:
         enc.instructor = (data.get("capacitador") or data.get("instructor") or "").strip() or None
@@ -995,6 +1004,8 @@ def _encuentro_dict(e: EncuentroCapacitacion) -> dict:
         "id": e.id,
         "titulo": e.titulo,
         "fecha": e.fecha.isoformat() if e.fecha else None,
+        "mes": e.fecha.strftime("%Y-%m") if e.fecha else None,
+        "fecha_realizacion": e.fecha_realizacion.isoformat() if e.fecha_realizacion else None,
         "hora_inicio": e.hora_inicio.isoformat() if e.hora_inicio else None,
         "hora_fin": e.hora_fin.isoformat() if e.hora_fin else None,
         "fecha_inicio": e.fecha_inicio.isoformat() if e.fecha_inicio else None,
@@ -1025,6 +1036,13 @@ def _encuentro_dict(e: EncuentroCapacitacion) -> dict:
         "resultados_adjunto_url": e.resultados_adjunto_url,
         "observaciones": e.observaciones,
     }
+
+
+def _primer_dia_mes(d: date | None) -> date | None:
+    """Normaliza una fecha al día 1 de su mes (planificación por mes)."""
+    if not d:
+        return None
+    return date(d.year, d.month, 1)
 
 
 def _parse_date(value) -> date | None:
