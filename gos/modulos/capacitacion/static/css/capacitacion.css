@@ -1567,6 +1567,23 @@
   color: var(--cap-text);
 }
 
+.cap-prog-detail-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  background: #fff;
+  border: 1px solid var(--cap-border);
+  border-radius: 8px;
+  max-width: 520px;
+}
+
+.cap-prog-detail-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
 .cap-prog-detail-meta {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));

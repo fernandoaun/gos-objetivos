@@ -5865,16 +5865,40 @@
 
   function renderProgramaDetalleEnCard(programa, containerEl, editable = false) {
     const tipoTxt = programa.tipo === "externo" ? "Externo" : "Interno";
+    const empresaSelId = `cap-prog-empresa-edit-${programa.id}`;
     const metaRows = [
       programa.codigo ? `<div class="cap-prog-detail-row"><span class="cap-prog-detail-label">Código</span><span>${escapeHtml(programa.codigo)}</span></div>` : "",
-      `<div class="cap-prog-detail-row"><span class="cap-prog-detail-label">Tipo</span><span>${tipoTxt}</span></div>`,
-      programa.empresa_capacitadora_nombre
+      editable ? "" : `<div class="cap-prog-detail-row"><span class="cap-prog-detail-label">Tipo</span><span>${tipoTxt}</span></div>`,
+      !editable && programa.empresa_capacitadora_nombre
         ? `<div class="cap-prog-detail-row"><span class="cap-prog-detail-label">Empresa</span><span>${escapeHtml(programa.empresa_capacitadora_nombre)}</span></div>`
         : "",
       programa.estado
         ? `<div class="cap-prog-detail-row"><span class="cap-prog-detail-label">Estado</span><span>${escapeHtml(programaEstadoLabel(programa.estado))}</span></div>`
         : "",
     ].filter(Boolean).join("");
+    const esExterno = programa.tipo === "externo";
+    const detallesEditable = `
+      <div class="cap-prog-detail-edit">
+        <div class="cap-prog-detail-edit-field">
+          <label class="cap-label">Tipo</label>
+          <div class="cap-radio-row" data-prog-tipo-edit="${programa.id}">
+            <label class="cap-radio"><input type="radio" name="cap-prog-tipo-edit-${programa.id}" value="interno" ${esExterno ? "" : "checked"}> Interno</label>
+            <label class="cap-radio"><input type="radio" name="cap-prog-tipo-edit-${programa.id}" value="externo" ${esExterno ? "checked" : ""}> Externo</label>
+          </div>
+        </div>
+        <div class="cap-prog-detail-edit-field${esExterno ? "" : " cap-hidden"}" data-prog-empresa-wrap="${programa.id}">
+          <label class="cap-label" for="${empresaSelId}">Empresa capacitadora</label>
+          <select class="cap-input" id="${empresaSelId}"><option value="">— Seleccionar empresa —</option></select>
+        </div>
+        <div class="cap-prog-detail-edit-field">
+          <label class="cap-label" for="cap-prog-desc-edit-${programa.id}">Descripción</label>
+          <textarea class="cap-input cap-textarea" id="cap-prog-desc-edit-${programa.id}" rows="2" placeholder="Opcional">${escapeHtml(programa.descripcion || "")}</textarea>
+        </div>
+        <div class="cap-input-group">
+          <button type="button" class="cap-btn cap-btn--primary cap-btn--sm" data-prog-guardar-detalle="${programa.id}">Guardar detalles</button>
+        </div>
+        <p class="cap-form-hint cap-form-hint--error" id="cap-prog-detalle-error-${programa.id}"></p>
+      </div>`;
     const puestosId = `cap-programa-puestos-detalle-${programa.id}`;
     const puestosSection = editable
       ? `<div class="cap-check-grid" id="${puestosId}"></div>
@@ -5902,7 +5926,7 @@
               : `<button type="button" class="cap-btn cap-btn--ghost cap-btn--sm" data-prog-edit="${programa.id}"><i class="bi bi-pencil"></i> Editar</button>`}
           </div>
         </div>
-        ${programa.descripcion ? `<p class="cap-prog-detail-desc">${escapeHtml(programa.descripcion)}</p>` : ""}
+        ${editable ? detallesEditable : (programa.descripcion ? `<p class="cap-prog-detail-desc">${escapeHtml(programa.descripcion)}</p>` : "")}
         <div class="cap-prog-detail-meta">${metaRows}</div>
         <div data-prog-planes-wrap></div>
         <div class="cap-prog-detail-puestos">
@@ -5923,6 +5947,37 @@
       sel?.focus();
       sel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
+    if (editable) {
+      fillProgEmpresaEditSelect(empresaSelId, programa.empresa_capacitadora_id).catch(console.error);
+      const empresaWrap = containerEl.querySelector(`[data-prog-empresa-wrap="${programa.id}"]`);
+      containerEl.querySelectorAll(`[data-prog-tipo-edit="${programa.id}"] input[type="radio"]`).forEach((inp) => {
+        inp.addEventListener("change", () => {
+          empresaWrap?.classList.toggle("cap-hidden", inp.value !== "externo");
+        });
+      });
+    }
+  }
+
+  let progEmpresasEditCache = null;
+  async function fillProgEmpresaEditSelect(selectId, selectedId) {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    if (!progEmpresasEditCache) {
+      try {
+        const data = await fetchJson(`${API}/empresas-capacitadoras`);
+        progEmpresasEditCache = data.empresas_capacitadoras || data.empresas || [];
+      } catch (e) {
+        console.error(e);
+        progEmpresasEditCache = [];
+      }
+    }
+    const options = ['<option value="">— Seleccionar empresa —</option>'];
+    progEmpresasEditCache.forEach((it) => {
+      const label = it.codigo ? `${it.codigo} — ${it.nombre}` : it.nombre;
+      const selected = String(it.id) === String(selectedId) ? " selected" : "";
+      options.push(`<option value="${it.id}"${selected}>${escapeHtml(label)}</option>`);
+    });
+    sel.innerHTML = options.join("");
   }
 
   function escapeHtml(value) {
@@ -6349,6 +6404,32 @@
           await selectPrograma(id, { resetEditMode: false });
         } catch (err) {
           setFormError(`cap-prog-nombre-error-${id}`, err.message);
+        }
+        return;
+      }
+      const guardarDetalleBtn = ev.target.closest("[data-prog-guardar-detalle]");
+      if (guardarDetalleBtn) {
+        ev.stopPropagation();
+        const id = Number(guardarDetalleBtn.dataset.progGuardarDetalle);
+        setFormError(`cap-prog-detalle-error-${id}`, "");
+        const tipo = document.querySelector(`[data-prog-tipo-edit="${id}"] input[type="radio"]:checked`)?.value || "interno";
+        const descripcion = (document.getElementById(`cap-prog-desc-edit-${id}`)?.value || "").trim();
+        const body = { tipo, descripcion };
+        if (tipo === "externo") {
+          const empId = document.getElementById(`cap-prog-empresa-edit-${id}`)?.value || "";
+          if (!empId) {
+            setFormError(`cap-prog-detalle-error-${id}`, "Seleccioná la empresa externa del programa");
+            return;
+          }
+          body.empresa_capacitadora_id = Number(empId);
+        } else {
+          body.empresa_capacitadora_id = null;
+        }
+        try {
+          await putJson(`${API}/programas/${id}`, body);
+          await selectPrograma(id, { resetEditMode: false });
+        } catch (err) {
+          setFormError(`cap-prog-detalle-error-${id}`, err.message);
         }
         return;
       }
