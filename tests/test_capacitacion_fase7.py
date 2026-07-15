@@ -17,7 +17,10 @@ from gos.modulos.capacitacion.models import (
     ProgramaPuesto,
     Puesto,
 )
-from gos.modulos.capacitacion.services.export_service import exportar_matriz_analitica_excel
+from gos.modulos.capacitacion.services.export_service import (
+    DATOS_INICIO,
+    exportar_matriz_analitica_excel,
+)
 
 
 def test_export_matriz_analitica_tabla(app):
@@ -28,12 +31,14 @@ def test_export_matriz_analitica_tabla(app):
         buf = exportar_matriz_analitica_excel(emp.id, vista="tabla", anio=2026)
         wb = openpyxl.load_workbook(BytesIO(buf.getvalue()))
         assert wb.active.title == "Capacitaciones"
-        assert wb.active.cell(1, 1).value == "Planes:"
-        assert wb.active.cell(2, 1).value == "Personas"
+        # La marca (logo + títulos) ocupa las primeras filas; los datos arrancan en DATOS_INICIO.
+        assert wb.active.cell(1, 3).value == "Green Oil Services"
+        assert wb.active.cell(DATOS_INICIO, 1).value == "Planes:"
+        assert wb.active.cell(DATOS_INICIO + 1, 1).value == "Personas"
 
         buf2 = exportar_matriz_analitica_excel(emp.id, vista="tabla", anio=2026, agrupar_por="puesto")
         wb2 = openpyxl.load_workbook(BytesIO(buf2.getvalue()))
-        assert wb2.active.cell(2, 1).value == "Puestos"
+        assert wb2.active.cell(DATOS_INICIO + 1, 1).value == "Puestos"
 
 
 def test_puesto_con_sector(auth_client, app):
