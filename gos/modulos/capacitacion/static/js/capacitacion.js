@@ -5627,9 +5627,6 @@
     const badgeClass = p.tipo === "externo" ? "cap-badge--yellow" : "cap-badge--blue";
     const expanded = p.id === programaSeleccionadoId;
     const desc = (p.descripcion || "").trim();
-    const empresaExt = p.tipo === "externo" && p.empresa_capacitadora_nombre
-      ? `<p class="cap-prog-card-empresa"><i class="bi bi-building"></i> ${escapeHtml(p.empresa_capacitadora_nombre)}</p>`
-      : "";
     return `
     <article class="cap-prog-card${expanded ? " cap-prog-card--expanded" : ""}" data-programa-id="${p.id}">
       <div class="cap-prog-card-summary" role="button" tabindex="0" aria-expanded="${expanded}">
@@ -5643,7 +5640,6 @@
           <span><i class="bi bi-person-badge"></i> ${p.puestos_count || 0} puestos</span>
         </div>
         ${desc ? `<p class="cap-prog-card-desc">${escapeHtml(desc)}</p>` : ""}
-        ${empresaExt}
         <div class="cap-prog-card-actions">
           <button type="button" class="cap-btn cap-btn--primary cap-btn--sm" data-prog-toggle="${p.id}">
             ${expanded ? "Cerrar" : "Abrir"}
