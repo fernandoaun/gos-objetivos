@@ -79,6 +79,7 @@ def ensure_capacitacion_schema() -> None:
             conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {coldef}"))
     _migrar_clasificacion_cursos()
     _migrar_estructura_programas()
+    _reparar_cursos_volcados_por_migracion()
     _migrar_sector_puesto()
     _migrar_centros_texto()
 
@@ -143,13 +144,15 @@ def _migrar_clasificacion_cursos() -> None:
 
 
 def _migrar_estructura_programas() -> None:
-    """Convierte programas legados (puesto + requisitos) a Programa→Plan→Cursos."""
+    """Asegura tipo, puestos y un plan vacío en programas legados.
+
+    No copia cursos desde requisitos: eso contaminaba todos los programas que
+    compartían puestos cada vez que arrancaba la app.
+    """
     from gos.modulos.capacitacion.models import (
-        PlanCurso,
         ProgramaCapacitacion,
         ProgramaPlan,
         ProgramaPuesto,
-        RequisitoFormacion,
     )
 
     cambios = False
@@ -161,36 +164,33 @@ def _migrar_estructura_programas() -> None:
         puestos_ids = {pp.puesto_id for pp in programa.puestos_asignados.all()}
         if programa.puesto_id and programa.puesto_id not in puestos_ids:
             db.session.add(ProgramaPuesto(programa_id=programa.id, puesto_id=programa.puesto_id))
-            puestos_ids.add(programa.puesto_id)
             cambios = True
 
-        if not puestos_ids:
-            continue
-
-        plan = programa.planes.order_by(ProgramaPlan.orden).first()
-        if not plan:
-            plan = ProgramaPlan(programa_id=programa.id, nombre="General", orden=1)
-            db.session.add(plan)
-            db.session.flush()
-            cambios = True
-
-        cursos_en_plan = {pc.curso_id for pc in plan.cursos.all()}
-        requisitos = RequisitoFormacion.query.filter(
-            RequisitoFormacion.empresa_id == programa.empresa_id,
-            RequisitoFormacion.puesto_id.in_(puestos_ids),
-            RequisitoFormacion.curso_id.isnot(None),
-        ).all()
-        orden = len(cursos_en_plan)
-        for req in requisitos:
-            if req.curso_id in cursos_en_plan:
-                continue
-            orden += 1
-            db.session.add(PlanCurso(plan_id=plan.id, curso_id=req.curso_id, orden=orden))
-            cursos_en_plan.add(req.curso_id)
+        if not programa.planes.order_by(ProgramaPlan.orden).first():
+            db.session.add(ProgramaPlan(programa_id=programa.id, nombre="General", orden=1))
             cambios = True
 
     if cambios:
         db.session.commit()
+
+
+def _reparar_cursos_volcados_por_migracion() -> None:
+    """One-shot: quita cursos auto-copiados el 2026-07-17 por la migración defectuosa.
+
+    Conserva los PlanCurso anteriores a esa fecha (asignación manual real).
+    """
+    from datetime import datetime
+
+    from gos.modulos.capacitacion.models import PlanCurso
+
+    cutoff = datetime(2026, 7, 17, 0, 0, 0)
+    contaminados = PlanCurso.query.filter(PlanCurso.created_at >= cutoff).all()
+    # Solo actuar si hubo un volcado masivo (no un alta manual aislada).
+    if len(contaminados) < 10:
+        return
+    for pc in contaminados:
+        db.session.delete(pc)
+    db.session.commit()
 
 
 def _migrar_sector_puesto() -> None:
