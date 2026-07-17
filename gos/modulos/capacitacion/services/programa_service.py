@@ -224,9 +224,6 @@ def actualizar_programa(empresa_id: int, programa_id: int, data: dict) -> dict:
             )
         else:
             programa.empresa_capacitadora_id = None
-    if programa.tipo == "externo" and not programa.empresa_capacitadora_id:
-        if "tipo" in data or "empresa_capacitadora_id" in data:
-            raise ValueError("Seleccioná la empresa externa del programa")
     if "estado" in data:
         estado = (data.get("estado") or "").strip().lower()
         if estado not in ESTADOS_PROGRAMA:
@@ -427,12 +424,13 @@ def crear_encuentro(empresa_id: int, data: dict) -> dict:
         origen = "interna"
     empresa_cap_id = data.get("empresa_capacitadora_id") or data.get("empresa_externa_id") or None
     if origen == "externa":
-        if not empresa_cap_id:
-            raise ValueError("Seleccioná la empresa externa para cronogramas externos")
-        if not EmpresaCapacitadora.query.filter_by(
+        # La empresa que dicta el curso se define al cerrar/ejecutar el cronograma.
+        if empresa_cap_id and not EmpresaCapacitadora.query.filter_by(
             id=empresa_cap_id, empresa_id=empresa_id, activo=True
         ).first():
             raise ValueError("Empresa capacitadora no válida")
+        if not empresa_cap_id:
+            empresa_cap_id = None
     else:
         empresa_cap_id = None
 
@@ -720,6 +718,21 @@ def cerrar_cronograma(empresa_id: int, encuentro_id: int, data: dict) -> dict:
     fecha_real = _parse_date(data.get("fecha_realizacion")) or date.today()
     enc.fecha_realizacion = fecha_real
 
+    es_externo = _encuentro_es_externo(enc)
+    empresa_cap_id = data.get("empresa_capacitadora_id") or data.get("empresa_externa_id")
+    if empresa_cap_id is None and "empresa_capacitadora_id" not in data and "empresa_externa_id" not in data:
+        empresa_cap_id = enc.empresa_capacitadora_id
+    if es_externo:
+        if not empresa_cap_id:
+            raise ValueError("Seleccioná la empresa externa que dictó el curso")
+        if not EmpresaCapacitadora.query.filter_by(
+            id=empresa_cap_id, empresa_id=empresa_id, activo=True
+        ).first():
+            raise ValueError("Empresa capacitadora no válida")
+        enc.empresa_capacitadora_id = int(empresa_cap_id)
+    elif "empresa_capacitadora_id" in data or "empresa_externa_id" in data:
+        enc.empresa_capacitadora_id = None
+
     if "capacitador" in data or "instructor" in data:
         enc.instructor = (data.get("capacitador") or data.get("instructor") or "").strip() or None
     if "lugar" in data:
@@ -980,15 +993,25 @@ def _ensure_requisito(empresa_id: int, puesto_id: int, curso_id: int) -> None:
 def _validar_empresa_capacitadora_programa(
     empresa_id: int, tipo: str, empresa_cap_id
 ) -> int | None:
+    """Opcional en el programa: la empresa se define al ejecutar el cronograma."""
     if tipo != "externo":
         return None
     if not empresa_cap_id:
-        raise ValueError("Seleccioná la empresa externa del programa")
+        return None
     if not EmpresaCapacitadora.query.filter_by(
         id=empresa_cap_id, empresa_id=empresa_id, activo=True
     ).first():
         raise ValueError("Empresa capacitadora no válida")
     return int(empresa_cap_id)
+
+
+def _encuentro_es_externo(enc: EncuentroCapacitacion) -> bool:
+    origen = (enc.origen or "").strip().lower()
+    if origen.startswith("extern"):
+        return True
+    if enc.programa and (enc.programa.tipo or "").strip().lower() == "externo":
+        return True
+    return False
 
 
 def _parse_id_list(raw) -> list[int]:
@@ -1027,7 +1050,10 @@ def _encuentro_dict(e: EncuentroCapacitacion) -> dict:
         "instructor": e.instructor,
         "instructor_id": e.instructor_id,
         "origen": e.origen,
-        "tipo": "externo" if (e.origen or "").startswith("extern") else "interno",
+        "tipo": "externo" if (
+            (e.origen or "").startswith("extern")
+            or (e.programa and (e.programa.tipo or "").strip().lower() == "externo")
+        ) else "interno",
         "empresa_capacitadora_id": e.empresa_capacitadora_id,
         "empresa_capacitadora_nombre": emp_cap.nombre if emp_cap else None,
         "estado": e.estado,

@@ -184,60 +184,38 @@
           </div>
         </div>
 
-        <div class="cap-form-row cap-hidden" id="cap-enc-empresa-row">
-          <div>
-            <label class="cap-label" for="cap-enc-empresa">3. Empresa externa *</label>
-            <div class="cap-input-group">
-              <select class="cap-input" id="cap-enc-empresa" name="empresa_capacitadora_id" disabled>
-                <option value="">— Seleccionar empresa —</option>
-              </select>
-              <button type="button" class="cap-btn cap-btn--icon" id="cap-enc-empresa-add" title="Agregar empresa">
-                <i class="bi bi-plus-lg"></i>
-              </button>
-            </div>
-            <div class="cap-quick-form cap-hidden" id="cap-enc-empresa-quick">
-              <p class="cap-quick-form-title">Nueva empresa capacitadora</p>
-              <input class="cap-input" id="cap-enc-empresa-quick-nombre" placeholder="Nombre de la empresa" maxlength="200">
-              <div class="cap-form-actions">
-                <button type="button" class="cap-btn cap-btn--ghost" id="cap-enc-empresa-quick-cancel">Cancelar</button>
-                <button type="button" class="cap-btn cap-btn--primary" id="cap-enc-empresa-quick-save">Guardar</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <div class="cap-form-row">
           <div>
-            <label class="cap-label" for="cap-enc-plan">4. Plan *</label>
+            <label class="cap-label" for="cap-enc-plan">3. Plan *</label>
             <select class="cap-input" id="cap-enc-plan" name="plan_id" required disabled>
               <option value="">— Seleccioná el programa y tipo —</option>
             </select>
           </div>
         </div>
 
-        <h3 class="cap-subtitle">5. Puestos convocados</h3>
+        <h3 class="cap-subtitle">4. Puestos convocados</h3>
         <div id="cap-enc-puestos" class="cap-check-grid"><p class="cap-empty">Cargando puestos...</p></div>
 
-        <h3 class="cap-subtitle">6. Personas a capacitar</h3>
+        <h3 class="cap-subtitle">5. Personas a capacitar</h3>
         <div class="cap-enc-personas-toolbar">
           <button type="button" class="cap-btn cap-btn--sm cap-btn--ghost" id="cap-enc-sel-todos">Seleccionar todas</button>
           <button type="button" class="cap-btn cap-btn--sm cap-btn--ghost" id="cap-enc-sel-ninguno">Quitar todas</button>
           <span class="cap-muted" id="cap-enc-personas-count"></span>
         </div>
         <div id="cap-enc-personas" class="cap-check-grid cap-check-grid--scroll">
-          <p class="cap-empty">Seleccioná al menos un puesto en el paso 5</p>
+          <p class="cap-empty">Seleccioná al menos un puesto en el paso 4</p>
         </div>
 
         <div class="cap-form-row cap-form-row--2 cap-mt">
           <div>
-            <label class="cap-label" for="cap-enc-curso">7. Curso *</label>
+            <label class="cap-label" for="cap-enc-curso">6. Curso *</label>
             <select class="cap-input" id="cap-enc-curso" name="curso_id" required disabled>
               <option value="">— Seleccioná un plan primero —</option>
             </select>
             <div class="cap-curso-meta cap-hidden" id="cap-enc-curso-meta"></div>
           </div>
           <div>
-            <label class="cap-label" for="cap-enc-fecha">8. Mes programado</label>
+            <label class="cap-label" for="cap-enc-fecha">7. Mes programado</label>
             <input class="cap-input" id="cap-enc-fecha" name="fecha" type="month">
             <p class="cap-muted">Se programa el mes en que se dictará el curso. El día exacto se registra al cerrar el cronograma.</p>
           </div>
@@ -355,9 +333,10 @@
                 </div>
               </div>
             </div>
-            <div id="cap-prog-empresa-wrap" class="cap-form-row cap-hidden">
+            <div id="cap-prog-empresa-wrap" class="cap-form-row cap-hidden" aria-hidden="true">
               <div>
-                <label class="cap-label" for="cap-prog-empresa">Empresa externa *</label>
+                <label class="cap-label" for="cap-prog-empresa">Empresa externa</label>
+                <p class="cap-muted">Se define al cerrar el cronograma, el día en que se dicta el curso.</p>
                 <div class="cap-input-group">
                   <select class="cap-input" id="cap-prog-empresa" name="empresa_capacitadora_id">
                     <option value="">— Seleccionar empresa —</option>
@@ -989,6 +968,28 @@
           <div>
             <label class="cap-label" for="cap-cierre-link">Link final</label>
             <input class="cap-input" id="cap-cierre-link" type="url">
+          </div>
+        </div>
+        <div class="cap-form-row cap-mb cap-hidden" id="cap-cierre-empresa-row">
+          <div>
+            <label class="cap-label" for="cap-cierre-empresa">Empresa externa *</label>
+            <div class="cap-input-group">
+              <select class="cap-input" id="cap-cierre-empresa" name="empresa_capacitadora_id">
+                <option value="">— Seleccionar empresa —</option>
+              </select>
+              <button type="button" class="cap-btn cap-btn--icon" id="cap-cierre-empresa-add" title="Agregar empresa">
+                <i class="bi bi-plus-lg"></i>
+              </button>
+            </div>
+            <div class="cap-quick-form cap-hidden" id="cap-cierre-empresa-quick">
+              <p class="cap-quick-form-title">Nueva empresa capacitadora</p>
+              <input class="cap-input" id="cap-cierre-empresa-quick-nombre" placeholder="Nombre de la empresa" maxlength="200">
+              <div class="cap-form-actions">
+                <button type="button" class="cap-btn cap-btn--ghost" id="cap-cierre-empresa-quick-cancel">Cancelar</button>
+                <button type="button" class="cap-btn cap-btn--primary" id="cap-cierre-empresa-quick-save">Guardar</button>
+              </div>
+            </div>
+            <p class="cap-muted">Indicá qué empresa dictó el curso el día de la realización.</p>
           </div>
         </div>
         <div class="cap-form-row cap-form-row--2 cap-mb">

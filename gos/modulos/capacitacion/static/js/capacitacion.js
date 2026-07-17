@@ -2912,27 +2912,10 @@
     return Array.from(tipos);
   }
 
-  function encEmpresasDisponibles(nombre, tipo) {
-    const seen = new Map();
-    encProgramasViables(encProgramasByNombre(nombre))
-      .filter((p) => (p.tipo || "interno") === tipo)
-      .forEach((p) => {
-        if (!p.empresa_capacitadora_id) return;
-        seen.set(p.empresa_capacitadora_id, {
-          id: p.empresa_capacitadora_id,
-          nombre: p.empresa_capacitadora_nombre || `Empresa #${p.empresa_capacitadora_id}`,
-        });
-      });
-    return Array.from(seen.values()).sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
-  }
-
-  function resolveEncPrograma(nombre, tipo, empresaId) {
-    let items = encProgramasViables(encProgramasByNombre(nombre)).filter(
+  function resolveEncPrograma(nombre, tipo) {
+    const items = encProgramasViables(encProgramasByNombre(nombre)).filter(
       (p) => (p.tipo || "interno") === tipo
     );
-    if (tipo === "externo") {
-      items = items.filter((p) => String(p.empresa_capacitadora_id) === String(empresaId));
-    }
     return items[0] || null;
   }
 
@@ -2940,12 +2923,7 @@
     const nombre = document.getElementById("cap-enc-programa")?.value || "";
     const tipo = document.getElementById("cap-enc-tipo")?.value || "";
     if (!nombre || !tipo) return null;
-    if (tipo === "externo") {
-      const empresaId = document.getElementById("cap-enc-empresa")?.value;
-      if (!empresaId) return null;
-      return resolveEncPrograma(nombre, tipo, empresaId);
-    }
-    return resolveEncPrograma(nombre, tipo, null);
+    return resolveEncPrograma(nombre, tipo);
   }
 
   async function ensureEncProgramaDetalle() {
@@ -3013,25 +2991,6 @@
     }
   }
 
-  function fillEncEmpresaSelect(nombre, tipo, selectedEmpresaId = "") {
-    const sel = document.getElementById("cap-enc-empresa");
-    if (!sel) return;
-    const empresas = tipo === "externo" ? encEmpresasDisponibles(nombre, tipo) : [];
-    sel.innerHTML = '<option value="">— Seleccionar empresa —</option>';
-    empresas.forEach((e) => {
-      const opt = document.createElement("option");
-      opt.value = e.id;
-      opt.textContent = e.nombre;
-      sel.appendChild(opt);
-    });
-    sel.disabled = tipo !== "externo" || !nombre || empresas.length === 0;
-    if (selectedEmpresaId && empresas.some((e) => String(e.id) === String(selectedEmpresaId))) {
-      sel.value = String(selectedEmpresaId);
-    } else if (empresas.length === 1) {
-      sel.value = String(empresas[0].id);
-    }
-  }
-
   function fillEncPlanSelect(selectedPlanId = "") {
     const sel = document.getElementById("cap-enc-plan");
     if (!sel) return;
@@ -3052,29 +3011,11 @@
     }
   }
 
-  function toggleEncEmpresaRow() {
-    const tipo = document.getElementById("cap-enc-tipo")?.value;
-    const row = document.getElementById("cap-enc-empresa-row");
-    const sel = document.getElementById("cap-enc-empresa");
-    if (!row) return;
-    const show = tipo === "externo";
-    row.classList.toggle("cap-hidden", !show);
-    if (sel) sel.required = show;
-  }
-
   function resetEncCascadeFrom(level) {
     if (level === "programa") {
       fillEncTipoSelect("");
-      fillEncEmpresaSelect("", "");
       fillEncPlanSelect();
-      toggleEncEmpresaRow();
     } else if (level === "tipo") {
-      const nombre = document.getElementById("cap-enc-programa")?.value || "";
-      const tipo = document.getElementById("cap-enc-tipo")?.value || "";
-      fillEncEmpresaSelect(nombre, tipo);
-      fillEncPlanSelect();
-      toggleEncEmpresaRow();
-    } else if (level === "empresa") {
       fillEncPlanSelect();
     }
     if (level !== "plan") {
@@ -3095,9 +3036,7 @@
   function onEncProgramaChange() {
     const nombre = document.getElementById("cap-enc-programa")?.value || "";
     fillEncTipoSelect(nombre);
-    fillEncEmpresaSelect("", "");
     fillEncPlanSelect();
-    toggleEncEmpresaRow();
     encPuestosSeleccionados = new Set();
     const cursoSel = document.getElementById("cap-enc-curso");
     if (cursoSel) {
@@ -3114,8 +3053,6 @@
   function onEncTipoChange() {
     const nombre = document.getElementById("cap-enc-programa")?.value || "";
     const tipo = document.getElementById("cap-enc-tipo")?.value || "";
-    fillEncEmpresaSelect(nombre, tipo);
-    toggleEncEmpresaRow();
     fillEncPlanSelect();
     encPuestosSeleccionados = new Set();
     const cursoSel = document.getElementById("cap-enc-curso");
@@ -3128,19 +3065,10 @@
     loadEncPersonas().catch(console.error);
     const origenSel = document.getElementById("cap-enc-origen");
     if (origenSel) origenSel.value = tipo === "externo" ? "externa" : "interna";
-    if (tipo === "interno" && nombre) {
+    if (nombre && tipo) {
       fillEncPlanSelect();
       if (document.getElementById("cap-enc-plan")?.value) onEncPlanChange().catch(console.error);
-    } else if (tipo === "externo" && document.getElementById("cap-enc-empresa")?.value) {
-      onEncEmpresaChange();
     }
-  }
-
-  function onEncEmpresaChange() {
-    resetEncCascadeFrom("empresa");
-    fillEncPlanSelect();
-    const planSel = document.getElementById("cap-enc-plan");
-    if (planSel?.value) onEncPlanChange().catch(console.error);
   }
 
   async function onEncPlanChange() {
@@ -3251,7 +3179,7 @@
 
       encPersonasCache = [];
 
-      el.innerHTML = '<p class="cap-empty">Seleccioná un plan (paso 4) para continuar</p>';
+      el.innerHTML = '<p class="cap-empty">Seleccioná un plan (paso 3) para continuar</p>';
 
       if (countEl) countEl.textContent = "";
 
@@ -3267,7 +3195,7 @@
 
       encPersonasCache = [];
 
-      el.innerHTML = '<p class="cap-empty">Seleccioná al menos un puesto en el paso 5</p>';
+      el.innerHTML = '<p class="cap-empty">Seleccioná al menos un puesto en el paso 4</p>';
 
       if (countEl) countEl.textContent = "";
 
@@ -3641,11 +3569,7 @@
 
 
   function closeEncQuickForms() {
-
-    togglePanel("cap-enc-empresa-quick", false);
-
     togglePanel("cap-enc-instructor-quick", false);
-
   }
 
 
@@ -3759,10 +3683,6 @@
       fillEncProgramaSelect(programa.nombre);
       document.getElementById("cap-enc-programa").value = programa.nombre;
       fillEncTipoSelect(programa.nombre, tipo);
-      toggleEncEmpresaRow();
-      if (tipo === "externo") {
-        fillEncEmpresaSelect(programa.nombre, tipo, data.empresa_capacitadora_id || programa.empresa_capacitadora_id);
-      }
       fillEncPlanSelect(data.plan_id);
       await onEncPlanChange();
       if (!encPuestosSeleccionados.size && programa.puestos?.length) {
@@ -3777,10 +3697,6 @@
       fillEncProgramaSelect(data.programa_nombre);
       document.getElementById("cap-enc-programa").value = data.programa_nombre;
       fillEncTipoSelect(data.programa_nombre, tipo);
-      toggleEncEmpresaRow();
-      if (tipo === "externo") {
-        fillEncEmpresaSelect(data.programa_nombre, tipo, data.empresa_capacitadora_id);
-      }
       fillEncPlanSelect(data.plan_id);
       await onEncPlanChange();
       renderEncPuestos();
@@ -3825,8 +3741,6 @@
     setEncFormVal("cap-enc-hora-fin", formatTimeInput(data.hora_fin));
 
     setEncFormVal("cap-enc-origen", data.origen || "");
-
-    setEncFormVal("cap-enc-empresa", data.empresa_capacitadora_id || "");
 
     setEncFormVal("cap-enc-instructor", data.instructor_id || "");
 
@@ -4016,7 +3930,6 @@
 
     document.getElementById("cap-enc-programa")?.addEventListener("change", () => onEncProgramaChange());
     document.getElementById("cap-enc-tipo")?.addEventListener("change", () => onEncTipoChange());
-    document.getElementById("cap-enc-empresa")?.addEventListener("change", () => onEncEmpresaChange());
     document.getElementById("cap-enc-plan")?.addEventListener("change", () => onEncPlanChange().catch(console.error));
     document.getElementById("cap-enc-curso")?.addEventListener("change", onEncCursoChange);
     document.getElementById("cap-enc-fecha")?.addEventListener("change", updateEncFechaFin);
@@ -4026,79 +3939,12 @@
       e.target.dataset.userEdited = "1";
     });
 
-    document.getElementById("cap-enc-empresa-add")?.addEventListener("click", () => {
-
-      togglePanel("cap-enc-instructor-quick", false);
-
-      togglePanel("cap-enc-empresa-quick", true);
-
-      document.getElementById("cap-enc-empresa-quick-nombre")?.focus();
-
-    });
-
     document.getElementById("cap-enc-instructor-add")?.addEventListener("click", () => {
-
-      togglePanel("cap-enc-empresa-quick", false);
-
       togglePanel("cap-enc-instructor-quick", true);
-
       document.getElementById("cap-enc-instructor-quick-nombre")?.focus();
-
     });
-
-    document.getElementById("cap-enc-empresa-quick-cancel")?.addEventListener("click", () => togglePanel("cap-enc-empresa-quick", false));
 
     document.getElementById("cap-enc-instructor-quick-cancel")?.addEventListener("click", () => togglePanel("cap-enc-instructor-quick", false));
-
-    document.getElementById("cap-enc-empresa-quick-save")?.addEventListener("click", async () => {
-
-      const nombre = document.getElementById("cap-enc-empresa-quick-nombre")?.value.trim();
-
-      if (!nombre) {
-
-        setFormError("cap-encuentro-form-error", "Indicá el nombre de la empresa capacitadora");
-
-        return;
-
-      }
-
-      try {
-
-        const resolution = await resolveSimilarBeforeCreate({ tipo: "empresa_capacitadora", nombre });
-
-        if (resolution.action === "cancel") return;
-
-        if (resolution.action === "use") {
-
-          appendEncSelectOption("cap-enc-empresa", resolution.item);
-
-          document.getElementById("cap-enc-empresa-quick-nombre").value = "";
-
-          togglePanel("cap-enc-empresa-quick", false);
-
-          setFormError("cap-encuentro-form-error", "");
-
-          return;
-
-        }
-
-        const data = await postJson(`${API}/empresas-capacitadoras`, { nombre });
-
-        appendEncSelectOption("cap-enc-empresa", data.empresa_capacitadora);
-
-        document.getElementById("cap-enc-empresa-quick-nombre").value = "";
-
-        togglePanel("cap-enc-empresa-quick", false);
-
-        setFormError("cap-encuentro-form-error", "");
-
-      } catch (err) {
-
-        setFormError("cap-encuentro-form-error", err.message);
-
-      }
-
-    });
 
     document.getElementById("cap-enc-instructor-quick-save")?.addEventListener("click", async () => {
 
@@ -4180,11 +4026,12 @@
 
       const programa = getEncProgramaActual();
       if (!programa) {
-        setFormError("cap-encuentro-form-error", "Completá programa, tipo y empresa (si es externo)");
+        setFormError("cap-encuentro-form-error", "Completá programa y tipo");
         return;
       }
       body.programa_id = programa.id;
       body.tipo = document.getElementById("cap-enc-tipo")?.value || programa.tipo || "interno";
+      delete body.empresa_capacitadora_id;
 
       if (!body.curso_id) {
 
@@ -4200,10 +4047,6 @@
       }
 
       body.puesto_ids = getEncPuestosSeleccionados();
-      if (body.tipo === "externo" && !body.empresa_capacitadora_id) {
-        setFormError("cap-encuentro-form-error", "Seleccioná la empresa externa");
-        return;
-      }
       // Planificación por mes: el input es YYYY-MM; se guarda el día 1 del mes.
       const mesVal = document.getElementById("cap-enc-fecha")?.value;
       if (mesVal) {
@@ -5865,13 +5708,9 @@
 
   function renderProgramaDetalleEnCard(programa, containerEl, editable = false) {
     const tipoTxt = programa.tipo === "externo" ? "Externo" : "Interno";
-    const empresaSelId = `cap-prog-empresa-edit-${programa.id}`;
     const metaRows = [
       programa.codigo ? `<div class="cap-prog-detail-row"><span class="cap-prog-detail-label">Código</span><span>${escapeHtml(programa.codigo)}</span></div>` : "",
       editable ? "" : `<div class="cap-prog-detail-row"><span class="cap-prog-detail-label">Tipo</span><span>${tipoTxt}</span></div>`,
-      !editable && programa.empresa_capacitadora_nombre
-        ? `<div class="cap-prog-detail-row"><span class="cap-prog-detail-label">Empresa</span><span>${escapeHtml(programa.empresa_capacitadora_nombre)}</span></div>`
-        : "",
       programa.estado
         ? `<div class="cap-prog-detail-row"><span class="cap-prog-detail-label">Estado</span><span>${escapeHtml(programaEstadoLabel(programa.estado))}</span></div>`
         : "",
@@ -5885,10 +5724,7 @@
             <label class="cap-radio"><input type="radio" name="cap-prog-tipo-edit-${programa.id}" value="interno" ${esExterno ? "" : "checked"}> Interno</label>
             <label class="cap-radio"><input type="radio" name="cap-prog-tipo-edit-${programa.id}" value="externo" ${esExterno ? "checked" : ""}> Externo</label>
           </div>
-        </div>
-        <div class="cap-prog-detail-edit-field${esExterno ? "" : " cap-hidden"}" data-prog-empresa-wrap="${programa.id}">
-          <label class="cap-label" for="${empresaSelId}">Empresa capacitadora</label>
-          <select class="cap-input" id="${empresaSelId}"><option value="">— Seleccionar empresa —</option></select>
+          <p class="cap-muted">Si el programa es externo, la empresa que lo dicta se indica al cerrar el cronograma.</p>
         </div>
         <div class="cap-prog-detail-edit-field">
           <label class="cap-label" for="cap-prog-desc-edit-${programa.id}">Descripción</label>
@@ -5947,37 +5783,6 @@
       sel?.focus();
       sel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
-    if (editable) {
-      fillProgEmpresaEditSelect(empresaSelId, programa.empresa_capacitadora_id).catch(console.error);
-      const empresaWrap = containerEl.querySelector(`[data-prog-empresa-wrap="${programa.id}"]`);
-      containerEl.querySelectorAll(`[data-prog-tipo-edit="${programa.id}"] input[type="radio"]`).forEach((inp) => {
-        inp.addEventListener("change", () => {
-          empresaWrap?.classList.toggle("cap-hidden", inp.value !== "externo");
-        });
-      });
-    }
-  }
-
-  let progEmpresasEditCache = null;
-  async function fillProgEmpresaEditSelect(selectId, selectedId) {
-    const sel = document.getElementById(selectId);
-    if (!sel) return;
-    if (!progEmpresasEditCache) {
-      try {
-        const data = await fetchJson(`${API}/empresas-capacitadoras`);
-        progEmpresasEditCache = data.empresas_capacitadoras || data.empresas || [];
-      } catch (e) {
-        console.error(e);
-        progEmpresasEditCache = [];
-      }
-    }
-    const options = ['<option value="">— Seleccionar empresa —</option>'];
-    progEmpresasEditCache.forEach((it) => {
-      const label = it.codigo ? `${it.codigo} — ${it.nombre}` : it.nombre;
-      const selected = String(it.id) === String(selectedId) ? " selected" : "";
-      options.push(`<option value="${it.id}"${selected}>${escapeHtml(label)}</option>`);
-    });
-    sel.innerHTML = options.join("");
   }
 
   function escapeHtml(value) {
@@ -6214,17 +6019,14 @@
   }
 
   function toggleProgEmpresa() {
-    const tipo = document.querySelector('#cap-programa-form input[name="tipo"]:checked')?.value || "interno";
     const wrap = document.getElementById("cap-prog-empresa-wrap");
     const sel = document.getElementById("cap-prog-empresa");
     if (!wrap || !sel) return;
-    const esExterno = tipo === "externo";
-    wrap.classList.toggle("cap-hidden", !esExterno);
-    sel.required = esExterno;
-    if (!esExterno) {
-      sel.value = "";
-      togglePanel("cap-prog-empresa-quick", false);
-    }
+    // La empresa externa se define al cerrar el cronograma, no al crear el programa.
+    wrap.classList.add("cap-hidden");
+    sel.required = false;
+    sel.value = "";
+    togglePanel("cap-prog-empresa-quick", false);
     toggleProgPlanesSection();
   }
 
@@ -6414,17 +6216,7 @@
         setFormError(`cap-prog-detalle-error-${id}`, "");
         const tipo = document.querySelector(`[data-prog-tipo-edit="${id}"] input[type="radio"]:checked`)?.value || "interno";
         const descripcion = (document.getElementById(`cap-prog-desc-edit-${id}`)?.value || "").trim();
-        const body = { tipo, descripcion };
-        if (tipo === "externo") {
-          const empId = document.getElementById(`cap-prog-empresa-edit-${id}`)?.value || "";
-          if (!empId) {
-            setFormError(`cap-prog-detalle-error-${id}`, "Seleccioná la empresa externa del programa");
-            return;
-          }
-          body.empresa_capacitadora_id = Number(empId);
-        } else {
-          body.empresa_capacitadora_id = null;
-        }
+        const body = { tipo, descripcion, empresa_capacitadora_id: null };
         try {
           await putJson(`${API}/programas/${id}`, body);
           await selectPrograma(id, { resetEditMode: false });
@@ -6513,13 +6305,7 @@
       const body = formToObject(e.target);
       body.puesto_ids = selectedPuestoIds("cap-prog-puestos");
       body.tipo = e.target.querySelector('input[name="tipo"]:checked')?.value || "interno";
-      if (body.tipo === "externo" && !body.empresa_capacitadora_id) {
-        setFormError("cap-programa-form-error", "Seleccioná la empresa externa del programa");
-        return;
-      }
-      if (body.tipo === "interno") {
-        delete body.empresa_capacitadora_id;
-      }
+      delete body.empresa_capacitadora_id;
       if (!body.nombre || body.nombre === "__nuevo__") {
         setFormError("cap-programa-form-error", "Seleccioná o agregá el nombre del programa");
         return;
@@ -6573,6 +6359,7 @@
   }
 
   let asistenciaCursoMeta = { requiere_evaluacion: false, puntaje_minimo: null };
+  let asistenciaEsExterno = false;
 
   function calcEstadoAsistencia(asistio, nota) {
     if (asistio === false) return "No asistió";
@@ -6596,6 +6383,41 @@
     if (estadoEl) estadoEl.textContent = calcEstadoAsistencia(asistioBool, notaInp?.value);
   }
 
+  async function fillCierreEmpresaSelect(selectedId = "") {
+    const sel = document.getElementById("cap-cierre-empresa");
+    if (!sel) return;
+    try {
+      const data = await fetchJson(`${API}/empresas-capacitadoras`);
+      const items = data.empresas_capacitadoras || data.empresas || [];
+      sel.innerHTML = '<option value="">— Seleccionar empresa —</option>';
+      items.forEach((it) => {
+        const opt = document.createElement("option");
+        opt.value = it.id;
+        opt.textContent = it.codigo ? `${it.codigo} — ${it.nombre}` : it.nombre;
+        sel.appendChild(opt);
+      });
+      if (selectedId) sel.value = String(selectedId);
+    } catch (e) {
+      console.error(e);
+      sel.innerHTML = '<option value="">— Seleccionar empresa —</option>';
+    }
+  }
+
+  function toggleCierreEmpresaRow(show, selectedId = "") {
+    const row = document.getElementById("cap-cierre-empresa-row");
+    const sel = document.getElementById("cap-cierre-empresa");
+    if (!row) return;
+    row.classList.toggle("cap-hidden", !show);
+    if (sel) {
+      sel.required = !!show;
+      if (!show) {
+        sel.value = "";
+        togglePanel("cap-cierre-empresa-quick", false);
+      }
+    }
+    if (show) fillCierreEmpresaSelect(selectedId).catch(console.error);
+  }
+
   async function openAsistenciaModal(encuentroId) {
     asistenciaEncuentroId = encuentroId;
     const modal = document.getElementById("cap-asistencia-modal");
@@ -6607,6 +6429,8 @@
       requiere_evaluacion: !!data.curso_requiere_evaluacion,
       puntaje_minimo: data.curso_puntaje_minimo,
     };
+    asistenciaEsExterno = data.tipo === "externo" || String(data.origen || "").startsWith("extern");
+    toggleCierreEmpresaRow(asistenciaEsExterno, data.empresa_capacitadora_id || "");
     const capEl = document.getElementById("cap-cierre-capacitador");
     const lugEl = document.getElementById("cap-cierre-lugar");
     const linkEl = document.getElementById("cap-cierre-link");
@@ -6655,12 +6479,44 @@
 
   function closeAsistenciaModal() {
     asistenciaEncuentroId = null;
+    asistenciaEsExterno = false;
+    toggleCierreEmpresaRow(false);
     document.getElementById("cap-asistencia-modal")?.classList.add("cap-hidden");
   }
 
   function bindAsistenciaModal() {
     ["cap-asistencia-cerrar", "cap-asistencia-cancel", "cap-asistencia-backdrop"].forEach((id) => {
       document.getElementById(id)?.addEventListener("click", closeAsistenciaModal);
+    });
+    document.getElementById("cap-cierre-empresa-add")?.addEventListener("click", () => {
+      togglePanel("cap-cierre-empresa-quick", true);
+      document.getElementById("cap-cierre-empresa-quick-nombre")?.focus();
+    });
+    document.getElementById("cap-cierre-empresa-quick-cancel")?.addEventListener("click", () => {
+      togglePanel("cap-cierre-empresa-quick", false);
+    });
+    document.getElementById("cap-cierre-empresa-quick-save")?.addEventListener("click", async () => {
+      const nombre = document.getElementById("cap-cierre-empresa-quick-nombre")?.value.trim();
+      if (!nombre) {
+        alert("Indicá el nombre de la empresa capacitadora");
+        return;
+      }
+      try {
+        const resolution = await resolveSimilarBeforeCreate({ tipo: "empresa_capacitadora", nombre });
+        if (resolution.action === "cancel") return;
+        if (resolution.action === "use") {
+          appendEncSelectOption("cap-cierre-empresa", resolution.item);
+          document.getElementById("cap-cierre-empresa-quick-nombre").value = "";
+          togglePanel("cap-cierre-empresa-quick", false);
+          return;
+        }
+        const data = await postJson(`${API}/empresas-capacitadoras`, { nombre });
+        appendEncSelectOption("cap-cierre-empresa", data.empresa_capacitadora);
+        document.getElementById("cap-cierre-empresa-quick-nombre").value = "";
+        togglePanel("cap-cierre-empresa-quick", false);
+      } catch (err) {
+        alert(err.message);
+      }
     });
     document.getElementById("cap-asistencia-guardar")?.addEventListener("click", async () => {
       if (!asistenciaEncuentroId) return;
@@ -6683,6 +6539,11 @@
         alert("Indicá la fecha de realización del curso");
         return;
       }
+      const empresaId = document.getElementById("cap-cierre-empresa")?.value || "";
+      if (asistenciaEsExterno && !empresaId) {
+        alert("Seleccioná la empresa externa que dictó el curso");
+        return;
+      }
       const payload = {
         personas: registros,
         fecha_realizacion: fechaReal,
@@ -6690,6 +6551,9 @@
         lugar: document.getElementById("cap-cierre-lugar")?.value || null,
         link: document.getElementById("cap-cierre-link")?.value || null,
       };
+      if (asistenciaEsExterno) {
+        payload.empresa_capacitadora_id = Number(empresaId);
+      }
       try {
         const matFile = document.getElementById("cap-cierre-material")?.files?.[0];
         const resFile = document.getElementById("cap-cierre-resultados")?.files?.[0];
