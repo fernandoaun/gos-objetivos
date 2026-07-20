@@ -110,6 +110,14 @@
         <button type="button" class="hwo-period-btn" data-month="12">Dic</button>
       </div>
       <button type="button" class="hwo-toolbar-btn" id="btn-clear-date-filter">Todo</button>
+      <div class="hwo-ms-wrap" id="eq-filter-wrap">
+        <button type="button" class="hwo-ms-btn" id="eq-filter-btn" aria-haspopup="listbox" aria-expanded="false">Equipo ▾</button>
+        <div class="hwo-ms-drop" id="eq-filter-drop" role="listbox" aria-label="Filtrar por equipo"></div>
+      </div>
+      <div class="hwo-ms-wrap" id="sitprog-filter-wrap">
+        <button type="button" class="hwo-ms-btn" id="sitprog-filter-btn" aria-haspopup="listbox" aria-expanded="false">Servicio progr ▾</button>
+        <div class="hwo-ms-drop" id="sitprog-filter-drop" role="listbox" aria-label="Filtrar por servicio programado"></div>
+      </div>
       <span class="hwo-date-filter-status" id="filter-status"></span>
     </div>
 
@@ -239,6 +247,8 @@ let activeIdx  = -1;
 let activeView = 'dashboard';
 let mesCerrado = false;
 let dateFilter = { from: null, to: null, year: null, month: null };
+let equipoFilter = new Set();
+let sitProgFilter = new Set();
 let uploadTargetService = null;
 
 const SERVICE_ORDER = ['PH', 'SW', 'HWO'];
@@ -300,9 +310,107 @@ function filterRowsByDate(rows) {
   });
 }
 
+function filterRows(rows) {
+  let out = filterRowsByDate(rows);
+  if (equipoFilter.size) {
+    out = out.filter(r => equipoFilter.has(eqKey(r.centro)));
+  }
+  if (sitProgFilter.size) {
+    out = out.filter(r => sitProgFilter.has((r.sitProg || '').toString().trim()));
+  }
+  return out;
+}
+
 function buildViewFromSource(source, name, prevEqs) {
-  const rows = filterRowsByDate(source.rows || []);
+  const rows = filterRows(source.rows || []);
   return finalizeDataset({ config: { ...source.config, eqs: { ...(source.config.eqs || {}) } }, rows }, name, prevEqs);
+}
+
+function collectFilterOptions() {
+  const equipos = new Set();
+  const sitProgs = new Set();
+  for (const ds of datasets) {
+    if (ds.service === 'all' || !ds.source?.rows?.length) continue;
+    for (const r of ds.source.rows) {
+      const eq = eqKey(r.centro);
+      if (eq) equipos.add(eq);
+      const sp = (r.sitProg || '').toString().trim();
+      if (sp) sitProgs.add(sp);
+    }
+  }
+  return {
+    equipos: [...equipos].sort((a, b) => a.localeCompare(b, 'es')),
+    sitProgs: [...sitProgs].sort((a, b) => a.localeCompare(b, 'es')),
+  };
+}
+
+function renderMultiSelect(dropId, btnId, options, selected, allLabel, singular, plural) {
+  const drop = document.getElementById(dropId);
+  const btn = document.getElementById(btnId);
+  if (!drop || !btn) return;
+  const valid = new Set(options);
+  for (const v of [...selected]) {
+    if (!valid.has(v)) selected.delete(v);
+  }
+  if (!options.length) {
+    drop.innerHTML = '<div class="hwo-ms-empty">Sin opciones</div>';
+  } else {
+    drop.innerHTML = options.map(v => {
+      const checked = selected.has(v) ? ' checked' : '';
+      return `<label class="hwo-ms-item"><input type="checkbox" value="${escHtml(v)}"${checked}> ${escHtml(v)}</label>`;
+    }).join('');
+  }
+  updateMultiSelectBtn(btnId, selected, allLabel, singular, plural);
+}
+
+function updateMultiSelectBtn(btnId, selected, allLabel, singular, plural) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  const n = selected.size;
+  btn.textContent = n === 0 ? `${allLabel} ▾` : (n === 1 ? `1 ${singular} ▾` : `${n} ${plural} ▾`);
+  btn.classList.toggle('active', n > 0);
+}
+
+function refreshRowFiltersUI() {
+  const { equipos, sitProgs } = collectFilterOptions();
+  renderMultiSelect('eq-filter-drop', 'eq-filter-btn', equipos, equipoFilter, 'Equipo', 'equipo', 'equipos');
+  renderMultiSelect('sitprog-filter-drop', 'sitprog-filter-btn', sitProgs, sitProgFilter, 'Servicio progr', 'servicio', 'servicios');
+}
+
+function applyRowFilters() {
+  updateMultiSelectBtn('eq-filter-btn', equipoFilter, 'Equipo', 'equipo', 'equipos');
+  updateMultiSelectBtn('sitprog-filter-btn', sitProgFilter, 'Servicio progr', 'servicio', 'servicios');
+  const name = datasets[activeIdx]?.name;
+  refreshAllViews(name);
+  renderAll();
+}
+
+function toggleMultiSelect(wrapId) {
+  const wrap = document.getElementById(wrapId);
+  if (!wrap) return;
+  const drop = wrap.querySelector('.hwo-ms-drop');
+  const btn = wrap.querySelector('.hwo-ms-btn');
+  const willOpen = drop && !drop.classList.contains('open');
+  document.querySelectorAll('.hwo-ms-drop.open').forEach(d => d.classList.remove('open'));
+  document.querySelectorAll('.hwo-ms-btn[aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded', 'false'));
+  if (willOpen && drop) {
+    drop.classList.add('open');
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+  }
+}
+
+function onEquipoFilterChange(cb) {
+  const val = cb.value;
+  if (cb.checked) equipoFilter.add(val);
+  else equipoFilter.delete(val);
+  applyRowFilters();
+}
+
+function onSitProgFilterChange(cb) {
+  const val = cb.value;
+  if (cb.checked) sitProgFilter.add(val);
+  else sitProgFilter.delete(val);
+  applyRowFilters();
 }
 
 function sortDatasets() {
@@ -392,6 +500,10 @@ function updateDateFilterStatus() {
   if (!ds?.source) { el.textContent = ''; return; }
   const total = ds.source.rows.length;
   const shown = ds.D?.rows?.length ?? 0;
+  const extra = [];
+  if (equipoFilter.size) extra.push(`${equipoFilter.size} equipo${equipoFilter.size > 1 ? 's' : ''}`);
+  if (sitProgFilter.size) extra.push(`${sitProgFilter.size} serv. progr`);
+  const extraTxt = extra.length ? ` · filtro: ${extra.join(', ')}` : '';
   if (dateFilter.year && dateFilter.month) {
     const label = `${MONTH_NAMES[dateFilter.month]} ${dateFilter.year}`;
     const range = dateFilter.from && dateFilter.to ? ` · ${fmt(dateFilter.from)} — ${fmt(dateFilter.to)}` : '';
@@ -400,12 +512,14 @@ function updateDateFilterStatus() {
       const dataRange = bounds
         ? ` · los datos van del ${fmt(bounds.min)} al ${fmt(bounds.max)}`
         : '';
-      el.textContent = `0 de ${total} registros en ${label}${range}${dataRange}. Probá otro mes o "Todo".`;
+      el.textContent = `0 de ${total} registros en ${label}${range}${dataRange}${extraTxt}. Probá otro mes o "Todo".`;
       return;
     }
-    el.textContent = `${shown} de ${total} registros · ${label}${range}`;
+    el.textContent = `${shown} de ${total} registros · ${label}${range}${extraTxt}`;
   } else {
-    el.textContent = total ? `${total} registro${total !== 1 ? 's' : ''} · sin filtro de período` : '';
+    el.textContent = total
+      ? `${shown} de ${total} registro${total !== 1 ? 's' : ''}${extraTxt || ' · sin filtro de período'}`
+      : '';
   }
 }
 
@@ -1211,6 +1325,7 @@ function showApp(updateText, detailText) {
   if (ensureDefaultCurrentPeriodFilter()) {
     refreshAllViews(datasets[activeIdx]?.name);
   }
+  refreshRowFiltersUI();
   renderAll();
 }
 
@@ -1379,6 +1494,7 @@ async function closeDataset(idx) {
   activeIdx = Math.min(idx, datasets.length - 1);
   D = datasets[activeIdx].D;
   syncDateFilterBounds();
+  refreshRowFiltersUI();
   renderAll();
 }
 
@@ -2130,14 +2246,41 @@ async function initApp() {
     const btn = e.target.closest('[data-month]');
     if (btn) selectFilterMonth(btn.dataset.month);
   });
+  document.getElementById('eq-filter-btn')?.addEventListener('click', e => {
+    e.stopPropagation();
+    toggleMultiSelect('eq-filter-wrap');
+  });
+  document.getElementById('sitprog-filter-btn')?.addEventListener('click', e => {
+    e.stopPropagation();
+    toggleMultiSelect('sitprog-filter-wrap');
+  });
+  document.getElementById('eq-filter-drop')?.addEventListener('change', e => {
+    const cb = e.target.closest('input[type="checkbox"]');
+    if (cb) onEquipoFilterChange(cb);
+  });
+  document.getElementById('sitprog-filter-drop')?.addEventListener('change', e => {
+    const cb = e.target.closest('input[type="checkbox"]');
+    if (cb) onSitProgFilterChange(cb);
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.hwo-ms-wrap')) {
+      document.querySelectorAll('.hwo-ms-drop.open').forEach(d => d.classList.remove('open'));
+      document.querySelectorAll('.hwo-ms-btn[aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded', 'false'));
+    }
+  });
   document.getElementById('day-detail-close')?.addEventListener('click', closeDayDetail);
   document.getElementById('day-detail-backdrop')?.addEventListener('click', closeDayDetail);
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closeDayDetail();
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.hwo-ms-drop.open').forEach(d => d.classList.remove('open'));
+      document.querySelectorAll('.hwo-ms-btn[aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded', 'false'));
+      closeDayDetail();
+    }
   });
   const loaded = await loadAllFromAPI();
   if (!loaded) await renderSavedPanel();
   syncPeriodButtons();
+  refreshRowFiltersUI();
 }
 initApp();
 </script>
