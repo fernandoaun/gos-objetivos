@@ -830,9 +830,9 @@ def detalle_encuentro(empresa_id: int, encuentro_id: int) -> dict:
 def _programa_dict(p: ProgramaCapacitacion, *, detalle: bool = False) -> dict:
     puestos = []
     for pp in p.puestos_asignados.all():
-        if pp.puesto:
+        if pp.puesto and pp.puesto.activo:
             puestos.append({"id": pp.puesto_id, "nombre": pp.puesto.nombre, "codigo": pp.puesto.codigo})
-    if not puestos and p.puesto_id and p.puesto:
+    if not puestos and p.puesto_id and p.puesto and p.puesto.activo:
         puestos.append({"id": p.puesto_id, "nombre": p.puesto.nombre, "codigo": p.puesto.codigo})
 
     planes = [_plan_dict(pl, p.empresa_id) for pl in p.planes.all()]

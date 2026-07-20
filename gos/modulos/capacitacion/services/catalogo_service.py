@@ -29,12 +29,65 @@ def listar_cursos(empresa_id: int) -> list[dict]:
 
 
 def listar_puestos(empresa_id: int) -> list[dict]:
+    # Limpia del catálogo los puestos viejos sin personas (p. ej. renombres / reimport).
+    desactivar_puestos_huerfanos(empresa_id, gracia_horas=1)
     items = (
         Puesto.query.filter_by(empresa_id=empresa_id, activo=True)
         .order_by(Puesto.codigo)
         .all()
     )
-    return [_puesto_dict(p) for p in items]
+    usados = _puestos_en_uso_ids(empresa_id)
+    return [_puesto_dict(p, en_uso=p.id in usados) for p in items]
+
+
+def desactivar_puestos_huerfanos(
+    empresa_id: int, *, gracia_horas: float | None = None
+) -> int:
+    """Da de baja puestos activos sin ninguna persona activa asignada.
+
+    Si `gracia_horas` está definido, no toca puestos creados dentro de esa ventana
+    (así un alta rápida no desaparece antes de asignar personas).
+    """
+    from datetime import timedelta
+
+    from gos.models.base import utcnow
+
+    usados = _puestos_en_uso_ids(empresa_id)
+    q = Puesto.query.filter_by(empresa_id=empresa_id, activo=True)
+    if usados:
+        q = q.filter(~Puesto.id.in_(usados))
+    if gracia_horas is not None:
+        corte = utcnow() - timedelta(hours=gracia_horas)
+        # Sin created_at (datos viejos) se consideran huérfanos a limpiar.
+        q = q.filter(db.or_(Puesto.created_at.is_(None), Puesto.created_at < corte))
+    huerfanos = q.all()
+    if not huerfanos:
+        return 0
+
+    from gos.modulos.capacitacion.models import ProgramaPuesto
+
+    ids = [p.id for p in huerfanos]
+    ProgramaPuesto.query.filter(ProgramaPuesto.puesto_id.in_(ids)).delete(
+        synchronize_session=False
+    )
+    for puesto in huerfanos:
+        puesto.activo = False
+    db.session.commit()
+    return len(huerfanos)
+
+
+def _puestos_en_uso_ids(empresa_id: int) -> set[int]:
+    rows = (
+        db.session.query(Participante.puesto_id)
+        .filter(
+            Participante.empresa_id == empresa_id,
+            Participante.activo.is_(True),
+            Participante.puesto_id.isnot(None),
+        )
+        .distinct()
+        .all()
+    )
+    return {row[0] for row in rows if row[0] is not None}
 
 
 def listar_centros(empresa_id: int) -> list[dict]:
@@ -715,7 +768,16 @@ def _participante_resumen_dict(p: Participante) -> dict:
     }
 
 
-def _puesto_dict(puesto: Puesto) -> dict:
+def _puesto_dict(puesto: Puesto, *, en_uso: bool | None = None) -> dict:
+    if en_uso is None:
+        en_uso = (
+            Participante.query.filter_by(
+                empresa_id=puesto.empresa_id,
+                puesto_id=puesto.id,
+                activo=True,
+            ).count()
+            > 0
+        )
     return {
         "id": puesto.id,
         "codigo": puesto.codigo,
@@ -723,6 +785,7 @@ def _puesto_dict(puesto: Puesto) -> dict:
         "descripcion": puesto.descripcion,
         "sector_id": puesto.sector_id,
         "sector_nombre": puesto.sector.nombre if puesto.sector else None,
+        "en_uso": bool(en_uso),
     }
 
 

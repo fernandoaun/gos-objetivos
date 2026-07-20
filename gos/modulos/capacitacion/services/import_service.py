@@ -42,9 +42,10 @@ def importar_participantes_excel(empresa_id: int, file_bytes: bytes) -> dict:
     required = {"nombre", "legajo"}
     if not required.issubset(headers):
         raise ValueError(
-            "El Excel debe tener encabezados en la fila 1. Mínimo: nombre. "
+            "El Excel debe tener encabezados en la fila 1. Mínimo: nombre, legajo. "
             "Opcionales: apellido, email, centro, centro_codigo, sector, sector_codigo, "
-            "puesto, puesto_codigo, observaciones. Obligatorio: nombre, legajo"
+            "puesto, puesto_codigo, observaciones. "
+            "Si la persona ya existe (mismo legajo), solo se actualizan puesto, centro y sector."
         )
 
     legajos_existentes = {
@@ -53,6 +54,7 @@ def importar_participantes_excel(empresa_id: int, file_bytes: bytes) -> dict:
 
     creados = actualizados = omitidos = 0
     errores: list[str] = []
+    puestos_cambiaron = False
 
     for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
         if not row or all(v is None or str(v).strip() == "" for v in row):
@@ -108,6 +110,35 @@ def importar_participantes_excel(empresa_id: int, file_bytes: bytes) -> dict:
         if legajo:
             existente = Participante.query.filter_by(empresa_id=empresa_id, legajo=legajo).first()
 
+        if existente:
+            # Re-import: solo actualiza puesto / centro / sector (no pisa el resto).
+            changed = False
+            puesto_cambio = False
+            if puesto_id is not None and existente.puesto_id != puesto_id:
+                existente.puesto_id = puesto_id
+                changed = True
+                puesto_cambio = True
+                puestos_cambiaron = True
+            if centro_id is not None and existente.centro_id != centro_id:
+                existente.centro_id = centro_id
+                changed = True
+            if sector_id is not None and existente.sector_id != sector_id:
+                existente.sector_id = sector_id
+                changed = True
+            elif puesto_cambio and sector_id is None:
+                # Si el Excel trae puesto pero no sector, alinear sector del puesto.
+                from gos.modulos.capacitacion.models import Puesto
+
+                puesto = Puesto.query.filter_by(id=puesto_id, empresa_id=empresa_id).first()
+                if puesto and puesto.sector_id and existente.sector_id != puesto.sector_id:
+                    existente.sector_id = puesto.sector_id
+                    changed = True
+            if changed:
+                actualizados += 1
+            else:
+                omitidos += 1
+            continue
+
         data = {
             "nombre": nombre,
             "apellido": val("apellido") or None,
@@ -119,31 +150,27 @@ def importar_participantes_excel(empresa_id: int, file_bytes: bytes) -> dict:
             "puesto_id": puesto_id,
         }
 
-        if existente:
-            from gos.modulos.capacitacion.services.catalogo_service import actualizar_participante
+        if legajo and legajo in legajos_existentes:
+            errores.append(f"Fila {row_idx}: legajo duplicado «{legajo}»")
+            continue
+        from gos.modulos.capacitacion.services.catalogo_service import crear_participante
 
-            try:
-                actualizar_participante(empresa_id, existente.id, data)
-            except ValueError as exc:
-                errores.append(f"Fila {row_idx}: {exc}")
-                continue
-            actualizados += 1
-        else:
-            if legajo and legajo in legajos_existentes:
-                errores.append(f"Fila {row_idx}: legajo duplicado «{legajo}»")
-                continue
-            from gos.modulos.capacitacion.services.catalogo_service import crear_participante
-
-            try:
-                crear_participante(empresa_id, data)
-            except ValueError as exc:
-                errores.append(f"Fila {row_idx}: {exc}")
-                continue
-            if legajo:
-                legajos_existentes.add(legajo)
-            creados += 1
+        try:
+            crear_participante(empresa_id, data)
+        except ValueError as exc:
+            errores.append(f"Fila {row_idx}: {exc}")
+            continue
+        if legajo:
+            legajos_existentes.add(legajo)
+        creados += 1
 
     db.session.commit()
+    if puestos_cambiaron:
+        from gos.modulos.capacitacion.services.acreditacion_service import refrescar_vigencias
+        from gos.modulos.capacitacion.services.catalogo_service import desactivar_puestos_huerfanos
+
+        desactivar_puestos_huerfanos(empresa_id, gracia_horas=None)
+        refrescar_vigencias(empresa_id)
     return {"creados": creados, "actualizados": actualizados, "omitidos": omitidos, "errores": errores}
 
 

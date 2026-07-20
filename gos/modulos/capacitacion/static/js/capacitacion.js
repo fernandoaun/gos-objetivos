@@ -5793,11 +5793,15 @@
     const el = document.getElementById(containerId);
     if (!el) return;
     const selected = new Set((selectedIds || []).map(String));
-    if (!metaPuestos.length) {
-      el.innerHTML = '<p class="cap-empty">No hay puestos cargados en catálogos.</p>';
+    // Solo puestos vigentes (con personas activas) + los ya seleccionados en el programa.
+    const puestos = (metaPuestos || []).filter(
+      (p) => p.en_uso || selected.has(String(p.id))
+    );
+    if (!puestos.length) {
+      el.innerHTML = '<p class="cap-empty">No hay puestos vigentes. Asigná puestos a las personas en <strong>Personas</strong> o importá el padrón actualizado.</p>';
       return;
     }
-    el.innerHTML = metaPuestos.map((p) => `
+    el.innerHTML = puestos.map((p) => `
       <label class="cap-check">
         <input type="checkbox" value="${p.id}" ${selected.has(String(p.id)) ? "checked" : ""}>
         <span>${escapeHtml(p.nombre)}</span>
