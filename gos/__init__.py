@@ -72,12 +72,14 @@ def create_app(config_name: str | None = None) -> Flask:
             from gos.modulos.vacaciones import module_descriptor as vacaciones_descriptor
             from gos.modulos.capacitacion import module_descriptor as capacitacion_descriptor
             from gos.modulos.ralenti import module_descriptor as ralenti_descriptor
+            from gos.modulos.mantenimiento import module_descriptor as mantenimiento_descriptor
 
             modules.append(objetivos_descriptor())
             modules.append(capacitacion_descriptor())
             modules.append(hwo_descriptor())
             modules.append(vacaciones_descriptor())
             modules.append(ralenti_descriptor())
+            modules.append(mantenimiento_descriptor())
 
         modules = modulos_para_usuario(current_user, modules)
 
@@ -92,6 +94,8 @@ def create_app(config_name: str | None = None) -> Flask:
             current_module = "capacitacion"
         elif request.path.startswith("/gos/ralenti"):
             current_module = "ralenti"
+        elif request.path.startswith("/gos/mantenimiento"):
+            current_module = "mantenimiento"
 
         return {
             "gos_modules": modules,
@@ -139,12 +143,14 @@ def _register_modules(app: Flask) -> None:
     from gos.modulos.vacaciones import register as register_vacaciones
     from gos.modulos.capacitacion import register as register_capacitacion
     from gos.modulos.ralenti import register as register_ralenti
+    from gos.modulos.mantenimiento import register as register_mantenimiento
 
     register_objetivos(app)
     register_capacitacion(app)
     register_hwo(app)
     register_ralenti(app)
     register_vacaciones(app)
+    register_mantenimiento(app)
 
 
 def _register_module_access_guard(app: Flask) -> None:
@@ -164,6 +170,7 @@ def _register_module_access_guard(app: Flask) -> None:
             "hwo_static.static",
             "vacaciones_static.static",
             "ralenti_static.static",
+            "mantenimiento_static.static",
         ):
             return
 
@@ -190,6 +197,7 @@ def _register_auto_login(app: Flask) -> None:
             "hwo_static.static",
             "vacaciones_static.static",
             "ralenti_static.static",
+            "mantenimiento_static.static",
         ):
             return
         if current_user.is_authenticated:

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Mantenimiento — GOS{% endblock %}
+{% block page_title %}Mantenimiento{% endblock %}
+{% block extra_css %}
+<style>
+  .pe-content:has(.mantenimiento-shell) {
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .mantenimiento-shell {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+  }
+  .mantenimiento-frame {
+    flex: 1;
+    border: 0;
+    width: 100%;
+    min-height: calc(100vh - 120px);
+    background: var(--pe-bg);
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="mantenimiento-shell w-100">
+  <iframe class="mantenimiento-frame" src="{{ url_for('mantenimiento_main.app') }}" title="Mantenimiento"></iframe>
+</div>
+{% endblock %}

@@ -2,7 +2,7 @@
 
 from flask_login import AnonymousUserMixin
 
-MODULO_CODES = ("objetivos", "capacitacion", "hwo", "vacaciones", "ralenti")
+MODULO_CODES = ("objetivos", "capacitacion", "hwo", "vacaciones", "ralenti", "mantenimiento")
 
 MODULO_LABELS = {
     "objetivos": "Objetivos",
@@ -10,6 +10,7 @@ MODULO_LABELS = {
     "hwo": "Análisis",
     "vacaciones": "Vacaciones",
     "ralenti": "Ralentí",
+    "mantenimiento": "Mantenimiento",
 }
 
 
@@ -62,4 +63,6 @@ def modulo_desde_ruta(path: str) -> str | None:
         return "vacaciones"
     if path.startswith("/gos/ralenti"):
         return "ralenti"
+    if path.startswith("/gos/mantenimiento"):
+        return "mantenimiento"
     return None
