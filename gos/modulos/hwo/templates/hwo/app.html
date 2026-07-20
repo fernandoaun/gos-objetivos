@@ -114,9 +114,9 @@
         <button type="button" class="hwo-ms-btn" id="eq-filter-btn" aria-haspopup="listbox" aria-expanded="false">Equipo ▾</button>
         <div class="hwo-ms-drop" id="eq-filter-drop" role="listbox" aria-label="Filtrar por equipo"></div>
       </div>
-      <div class="hwo-ms-wrap" id="sitprog-filter-wrap">
-        <button type="button" class="hwo-ms-btn" id="sitprog-filter-btn" aria-haspopup="listbox" aria-expanded="false">Servicio progr ▾</button>
-        <div class="hwo-ms-drop" id="sitprog-filter-drop" role="listbox" aria-label="Filtrar por servicio programado"></div>
+      <div class="hwo-ms-wrap" id="cliente-filter-wrap">
+        <button type="button" class="hwo-ms-btn" id="cliente-filter-btn" aria-haspopup="listbox" aria-expanded="false">Cliente ▾</button>
+        <div class="hwo-ms-drop" id="cliente-filter-drop" role="listbox" aria-label="Filtrar por cliente"></div>
       </div>
       <span class="hwo-date-filter-status" id="filter-status"></span>
     </div>
@@ -248,7 +248,7 @@ let activeView = 'dashboard';
 let mesCerrado = false;
 let dateFilter = { from: null, to: null, year: null, month: null };
 let equipoFilter = new Set();
-let sitProgFilter = new Set();
+let clienteFilter = new Set();
 let uploadTargetService = null;
 
 const SERVICE_ORDER = ['PH', 'SW', 'HWO'];
@@ -315,8 +315,8 @@ function filterRows(rows) {
   if (equipoFilter.size) {
     out = out.filter(r => equipoFilter.has(eqKey(r.centro)));
   }
-  if (sitProgFilter.size) {
-    out = out.filter(r => sitProgFilter.has((r.sitProg || '').toString().trim()));
+  if (clienteFilter.size) {
+    out = out.filter(r => clienteFilter.has((r.cliente || '').toString().trim()));
   }
   return out;
 }
@@ -328,19 +328,19 @@ function buildViewFromSource(source, name, prevEqs) {
 
 function collectFilterOptions() {
   const equipos = new Set();
-  const sitProgs = new Set();
+  const clientes = new Set();
   for (const ds of datasets) {
     if (ds.service === 'all' || !ds.source?.rows?.length) continue;
     for (const r of ds.source.rows) {
       const eq = eqKey(r.centro);
       if (eq) equipos.add(eq);
-      const sp = (r.sitProg || '').toString().trim();
-      if (sp) sitProgs.add(sp);
+      const cli = (r.cliente || '').toString().trim();
+      if (cli) clientes.add(cli);
     }
   }
   return {
     equipos: [...equipos].sort((a, b) => a.localeCompare(b, 'es')),
-    sitProgs: [...sitProgs].sort((a, b) => a.localeCompare(b, 'es')),
+    clientes: [...clientes].sort((a, b) => a.localeCompare(b, 'es')),
   };
 }
 
@@ -372,14 +372,14 @@ function updateMultiSelectBtn(btnId, selected, allLabel, singular, plural) {
 }
 
 function refreshRowFiltersUI() {
-  const { equipos, sitProgs } = collectFilterOptions();
+  const { equipos, clientes } = collectFilterOptions();
   renderMultiSelect('eq-filter-drop', 'eq-filter-btn', equipos, equipoFilter, 'Equipo', 'equipo', 'equipos');
-  renderMultiSelect('sitprog-filter-drop', 'sitprog-filter-btn', sitProgs, sitProgFilter, 'Servicio progr', 'servicio', 'servicios');
+  renderMultiSelect('cliente-filter-drop', 'cliente-filter-btn', clientes, clienteFilter, 'Cliente', 'cliente', 'clientes');
 }
 
 function applyRowFilters() {
   updateMultiSelectBtn('eq-filter-btn', equipoFilter, 'Equipo', 'equipo', 'equipos');
-  updateMultiSelectBtn('sitprog-filter-btn', sitProgFilter, 'Servicio progr', 'servicio', 'servicios');
+  updateMultiSelectBtn('cliente-filter-btn', clienteFilter, 'Cliente', 'cliente', 'clientes');
   const name = datasets[activeIdx]?.name;
   refreshAllViews(name);
   renderAll();
@@ -406,10 +406,10 @@ function onEquipoFilterChange(cb) {
   applyRowFilters();
 }
 
-function onSitProgFilterChange(cb) {
+function onClienteFilterChange(cb) {
   const val = cb.value;
-  if (cb.checked) sitProgFilter.add(val);
-  else sitProgFilter.delete(val);
+  if (cb.checked) clienteFilter.add(val);
+  else clienteFilter.delete(val);
   applyRowFilters();
 }
 
@@ -502,7 +502,7 @@ function updateDateFilterStatus() {
   const shown = ds.D?.rows?.length ?? 0;
   const extra = [];
   if (equipoFilter.size) extra.push(`${equipoFilter.size} equipo${equipoFilter.size > 1 ? 's' : ''}`);
-  if (sitProgFilter.size) extra.push(`${sitProgFilter.size} serv. progr`);
+  if (clienteFilter.size) extra.push(`${clienteFilter.size} cliente${clienteFilter.size > 1 ? 's' : ''}`);
   const extraTxt = extra.length ? ` · filtro: ${extra.join(', ')}` : '';
   if (dateFilter.year && dateFilter.month) {
     const label = `${MONTH_NAMES[dateFilter.month]} ${dateFilter.year}`;
@@ -2250,17 +2250,17 @@ async function initApp() {
     e.stopPropagation();
     toggleMultiSelect('eq-filter-wrap');
   });
-  document.getElementById('sitprog-filter-btn')?.addEventListener('click', e => {
+  document.getElementById('cliente-filter-btn')?.addEventListener('click', e => {
     e.stopPropagation();
-    toggleMultiSelect('sitprog-filter-wrap');
+    toggleMultiSelect('cliente-filter-wrap');
   });
   document.getElementById('eq-filter-drop')?.addEventListener('change', e => {
     const cb = e.target.closest('input[type="checkbox"]');
     if (cb) onEquipoFilterChange(cb);
   });
-  document.getElementById('sitprog-filter-drop')?.addEventListener('change', e => {
+  document.getElementById('cliente-filter-drop')?.addEventListener('change', e => {
     const cb = e.target.closest('input[type="checkbox"]');
-    if (cb) onSitProgFilterChange(cb);
+    if (cb) onClienteFilterChange(cb);
   });
   document.addEventListener('click', e => {
     if (!e.target.closest('.hwo-ms-wrap')) {
