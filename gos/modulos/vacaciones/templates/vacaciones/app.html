@@ -40,6 +40,16 @@
       </div>
       <div class="tags" id="personas-tags"></div>
     </div>
+    <div>
+      <label>Estado</label>
+      <select id="f-estado">
+        <option value="">Todos los estados</option>
+        <option value="al_dia">Al día</option>
+        <option value="atencion">Atención (1–14 días)</option>
+        <option value="critico">Crítico (+14 días)</option>
+        <option value="adelanto">Adelanto</option>
+      </select>
+    </div>
   </div>
 
   <div id="loading" class="spinner hidden">Cargando...</div>
@@ -57,6 +67,10 @@
       <button type="button" class="card kpi danger" data-kpi="criticos" title="Ver solo críticos (+14 días)">
         <div class="kpi-label">Críticos (+14 días)</div>
         <div class="kpi-value" id="kpi-rojo">0</div>
+      </button>
+      <button type="button" class="card kpi info" data-kpi="adelanto" title="Ver solo registros con días adelantados">
+        <div class="kpi-label">Días adelantados</div>
+        <div class="kpi-value" id="kpi-adelanto">0</div>
       </button>
     </div>
 
@@ -87,7 +101,7 @@
     <div class="card" id="detalle-card">
       <div class="header-row">
         <div>
-          <h2 style="font-size:1rem;">Detalle por Empleado <span id="sector-filter-label" style="color:var(--accent);font-weight:400;"></span> <span id="kpi-filter-label" style="color:var(--accent);font-weight:400;"></span></h2>
+          <h2 style="font-size:1rem;">Detalle por Empleado <span id="sector-filter-label" style="color:var(--accent);font-weight:400;"></span> <span id="estado-filter-label" style="color:var(--accent);font-weight:400;"></span> <span id="kpi-filter-label" style="color:var(--accent);font-weight:400;"></span></h2>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
           <button type="button" class="btn-outline btn hidden" id="kpi-clear" style="padding:4px 10px;font-size:.75rem;">✕ Quitar filtro</button>
@@ -144,17 +158,37 @@ const state = {
   sectores: [], empleados: [], anios: [], selectedAnios: [], selectedPersonas: [],
   deuda: [], resumenSector: [], resumenPonderado: [],
   sectorChart: null, sectorPonderadoChart: null,
-  sectorSeleccionado: null, kpiFiltro: null, file: null,
+  sectorSeleccionado: null, estadoFiltro: null, kpiFiltro: null, file: null,
 };
 
 const KPI_LABELS = {
   pendientes: '— Con días pendientes',
   deuda: '— Con deuda',
   criticos: '— Críticos (+14 días)',
+  adelanto: '— Con días adelantados',
+};
+
+const ESTADO_LABELS = {
+  al_dia: '— Al día',
+  atencion: '— Atención',
+  critico: '— Crítico',
+  adelanto: '— Adelanto',
 };
 
 function rowHasNotas(row) {
   return !!(row.comentario || row.nota_q || row.nota_r);
+}
+
+/** Pendientes del año = disponibles − tomados. */
+function diasPendientes(row) {
+  if (!row) return 0;
+  return (Number(row.dias_disponibles) || 0) - (Number(row.tomados_planilla) || 0);
+}
+
+/** Días tomados de más (adelanto) = max(0, tomados − disponibles). */
+function diasAdelantados(row) {
+  const pend = diasPendientes(row);
+  return pend < 0 ? -pend : 0;
 }
 
 function textoNotasRow(row) {
@@ -197,6 +231,25 @@ function labelAdelanto(rowOrYears) {
   if (years.length) return `Adelanto ${years.join(', ')}`;
   if (!Array.isArray(rowOrYears) && esAdelanto(rowOrYears)) return 'Adelanto';
   return '';
+}
+
+/** Clave de estado de la persona (misma lógica que columna Estado / export). */
+function estadoPersona(p) {
+  if (!p) return 'al_dia';
+  if ((p.pendTotal || 0) === 0 && p.tieneAdelanto) return 'adelanto';
+  if ((p.peor || 0) === 0) return 'al_dia';
+  if (p.peor <= 14) return 'atencion';
+  return 'critico';
+}
+
+function etiquetaEstado(p) {
+  const key = estadoPersona(p);
+  if (key === 'adelanto') {
+    return labelAdelanto(p.adelantoYears.length ? p.adelantoYears : p.rows.find(esAdelanto)) || 'Adelanto';
+  }
+  if (key === 'al_dia') return 'Al día';
+  if (key === 'atencion') return 'Atención';
+  return 'Crítico';
 }
 
 async function apiGet(path, params = {}) {
@@ -243,8 +296,14 @@ function renderPersonasList() {
       const v = cb.value;
       if (cb.checked) state.selectedPersonas.push(v);
       else state.selectedPersonas = state.selectedPersonas.filter(x => x !== v);
-      // Al elegir persona, soltar filtro KPI para no ocultar al día / adelantos.
-      if (state.selectedPersonas.length && state.kpiFiltro) state.kpiFiltro = null;
+      // Al elegir persona, soltar filtros de detalle para no ocultar al día / adelantos.
+      if (state.selectedPersonas.length) {
+        if (state.kpiFiltro) state.kpiFiltro = null;
+        if (state.estadoFiltro) {
+          state.estadoFiltro = null;
+          document.getElementById('f-estado').value = '';
+        }
+      }
       updatePersonasUI();
       renderTable();
     };
@@ -280,14 +339,25 @@ function getFiltrado() {
 }
 
 function getFiltradoDetalle() {
-  const base = getFiltrado();
+  let base = getFiltrado();
   // Sin filtro KPI: mostrar a todos (al día, con deuda, con o sin notas).
-  if (!state.kpiFiltro) return base;
   if (state.kpiFiltro === 'criticos') {
-    return base.filter(d => (d.dias_pendientes || 0) > 14);
+    base = base.filter(d => diasPendientes(d) > 14);
+  } else if (state.kpiFiltro === 'adelanto') {
+    base = base.filter(d => diasAdelantados(d) > 0 || esAdelanto(d));
+  } else if (state.kpiFiltro === 'pendientes' || state.kpiFiltro === 'deuda') {
+    // Pendientes / deuda: incluir también filas con notas (p.ej. adelantos).
+    base = base.filter(d => diasPendientes(d) > 0 || rowHasNotas(d));
   }
-  // Pendientes / deuda: incluir también filas con notas (p.ej. adelantos).
-  return base.filter(d => (d.dias_pendientes || 0) > 0 || rowHasNotas(d));
+  if (state.estadoFiltro) {
+    const match = new Set(
+      agruparPorEmpleado(base)
+        .filter(p => estadoPersona(p) === state.estadoFiltro)
+        .map(p => p.empleado)
+    );
+    base = base.filter(d => match.has(d.empleado));
+  }
+  return base;
 }
 
 function updateKpiActive() {
@@ -295,8 +365,9 @@ function updateKpiActive() {
     el.classList.toggle('active', el.dataset.kpi === state.kpiFiltro);
   });
   document.getElementById('kpi-filter-label').textContent = state.kpiFiltro ? (KPI_LABELS[state.kpiFiltro] || '') : '';
-  document.getElementById('kpi-clear').classList.toggle('hidden', !state.kpiFiltro);
-  document.getElementById('charts-stack')?.classList.toggle('hidden', !!state.kpiFiltro);
+  document.getElementById('estado-filter-label').textContent = state.estadoFiltro ? (ESTADO_LABELS[state.estadoFiltro] || '') : '';
+  document.getElementById('kpi-clear').classList.toggle('hidden', !state.kpiFiltro && !state.estadoFiltro);
+  document.getElementById('charts-stack')?.classList.toggle('hidden', !!state.kpiFiltro || !!state.estadoFiltro);
 }
 
 function setKpiFiltro(filtro) {
@@ -323,6 +394,10 @@ function notasHtmlPersona(p) {
 function seleccionarPersonaParaNotas(empleado) {
   state.selectedPersonas = [empleado];
   if (state.kpiFiltro) state.kpiFiltro = null;
+  if (state.estadoFiltro) {
+    state.estadoFiltro = null;
+    document.getElementById('f-estado').value = '';
+  }
   updatePersonasUI();
   renderPersonasList();
   renderTable();
@@ -349,21 +424,22 @@ function openPersonaModal(empleado) {
   const first = rows[0];
   const notaQ = rows.find(r => r.nota_q)?.nota_q || '';
   const notaR = rows.find(r => r.nota_r)?.nota_r || '';
-  const totalPend = rows.reduce((a, r) => a + (r.dias_pendientes || 0), 0);
+  const totalPend = rows.reduce((a, r) => a + diasPendientes(r), 0);
   const adelYears = aniosAdelantoPersona(rows);
   const aniosHtml = rows.map(r => {
     const adel = labelAdelanto(r);
+    const pend = diasPendientes(r);
     return `
     <div class="persona-anio-card">
       <div class="persona-anio-head">
         <strong>${r.anio}${adel ? ` · ${escHtml(adel)}` : ''}</strong>
-        ${semaforo(r.dias_pendientes || 0, r)}
+        ${semaforo(pend, r)}
       </div>
       <div class="persona-anio-grid">
         <div><span class="nota-label">Disponibles</span><div>${r.dias_disponibles ?? 0}</div></div>
         <div><span class="nota-label">Tomados planilla</span><div>${r.tomados_planilla ?? 0}</div></div>
         <div><span class="nota-label">Tomados real</span><div>${r.tomados_real ?? 0}</div></div>
-        <div><span class="nota-label">Pendientes</span><div style="font-weight:700">${r.dias_pendientes ?? 0}</div></div>
+        <div><span class="nota-label">Pendientes</span><div style="font-weight:700">${pend}</div></div>
       </div>
       ${r.comentario ? `<div class="nota-sticky" style="margin-top:8px"><div class="nota-sticky-head">Nota Excel</div><pre class="nota-text">${escHtml(r.comentario)}</pre></div>` : '<p class="subtitle" style="margin-top:8px">Sin detalle de días tomados</p>'}
     </div>`;
@@ -451,18 +527,20 @@ function agruparPorEmpleado(rows) {
     if (r.sector) g.sector = r.sector;
   }
   return [...map.values()].map(g => {
-    const pendTotal = g.rows.reduce((a, r) => a + (r.dias_pendientes || 0), 0);
+    const yearRows = Object.values(g.byAnio);
+    const pendTotal = yearRows.reduce((a, r) => a + diasPendientes(r), 0);
     const tieneNotas = g.rows.some(rowHasNotas);
     const tieneAdelanto = g.rows.some(esAdelanto);
     const adelantoYears = aniosAdelantoPersona(g.rows);
-    const peor = g.rows.reduce((m, r) => Math.max(m, r.dias_pendientes || 0), 0);
+    const peor = yearRows.reduce((m, r) => Math.max(m, diasPendientes(r)), 0);
     return { ...g, pendTotal, tieneNotas, tieneAdelanto, adelantoYears, peor };
   }).sort((a, b) => b.pendTotal - a.pendTotal || a.empleado.localeCompare(b.empleado));
 }
 
 function celdaAnio(row) {
   if (!row) return '<td class="num muted">—</td><td class="num muted">—</td><td class="num muted">—</td>';
-  return `<td class="num">${row.dias_disponibles ?? 0}</td><td class="num">${row.tomados_planilla ?? 0}</td><td class="num" style="font-weight:700">${row.dias_pendientes ?? 0}</td>`;
+  const pend = diasPendientes(row);
+  return `<td class="num">${row.dias_disponibles ?? 0}</td><td class="num">${row.tomados_planilla ?? 0}</td><td class="num" style="font-weight:700">${pend}</td>`;
 }
 
 function renderTableHead(anios) {
@@ -491,12 +569,14 @@ function renderTable() {
   const personas = agruparPorEmpleado(filasParaTabla);
   const anios = aniosParaTabla(state.deuda.length ? state.deuda : filasParaTabla);
 
-  const total = base.reduce((a,d) => a + (d.dias_pendientes||0), 0);
-  const conDeuda = new Set(base.filter(d => (d.dias_pendientes||0) > 0).map(d => d.empleado)).size;
-  const enRojo = new Set(base.filter(d => (d.dias_pendientes||0) > 14).map(d => d.empleado)).size;
+  const total = base.reduce((a, d) => a + diasPendientes(d), 0);
+  const conDeuda = new Set(base.filter(d => diasPendientes(d) > 0).map(d => d.empleado)).size;
+  const enRojo = new Set(base.filter(d => diasPendientes(d) > 14).map(d => d.empleado)).size;
+  const adelantados = base.reduce((a, d) => a + diasAdelantados(d), 0);
   document.getElementById('kpi-total').textContent = total;
   document.getElementById('kpi-deuda').textContent = conDeuda;
   document.getElementById('kpi-rojo').textContent = enRojo;
+  document.getElementById('kpi-adelanto').textContent = adelantados;
   document.getElementById('table-count').textContent = `${personas.length} persona${personas.length === 1 ? '' : 's'}`;
   document.getElementById('btn-export').disabled = !personas.length;
   document.getElementById('sector-filter-label').textContent = state.sectorSeleccionado ? `— ${state.sectorSeleccionado}` : '';
@@ -507,15 +587,19 @@ function renderTable() {
   const colSpan = 2 + anios.length * 3 + 3;
   document.getElementById('table-body').innerHTML = personas.length
     ? personas.map(p => {
-      const estadoHtml = (p.pendTotal === 0 && p.tieneAdelanto)
-        ? `<span class="badge warn">${escHtml(labelAdelanto(p.adelantoYears.length ? p.adelantoYears : p.rows.find(esAdelanto)) || 'Adelanto')}</span>`
-        : semaforo(p.peor);
+      // Pend. total = suma de pendientes de cada año visible en la fila.
+      const pendTotal = anios.reduce((a, y) => a + diasPendientes(p.byAnio[y]), 0);
+      const peor = anios.reduce((m, y) => Math.max(m, diasPendientes(p.byAnio[y])), 0);
+      const personaVista = { ...p, pendTotal, peor };
+      const estadoHtml = estadoPersona(personaVista) === 'adelanto'
+        ? `<span class="badge warn">${escHtml(etiquetaEstado(personaVista))}</span>`
+        : semaforo(peor);
       return `
     <tr>
       <td><button type="button" class="link-persona" data-persona="${escHtml(p.empleado)}">${escHtml(p.empleado)}</button></td>
       <td style="color:var(--muted)">${escHtml(p.sector||'')}</td>
       ${anios.map(y => celdaAnio(p.byAnio[y])).join('')}
-      <td class="num" style="font-weight:700">${p.pendTotal}</td>
+      <td class="num" style="font-weight:700">${pendTotal}</td>
       <td style="text-align:center">${estadoHtml}</td>
       <td class="notas-cell" style="text-align:center;">${notasHtmlPersona(p)}</td>
     </tr>`;
@@ -685,12 +769,18 @@ async function initVacaciones() {
   renderPersonasList();
   updatePersonasUI();
   document.getElementById('f-sector').addEventListener('change', loadVacaciones);
+  document.getElementById('f-estado').addEventListener('change', e => {
+    state.estadoFiltro = e.target.value || null;
+    renderTable();
+  });
   document.getElementById('chart-clear').onclick = () => { state.sectorSeleccionado = null; document.getElementById('chart-clear').classList.add('hidden'); renderChart(); renderTable(); };
   document.querySelectorAll('.kpi[data-kpi]').forEach(el => {
     el.onclick = () => setKpiFiltro(el.dataset.kpi);
   });
   document.getElementById('kpi-clear').onclick = () => {
     state.kpiFiltro = null;
+    state.estadoFiltro = null;
+    document.getElementById('f-estado').value = '';
     renderTable();
   };
   document.getElementById('persona-modal-close').onclick = closePersonaModal;
@@ -718,13 +808,18 @@ document.querySelector('[data-export="excel"]').onclick = () => {
   const periodo = state.selectedAnios.length
     ? state.selectedAnios.join(', ')
     : 'Todos los años';
-  const total = base.reduce((a,d) => a + (d.dias_pendientes||0), 0);
-  const conDeuda = new Set(base.filter(d => (d.dias_pendientes||0) > 0).map(d => d.empleado)).size;
-  const enRojo = new Set(base.filter(d => (d.dias_pendientes||0) > 14).map(d => d.empleado)).size;
+  const total = base.reduce((a, d) => a + diasPendientes(d), 0);
+  const conDeuda = new Set(base.filter(d => diasPendientes(d) > 0).map(d => d.empleado)).size;
+  const enRojo = new Set(base.filter(d => diasPendientes(d) > 14).map(d => d.empleado)).size;
+  const adelantados = base.reduce((a, d) => a + diasAdelantados(d), 0);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
     ['VACACIONES ADEUDADAS'], ['Período', periodo], [],
-    ['Indicador','Valor'], ['Total Días Pendientes', total], ['Empleados con Deuda', conDeuda], ['Críticos (+14 días)', enRojo],
+    ['Indicador','Valor'],
+    ['Total Días Pendientes', total],
+    ['Empleados con Deuda', conDeuda],
+    ['Críticos (+14 días)', enRojo],
+    ['Días adelantados', adelantados],
   ]), 'Resumen');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
     ['Sector','Días Pendientes','Personas','Días por Persona'],
@@ -732,9 +827,10 @@ document.querySelector('[data-export="excel"]').onclick = () => {
   ]), 'Por Sector');
   const header = ['Empleado', 'Sector', ...anios.flatMap(y => [`${y} Disponibles`, `${y} Tomados`, `${y} Pendientes`]), 'Pend. total', 'Estado', 'Notas', 'Adelanto'];
   const detailRows = personas.map(p => {
-    const estado = p.pendTotal === 0
-      ? (p.tieneAdelanto ? (labelAdelanto(p.adelantoYears.length ? p.adelantoYears : p.rows.find(esAdelanto)) || 'Adelanto') : 'Al día')
-      : p.peor <= 14 ? 'Atención' : 'Crítico';
+    const pendTotal = anios.reduce((a, y) => a + diasPendientes(p.byAnio[y]), 0);
+    const peor = anios.reduce((m, y) => Math.max(m, diasPendientes(p.byAnio[y])), 0);
+    const personaVista = { ...p, pendTotal, peor };
+    const estado = etiquetaEstado(personaVista);
     const notas = [...p.rows]
       .sort((a, b) => (a.anio || 0) - (b.anio || 0))
       .flatMap(r => {
@@ -751,9 +847,9 @@ document.querySelector('[data-export="excel"]').onclick = () => {
       p.sector,
       ...anios.flatMap(y => {
         const r = p.byAnio[y];
-        return r ? [r.dias_disponibles ?? 0, r.tomados_planilla ?? 0, r.dias_pendientes ?? 0] : ['', '', ''];
+        return r ? [r.dias_disponibles ?? 0, r.tomados_planilla ?? 0, diasPendientes(r)] : ['', '', ''];
       }),
-      p.pendTotal,
+      pendTotal,
       estado,
       notas.join('\n') || '',
       p.adelantoYears.length ? p.adelantoYears.join(', ') : (p.tieneAdelanto ? 'Sí' : ''),

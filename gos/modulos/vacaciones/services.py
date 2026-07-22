@@ -112,23 +112,27 @@ def get_deuda_vacaciones(
             anio_val,
             disponibles,
             tomados_planilla,
-            pendientes,
+            _pendientes_excel,
             comentario,
             nota_q,
             nota_r,
         ) = row
         tomados_real = reales.get((empleado, anio_val), 0)
-        diferencia = (tomados_planilla or 0) - (tomados_real or 0)
+        disp = disponibles or 0
+        tom = tomados_planilla or 0
+        # Pendientes = disponibles − tomados (no confiar en la columna del Excel).
+        pend = disp - tom
+        diferencia = tom - (tomados_real or 0)
         result.append(
             {
                 "legajo": legajo,
                 "empleado": empleado,
                 "sector": sect,
                 "anio": anio_val,
-                "dias_disponibles": disponibles or 0,
-                "tomados_planilla": tomados_planilla or 0,
+                "dias_disponibles": disp,
+                "tomados_planilla": tom,
                 "tomados_real": int(tomados_real or 0),
-                "dias_pendientes": pendientes or 0,
+                "dias_pendientes": pend,
                 "diferencia": diferencia,
                 "comentario": comentario or None,
                 "nota_q": nota_q or None,
@@ -150,25 +154,27 @@ def get_resumen_sector(
         Vacacion.sector,
         func.sum(Vacacion.dias_disponibles),
         func.sum(Vacacion.dias_tomados),
-        func.sum(Vacacion.dias_pendientes),
         func.count(func.distinct(Vacacion.empleado)),
     ).where(Vacacion.sector.isnot(None))
     if years:
         q = q.where(Vacacion.anio.in_(years))
-    q = q.group_by(Vacacion.sector).order_by(func.sum(Vacacion.dias_pendientes).desc())
+    q = q.group_by(Vacacion.sector)
     rows = db.execute(q).all()
     result = []
-    for sector, disponibles, tomados, pendientes, personas in rows:
+    for sector, disponibles, tomados, personas in rows:
         personas_n = int(personas or 0)
-        pendientes_n = pendientes or 0
+        disp_n = disponibles or 0
+        tom_n = tomados or 0
+        pendientes_n = disp_n - tom_n
         result.append(
             {
                 "sector": sector,
-                "disponibles": disponibles or 0,
-                "tomados": tomados or 0,
+                "disponibles": disp_n,
+                "tomados": tom_n,
                 "pendientes": pendientes_n,
                 "personas": personas_n,
                 "pendientes_por_persona": round(pendientes_n / personas_n, 1) if personas_n else 0,
             }
         )
+    result.sort(key=lambda r: r["pendientes"], reverse=True)
     return result

@@ -10,6 +10,7 @@
   --green: var(--gos-green);
   --yellow: var(--gos-warning-border);
   --red: var(--gos-danger-border);
+  --info: #2f6f8f;
 }
 
 * {
@@ -368,7 +369,7 @@ h1 {
 
 .kpis {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   margin-bottom: 20px;
 }
@@ -400,12 +401,20 @@ h1 {
   outline-color: var(--red);
 }
 
+.kpi.info.active {
+  outline-color: var(--info);
+}
+
 .kpi.warn {
   border-left-color: var(--yellow);
 }
 
 .kpi.danger {
   border-left-color: var(--red);
+}
+
+.kpi.info {
+  border-left-color: var(--info);
 }
 
 .kpi-label {
@@ -431,6 +440,10 @@ h1 {
 
 .kpi.danger .kpi-value {
   color: var(--red);
+}
+
+.kpi.info .kpi-value {
+  color: var(--info);
 }
 
 .table-wrap {
@@ -777,7 +790,13 @@ tr:hover td {
   border-top: 1px solid var(--border);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 900px) {
+  .kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
   .kpis {
     grid-template-columns: 1fr;
   }
