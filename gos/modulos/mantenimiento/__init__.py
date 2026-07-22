@@ -10,6 +10,10 @@ URL_PREFIX = "/gos/mantenimiento"
 
 def register(app: Flask, url_prefix: str = URL_PREFIX) -> None:
     _ensure_template_loader(app)
+    with app.app_context():
+        from gos.modulos.mantenimiento.schema_upgrade import ensure_mantenimiento_schema
+
+        ensure_mantenimiento_schema()
     _register_blueprints(app, url_prefix)
     _register_context(app)
 
@@ -62,7 +66,7 @@ def module_descriptor() -> dict:
     return {
         "code": MODULE_NAME,
         "label": "Mantenimiento",
-        "description": "Reportes gerenciales de mantenimiento.",
+        "description": "Plan preventivo Pampa (R/P/E) y vencimientos VTV.",
         "icon": "bi-wrench-adjustable",
         "url": "/gos/mantenimiento/",
     }
@@ -71,8 +75,18 @@ def module_descriptor() -> dict:
 def _nav_items():
     return [
         {
-            "label": "Reportes",
+            "label": "Plan preventivo",
             "endpoint": "mantenimiento_main.index",
-            "icon": "bi-clipboard-data",
+            "icon": "bi-calendar3",
+        },
+        {
+            "label": "VTV",
+            "endpoint": "mantenimiento_main.vtv",
+            "icon": "bi-shield-check",
+        },
+        {
+            "label": "Importar",
+            "endpoint": "mantenimiento_main.importar",
+            "icon": "bi-upload",
         },
     ]

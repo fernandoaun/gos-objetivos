@@ -1,0 +1,221 @@
+"""Consultas del plan de mantenimiento y VTV."""
+
+from __future__ import annotations
+
+from datetime import date, timedelta
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session, joinedload
+
+from gos.modulos.mantenimiento.models import MantPlanCelda, MantPlanMeta, MantUnidad, MantVtv
+
+MESES_LABEL = [
+    "",
+    "Ene",
+    "Feb",
+    "Mar",
+    "Abr",
+    "May",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dic",
+]
+
+VTV_ALERTA_DIAS = 60
+
+
+def get_meta(session: Session) -> dict:
+    anios = sorted(
+        {
+            row[0]
+            for row in session.execute(select(MantPlanCelda.anio).distinct()).all()
+            if row[0]
+        },
+        reverse=True,
+    )
+    metas = {
+        m.anio: {
+            "anio": m.anio,
+            "titulo": m.titulo,
+            "sector": m.sector,
+            "observaciones": m.observaciones,
+        }
+        for m in session.execute(select(MantPlanMeta)).scalars()
+    }
+    unidades = [
+        {"id": u.id, "codigo": u.codigo, "nombre": u.nombre}
+        for u in session.execute(
+            select(MantUnidad).where(MantUnidad.activo.is_(True)).order_by(MantUnidad.nombre)
+        ).scalars()
+    ]
+    return {"anios": anios, "metas": metas, "unidades": unidades}
+
+
+def _cumplimiento(p: float, e: float) -> float | None:
+    if p <= 0:
+        return None
+    return round(e / p, 4)
+
+
+def get_plan(session: Session, anio: int | None = None) -> dict:
+    anios = sorted(
+        {
+            row[0]
+            for row in session.execute(select(MantPlanCelda.anio).distinct()).all()
+            if row[0]
+        },
+        reverse=True,
+    )
+    if anio is None:
+        anio = anios[0] if anios else date.today().year
+
+    meta = session.execute(
+        select(MantPlanMeta).where(MantPlanMeta.anio == anio)
+    ).scalar_one_or_none()
+
+    celdas = session.execute(
+        select(MantPlanCelda)
+        .where(MantPlanCelda.anio == anio)
+        .options(joinedload(MantPlanCelda.unidad))
+    ).scalars().all()
+
+    by_unidad: dict[int, dict] = {}
+    for cel in celdas:
+        u = cel.unidad
+        if u.id not in by_unidad:
+            by_unidad[u.id] = {
+                "id": u.id,
+                "codigo": u.codigo,
+                "nombre": u.nombre,
+                "meses": {m: {"r": 0, "p": 0, "e": 0} for m in range(1, 13)},
+                "tot_r": 0.0,
+                "tot_p": 0.0,
+                "tot_e": 0.0,
+            }
+        row = by_unidad[u.id]
+        row["meses"][cel.mes] = {"r": cel.r, "p": cel.p, "e": cel.e}
+        row["tot_r"] += cel.r or 0
+        row["tot_p"] += cel.p or 0
+        row["tot_e"] += cel.e or 0
+
+    # Incluir unidades con VTV aunque no tengan plan ese año
+    unidades_ids = set(by_unidad)
+    for u in session.execute(
+        select(MantUnidad).where(MantUnidad.activo.is_(True)).order_by(MantUnidad.nombre)
+    ).scalars():
+        if u.id not in unidades_ids:
+            by_unidad[u.id] = {
+                "id": u.id,
+                "codigo": u.codigo,
+                "nombre": u.nombre,
+                "meses": {m: {"r": 0, "p": 0, "e": 0} for m in range(1, 13)},
+                "tot_r": 0.0,
+                "tot_p": 0.0,
+                "tot_e": 0.0,
+            }
+
+    filas = []
+    for row in sorted(by_unidad.values(), key=lambda x: x["nombre"]):
+        row["cumplimiento"] = _cumplimiento(row["tot_p"], row["tot_e"])
+        # serializar meses como lista indexada 1..12 para JSON estable
+        row["meses"] = [row["meses"][m] for m in range(1, 13)]
+        filas.append(row)
+
+    tot_p = sum(f["tot_p"] for f in filas)
+    tot_e = sum(f["tot_e"] for f in filas)
+    tot_r = sum(f["tot_r"] for f in filas)
+
+    por_mes = []
+    for m in range(1, 13):
+        mp = sum(f["meses"][m - 1]["p"] for f in filas)
+        me = sum(f["meses"][m - 1]["e"] for f in filas)
+        mr = sum(f["meses"][m - 1]["r"] for f in filas)
+        por_mes.append(
+            {
+                "mes": m,
+                "label": MESES_LABEL[m],
+                "r": mr,
+                "p": mp,
+                "e": me,
+                "cumplimiento": _cumplimiento(mp, me),
+            }
+        )
+
+    return {
+        "anio": anio,
+        "anios": anios,
+        "meta": {
+            "titulo": meta.titulo if meta else None,
+            "sector": meta.sector if meta else None,
+            "observaciones": meta.observaciones if meta else None,
+        },
+        "kpis": {
+            "unidades": len(filas),
+            "planificado": tot_p,
+            "ejecutado": tot_e,
+            "realizado": tot_r,
+            "cumplimiento": _cumplimiento(tot_p, tot_e),
+        },
+        "por_mes": por_mes,
+        "filas": filas,
+        "leyenda": {
+            "r": "Realizado",
+            "p": "Planificado",
+            "e": "Ejecutado",
+            "c": "Cumplimiento (E/P)",
+        },
+    }
+
+
+def get_vtv(session: Session, hoy: date | None = None) -> dict:
+    hoy = hoy or date.today()
+    alerta = hoy + timedelta(days=VTV_ALERTA_DIAS)
+
+    rows = session.execute(
+        select(MantVtv)
+        .options(joinedload(MantVtv.unidad))
+        .join(MantUnidad)
+        .order_by(MantVtv.vencimiento, MantUnidad.nombre)
+    ).scalars().all()
+
+    items = []
+    vencidas = 0
+    por_vencer = 0
+    vigentes = 0
+    for v in rows:
+        dias = (v.vencimiento - hoy).days
+        if dias < 0:
+            estado = "vencida"
+            vencidas += 1
+        elif v.vencimiento <= alerta:
+            estado = "por_vencer"
+            por_vencer += 1
+        else:
+            estado = "vigente"
+            vigentes += 1
+        items.append(
+            {
+                "unidad_id": v.unidad_id,
+                "codigo": v.unidad.codigo,
+                "nombre": v.unidad.nombre,
+                "vencimiento": v.vencimiento.isoformat(),
+                "dias": dias,
+                "estado": estado,
+            }
+        )
+
+    return {
+        "hoy": hoy.isoformat(),
+        "alerta_dias": VTV_ALERTA_DIAS,
+        "kpis": {
+            "total": len(items),
+            "vencidas": vencidas,
+            "por_vencer": por_vencer,
+            "vigentes": vigentes,
+        },
+        "items": items,
+    }

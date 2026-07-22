@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Mantenimiento — GOS{% endblock %}
-{% block page_title %}Mantenimiento{% endblock %}
+{% block page_title %}{% if view == 'importar' %}Importar plan{% elif view == 'vtv' %}VTV{% else %}Plan preventivo{% endif %}{% endblock %}
 {% block extra_css %}
 <style>
   .pe-content:has(.mantenimiento-shell) {
@@ -28,6 +28,6 @@
 {% endblock %}
 {% block content %}
 <div class="mantenimiento-shell w-100">
-  <iframe class="mantenimiento-frame" src="{{ url_for('mantenimiento_main.app') }}" title="Mantenimiento"></iframe>
+  <iframe class="mantenimiento-frame" src="{{ url_for('mantenimiento_main.app', view=view) }}" title="Mantenimiento"></iframe>
 </div>
 {% endblock %}

@@ -3,24 +3,512 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mantenimiento</title>
+<title>Mantenimiento — GOS</title>
 <link href="{{ url_for('static', filename='css/tokens.css') }}?v={{ app_version }}" rel="stylesheet">
 <link href="{{ url_for('mantenimiento_static.static', filename='css/mantenimiento.css') }}?v={{ app_version }}" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
-  <header>
-    <div class="logo-area">
-      <div class="logo-text">
-        <h1>Mantenimiento</h1>
-        <p>Reportes gerenciales</p>
+
+<div id="view-plan" class="app {% if initial_view != 'plan' %}hidden{% endif %}">
+  <div class="header-row">
+    <div>
+      <h1>Plan de mantenimiento preventivo</h1>
+      <p class="subtitle" id="plan-subtitle">Pampa Energía · columnas R / P / E por mes</p>
+    </div>
+    <div class="leyenda">
+      <span><i class="chip chip-r">R</i> Realizado</span>
+      <span><i class="chip chip-p">P</i> Planificado</span>
+      <span><i class="chip chip-e">E</i> Ejecutado</span>
+      <span>C = E ÷ P</span>
+    </div>
+  </div>
+
+  <div class="card filters">
+    <div class="year-filter">
+      <label>Año</label>
+      <div class="year-btns" id="year-btns"></div>
+    </div>
+    <div>
+      <label>Buscar unidad</label>
+      <input type="search" id="f-unidad" placeholder="Ej. UL 170" autocomplete="off">
+    </div>
+  </div>
+
+  <div id="plan-loading" class="spinner hidden">Cargando plan…</div>
+  <div id="plan-empty" class="card empty-card hidden">
+    <h2>Sin plan cargado</h2>
+    <p>Importá el Excel de plan / VTV (hojas <strong>Informe</strong> y <strong>VTV</strong>) para ver el calendario preventivo.</p>
+    <a class="btn" href="{{ url_for('mantenimiento_main.importar') }}" target="_parent">Ir a Importar</a>
+  </div>
+
+  <div id="plan-content" class="hidden">
+    <div class="kpis">
+      <div class="card kpi">
+        <div class="kpi-label">Unidades</div>
+        <div class="kpi-value" id="kpi-unidades">0</div>
+      </div>
+      <div class="card kpi info">
+        <div class="kpi-label">Planificado (P)</div>
+        <div class="kpi-value" id="kpi-p">0</div>
+      </div>
+      <div class="card kpi">
+        <div class="kpi-label">Ejecutado (E)</div>
+        <div class="kpi-value" id="kpi-e">0</div>
+      </div>
+      <div class="card kpi" id="kpi-c-card">
+        <div class="kpi-label">Cumplimiento</div>
+        <div class="kpi-value" id="kpi-c">—</div>
       </div>
     </div>
-  </header>
-  <main class="page active">
-    <div class="placeholder-card">
-      <h2>Próximamente</h2>
-      <p>Acá van a vivir los reportes de mantenimiento para gerencia.</p>
+
+    <div class="charts-row">
+      <div class="card">
+        <h2 style="font-size:1rem;margin-bottom:8px;">Planificado vs ejecutado por mes</h2>
+        <div class="chart-box"><canvas id="chart-mes"></canvas></div>
+      </div>
     </div>
-  </main>
+
+    <div class="card">
+      <div class="header-row">
+        <h2 style="font-size:1rem;">Calendario por unidad</h2>
+        <span class="subtitle" id="table-count">0 unidades</span>
+      </div>
+      <div class="table-wrap">
+        <table class="plan-grid">
+          <thead id="plan-head"></thead>
+          <tbody id="plan-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="view-vtv" class="app {% if initial_view != 'vtv' %}hidden{% endif %}">
+  <div class="header-row">
+    <div>
+      <h1>Vencimientos VTV</h1>
+      <p class="subtitle">Estado de verificación técnica vehicular por unidad</p>
+    </div>
+  </div>
+
+  <div id="vtv-loading" class="spinner hidden" style="margin-top:20px;">Cargando VTV…</div>
+  <div id="vtv-empty" class="card empty-card hidden" style="margin-top:20px;">
+    <h2>Sin vencimientos VTV</h2>
+    <p>Importá el Excel con la hoja <strong>VTV</strong> para ver las fechas de vencimiento.</p>
+    <a class="btn" href="{{ url_for('mantenimiento_main.importar') }}" target="_parent">Ir a Importar</a>
+  </div>
+
+  <div id="vtv-content" class="hidden" style="margin-top:20px;">
+    <div class="kpis">
+      <div class="card kpi danger">
+        <div class="kpi-label">Vencidas</div>
+        <div class="kpi-value" id="vtv-kpi-vencidas">0</div>
+      </div>
+      <div class="card kpi warn">
+        <div class="kpi-label">Por vencer (60 días)</div>
+        <div class="kpi-value" id="vtv-kpi-alerta">0</div>
+      </div>
+      <div class="card kpi">
+        <div class="kpi-label">Vigentes</div>
+        <div class="kpi-value" id="vtv-kpi-ok">0</div>
+      </div>
+      <div class="card kpi info">
+        <div class="kpi-label">Total</div>
+        <div class="kpi-value" id="vtv-kpi-total">0</div>
+      </div>
+    </div>
+
+    <div class="card filters" style="margin-top:0;">
+      <div>
+        <label>Estado</label>
+        <select id="vtv-estado">
+          <option value="">Todos</option>
+          <option value="vencida">Vencidas</option>
+          <option value="por_vencer">Por vencer</option>
+          <option value="vigente">Vigentes</option>
+        </select>
+      </div>
+      <div>
+        <label>Buscar</label>
+        <input type="search" id="vtv-buscar" placeholder="Unidad…" autocomplete="off">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap" style="border:none;">
+        <table class="vtv-table">
+          <thead>
+            <tr>
+              <th>Unidad</th>
+              <th>Vencimiento</th>
+              <th>Días</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="vtv-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="view-importar" class="app {% if initial_view != 'importar' %}hidden{% endif %}" style="max-width:720px;">
+  <h1>Importar plan / VTV</h1>
+  <p class="subtitle" style="margin-bottom:20px;">
+    Formato base: Excel con hojas <strong>Informe</strong> (plan R/P/E) y <strong>VTV</strong> (vencimientos).
+  </p>
+
+  <section class="card">
+    <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Seleccionar Excel de mantenimiento">
+      <div class="drop-icon">⬆</div>
+      <h3 id="drop-title">Excel plan mantenimiento / VTV</h3>
+      <p class="subtitle" id="drop-sub">Arrastrá o hacé clic · .xlsx / .xlsm</p>
+    </div>
+    <input type="file" id="file-input" accept=".xlsx,.xlsm" hidden>
+    <button type="button" class="btn hidden" id="btn-import" style="width:100%;margin-top:12px;padding:12px;">Importar Excel</button>
+    <div id="import-status" class="hidden card" style="margin-top:12px;padding:12px;text-align:center;color:var(--muted);">Importando…</div>
+    <div id="import-result" class="hidden card" style="margin-top:12px;"></div>
+    <div class="import-hint">
+      <strong>Informe:</strong> fila de meses (Enero…Diciembre) con subcolumnas R / P / E por unidad.<br>
+      <strong>VTV:</strong> columnas Unidad y Vencimiento VTV.<br>
+      Al reimportar el mismo año se reemplazan las celdas del plan de ese año y se actualizan los vencimientos VTV.
+    </div>
+  </section>
+</div>
+
+<script src="{{ url_for('static', filename='js/iframe-theme.js') }}?v={{ app_version }}"></script>
+<script>
+const API = '/gos/mantenimiento/api';
+const state = {
+  anio: null,
+  plan: null,
+  vtv: null,
+  chart: null,
+  file: null,
+};
+
+async function apiGet(path, params = {}) {
+  const qs = new URLSearchParams(
+    Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== '')
+  ).toString();
+  const res = await fetch(`${API}${path}${qs ? '?' + qs : ''}`, { credentials: 'same-origin' });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+async function apiPostForm(path, formData) {
+  const res = await fetch(`${API}${path}`, { method: 'POST', body: formData, credentials: 'same-origin' });
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); } catch { throw new Error(text.slice(0, 200) || 'Error del servidor'); }
+  if (!res.ok) throw new Error(data.error || 'Error en la solicitud');
+  return data;
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+function fmtNum(n) {
+  const v = Number(n) || 0;
+  return Number.isInteger(v) ? String(v) : v.toFixed(1);
+}
+
+function fmtPct(c) {
+  if (c === null || c === undefined) return '—';
+  return `${Math.round(Number(c) * 100)}%`;
+}
+
+function cumplClass(c) {
+  if (c === null || c === undefined) return 'cumpl-na';
+  if (c >= 0.9) return 'cumpl-ok';
+  if (c >= 0.5) return 'cumpl-mid';
+  return 'cumpl-bad';
+}
+
+function rpeHtml(cell) {
+  const r = Number(cell?.r) || 0;
+  const p = Number(cell?.p) || 0;
+  const e = Number(cell?.e) || 0;
+  const empty = r === 0 && p === 0 && e === 0;
+  if (empty) {
+    return `<div class="rpe-cell"><span class="v empty">·</span><span class="v empty">·</span><span class="v empty">·</span></div>`;
+  }
+  return `<div class="rpe-cell">
+    <span class="v r" title="Realizado">${r ? fmtNum(r) : '·'}</span>
+    <span class="v p" title="Planificado">${p ? fmtNum(p) : '·'}</span>
+    <span class="v e" title="Ejecutado">${e ? fmtNum(e) : '·'}</span>
+  </div>`;
+}
+
+function renderYears(anios, selected) {
+  const el = document.getElementById('year-btns');
+  if (!anios.length) {
+    el.innerHTML = '<span class="subtitle">Sin años</span>';
+    return;
+  }
+  el.innerHTML = anios.map(y =>
+    `<button type="button" class="year-btn ${y === selected ? 'active' : ''}" data-anio="${y}">${y}</button>`
+  ).join('');
+  el.querySelectorAll('.year-btn').forEach(btn => {
+    btn.addEventListener('click', () => loadPlan(Number(btn.dataset.anio)));
+  });
+}
+
+function renderPlanHead() {
+  const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const thMeses = meses.map(m => `<th class="mes-group" colspan="1">${m}<div style="font-weight:500;font-size:.65rem;color:#6b7280;">R P E</div></th>`).join('');
+  document.getElementById('plan-head').innerHTML = `
+    <tr>
+      <th class="unidad">Unidad</th>
+      ${thMeses}
+      <th>P</th>
+      <th>E</th>
+      <th>C</th>
+    </tr>`;
+}
+
+function filteredFilas() {
+  const q = (document.getElementById('f-unidad').value || '').trim().toLowerCase();
+  const filas = state.plan?.filas || [];
+  if (!q) return filas;
+  return filas.filter(f =>
+    f.nombre.toLowerCase().includes(q) || f.codigo.toLowerCase().includes(q)
+  );
+}
+
+function renderPlanBody() {
+  const filas = filteredFilas();
+  document.getElementById('table-count').textContent = `${filas.length} unidad${filas.length === 1 ? '' : 'es'}`;
+  const body = document.getElementById('plan-body');
+  if (!filas.length) {
+    body.innerHTML = `<tr><td colspan="16" style="padding:16px;color:var(--muted);">Sin unidades para el filtro.</td></tr>`;
+    return;
+  }
+  body.innerHTML = filas.map(f => {
+    const meses = (f.meses || []).map(m => `<td>${rpeHtml(m)}</td>`).join('');
+    const c = f.cumplimiento;
+    return `<tr>
+      <td class="unidad">${esc(f.nombre)}</td>
+      ${meses}
+      <td>${fmtNum(f.tot_p)}</td>
+      <td>${fmtNum(f.tot_e)}</td>
+      <td class="${cumplClass(c)}">${fmtPct(c)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderChart(porMes) {
+  const ctx = document.getElementById('chart-mes');
+  if (state.chart) {
+    state.chart.destroy();
+    state.chart = null;
+  }
+  state.chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: porMes.map(m => m.label),
+      datasets: [
+        {
+          label: 'Planificado (P)',
+          data: porMes.map(m => m.p),
+          backgroundColor: 'rgba(47, 111, 143, 0.75)',
+        },
+        {
+          label: 'Ejecutado (E)',
+          data: porMes.map(m => m.e),
+          backgroundColor: 'rgba(22, 163, 74, 0.75)',
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        x: { grid: { display: false } },
+        y: { beginAtZero: true, ticks: { precision: 0 } },
+      },
+    },
+  });
+}
+
+async function loadPlan(anio) {
+  const loading = document.getElementById('plan-loading');
+  const empty = document.getElementById('plan-empty');
+  const content = document.getElementById('plan-content');
+  loading.classList.remove('hidden');
+  empty.classList.add('hidden');
+  content.classList.add('hidden');
+  try {
+    const data = await apiGet('/plan', anio ? { anio } : {});
+    state.plan = data;
+    state.anio = data.anio;
+    renderYears(data.anios || [], data.anio);
+
+    if (!(data.filas || []).length && !(data.anios || []).length) {
+      empty.classList.remove('hidden');
+      return;
+    }
+
+    const titulo = data.meta?.titulo || 'Plan de mantenimiento preventivo';
+    const sector = data.meta?.sector ? ` · ${data.meta.sector}` : '';
+    document.getElementById('plan-subtitle').textContent = `${titulo}${sector} · ${data.anio}`;
+
+    document.getElementById('kpi-unidades').textContent = fmtNum(data.kpis.unidades);
+    document.getElementById('kpi-p').textContent = fmtNum(data.kpis.planificado);
+    document.getElementById('kpi-e').textContent = fmtNum(data.kpis.ejecutado);
+    const cEl = document.getElementById('kpi-c');
+    cEl.textContent = fmtPct(data.kpis.cumplimiento);
+    cEl.className = 'kpi-value ' + cumplClass(data.kpis.cumplimiento);
+
+    renderPlanHead();
+    renderPlanBody();
+    renderChart(data.por_mes || []);
+    content.classList.remove('hidden');
+  } catch (err) {
+    empty.classList.remove('hidden');
+    empty.querySelector('h2').textContent = 'Error al cargar';
+    empty.querySelector('p').textContent = err.message || String(err);
+  } finally {
+    loading.classList.add('hidden');
+  }
+}
+
+function vtvBadge(estado) {
+  if (estado === 'vencida') return '<span class="badge bad">Vencida</span>';
+  if (estado === 'por_vencer') return '<span class="badge warn">Por vencer</span>';
+  return '<span class="badge ok">Vigente</span>';
+}
+
+function fmtFecha(iso) {
+  if (!iso) return '—';
+  const [y, m, d] = iso.slice(0, 10).split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function filteredVtv() {
+  const estado = document.getElementById('vtv-estado').value;
+  const q = (document.getElementById('vtv-buscar').value || '').trim().toLowerCase();
+  return (state.vtv?.items || []).filter(it => {
+    if (estado && it.estado !== estado) return false;
+    if (q && !it.nombre.toLowerCase().includes(q) && !it.codigo.toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function renderVtvBody() {
+  const items = filteredVtv();
+  const body = document.getElementById('vtv-body');
+  if (!items.length) {
+    body.innerHTML = `<tr><td colspan="4" style="color:var(--muted);padding:16px;">Sin resultados.</td></tr>`;
+    return;
+  }
+  body.innerHTML = items.map(it => {
+    const diasTxt = it.dias < 0
+      ? `${Math.abs(it.dias)} días vencida`
+      : it.dias === 0
+        ? 'Vence hoy'
+        : `${it.dias} días`;
+    return `<tr>
+      <td><strong>${esc(it.nombre)}</strong></td>
+      <td>${fmtFecha(it.vencimiento)}</td>
+      <td>${esc(diasTxt)}</td>
+      <td>${vtvBadge(it.estado)}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadVtv() {
+  const loading = document.getElementById('vtv-loading');
+  const empty = document.getElementById('vtv-empty');
+  const content = document.getElementById('vtv-content');
+  loading.classList.remove('hidden');
+  empty.classList.add('hidden');
+  content.classList.add('hidden');
+  try {
+    const data = await apiGet('/vtv');
+    state.vtv = data;
+    if (!(data.items || []).length) {
+      empty.classList.remove('hidden');
+      return;
+    }
+    document.getElementById('vtv-kpi-vencidas').textContent = data.kpis.vencidas;
+    document.getElementById('vtv-kpi-alerta').textContent = data.kpis.por_vencer;
+    document.getElementById('vtv-kpi-ok').textContent = data.kpis.vigentes;
+    document.getElementById('vtv-kpi-total').textContent = data.kpis.total;
+    renderVtvBody();
+    content.classList.remove('hidden');
+  } catch (err) {
+    empty.classList.remove('hidden');
+    empty.querySelector('h2').textContent = 'Error al cargar';
+    empty.querySelector('p').textContent = err.message || String(err);
+  } finally {
+    loading.classList.add('hidden');
+  }
+}
+
+function bindImport() {
+  const dz = document.getElementById('dropzone');
+  const input = document.getElementById('file-input');
+  const btn = document.getElementById('btn-import');
+  const title = document.getElementById('drop-title');
+  const sub = document.getElementById('drop-sub');
+
+  function setFile(file) {
+    if (!file) return;
+    state.file = file;
+    title.textContent = file.name;
+    sub.textContent = `${(file.size / 1024).toFixed(1)} KB · listo para importar`;
+    btn.classList.remove('hidden');
+  }
+
+  dz.addEventListener('click', () => input.click());
+  dz.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') input.click(); });
+  input.addEventListener('change', () => setFile(input.files?.[0]));
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault();
+    dz.classList.remove('dragover');
+    setFile(e.dataTransfer.files?.[0]);
+  });
+
+  btn.addEventListener('click', async () => {
+    if (!state.file) return;
+    const status = document.getElementById('import-status');
+    const result = document.getElementById('import-result');
+    status.classList.remove('hidden');
+    result.classList.add('hidden');
+    btn.disabled = true;
+    try {
+      const fd = new FormData();
+      fd.append('file', state.file);
+      const data = await apiPostForm('/importar/excel', fd);
+      result.classList.remove('hidden');
+      result.innerHTML = `<strong style="color:var(--ok);">✓ ${esc(data.mensaje)}</strong>
+        <pre style="margin-top:8px;font-size:.75rem;white-space:pre-wrap;color:var(--muted);">${esc(JSON.stringify(data.detalle, null, 2))}</pre>`;
+    } catch (err) {
+      result.classList.remove('hidden');
+      result.innerHTML = `<strong style="color:var(--bad);">Error:</strong> ${esc(err.message || err)}`;
+    } finally {
+      status.classList.add('hidden');
+      btn.disabled = false;
+    }
+  });
+}
+
+document.getElementById('f-unidad')?.addEventListener('input', renderPlanBody);
+document.getElementById('vtv-estado')?.addEventListener('change', renderVtvBody);
+document.getElementById('vtv-buscar')?.addEventListener('input', renderVtvBody);
+
+const initial = '{{ initial_view }}';
+bindImport();
+if (initial === 'vtv') loadVtv();
+else if (initial === 'plan') loadPlan();
+</script>
 </body>
 </html>
