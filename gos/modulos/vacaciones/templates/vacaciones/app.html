@@ -149,15 +149,15 @@
   <div class="card ths-upload-panel hidden" id="ths-upload-panel">
     <div class="header-row" style="margin-bottom:12px;">
       <div>
-        <h2 style="font-size:1rem;">Importar hoja TOTAL</h2>
-        <p class="subtitle">Solo se lee la hoja <strong>TOTAL</strong>. Fechas ya cargadas se conservan; si (fecha, empleado) ya existe, se pisa.</p>
+        <h2 style="font-size:1rem;">Importar horas diarias</h2>
+        <p class="subtitle">Se detecta la hoja por su contenido (fecha, empleado, horas…). Fechas ya cargadas se conservan; si (fecha, empleado) ya existe, se pisa.</p>
       </div>
       <button type="button" class="btn-outline btn" id="ths-upload-close" style="padding:4px 10px;font-size:.75rem;">Cerrar</button>
     </div>
-    <div class="card dropzone ths-dropzone" id="ths-dropzone" role="button" tabindex="0" aria-label="Seleccionar archivo TOTAL">
+    <div class="card dropzone ths-dropzone" id="ths-dropzone" role="button" tabindex="0" aria-label="Seleccionar archivo de horas">
       <div class="ths-drop-icon">⬆</div>
       <h3 id="ths-drop-title">Arrastrá el Excel de horas aquí</h3>
-      <p id="ths-drop-sub">o hacé clic · .xlsx / .xlsm · hoja TOTAL</p>
+      <p id="ths-drop-sub">o hacé clic · .xlsx / .xlsm</p>
     </div>
     <input type="file" id="ths-file-input" accept=".xlsx,.xlsm" hidden>
     <div id="ths-import-status" class="hidden card" style="margin-top:12px;padding:14px;text-align:center;color:var(--muted);">Importando horas…</div>
@@ -179,7 +179,7 @@
   <div id="ths-loading" class="spinner hidden">Cargando...</div>
   <div id="ths-empty" class="card ths-empty hidden">
     <h2>Sin horas cargadas</h2>
-    <p>Subí el primer Excel con hoja <strong>TOTAL</strong> para armar el dashboard.</p>
+    <p>Subí el primer Excel de horas diarias (con columnas de fecha, empleado y horas) para armar el dashboard.</p>
     <button type="button" class="btn" id="ths-empty-upload">Cargar Excel</button>
   </div>
 
@@ -269,7 +269,7 @@
   <div class="card" style="margin-top:20px;font-size:.85rem;color:var(--muted);">
     <h3 style="color:var(--text);margin-bottom:12px;">Formato esperado</h3>
     <p><strong style="color:var(--text);">Planilla de vacaciones (recomendado):</strong> Legajo, Empleado, Fecha ingreso, Sector y bloques por año (Días disponibles / tomados / pendientes), como el archivo “Archivo de Vacaciones-Actualizado…”. Se importan también los comentarios de celda (triángulo rojo) y las columnas Q/R.</p>
-    <p style="margin-top:8px;"><strong style="color:var(--text);">Opcional — hoja TOTAL:</strong> registros diarios (Fecha, Empleado, Sector…) para cruzar tomados reales vs planilla.</p>
+    <p style="margin-top:8px;"><strong style="color:var(--text);">Opcional — planilla de horas diarias:</strong> registros diarios (Fecha, Empleado, Sector, horas…) para cruzar tomados reales vs planilla. Se detecta por el contenido de las columnas.</p>
   </div>
 </div>
 
@@ -1400,7 +1400,7 @@ function showThsImportError(msg) {
   res.className = 'card result-err';
   res.innerHTML = `<h3 style="color:var(--red);">Error al importar</h3><p style="font-size:.85rem;margin-top:8px;">${escHtml(msg)}</p>`;
   res.classList.remove('hidden');
-  document.getElementById('ths-drop-sub').textContent = 'o hacé clic · .xlsx / .xlsm · hoja TOTAL';
+  document.getElementById('ths-drop-sub').textContent = 'o hacé clic · .xlsx / .xlsm';
 }
 
 async function runThsImport() {

@@ -207,15 +207,16 @@ def test_vacaciones_import_planilla_archivo_actualizado(auth_client, app):
     assert r.get_json() == [2023, 2024, 2025]
 
 
-def _xlsx_total(rows):
+def _xlsx_hours(rows, sheet_title="Horas diarias", headers=None):
+    """Excel de horas con nombre de hoja libre (se detecta por columnas)."""
     import io
 
     import openpyxl
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "TOTAL"
-    ws.append([
+    ws.title = sheet_title
+    ws.append(headers or [
         "fecha", "empleado", "sector", "servicio", "centro", "situacion",
         "total_horas", "hs_viaje", "hs50", "hs_noc", "hs_noc50", "hs100",
         "viandas", "v_desayuno", "d_normales", "ausente", "fr_trabajados",
@@ -246,12 +247,12 @@ def test_tot_hs_import_merge_and_overwrite(auth_client, app):
     """Fechas nuevas se suman; (fecha, empleado) repetidos se pisan sin duplicar."""
     from datetime import date
 
-    buf1 = _xlsx_total([
+    buf1 = _xlsx_hours([
         ["2025-06-01", "Pedro Test", "RRHH", "", "", "", 8, 0, 1, 0, 0, 0,
          0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         ["2025-06-02", "Pedro Test", "RRHH", "", "", "", 8, 0, 0, 0, 0, 0,
          0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ])
+    ], sheet_title="archivo (14)")
     r = auth_client.post(
         "/gos/vacaciones/api/importar/total",
         data={"file": (buf1, "tot1.xlsx")},
@@ -264,12 +265,12 @@ def test_tot_hs_import_merge_and_overwrite(auth_client, app):
     assert data["detalle"]["registros_nuevos"] == 2
 
     # Segundo archivo: actualiza 01/06 y agrega 03/06
-    buf2 = _xlsx_total([
+    buf2 = _xlsx_hours([
         ["2025-06-01", "Pedro Test", "RRHH", "", "", "", 10, 0, 2, 0, 0, 0,
          0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         ["2025-06-03", "Pedro Test", "RRHH", "", "", "", 8, 0, 0, 0, 0, 0,
          0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ])
+    ], sheet_title="Hoja1")
     r = auth_client.post(
         "/gos/vacaciones/api/importar/total",
         data={"file": (buf2, "tot2.xlsx")},
@@ -319,7 +320,31 @@ def test_tot_hs_import_merge_and_overwrite(auth_client, app):
     assert 2025 in meta["anios"]
 
 
-def test_tot_hs_import_requires_total_sheet(auth_client):
+def test_tot_hs_import_by_spanish_headers_any_sheet_name(auth_client, app):
+    """Detecta columnas aunque el nombre de hoja no sea TOTAL y los headers varíen."""
+    buf = _xlsx_hours(
+        [["2025-07-01", "Ana Test", "IT", 8.5, 1]],
+        sheet_title="Planilla Julio",
+        headers=["Fecha", "Empleado", "Sector", "Total Horas", "Hs 50%"],
+    )
+    r = auth_client.post(
+        "/gos/vacaciones/api/importar/total",
+        data={"file": (buf, "julio.xlsx")},
+        content_type="multipart/form-data",
+    )
+    assert r.status_code == 200
+    assert r.get_json()["detalle"]["registros"] == 1
+
+    with app.app_context():
+        from gos.extensions import db
+
+        reg = db.session.query(Registro).filter_by(empleado="Ana Test").one()
+        assert reg.total_horas == 8.5
+        assert reg.hs50 == 1.0
+        assert reg.sector == "IT"
+
+
+def test_tot_hs_import_rejects_empty_workbook(auth_client):
     import io
 
     import openpyxl
@@ -331,8 +356,9 @@ def test_tot_hs_import_requires_total_sheet(auth_client):
     buf.seek(0)
     r = auth_client.post(
         "/gos/vacaciones/api/importar/total",
-        data={"file": (buf, "sin_total.xlsx")},
+        data={"file": (buf, "sin_horas.xlsx")},
         content_type="multipart/form-data",
     )
     assert r.status_code == 500
-    assert "TOTAL" in r.get_json()["error"]
+    err = r.get_json()["error"]
+    assert "horas diarias" in err.lower() or "fecha" in err.lower()

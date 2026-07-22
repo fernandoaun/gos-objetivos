@@ -191,20 +191,168 @@ def _open_workbook(filepath: str):
         ) from exc
 
 
-# ── Hoja TOTAL (streaming) ─────────────────────────────────────────────────
+# ── Hoja de horas diarias (streaming) ───────────────────────────────────────
+
+# Alias de encabezados → campo del modelo (lo que importa es el contenido).
+_TOTAL_HEADER_ALIASES: dict[str, tuple[str, ...]] = {
+    "fecha": ("fecha", "date", "dia", "día"),
+    "empleado": ("empleado", "nombre", "persona", "trabajador", "legajo nombre"),
+    "sector": ("sector", "area", "área", "departamento"),
+    "servicio": ("servicio",),
+    "centro": ("centro", "centro de costo", "c.costo", "ccosto"),
+    "situacion": ("situacion", "situación", "estado"),
+    "total_horas": (
+        "total_horas", "total horas", "horas", "hs totales", "total hs",
+        "tot hs", "hs total", "horas totales",
+    ),
+    "hs_viaje": ("hs_viaje", "hs viaje", "horas viaje", "viaje"),
+    "hs50": ("hs50", "hs 50", "hs 50%", "horas 50", "50%"),
+    "hs_noc": ("hs_noc", "hs noc", "hs nocturnas", "nocturnas", "hs noche"),
+    "hs_noc50": ("hs_noc50", "hs noc50", "hs noc 50", "noc 50"),
+    "hs100": ("hs100", "hs 100", "hs 100%", "horas 100", "100%"),
+    "viandas": ("viandas", "vianda"),
+    "v_desayuno": ("v_desayuno", "v desayuno", "desayuno"),
+    "d_normales": ("d_normales", "d normales", "dias normales", "días normales"),
+    "ausente": ("ausente", "ausencias", "ausencia"),
+    "fr_trabajados": ("fr_trabajados", "fr trabajados", "francos trabajados"),
+    "feriados": ("feriados", "feriado"),
+    "enfermedad": ("enfermedad", "enfermo"),
+    "traslado": ("traslado", "traslados"),
+    "vacaciones": ("vacaciones", "vacacion", "vacación"),
+    "licencia": ("licencia", "licencias"),
+    "suspension": ("suspension", "suspensión"),
+    "accidente": ("accidente", "accidentes"),
+    "francos_comp": ("francos_comp", "francos comp", "francos compensatorios"),
+}
+
+
+def _match_total_field(header: str) -> str | None:
+    """Devuelve el campo del modelo si el encabezado coincide con algún alias."""
+    h = _norm_header(header)
+    if not h:
+        return None
+    # Evitar "fecha ingreso" de la planilla de vacaciones.
+    if h.startswith("fecha ingreso") or h.startswith("fecha de ingreso"):
+        return None
+    for field, aliases in _TOTAL_HEADER_ALIASES.items():
+        for alias in aliases:
+            if h == alias or h.replace(" ", "_") == alias.replace(" ", "_"):
+                return field
+    if h in ("fecha", "date", "dia", "día"):
+        return "fecha"
+    if h in ("empleado", "nombre", "persona", "trabajador"):
+        return "empleado"
+    if "total" in h and "hora" in h:
+        return "total_horas"
+    if h in ("horas", "hs", "total hs", "tot hs"):
+        return "total_horas"
+    return None
+
+
+def _map_total_headers(header_row: tuple) -> dict[str, int] | None:
+    """Mapea campo → índice de columna. Requiere fecha + empleado + señal de horas."""
+    mapping: dict[str, int] = {}
+    for idx, cell in enumerate(header_row or ()):
+        field = _match_total_field(cell)
+        if field and field not in mapping:
+            mapping[field] = idx
+    if "fecha" not in mapping or "empleado" not in mapping:
+        return None
+    # Distinguir de planilla de vacaciones (empleado/sector sin horas diarias).
+    hours_markers = {
+        "total_horas", "hs_viaje", "hs50", "hs_noc", "hs_noc50", "hs100",
+        "d_normales", "ausente", "viandas",
+    }
+    if not (hours_markers & mapping.keys()):
+        return None
+    return mapping
+
+
+def _score_total_header(header_row: tuple) -> int:
+    mapping = _map_total_headers(header_row)
+    if not mapping:
+        return 0
+    score = 10  # fecha + empleado + marcador de horas
+    for field in ("total_horas", "sector", "hs50", "hs100", "ausente", "vacaciones"):
+        if field in mapping:
+            score += 2
+    score += min(len(mapping), 12)
+    return score
+
+
+def _find_total_layout(ws) -> tuple[int, dict[str, int]] | None:
+    """Busca la fila de encabezado (primeras 8) y el mapeo de columnas."""
+    best: tuple[int, dict[str, int], int] | None = None
+    for i, row in enumerate(ws.iter_rows(max_row=8, values_only=True)):
+        score = _score_total_header(row or ())
+        if score < 10:
+            continue
+        mapping = _map_total_headers(row or ())
+        if mapping is None:
+            continue
+        if best is None or score > best[2]:
+            best = (i, mapping, score)
+    if best is None:
+        return None
+    return best[0], best[1]
+
+
+def _detect_total_sheet(wb) -> str | None:
+    """Elige la hoja de horas diarias por contenido (no por el nombre)."""
+    preferred = {p.upper() for p in ("TOTAL", "TOT HS", "TOT HS.", "HORAS", "REGISTROS")}
+    candidates: list[tuple[int, str]] = []
+
+    for name in wb.sheetnames:
+        best_score = 0
+        for row in wb[name].iter_rows(max_row=8, values_only=True):
+            score = _score_total_header(row or ())
+            if score > best_score:
+                best_score = score
+        if best_score < 10:
+            continue
+        if name.strip().upper() in preferred or name.strip().upper().startswith("TOTAL"):
+            best_score += 5
+        candidates.append((best_score, name))
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda x: (-x[0], x[1]))
+    return candidates[0][1]
+
+
+def _resolve_total_sheet(filepath: str) -> tuple[str, int, dict[str, int]] | None:
+    """Abre el libro y resuelve (nombre_hoja, fila_header_0based, mapping)."""
+    wb = _open_workbook(filepath)
+    try:
+        sheet_name = _detect_total_sheet(wb)
+        if not sheet_name:
+            return None
+        layout = _find_total_layout(wb[sheet_name])
+        if layout is None:
+            return None
+        header_idx, mapping = layout
+        return sheet_name, header_idx, mapping
+    finally:
+        wb.close()
 
 
 def _iter_total_keys(filepath: str):
     """Primera pasada liviana: solo (fecha, empleado) para contar y acotar rango."""
+    resolved = _resolve_total_sheet(filepath)
+    if resolved is None:
+        return
+    sheet_name, header_idx, mapping = resolved
+    fecha_i = mapping["fecha"]
+    emp_i = mapping["empleado"]
+    max_col = max(fecha_i, emp_i) + 1
     wb = _open_workbook(filepath)
     try:
-        if "TOTAL" not in wb.sheetnames:
-            return
-        rows = wb["TOTAL"].iter_rows(min_col=1, max_col=2, values_only=True)
-        next(rows, None)  # descartar encabezado
+        rows = wb[sheet_name].iter_rows(min_col=1, max_col=max_col, values_only=True)
+        for _ in range(header_idx + 1):
+            next(rows, None)
         for row in rows:
-            fecha = _to_date(_cell(row, 0))
-            empleado = _to_str(_cell(row, 1))
+            fecha = _to_date(_cell(row, fecha_i))
+            empleado = _to_str(_cell(row, emp_i))
             if fecha is None or not empleado:
                 continue
             yield fecha, empleado
@@ -214,26 +362,34 @@ def _iter_total_keys(filepath: str):
 
 def _iter_total_records(filepath: str):
     """Segunda pasada: filas limpias listas para el upsert."""
+    resolved = _resolve_total_sheet(filepath)
+    if resolved is None:
+        return
+    sheet_name, header_idx, mapping = resolved
+    max_col = max(mapping.values()) + 1
     wb = _open_workbook(filepath)
     try:
-        if "TOTAL" not in wb.sheetnames:
-            return
-        rows = wb["TOTAL"].iter_rows(values_only=True)
-        header = next(rows, None)
-        if header is None:
-            return
-        ncols = min(len(header), len(COLS_TOTAL))
-        cols = COLS_TOTAL[:ncols]
+        rows = wb[sheet_name].iter_rows(min_col=1, max_col=max_col, values_only=True)
+        for _ in range(header_idx + 1):
+            next(rows, None)
         for row in rows:
-            fecha = _to_date(_cell(row, 0))
+            fecha = _to_date(_cell(row, mapping["fecha"]))
             if fecha is None:
                 continue
-            empleado = _to_str(_cell(row, 1))
+            empleado = _to_str(_cell(row, mapping["empleado"]))
             if not empleado:
                 continue
             rec = {"fecha": fecha, "empleado": empleado}
-            for idx in range(2, ncols):
-                name = cols[idx]
+            for name in COLS_TOTAL[2:]:
+                idx = mapping.get(name)
+                if idx is None:
+                    if name in _INT_COLS:
+                        rec[name] = 0
+                    elif name in _FLOAT_COLS:
+                        rec[name] = 0.0
+                    else:
+                        rec[name] = None
+                    continue
                 val = _cell(row, idx)
                 if name in _INT_COLS:
                     rec[name] = _to_int(val)
@@ -300,12 +456,8 @@ def _import_total(filepath: str, db: Session, result: dict) -> None:
     result["registros"] = total
 
 
-def _workbook_has_total_sheet(filepath: str) -> bool:
-    wb = _open_workbook(filepath)
-    try:
-        return "TOTAL" in wb.sheetnames
-    finally:
-        wb.close()
+def _workbook_has_hours_sheet(filepath: str) -> bool:
+    return _resolve_total_sheet(filepath) is not None
 
 
 # ── Planilla de vacaciones (una fila por empleado, bloques por año) ─────────
@@ -577,12 +729,18 @@ def import_excel(filepath: str, db: Session) -> dict:
 
 
 def import_total_excel(filepath: str, db: Session) -> dict:
-    """Importa solo la hoja TOTAL: fechas nuevas se agregan; (fecha, empleado) repetidos se pisan."""
-    if not _workbook_has_total_sheet(filepath):
+    """Importa horas diarias: fechas nuevas se agregan; (fecha, empleado) repetidos se pisan."""
+    if not _workbook_has_hours_sheet(filepath):
         raise ValueError(
-            "El archivo no contiene una hoja llamada TOTAL. "
-            "Renombrá la hoja de horas diarias a TOTAL e intentá de nuevo."
+            "No se encontró una planilla de horas diarias en el archivo. "
+            "Tiene que haber columnas de fecha, empleado y horas "
+            "(por ejemplo total horas, hs 50%, ausente, etc.)."
         )
     result = _empty_import_result()
     _import_total(filepath, db, result)
+    if result["registros"] == 0:
+        raise ValueError(
+            "Se detectó la planilla de horas pero no había filas válidas "
+            "(fecha + empleado)."
+        )
     return result

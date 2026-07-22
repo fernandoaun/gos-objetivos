@@ -197,7 +197,7 @@ def importar_excel():
 @bp.route("/importar/total", methods=["POST"])
 @login_required
 def importar_total():
-    """Carga hoja TOTAL: conserva fechas previas y pisa (fecha, empleado) repetidos."""
+    """Carga horas diarias: conserva fechas previas y pisa (fecha, empleado) repetidos."""
     outcome = _save_upload_and_import(import_total_excel)
     if isinstance(outcome, tuple):
         return outcome
