@@ -114,6 +114,7 @@ def get_resumen_sector(
         func.sum(Vacacion.dias_disponibles),
         func.sum(Vacacion.dias_tomados),
         func.sum(Vacacion.dias_pendientes),
+        func.count(func.distinct(Vacacion.empleado)),
     ).where(Vacacion.sector.isnot(None))
     if year_desde:
         q = q.where(Vacacion.anio >= year_desde)
@@ -121,7 +122,18 @@ def get_resumen_sector(
         q = q.where(Vacacion.anio <= year_hasta)
     q = q.group_by(Vacacion.sector).order_by(func.sum(Vacacion.dias_pendientes).desc())
     rows = db.execute(q).all()
-    return [
-        {"sector": r[0], "disponibles": r[1] or 0, "tomados": r[2] or 0, "pendientes": r[3] or 0}
-        for r in rows
-    ]
+    result = []
+    for sector, disponibles, tomados, pendientes, personas in rows:
+        personas_n = int(personas or 0)
+        pendientes_n = pendientes or 0
+        result.append(
+            {
+                "sector": sector,
+                "disponibles": disponibles or 0,
+                "tomados": tomados or 0,
+                "pendientes": pendientes_n,
+                "personas": personas_n,
+                "pendientes_por_persona": round(pendientes_n / personas_n, 1) if personas_n else 0,
+            }
+        )
+    return result

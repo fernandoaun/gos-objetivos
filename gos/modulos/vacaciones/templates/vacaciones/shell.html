@@ -3,12 +3,19 @@
 {% block page_title %}{% if view == 'importar' %}Importar datos{% else %}Vacaciones adeudadas{% endif %}{% endblock %}
 {% block extra_css %}
 <style>
-  .pe-content.vac-shell {
+  .pe-content:has(.vac-shell) {
     padding: 0;
     overflow: hidden;
     display: flex;
     flex-direction: column;
     min-height: 0;
+  }
+  .vac-shell {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
   }
   .vac-frame {
     flex: 1;

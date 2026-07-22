@@ -238,6 +238,13 @@ tr:hover td {
   color: var(--muted);
 }
 
+.charts-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
 .chart-box {
   height: 260px;
   margin-top: 8px;
@@ -347,22 +354,14 @@ tr:hover td {
 }
 
 .dropzone {
+  display: block;
+  width: 100%;
   border: 2px dashed var(--border);
   border-radius: var(--gos-radius-xl);
   padding: 48px 24px;
   text-align: center;
   cursor: pointer;
-  transition: border-color 0.2s;
-  position: relative;
-}
-
-.dropzone input[type="file"] {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-  width: 100%;
-  height: 100%;
+  transition: border-color 0.2s, background 0.2s;
 }
 
 .dropzone:hover,

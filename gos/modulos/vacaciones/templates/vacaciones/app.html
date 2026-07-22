@@ -49,12 +49,23 @@
       <div class="card kpi danger"><div class="kpi-label">Críticos (+14 días)</div><div class="kpi-value" id="kpi-rojo">0</div></div>
     </div>
 
-    <div class="card" id="chart-card" style="margin-bottom:20px;">
-      <div class="header-row" style="margin-bottom:0;">
-        <h2 style="font-size:1rem;">Días Pendientes por Sector</h2>
-        <button type="button" class="btn-outline btn hidden" id="chart-clear" style="padding:4px 10px;font-size:.75rem;">✕ Quitar filtro</button>
+    <div class="charts-stack">
+      <div class="card" id="chart-card">
+        <div class="header-row" style="margin-bottom:0;">
+          <h2 style="font-size:1rem;">Días Pendientes por Sector</h2>
+          <button type="button" class="btn-outline btn hidden" id="chart-clear" style="padding:4px 10px;font-size:.75rem;">✕ Quitar filtro</button>
+        </div>
+        <div class="chart-box"><canvas id="chart-sector"></canvas></div>
       </div>
-      <div class="chart-box"><canvas id="chart-sector"></canvas></div>
+      <div class="card" id="chart-ponderado-card">
+        <div class="header-row" style="margin-bottom:0;">
+          <div>
+            <h2 style="font-size:1rem;">Días Pendientes por Persona (ponderado)</h2>
+            <p class="subtitle">Total del sector ÷ cantidad de personas</p>
+          </div>
+        </div>
+        <div class="chart-box"><canvas id="chart-sector-ponderado"></canvas></div>
+      </div>
     </div>
 
     <div class="card">
@@ -82,12 +93,12 @@
   <h1>Importar / Actualizar Datos</h1>
   <p class="subtitle" style="margin-bottom:20px;">Subí el Excel de vacaciones actualizado. Cada nueva versión reemplaza/actualiza los datos existentes.</p>
 
-  <label class="card dropzone" id="dropzone" for="file-input">
+  <div class="card dropzone" id="dropzone" role="button" tabindex="0" aria-label="Seleccionar archivo Excel">
     <div style="font-size:2.5rem;">📂</div>
     <h3 id="drop-title">Arrastrá el archivo Excel aquí</h3>
     <p id="drop-sub">o hacé clic para seleccionar · .xlsx / .xlsm</p>
-    <input type="file" id="file-input" accept=".xlsx,.xlsm">
-  </label>
+  </div>
+  <input type="file" id="file-input" accept=".xlsx,.xlsm" hidden>
 
   <button type="button" class="btn hidden" id="btn-import" style="width:100%;margin-top:16px;padding:14px;">Importar datos</button>
   <div id="import-status" class="hidden card" style="margin-top:16px;padding:16px;text-align:center;color:var(--muted);">Importando datos, puede tardar varios minutos…</div>
@@ -105,7 +116,8 @@
 const API = '/gos/vacaciones/api';
 const state = {
   sectores: [], empleados: [], selectedPersonas: [],
-  deuda: [], resumenSector: [], sectorChart: null,
+  deuda: [], resumenSector: [], resumenPonderado: [],
+  sectorChart: null, sectorPonderadoChart: null,
   sectorSeleccionado: null, file: null,
 };
 
@@ -205,37 +217,94 @@ function renderTable() {
     </tr>`).join('');
 }
 
-function renderChart() {
-  const ctx = document.getElementById('chart-sector');
-  if (state.sectorChart) state.sectorChart.destroy();
-  if (!state.resumenSector.length) { document.getElementById('chart-card').classList.add('hidden'); return; }
-  document.getElementById('chart-card').classList.remove('hidden');
-  const colors = state.resumenSector.map(e => {
-    if (state.sectorSeleccionado && e.sector !== state.sectorSeleccionado) return '#475569';
-    return e.pendientes > 50 ? '#dc3545' : e.pendientes > 20 ? '#e6a800' : '#76b947';
-  });
-  state.sectorChart = new Chart(ctx, {
+function chartScaleOpts() {
+  return {
+    x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e293b' } },
+    y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e293b' } },
+  };
+}
+
+function onSectorBarClick(rows, els) {
+  if (!els.length) return;
+  const sector = rows[els[0].index].sector;
+  state.sectorSeleccionado = state.sectorSeleccionado === sector ? null : sector;
+  document.getElementById('chart-clear').classList.toggle('hidden', !state.sectorSeleccionado);
+  renderChart();
+  renderTable();
+}
+
+function renderBarChart(canvasId, chartKey, rows, valueKey, label, colorFn) {
+  const ctx = document.getElementById(canvasId);
+  if (state[chartKey]) state[chartKey].destroy();
+  state[chartKey] = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels: state.resumenSector.map(r => r.sector),
-      datasets: [{ label: 'Días Pendientes', data: state.resumenSector.map(r => r.pendientes), backgroundColor: colors, borderRadius: 4 }]
+      labels: rows.map(r => r.sector),
+      datasets: [{
+        label,
+        data: rows.map(r => r[valueKey]),
+        backgroundColor: rows.map(colorFn),
+        borderRadius: 4,
+      }],
     },
     options: {
-      responsive: true, maintainAspectRatio: false,
-      onClick: (_, els) => {
-        if (!els.length) return;
-        const sector = state.resumenSector[els[0].index].sector;
-        state.sectorSeleccionado = state.sectorSeleccionado === sector ? null : sector;
-        document.getElementById('chart-clear').classList.toggle('hidden', !state.sectorSeleccionado);
-        renderChart(); renderTable();
+      responsive: true,
+      maintainAspectRatio: false,
+      onClick: (_, els) => onSectorBarClick(rows, els),
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            afterLabel(item) {
+              const row = rows[item.dataIndex];
+              if (!row) return '';
+              return [
+                `Total pendientes: ${row.pendientes}`,
+                `Personas: ${row.personas}`,
+                `Por persona: ${row.pendientes_por_persona}`,
+              ];
+            },
+          },
+        },
       },
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e293b' } },
-        y: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { color: '#1e293b' } }
-      }
-    }
+      scales: chartScaleOpts(),
+    },
   });
+}
+
+function renderChart() {
+  const hasData = state.resumenSector.length > 0;
+  document.getElementById('chart-card').classList.toggle('hidden', !hasData);
+  document.getElementById('chart-ponderado-card').classList.toggle('hidden', !hasData);
+  if (!hasData) {
+    if (state.sectorChart) { state.sectorChart.destroy(); state.sectorChart = null; }
+    if (state.sectorPonderadoChart) { state.sectorPonderadoChart.destroy(); state.sectorPonderadoChart = null; }
+    return;
+  }
+
+  renderBarChart(
+    'chart-sector',
+    'sectorChart',
+    state.resumenSector,
+    'pendientes',
+    'Días Pendientes',
+    (e) => {
+      if (state.sectorSeleccionado && e.sector !== state.sectorSeleccionado) return '#475569';
+      return e.pendientes > 50 ? '#dc3545' : e.pendientes > 20 ? '#e6a800' : '#76b947';
+    },
+  );
+
+  renderBarChart(
+    'chart-sector-ponderado',
+    'sectorPonderadoChart',
+    state.resumenPonderado,
+    'pendientes_por_persona',
+    'Días por Persona',
+    (e) => {
+      if (state.sectorSeleccionado && e.sector !== state.sectorSeleccionado) return '#475569';
+      return e.pendientes_por_persona > 14 ? '#dc3545' : e.pendientes_por_persona > 7 ? '#e6a800' : '#76b947';
+    },
+  );
 }
 
 async function loadVacaciones() {
@@ -255,6 +324,9 @@ async function loadVacaciones() {
     ]);
     state.deuda = deuda;
     state.resumenSector = resumen;
+    state.resumenPonderado = [...resumen].sort(
+      (a, b) => (b.pendientes_por_persona || 0) - (a.pendientes_por_persona || 0)
+    );
     renderChart();
     renderTable();
     document.getElementById('content').classList.remove('hidden');
@@ -303,7 +375,8 @@ document.querySelector('[data-export="excel"]').onclick = () => {
     ['Indicador','Valor'], ['Total Días Pendientes', total], ['Empleados con Deuda', conDeuda], ['Críticos (+14 días)', enRojo],
   ]), 'Resumen');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-    ['Sector','Días Pendientes'], ...state.resumenSector.map(r => [r.sector, r.pendientes]),
+    ['Sector','Días Pendientes','Personas','Días por Persona'],
+    ...state.resumenSector.map(r => [r.sector, r.pendientes, r.personas, r.pendientes_por_persona]),
   ]), 'Por Sector');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
     ['Empleado','Sector','Año','Disponibles','Tomados (Planilla)','Tomados (Real)','Pendientes','Estado'],
@@ -317,6 +390,13 @@ document.querySelector('[data-export="excel"]').onclick = () => {
 // ── Importar ──
 const dropzone = document.getElementById('dropzone');
 const fileInput = document.getElementById('file-input');
+dropzone.onclick = () => fileInput.click();
+dropzone.onkeydown = e => {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    fileInput.click();
+  }
+};
 dropzone.ondragover = e => { e.preventDefault(); dropzone.classList.add('drag'); };
 dropzone.ondragleave = () => dropzone.classList.remove('drag');
 dropzone.ondrop = e => {
