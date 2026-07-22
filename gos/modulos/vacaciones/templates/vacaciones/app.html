@@ -44,21 +44,21 @@
 
   <div id="content" class="hidden">
     <div class="kpis">
-      <button type="button" class="card kpi blue" data-kpi="todos" title="Ver detalle de pendientes">
+      <button type="button" class="card kpi blue" data-kpi="pendientes" title="Ver solo registros con días pendientes">
         <div class="kpi-label">Total días pendientes</div>
         <div class="kpi-value" id="kpi-total">0</div>
       </button>
-      <button type="button" class="card kpi warn" data-kpi="deuda" title="Ver empleados con deuda">
+      <button type="button" class="card kpi warn" data-kpi="deuda" title="Ver solo empleados con deuda">
         <div class="kpi-label">Empleados con deuda</div>
         <div class="kpi-value" id="kpi-deuda">0</div>
       </button>
-      <button type="button" class="card kpi danger" data-kpi="criticos" title="Ver críticos (+14 días)">
+      <button type="button" class="card kpi danger" data-kpi="criticos" title="Ver solo críticos (+14 días)">
         <div class="kpi-label">Críticos (+14 días)</div>
         <div class="kpi-value" id="kpi-rojo">0</div>
       </button>
     </div>
 
-    <div class="charts-stack">
+    <div class="charts-stack" id="charts-stack">
       <div class="card" id="chart-card">
         <div class="header-row" style="margin-bottom:0;">
           <h2 style="font-size:1rem;">Días Pendientes por Sector</h2>
@@ -80,11 +80,10 @@
     <div class="card" id="detalle-card">
       <div class="header-row">
         <div>
-          <h2 style="font-size:1rem;">Detalle por Empleado <span id="sector-filter-label" style="color:var(--accent);font-weight:400;"></span></h2>
-          <p class="subtitle" id="kpi-filter-label"></p>
+          <h2 style="font-size:1rem;">Detalle por Empleado <span id="sector-filter-label" style="color:var(--accent);font-weight:400;"></span> <span id="kpi-filter-label" style="color:var(--accent);font-weight:400;"></span></h2>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
-          <button type="button" class="btn-outline btn hidden" id="kpi-clear" style="padding:4px 10px;font-size:.75rem;">✕ Quitar filtro KPI</button>
+          <button type="button" class="btn-outline btn hidden" id="kpi-clear" style="padding:4px 10px;font-size:.75rem;">✕ Quitar filtro</button>
           <span class="subtitle" id="table-count">0 registros</span>
         </div>
       </div>
@@ -137,10 +136,29 @@ const state = {
 };
 
 const KPI_LABELS = {
-  todos: 'Mostrando todos los registros del total',
-  deuda: 'Filtrado: empleados con días pendientes',
-  criticos: 'Filtrado: críticos (+14 días pendientes)',
+  pendientes: '— Con días pendientes',
+  deuda: '— Con deuda',
+  criticos: '— Críticos (+14 días)',
 };
+
+function matchKpiFiltro(d) {
+  const dias = d.dias_pendientes || 0;
+  if (state.kpiFiltro === 'pendientes' || state.kpiFiltro === 'deuda') return dias > 0;
+  if (state.kpiFiltro === 'criticos') return dias > 14;
+  return true;
+}
+
+function empleadosDelKpi(filtro) {
+  const rows = state.deuda.filter(d => {
+    const byS = !state.sectorSeleccionado || d.sector === state.sectorSeleccionado;
+    if (!byS) return false;
+    const dias = d.dias_pendientes || 0;
+    if (filtro === 'pendientes' || filtro === 'deuda') return dias > 0;
+    if (filtro === 'criticos') return dias > 14;
+    return false;
+  });
+  return [...new Set(rows.map(r => r.empleado))];
+}
 
 async function apiGet(path, params = {}) {
   const qs = new URLSearchParams(Object.entries(params).filter(([,v]) => v)).toString();
@@ -218,35 +236,52 @@ function getFiltrado() {
 }
 
 function getFiltradoDetalle() {
-  return getFiltrado().filter(d => {
-    const dias = d.dias_pendientes || 0;
-    if (state.kpiFiltro === 'deuda') return dias > 0;
-    if (state.kpiFiltro === 'criticos') return dias > 14;
-    return true;
-  });
+  return getFiltrado().filter(matchKpiFiltro);
 }
 
 function updateKpiActive() {
   document.querySelectorAll('.kpi[data-kpi]').forEach(el => {
     el.classList.toggle('active', el.dataset.kpi === state.kpiFiltro);
   });
-  const label = document.getElementById('kpi-filter-label');
-  label.textContent = state.kpiFiltro ? (KPI_LABELS[state.kpiFiltro] || '') : '';
+  document.getElementById('kpi-filter-label').textContent = state.kpiFiltro ? (KPI_LABELS[state.kpiFiltro] || '') : '';
   document.getElementById('kpi-clear').classList.toggle('hidden', !state.kpiFiltro);
+  document.getElementById('charts-stack')?.classList.toggle('hidden', !!state.kpiFiltro);
 }
 
 function setKpiFiltro(filtro) {
-  state.kpiFiltro = state.kpiFiltro === filtro ? null : filtro;
+  if (state.kpiFiltro === filtro) {
+    state.kpiFiltro = null;
+    state.selectedPersonas = [];
+  } else {
+    state.kpiFiltro = filtro;
+    // Aplica el filtro de personas como si se hubieran seleccionado en el multi-select
+    state.selectedPersonas = empleadosDelKpi(filtro);
+  }
+  updatePersonasUI();
+  renderPersonasList();
   renderTable();
   document.getElementById('detalle-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function renderTable() {
-  const base = getFiltrado();
-  const filtrado = getFiltradoDetalle().sort((a,b) => (b.dias_pendientes||0) - (a.dias_pendientes||0));
+  const base = getFiltrado().filter(d => {
+    // KPIs se calculan sin el recorte de personas del propio KPI (solo sector)
+    const byS = !state.sectorSeleccionado || d.sector === state.sectorSeleccionado;
+    return byS;
+  });
+  // Si hay filtro KPI, la tabla usa personas seleccionadas + match de severidad
+  const filtrado = (state.kpiFiltro
+    ? state.deuda.filter(d => {
+        const byP = state.selectedPersonas.includes(d.empleado);
+        const byS = !state.sectorSeleccionado || d.sector === state.sectorSeleccionado;
+        return byP && byS && matchKpiFiltro(d);
+      })
+    : getFiltrado()
+  ).sort((a,b) => (b.dias_pendientes||0) - (a.dias_pendientes||0));
+
   const total = base.reduce((a,d) => a + (d.dias_pendientes||0), 0);
-  const conDeuda = base.filter(d => (d.dias_pendientes||0) > 0).length;
-  const enRojo = base.filter(d => (d.dias_pendientes||0) > 14).length;
+  const conDeuda = new Set(base.filter(d => (d.dias_pendientes||0) > 0).map(d => d.empleado)).size;
+  const enRojo = new Set(base.filter(d => (d.dias_pendientes||0) > 14).map(d => d.empleado)).size;
   document.getElementById('kpi-total').textContent = total;
   document.getElementById('kpi-deuda').textContent = conDeuda;
   document.getElementById('kpi-rojo').textContent = enRojo;
@@ -254,14 +289,16 @@ function renderTable() {
   document.getElementById('btn-export').disabled = !filtrado.length;
   document.getElementById('sector-filter-label').textContent = state.sectorSeleccionado ? `— ${state.sectorSeleccionado}` : '';
   updateKpiActive();
-  document.getElementById('table-body').innerHTML = filtrado.map(row => `
+  document.getElementById('table-body').innerHTML = filtrado.length
+    ? filtrado.map(row => `
     <tr>
       <td>${row.empleado}</td><td style="color:var(--muted)">${row.sector||''}</td>
       <td class="num">${row.anio}</td><td class="num">${row.dias_disponibles}</td>
       <td class="num">${row.tomados_planilla}</td><td class="num" style="color:var(--accent)">${row.tomados_real}</td>
       <td class="num" style="font-weight:700">${row.dias_pendientes}</td>
       <td style="text-align:center">${semaforo(row.dias_pendientes||0)}</td>
-    </tr>`).join('');
+    </tr>`).join('')
+    : '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px;">Sin registros para este filtro</td></tr>';
 }
 
 function chartScaleOpts() {
@@ -374,6 +411,11 @@ async function loadVacaciones() {
     state.resumenPonderado = [...resumen].sort(
       (a, b) => (b.pendientes_por_persona || 0) - (a.pendientes_por_persona || 0)
     );
+    if (state.kpiFiltro) {
+      state.selectedPersonas = empleadosDelKpi(state.kpiFiltro);
+      updatePersonasUI();
+      renderPersonasList();
+    }
     renderChart();
     renderTable();
     document.getElementById('content').classList.remove('hidden');
@@ -403,7 +445,13 @@ async function initVacaciones() {
   document.querySelectorAll('.kpi[data-kpi]').forEach(el => {
     el.onclick = () => setKpiFiltro(el.dataset.kpi);
   });
-  document.getElementById('kpi-clear').onclick = () => { state.kpiFiltro = null; renderTable(); };
+  document.getElementById('kpi-clear').onclick = () => {
+    state.kpiFiltro = null;
+    state.selectedPersonas = [];
+    updatePersonasUI();
+    renderPersonasList();
+    renderTable();
+  };
   await loadVacaciones();
 }
 
@@ -413,14 +461,21 @@ document.addEventListener('mousedown', e => {
   if (!e.target.closest('.export-menu')) document.getElementById('export-drop').classList.add('hidden');
 });
 document.querySelector('[data-export="excel"]').onclick = () => {
-  const base = getFiltrado();
-  const filtrado = getFiltradoDetalle().sort((a,b) => (b.dias_pendientes||0) - (a.dias_pendientes||0));
+  const base = state.deuda.filter(d => !state.sectorSeleccionado || d.sector === state.sectorSeleccionado);
+  const filtrado = (state.kpiFiltro
+    ? state.deuda.filter(d => {
+        const byP = state.selectedPersonas.includes(d.empleado);
+        const byS = !state.sectorSeleccionado || d.sector === state.sectorSeleccionado;
+        return byP && byS && matchKpiFiltro(d);
+      })
+    : getFiltrado()
+  ).sort((a,b) => (b.dias_pendientes||0) - (a.dias_pendientes||0));
   const desde = document.getElementById('f-desde').value;
   const hasta = document.getElementById('f-hasta').value;
   const periodo = desde && hasta ? `${desde} — ${hasta}` : 'Todos los períodos';
   const total = base.reduce((a,d) => a + (d.dias_pendientes||0), 0);
-  const conDeuda = base.filter(d => (d.dias_pendientes||0) > 0).length;
-  const enRojo = base.filter(d => (d.dias_pendientes||0) > 14).length;
+  const conDeuda = new Set(base.filter(d => (d.dias_pendientes||0) > 0).map(d => d.empleado)).size;
+  const enRojo = new Set(base.filter(d => (d.dias_pendientes||0) > 14).map(d => d.empleado)).size;
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
     ['VACACIONES ADEUDADAS'], ['Período', periodo], [],
