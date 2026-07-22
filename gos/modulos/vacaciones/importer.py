@@ -8,7 +8,9 @@ Esto evita que un archivo grande agote la memoria del servidor (OOM).
 
 from __future__ import annotations
 
+import ast
 import math
+import re
 from datetime import date, datetime
 
 import openpyxl
@@ -56,6 +58,82 @@ def _to_int(value) -> int:
         return int(_to_float(value))
     except (ValueError, OverflowError):
         return 0
+
+
+def _is_formula(value) -> bool:
+    return isinstance(value, str) and value.strip().startswith("=")
+
+
+def _eval_simple_formula(value) -> float | None:
+    """Evalúa sumas literales (=SUM(7,3) / =7+3) cuando no hay valor en caché."""
+    if not _is_formula(value):
+        return None
+    expr = value.strip()[1:].strip()
+    if not expr:
+        return None
+    sum_match = re.fullmatch(
+        r"(?i)(?:SUM|SUMA)\s*\((.+)\)",
+        expr,
+    )
+    if sum_match:
+        parts = re.split(r"[,;]", sum_match.group(1))
+        total = 0.0
+        for part in parts:
+            token = part.strip()
+            if not token:
+                continue
+            try:
+                total += float(token)
+            except ValueError:
+                return None
+        return total
+    # Solo aritmética con literales numéricos (sin referencias a celdas).
+    if not re.fullmatch(r"[\d\s+\-*/().]+", expr):
+        return None
+    try:
+        tree = ast.parse(expr, mode="eval")
+    except SyntaxError:
+        return None
+
+    def _check(node: ast.AST) -> bool:
+        if isinstance(node, ast.Expression):
+            return _check(node.body)
+        if isinstance(node, ast.Constant):
+            return isinstance(node.value, (int, float)) and not isinstance(node.value, bool)
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+            return _check(node.operand)
+        if isinstance(node, ast.BinOp) and isinstance(
+            node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)
+        ):
+            return _check(node.left) and _check(node.right)
+        return False
+
+    if not _check(tree):
+        return None
+    try:
+        return float(eval(compile(tree, "<excel>", "eval"), {"__builtins__": {}}, {}))
+    except Exception:
+        return None
+
+
+def _resolve_excel_number(raw, cached=None):
+    """Número de celda: valor directo, caché de fórmula (data_only) o suma literal."""
+    if isinstance(raw, bool):
+        return float(raw)
+    if isinstance(raw, (int, float)):
+        return 0.0 if (isinstance(raw, float) and math.isnan(raw)) else float(raw)
+    if _is_formula(raw):
+        if cached is not None and cached != "" and not _is_formula(cached):
+            return cached
+        evaluated = _eval_simple_formula(raw)
+        if evaluated is not None:
+            return evaluated
+        return None
+    if raw in (None, ""):
+        if cached is not None and cached != "" and not _is_formula(cached):
+            return cached
+        return None
+    return raw
 
 
 def _to_str(value) -> str | None:
@@ -354,9 +432,9 @@ def _parse_year_block(
                 "fecha_ingreso": _to_date(_cell(row, 2)),
                 "sector": _to_str(_cell(row, 3)),
                 "anio": anio,
-                "dias_disponibles": _to_int(_cell(row, col_offset)),
-                "dias_tomados": _to_int(_cell(row, col_offset + 1)),
-                "dias_pendientes": _to_int(_cell(row, col_offset + 2)),
+                "dias_disponibles": _to_int(_resolve_excel_number(_cell(row, col_offset))),
+                "dias_tomados": _to_int(_resolve_excel_number(_cell(row, col_offset + 1))),
+                "dias_pendientes": _to_int(_resolve_excel_number(_cell(row, col_offset + 2))),
                 "comentario": None,
                 "nota_q": _to_str(_cell(row, 16)),
                 "nota_r": _to_str(_cell(row, 17)),
@@ -365,17 +443,23 @@ def _parse_year_block(
     return rows
 
 
-def _parse_year_block_ws(ws, data_start: int, col_offset: int, anio: int) -> list[dict]:
+def _parse_year_block_ws(ws, data_start: int, col_offset: int, anio: int, ws_data=None) -> list[dict]:
     """Parsea filas de datos con comentarios de celda (Días tomados + Q/R)."""
+
+    def _num(row_idx: int, col_idx: int):
+        raw = ws.cell(row_idx, col_idx).value
+        cached = ws_data.cell(row_idx, col_idx).value if ws_data is not None else None
+        return _to_int(_resolve_excel_number(raw, cached))
+
     rows = []
     for row_idx in range(data_start + 1, ws.max_row + 1):
         empleado = _to_str(ws.cell(row_idx, 2).value)
         if not empleado:
             continue
-        disp = ws.cell(row_idx, col_offset + 1).value
-        tom = ws.cell(row_idx, col_offset + 2).value
-        pend = ws.cell(row_idx, col_offset + 3).value
-        if all(v in (None, "") for v in (disp, tom, pend)):
+        disp_raw = ws.cell(row_idx, col_offset + 1).value
+        tom_raw = ws.cell(row_idx, col_offset + 2).value
+        pend_raw = ws.cell(row_idx, col_offset + 3).value
+        if all(v in (None, "") for v in (disp_raw, tom_raw, pend_raw)):
             continue
         legajo_raw = ws.cell(row_idx, 1).value
         tomados_cell = ws.cell(row_idx, col_offset + 2)
@@ -388,9 +472,9 @@ def _parse_year_block_ws(ws, data_start: int, col_offset: int, anio: int) -> lis
                 "fecha_ingreso": _to_date(ws.cell(row_idx, 3).value),
                 "sector": _to_str(ws.cell(row_idx, 4).value),
                 "anio": anio,
-                "dias_disponibles": _to_int(disp),
-                "dias_tomados": _to_int(tom),
-                "dias_pendientes": _to_int(pend),
+                "dias_disponibles": _num(row_idx, col_offset + 1),
+                "dias_tomados": _num(row_idx, col_offset + 2),
+                "dias_pendientes": _num(row_idx, col_offset + 3),
                 "comentario": _cell_comment(tomados_cell),
                 "nota_q": _merge_nota(_to_str(q_cell.value), _cell_comment(q_cell)),
                 "nota_r": _merge_nota(_to_str(r_cell.value), _cell_comment(r_cell)),
@@ -401,6 +485,7 @@ def _parse_year_block_ws(ws, data_start: int, col_offset: int, anio: int) -> lis
 
 def _import_planilla(filepath: str, db: Session, result: dict) -> None:
     # data_only=False para conservar comentarios (triángulo rojo).
+    # data_only=True para leer el valor calculado de celdas con fórmula (p.ej. =SUM).
     try:
         wb = openpyxl.load_workbook(filepath, data_only=False)
     except Exception as exc:
@@ -408,11 +493,17 @@ def _import_planilla(filepath: str, db: Session, result: dict) -> None:
             "No se pudo leer el archivo. Asegurate de que sea un Excel válido "
             "(.xlsx o .xlsm)."
         ) from exc
+    wb_data = None
     try:
+        try:
+            wb_data = openpyxl.load_workbook(filepath, data_only=True)
+        except Exception:
+            wb_data = None
         sheet_name = _detect_planilla_sheet(wb)
         if not sheet_name:
             return
         ws = wb[sheet_name]
+        ws_data = wb_data[sheet_name] if wb_data and sheet_name in wb_data.sheetnames else None
         all_rows = list(ws.iter_rows(values_only=True))
         if not all_rows:
             return
@@ -423,9 +514,11 @@ def _import_planilla(filepath: str, db: Session, result: dict) -> None:
 
         all_vac: list[dict] = []
         for anio, col_offset in year_blocks:
-            all_vac.extend(_parse_year_block_ws(ws, data_start, col_offset, anio))
+            all_vac.extend(_parse_year_block_ws(ws, data_start, col_offset, anio, ws_data))
     finally:
         wb.close()
+        if wb_data is not None:
+            wb_data.close()
 
     if not all_vac:
         return

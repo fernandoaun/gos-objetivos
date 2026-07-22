@@ -150,6 +150,9 @@ def test_vacaciones_import_planilla_archivo_actualizado(auth_client, app):
         15, 28, 28, 0, 16, 28, 28, 0, 16, 28, 3, 25,
         None, None,
     ])
+    # Fórmula de suma en "Días tomados" (antes se leía como 0).
+    ws["G4"] = "=SUM(7,21)"
+    ws["O5"] = "=7+3+5"
     # Comentarios (triángulo rojo) en Días tomados 2023 (G) y 2025 (O)
     ws["G4"].comment = Comment("Tester:\n(7) 01/01 al 07/01/2023", "Tester")
     ws["O5"].comment = Comment("Tester:\n(3) 01-05-26 al 03-05-26", "Tester")
@@ -175,12 +178,13 @@ def test_vacaciones_import_planilla_archivo_actualizado(auth_client, app):
         assert len(rows) == 6
         ana_2025 = next(r for r in rows if r.empleado.startswith("Araneda") and r.anio == 2025)
         assert ana_2025.dias_disponibles == 28
-        assert ana_2025.dias_tomados == 3
+        assert ana_2025.dias_tomados == 15  # =7+3+5
         assert ana_2025.dias_pendientes == 25
         assert ana_2025.fecha_ingreso == date(2008, 1, 7)
         assert ana_2025.comentario == "(3) 01-05-26 al 03-05-26"
 
         alias_2023 = next(r for r in rows if r.empleado.startswith("Alias") and r.anio == 2023)
+        assert alias_2023.dias_tomados == 28  # =SUM(7,21)
         assert alias_2023.comentario == "(7) 01/01 al 07/01/2023"
         assert alias_2023.nota_q == "Baja 2026"
         assert alias_2023.nota_r == "Nota R test"
@@ -189,7 +193,7 @@ def test_vacaciones_import_planilla_archivo_actualizado(auth_client, app):
     assert r.status_code == 200
     deuda = r.get_json()
     assert len(deuda) == 6
-    assert any(d["dias_pendientes"] == 25 for d in deuda)
+    assert any(d["dias_pendientes"] == 17 for d in deuda)
     alias_api = next(d for d in deuda if d["empleado"].startswith("Alias") and d["anio"] == 2023)
     assert alias_api["comentario"] == "(7) 01/01 al 07/01/2023"
     assert alias_api["nota_q"] == "Baja 2026"
