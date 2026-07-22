@@ -84,6 +84,7 @@ def get_plan(session: Session, anio: int | None = None) -> dict:
     ).scalars().all()
 
     by_unidad: dict[int, dict] = {}
+    tipos_count = {1: 0, 2: 0, 3: 0, 4: 0}
     for cel in celdas:
         u = cel.unidad
         if u.id not in by_unidad:
@@ -92,15 +93,16 @@ def get_plan(session: Session, anio: int | None = None) -> dict:
                 "codigo": u.codigo,
                 "nombre": u.nombre,
                 "meses": {m: {"r": 0, "p": 0, "e": 0} for m in range(1, 13)},
-                "tot_r": 0.0,
                 "tot_p": 0.0,
                 "tot_e": 0.0,
             }
         row = by_unidad[u.id]
         row["meses"][cel.mes] = {"r": cel.r, "p": cel.p, "e": cel.e}
-        row["tot_r"] += cel.r or 0
         row["tot_p"] += cel.p or 0
         row["tot_e"] += cel.e or 0
+        tipo = int(cel.r) if cel.r and float(cel.r) == int(cel.r) else None
+        if tipo in tipos_count:
+            tipos_count[tipo] += 1
 
     # Incluir unidades con VTV aunque no tengan plan ese año
     unidades_ids = set(by_unidad)
@@ -113,7 +115,6 @@ def get_plan(session: Session, anio: int | None = None) -> dict:
                 "codigo": u.codigo,
                 "nombre": u.nombre,
                 "meses": {m: {"r": 0, "p": 0, "e": 0} for m in range(1, 13)},
-                "tot_r": 0.0,
                 "tot_p": 0.0,
                 "tot_e": 0.0,
             }
@@ -127,18 +128,15 @@ def get_plan(session: Session, anio: int | None = None) -> dict:
 
     tot_p = sum(f["tot_p"] for f in filas)
     tot_e = sum(f["tot_e"] for f in filas)
-    tot_r = sum(f["tot_r"] for f in filas)
 
     por_mes = []
     for m in range(1, 13):
         mp = sum(f["meses"][m - 1]["p"] for f in filas)
         me = sum(f["meses"][m - 1]["e"] for f in filas)
-        mr = sum(f["meses"][m - 1]["r"] for f in filas)
         por_mes.append(
             {
                 "mes": m,
                 "label": MESES_LABEL[m],
-                "r": mr,
                 "p": mp,
                 "e": me,
                 "cumplimiento": _cumplimiento(mp, me),
@@ -155,17 +153,17 @@ def get_plan(session: Session, anio: int | None = None) -> dict:
         },
         "kpis": {
             "unidades": len(filas),
-            "planificado": tot_p,
+            "programado": tot_p,
             "ejecutado": tot_e,
-            "realizado": tot_r,
             "cumplimiento": _cumplimiento(tot_p, tot_e),
+            "por_tipo": tipos_count,
         },
         "por_mes": por_mes,
         "filas": filas,
         "leyenda": {
-            "r": "Realizado",
-            "p": "Planificado",
-            "e": "Ejecutado",
+            "r": "Referencia (tipo de mantenimiento 1–4)",
+            "p": "Programado (mes en que se programó)",
+            "e": "Ejecutado (mes en que se realizó)",
             "c": "Cumplimiento (E/P)",
         },
     }

@@ -2,6 +2,9 @@
 
 Hojas esperadas:
 - Informe: plan anual por unidad con columnas mensuales R / P / E
+  - R = referencia / tipo de mantenimiento (1, 2, 3 o 4)
+  - P = 1 si ese mantenimiento se programó en el mes
+  - E = 1 si ese mantenimiento se ejecutó en el mes
 - VTV: unidad + vencimiento VTV
 """
 

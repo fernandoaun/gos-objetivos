@@ -15,7 +15,7 @@ class MantUnidad(db.Model):
 
 
 class MantPlanCelda(db.Model):
-    """Celda mensual del plan: R (realizado), P (planificado), E (ejecutado)."""
+    """Celda mensual: R = referencia/tipo (1–4), P = programado, E = ejecutado."""
 
     __tablename__ = "mant_plan_celdas"
     __table_args__ = (
@@ -28,9 +28,9 @@ class MantPlanCelda(db.Model):
     )
     anio = db.Column(db.Integer, nullable=False)
     mes = db.Column(db.Integer, nullable=False)  # 1-12
-    r = db.Column(db.Float, nullable=False, default=0)
-    p = db.Column(db.Float, nullable=False, default=0)
-    e = db.Column(db.Float, nullable=False, default=0)
+    r = db.Column(db.Float, nullable=False, default=0)  # tipo de mantenimiento (1–4)
+    p = db.Column(db.Float, nullable=False, default=0)  # 1 si se programó en este mes
+    e = db.Column(db.Float, nullable=False, default=0)  # 1 si se ejecutó en este mes
 
     unidad = db.relationship("MantUnidad", back_populates="celdas")
 

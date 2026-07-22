@@ -66,7 +66,7 @@ def module_descriptor() -> dict:
     return {
         "code": MODULE_NAME,
         "label": "Mantenimiento",
-        "description": "Plan preventivo Pampa (R/P/E) y vencimientos VTV.",
+        "description": "Plan preventivo Pampa (tipo R + programado/ejecutado) y vencimientos VTV.",
         "icon": "bi-wrench-adjustable",
         "url": "/gos/mantenimiento/",
     }

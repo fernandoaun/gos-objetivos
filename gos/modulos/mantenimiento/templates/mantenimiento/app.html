@@ -14,11 +14,11 @@
   <div class="header-row">
     <div>
       <h1>Plan de mantenimiento preventivo</h1>
-      <p class="subtitle" id="plan-subtitle">Pampa Energía · columnas R / P / E por mes</p>
+      <p class="subtitle" id="plan-subtitle">Pampa Energía · tipo (R) + mes programado (P) / ejecutado (E)</p>
     </div>
     <div class="leyenda">
-      <span><i class="chip chip-r">R</i> Realizado</span>
-      <span><i class="chip chip-p">P</i> Planificado</span>
+      <span><i class="chip chip-r">R</i> Referencia (tipo 1–4)</span>
+      <span><i class="chip chip-p">P</i> Programado</span>
       <span><i class="chip chip-e">E</i> Ejecutado</span>
       <span>C = E ÷ P</span>
     </div>
@@ -49,11 +49,11 @@
         <div class="kpi-value" id="kpi-unidades">0</div>
       </div>
       <div class="card kpi info">
-        <div class="kpi-label">Planificado (P)</div>
+        <div class="kpi-label">Programados (P)</div>
         <div class="kpi-value" id="kpi-p">0</div>
       </div>
       <div class="card kpi">
-        <div class="kpi-label">Ejecutado (E)</div>
+        <div class="kpi-label">Ejecutados (E)</div>
         <div class="kpi-value" id="kpi-e">0</div>
       </div>
       <div class="card kpi" id="kpi-c-card">
@@ -61,10 +61,11 @@
         <div class="kpi-value" id="kpi-c">—</div>
       </div>
     </div>
+    <div class="kpis" id="kpi-tipos" style="margin-top:-8px;"></div>
 
     <div class="charts-row">
       <div class="card">
-        <h2 style="font-size:1rem;margin-bottom:8px;">Planificado vs ejecutado por mes</h2>
+        <h2 style="font-size:1rem;margin-bottom:8px;">Programado vs ejecutado por mes</h2>
         <div class="chart-box"><canvas id="chart-mes"></canvas></div>
       </div>
     </div>
@@ -170,7 +171,8 @@
     <div id="import-status" class="hidden card" style="margin-top:12px;padding:12px;text-align:center;color:var(--muted);">Importando…</div>
     <div id="import-result" class="hidden card" style="margin-top:12px;"></div>
     <div class="import-hint">
-      <strong>Informe:</strong> fila de meses (Enero…Diciembre) con subcolumnas R / P / E por unidad.<br>
+      <strong>Informe:</strong> fila de meses (Enero…Diciembre) con subcolumnas R / P / E por unidad.
+      R = tipo de mantenimiento (1–4), P = mes programado, E = mes ejecutado.<br>
       <strong>VTV:</strong> columnas Unidad y Vencimiento VTV.<br>
       Al reimportar el mismo año se reemplazan las celdas del plan de ese año y se actualizan los vencimientos VTV.
     </div>
@@ -238,9 +240,9 @@ function rpeHtml(cell) {
     return `<div class="rpe-cell"><span class="v empty">·</span><span class="v empty">·</span><span class="v empty">·</span></div>`;
   }
   return `<div class="rpe-cell">
-    <span class="v r" title="Realizado">${r ? fmtNum(r) : '·'}</span>
-    <span class="v p" title="Planificado">${p ? fmtNum(p) : '·'}</span>
-    <span class="v e" title="Ejecutado">${e ? fmtNum(e) : '·'}</span>
+    <span class="v r" title="Referencia / tipo de mantenimiento">${r ? fmtNum(r) : '·'}</span>
+    <span class="v p" title="Programado en este mes">${p ? fmtNum(p) : '·'}</span>
+    <span class="v e" title="Ejecutado en este mes">${e ? fmtNum(e) : '·'}</span>
   </div>`;
 }
 
@@ -313,7 +315,7 @@ function renderChart(porMes) {
       labels: porMes.map(m => m.label),
       datasets: [
         {
-          label: 'Planificado (P)',
+          label: 'Programado (P)',
           data: porMes.map(m => m.p),
           backgroundColor: 'rgba(47, 111, 143, 0.75)',
         },
@@ -359,11 +361,17 @@ async function loadPlan(anio) {
     document.getElementById('plan-subtitle').textContent = `${titulo}${sector} · ${data.anio}`;
 
     document.getElementById('kpi-unidades').textContent = fmtNum(data.kpis.unidades);
-    document.getElementById('kpi-p').textContent = fmtNum(data.kpis.planificado);
+    document.getElementById('kpi-p').textContent = fmtNum(data.kpis.programado);
     document.getElementById('kpi-e').textContent = fmtNum(data.kpis.ejecutado);
     const cEl = document.getElementById('kpi-c');
     cEl.textContent = fmtPct(data.kpis.cumplimiento);
     cEl.className = 'kpi-value ' + cumplClass(data.kpis.cumplimiento);
+    const porTipo = data.kpis.por_tipo || {};
+    document.getElementById('kpi-tipos').innerHTML = [1, 2, 3, 4].map(t => `
+      <div class="card kpi" style="border-left-color:var(--r-color);">
+        <div class="kpi-label">Tipo ${t} (R)</div>
+        <div class="kpi-value" style="color:var(--r-color);">${fmtNum(porTipo[t] || 0)}</div>
+      </div>`).join('');
 
     renderPlanHead();
     renderPlanBody();
