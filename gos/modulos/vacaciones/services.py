@@ -40,14 +40,32 @@ def get_empleados(db: Session, sector: Optional[str] = None) -> list[str]:
     return list(db.execute(select(subq.c.empleado).order_by(subq.c.empleado)).scalars().all())
 
 
+def _resolve_anios(
+    anios: Optional[list[int]] = None,
+    desde: Optional[str] = None,
+    hasta: Optional[str] = None,
+) -> Optional[list[int]]:
+    if anios:
+        return sorted({int(a) for a in anios})
+    year_desde = int(desde[:4]) if desde else None
+    year_hasta = int(hasta[:4]) if hasta else None
+    if year_desde is None and year_hasta is None:
+        return None
+    if year_desde is not None and year_hasta is not None:
+        return list(range(year_desde, year_hasta + 1))
+    if year_desde is not None:
+        return [year_desde]
+    return [year_hasta] if year_hasta is not None else None
+
+
 def get_deuda_vacaciones(
     db: Session,
     desde: Optional[str] = None,
     hasta: Optional[str] = None,
     sector: Optional[str] = None,
+    anios: Optional[list[int]] = None,
 ) -> list[dict]:
-    year_desde = int(desde[:4]) if desde else None
-    year_hasta = int(hasta[:4]) if hasta else None
+    years = _resolve_anios(anios, desde, hasta)
 
     q_planilla = select(
         Vacacion.legajo,
@@ -58,10 +76,8 @@ def get_deuda_vacaciones(
         Vacacion.dias_tomados,
         Vacacion.dias_pendientes,
     )
-    if year_desde:
-        q_planilla = q_planilla.where(Vacacion.anio >= year_desde)
-    if year_hasta:
-        q_planilla = q_planilla.where(Vacacion.anio <= year_hasta)
+    if years:
+        q_planilla = q_planilla.where(Vacacion.anio.in_(years))
     if sector:
         q_planilla = q_planilla.where(Vacacion.sector == sector)
     q_planilla = q_planilla.order_by(Vacacion.empleado, Vacacion.anio)
@@ -72,9 +88,13 @@ def get_deuda_vacaciones(
         extract("year", Registro.fecha).label("anio_r"),
         func.sum(Registro.vacaciones).label("dias_reales"),
     )
-    if desde:
+    if years:
+        q_real = q_real.where(extract("year", Registro.fecha).in_(years))
+    elif desde:
         q_real = q_real.where(Registro.fecha >= desde)
-    if hasta:
+        if hasta:
+            q_real = q_real.where(Registro.fecha <= hasta)
+    elif hasta:
         q_real = q_real.where(Registro.fecha <= hasta)
     q_real = q_real.group_by(Registro.empleado, extract("year", Registro.fecha))
     real_rows = db.execute(q_real).all()
@@ -105,9 +125,9 @@ def get_resumen_sector(
     db: Session,
     desde: Optional[str] = None,
     hasta: Optional[str] = None,
+    anios: Optional[list[int]] = None,
 ) -> list[dict]:
-    year_desde = int(desde[:4]) if desde else None
-    year_hasta = int(hasta[:4]) if hasta else None
+    years = _resolve_anios(anios, desde, hasta)
 
     q = select(
         Vacacion.sector,
@@ -116,10 +136,8 @@ def get_resumen_sector(
         func.sum(Vacacion.dias_pendientes),
         func.count(func.distinct(Vacacion.empleado)),
     ).where(Vacacion.sector.isnot(None))
-    if year_desde:
-        q = q.where(Vacacion.anio >= year_desde)
-    if year_hasta:
-        q = q.where(Vacacion.anio <= year_hasta)
+    if years:
+        q = q.where(Vacacion.anio.in_(years))
     q = q.group_by(Vacacion.sector).order_by(func.sum(Vacacion.dias_pendientes).desc())
     rows = db.execute(q).all()
     result = []

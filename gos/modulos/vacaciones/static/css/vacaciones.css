@@ -88,6 +88,39 @@ h1 {
   outline: 2px solid var(--accent);
 }
 
+.year-filter {
+  min-width: 220px;
+}
+
+.year-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.year-btn {
+  background: var(--pe-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--gos-radius-md);
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.year-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.year-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 .kpis {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

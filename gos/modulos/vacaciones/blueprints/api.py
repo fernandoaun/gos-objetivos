@@ -11,6 +11,19 @@ from gos.modulos.vacaciones import services
 bp = Blueprint("vacaciones_api", __name__)
 
 
+def _parse_anios_arg():
+    raw_list = request.args.getlist("anios")
+    parts = []
+    for item in raw_list:
+        parts.extend(item.replace(";", ",").split(","))
+    years = []
+    for part in parts:
+        part = part.strip()
+        if part.isdigit():
+            years.append(int(part))
+    return sorted(set(years)) or None
+
+
 @bp.route("/health")
 @login_required
 def health():
@@ -45,6 +58,7 @@ def vacaciones_deuda():
             desde=request.args.get("desde"),
             hasta=request.args.get("hasta"),
             sector=request.args.get("sector"),
+            anios=_parse_anios_arg(),
         )
     )
 
@@ -57,6 +71,7 @@ def vacaciones_resumen_sector():
             db.session,
             desde=request.args.get("desde"),
             hasta=request.args.get("hasta"),
+            anios=_parse_anios_arg(),
         )
     )
 

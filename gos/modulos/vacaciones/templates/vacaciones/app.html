@@ -25,8 +25,10 @@
   </div>
 
   <div class="card filters">
-    <div><label>Desde</label><input type="date" id="f-desde"></div>
-    <div><label>Hasta</label><input type="date" id="f-hasta"></div>
+    <div class="year-filter">
+      <label>Años</label>
+      <div class="year-btns" id="year-btns"></div>
+    </div>
     <div><label>Sector</label><select id="f-sector"><option value="">Todos los sectores</option></select></div>
     <div class="multi-select" id="personas-wrap">
       <label>Persona(s)</label>
@@ -129,7 +131,7 @@
 <script>
 const API = '/gos/vacaciones/api';
 const state = {
-  sectores: [], empleados: [], selectedPersonas: [],
+  sectores: [], empleados: [], anios: [], selectedAnios: [], selectedPersonas: [],
   deuda: [], resumenSector: [], resumenPonderado: [],
   sectorChart: null, sectorPonderadoChart: null,
   sectorSeleccionado: null, kpiFiltro: null, file: null,
@@ -359,19 +361,17 @@ function renderChart() {
 }
 
 async function loadVacaciones() {
-  const desde = document.getElementById('f-desde').value;
-  const hasta = document.getElementById('f-hasta').value;
   const sector = document.getElementById('f-sector').value;
   document.getElementById('loading').classList.remove('hidden');
   document.getElementById('content').classList.add('hidden');
   try {
     const params = {};
-    if (desde) params.desde = desde;
-    if (hasta) params.hasta = hasta;
+    if (state.selectedAnios.length) params.anios = state.selectedAnios.join(',');
     if (sector) params.sector = sector;
+    const resumenParams = state.selectedAnios.length ? { anios: state.selectedAnios.join(',') } : {};
     const [deuda, resumen] = await Promise.all([
       apiGet('/vacaciones/deuda', params),
-      apiGet('/vacaciones/resumen-por-sector', { ...(desde?{desde}:{}), ...(hasta?{hasta}:{}) }),
+      apiGet('/vacaciones/resumen-por-sector', resumenParams),
     ]);
     state.deuda = deuda;
     state.resumenSector = resumen;
@@ -388,21 +388,44 @@ async function loadVacaciones() {
   }
 }
 
+function renderYearButtons() {
+  const wrap = document.getElementById('year-btns');
+  if (!state.anios.length) {
+    wrap.innerHTML = '<span class="subtitle">Sin años cargados</span>';
+    return;
+  }
+  wrap.innerHTML = state.anios.map(y => {
+    const active = state.selectedAnios.includes(y) ? 'active' : '';
+    return `<button type="button" class="year-btn ${active}" data-year="${y}">${y}</button>`;
+  }).join('');
+  wrap.querySelectorAll('.year-btn').forEach(btn => {
+    btn.onclick = () => {
+      const y = Number(btn.dataset.year);
+      if (state.selectedAnios.includes(y)) {
+        state.selectedAnios = state.selectedAnios.filter(a => a !== y);
+      } else {
+        state.selectedAnios = [...state.selectedAnios, y].sort((a, b) => a - b);
+      }
+      renderYearButtons();
+      loadVacaciones();
+    };
+  });
+}
+
 async function initVacaciones() {
   const [anios, sectores, empleados] = await Promise.all([
     apiGet('/dashboard/años'), apiGet('/dashboard/sectores'), apiGet('/dashboard/empleados'),
   ]);
   state.sectores = sectores;
   state.empleados = empleados;
+  state.anios = anios;
+  state.selectedAnios = [...anios];
   const sel = document.getElementById('f-sector');
   sectores.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
-  if (anios.length) {
-    document.getElementById('f-desde').value = `${anios[0]}-01-01`;
-    document.getElementById('f-hasta').value = `${anios[anios.length - 1]}-12-31`;
-  }
+  renderYearButtons();
   renderPersonasList();
   updatePersonasUI();
-  ['f-desde','f-hasta','f-sector'].forEach(id => document.getElementById(id).addEventListener('change', loadVacaciones));
+  document.getElementById('f-sector').addEventListener('change', loadVacaciones);
   document.getElementById('chart-clear').onclick = () => { state.sectorSeleccionado = null; document.getElementById('chart-clear').classList.add('hidden'); renderChart(); renderTable(); };
   document.querySelectorAll('.kpi[data-kpi]').forEach(el => {
     el.onclick = () => setKpiFiltro(el.dataset.kpi);
@@ -422,9 +445,9 @@ document.addEventListener('mousedown', e => {
 document.querySelector('[data-export="excel"]').onclick = () => {
   const base = state.deuda.filter(d => !state.sectorSeleccionado || d.sector === state.sectorSeleccionado);
   const filtrado = getFiltradoDetalle().sort((a,b) => (b.dias_pendientes||0) - (a.dias_pendientes||0));
-  const desde = document.getElementById('f-desde').value;
-  const hasta = document.getElementById('f-hasta').value;
-  const periodo = desde && hasta ? `${desde} — ${hasta}` : 'Todos los períodos';
+  const periodo = state.selectedAnios.length
+    ? state.selectedAnios.join(', ')
+    : 'Todos los años';
   const total = base.reduce((a,d) => a + (d.dias_pendientes||0), 0);
   const conDeuda = new Set(base.filter(d => (d.dias_pendientes||0) > 0).map(d => d.empleado)).size;
   const enRojo = new Set(base.filter(d => (d.dias_pendientes||0) > 14).map(d => d.empleado)).size;
