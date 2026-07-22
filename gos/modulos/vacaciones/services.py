@@ -75,6 +75,9 @@ def get_deuda_vacaciones(
         Vacacion.dias_disponibles,
         Vacacion.dias_tomados,
         Vacacion.dias_pendientes,
+        Vacacion.comentario,
+        Vacacion.nota_q,
+        Vacacion.nota_r,
     )
     if years:
         q_planilla = q_planilla.where(Vacacion.anio.in_(years))
@@ -102,7 +105,18 @@ def get_deuda_vacaciones(
 
     result = []
     for row in planilla_rows:
-        legajo, empleado, sect, anio_val, disponibles, tomados_planilla, pendientes = row
+        (
+            legajo,
+            empleado,
+            sect,
+            anio_val,
+            disponibles,
+            tomados_planilla,
+            pendientes,
+            comentario,
+            nota_q,
+            nota_r,
+        ) = row
         tomados_real = reales.get((empleado, anio_val), 0)
         diferencia = (tomados_planilla or 0) - (tomados_real or 0)
         result.append(
@@ -116,6 +130,9 @@ def get_deuda_vacaciones(
                 "tomados_real": int(tomados_real or 0),
                 "dias_pendientes": pendientes or 0,
                 "diferencia": diferencia,
+                "comentario": comentario or None,
+                "nota_q": nota_q or None,
+                "nota_r": nota_r or None,
             }
         )
     return result

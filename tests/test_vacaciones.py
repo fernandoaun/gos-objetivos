@@ -118,6 +118,7 @@ def test_vacaciones_import_planilla_archivo_actualizado(auth_client, app):
     from datetime import date, datetime
 
     import openpyxl
+    from openpyxl.comments import Comment
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -142,11 +143,16 @@ def test_vacaciones_import_planilla_archivo_actualizado(auth_client, app):
     ws.append([
         43, "Alias, Fernando Javier", datetime(2007, 1, 1), "Operaciones",
         16, 28, 28, 0, 17, 28, 11, 17, 18, 28, None, 28,
+        "Baja 2026", "Nota R test",
     ])
     ws.append([
         79, "Araneda, Ana Romina", datetime(2008, 1, 7), "Operaciones",
         15, 28, 28, 0, 16, 28, 28, 0, 16, 28, 3, 25,
+        None, None,
     ])
+    # Comentarios (triángulo rojo) en Días tomados 2023 (G) y 2025 (O)
+    ws["G4"].comment = Comment("Tester:\n(7) 01/01 al 07/01/2023", "Tester")
+    ws["O5"].comment = Comment("Tester:\n(3) 01-05-26 al 03-05-26", "Tester")
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -172,12 +178,22 @@ def test_vacaciones_import_planilla_archivo_actualizado(auth_client, app):
         assert ana_2025.dias_tomados == 3
         assert ana_2025.dias_pendientes == 25
         assert ana_2025.fecha_ingreso == date(2008, 1, 7)
+        assert ana_2025.comentario == "(3) 01-05-26 al 03-05-26"
+
+        alias_2023 = next(r for r in rows if r.empleado.startswith("Alias") and r.anio == 2023)
+        assert alias_2023.comentario == "(7) 01/01 al 07/01/2023"
+        assert alias_2023.nota_q == "Baja 2026"
+        assert alias_2023.nota_r == "Nota R test"
 
     r = auth_client.get("/gos/vacaciones/api/vacaciones/deuda")
     assert r.status_code == 200
     deuda = r.get_json()
     assert len(deuda) == 6
     assert any(d["dias_pendientes"] == 25 for d in deuda)
+    alias_api = next(d for d in deuda if d["empleado"].startswith("Alias") and d["anio"] == 2023)
+    assert alias_api["comentario"] == "(7) 01/01 al 07/01/2023"
+    assert alias_api["nota_q"] == "Baja 2026"
+    assert alias_api["nota_r"] == "Nota R test"
 
     r = auth_client.get("/gos/vacaciones/api/dashboard/sectores")
     assert "Operaciones" in r.get_json()

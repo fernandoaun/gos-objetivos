@@ -311,9 +311,34 @@ def _year_block_has_data(row: tuple, col_offset: int) -> bool:
     return any(_cell(row, col_offset + i) not in (None, "") for i in range(3))
 
 
+def _clean_comment_text(raw: str | None) -> str | None:
+    """Quita el prefijo 'Autor:' típico de comentarios Excel."""
+    if not raw:
+        return None
+    text = str(raw).strip()
+    if not text:
+        return None
+    lines = text.splitlines()
+    if len(lines) > 1 and lines[0].strip().endswith(":"):
+        text = "\n".join(lines[1:]).strip()
+    return text or None
+
+
+def _cell_comment(cell) -> str | None:
+    if cell is None or not getattr(cell, "comment", None):
+        return None
+    return _clean_comment_text(cell.comment.text)
+
+
+def _merge_nota(*parts: str | None) -> str | None:
+    chunks = [p.strip() for p in parts if p and str(p).strip()]
+    return "\n".join(chunks) if chunks else None
+
+
 def _parse_year_block(
     data_rows: list[tuple], col_offset: int, anio: int
 ) -> list[dict]:
+    """Parseo liviano solo por valores (tests / fallback sin hoja viva)."""
     rows = []
     for row in data_rows:
         empleado = _to_str(_cell(row, 1))
@@ -332,16 +357,52 @@ def _parse_year_block(
                 "dias_disponibles": _to_int(_cell(row, col_offset)),
                 "dias_tomados": _to_int(_cell(row, col_offset + 1)),
                 "dias_pendientes": _to_int(_cell(row, col_offset + 2)),
+                "comentario": None,
+                "nota_q": _to_str(_cell(row, 16)),
+                "nota_r": _to_str(_cell(row, 17)),
+            }
+        )
+    return rows
+
+
+def _parse_year_block_ws(ws, data_start: int, col_offset: int, anio: int) -> list[dict]:
+    """Parsea filas de datos con comentarios de celda (Días tomados + Q/R)."""
+    rows = []
+    for row_idx in range(data_start + 1, ws.max_row + 1):
+        empleado = _to_str(ws.cell(row_idx, 2).value)
+        if not empleado:
+            continue
+        disp = ws.cell(row_idx, col_offset + 1).value
+        tom = ws.cell(row_idx, col_offset + 2).value
+        pend = ws.cell(row_idx, col_offset + 3).value
+        if all(v in (None, "") for v in (disp, tom, pend)):
+            continue
+        legajo_raw = ws.cell(row_idx, 1).value
+        tomados_cell = ws.cell(row_idx, col_offset + 2)
+        q_cell = ws.cell(row_idx, 17)
+        r_cell = ws.cell(row_idx, 18)
+        rows.append(
+            {
+                "legajo": _to_int(legajo_raw) if legajo_raw not in (None, "") else None,
+                "empleado": empleado,
+                "fecha_ingreso": _to_date(ws.cell(row_idx, 3).value),
+                "sector": _to_str(ws.cell(row_idx, 4).value),
+                "anio": anio,
+                "dias_disponibles": _to_int(disp),
+                "dias_tomados": _to_int(tom),
+                "dias_pendientes": _to_int(pend),
+                "comentario": _cell_comment(tomados_cell),
+                "nota_q": _merge_nota(_to_str(q_cell.value), _cell_comment(q_cell)),
+                "nota_r": _merge_nota(_to_str(r_cell.value), _cell_comment(r_cell)),
             }
         )
     return rows
 
 
 def _import_planilla(filepath: str, db: Session, result: dict) -> None:
-    # La planilla es chica (una fila por empleado); se abre sin read-only
-    # porque la detección de hoja + lectura de filas requiere varias pasadas.
+    # data_only=False para conservar comentarios (triángulo rojo).
     try:
-        wb = openpyxl.load_workbook(filepath, data_only=True)
+        wb = openpyxl.load_workbook(filepath, data_only=False)
     except Exception as exc:
         raise ValueError(
             "No se pudo leer el archivo. Asegurate de que sea un Excel válido "
@@ -351,21 +412,21 @@ def _import_planilla(filepath: str, db: Session, result: dict) -> None:
         sheet_name = _detect_planilla_sheet(wb)
         if not sheet_name:
             return
-        all_rows = list(wb[sheet_name].iter_rows(values_only=True))
+        ws = wb[sheet_name]
+        all_rows = list(ws.iter_rows(values_only=True))
+        if not all_rows:
+            return
+
+        data_start = _find_data_start(all_rows)
+        header_rows = all_rows[:data_start]
+        year_blocks = _detect_year_blocks(header_rows)
+
+        all_vac: list[dict] = []
+        for anio, col_offset in year_blocks:
+            all_vac.extend(_parse_year_block_ws(ws, data_start, col_offset, anio))
     finally:
         wb.close()
 
-    if not all_rows:
-        return
-
-    data_start = _find_data_start(all_rows)
-    header_rows = all_rows[:data_start]
-    data_rows = all_rows[data_start:]
-    year_blocks = _detect_year_blocks(header_rows)
-
-    all_vac: list[dict] = []
-    for anio, col_offset in year_blocks:
-        all_vac.extend(_parse_year_block(data_rows, col_offset, anio))
     if not all_vac:
         return
 

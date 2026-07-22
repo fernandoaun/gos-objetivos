@@ -46,3 +46,6 @@ class Vacacion(db.Model):
     dias_disponibles = db.Column(db.Integer, default=0)
     dias_tomados = db.Column(db.Integer, default=0)
     dias_pendientes = db.Column(db.Integer, default=0)
+    comentario = db.Column(db.Text)  # nota Excel (triángulo) en Días tomados del año
+    nota_q = db.Column(db.Text)  # columna Q del Excel (p.ej. Baja 2026)
+    nota_r = db.Column(db.Text)  # columna R del Excel

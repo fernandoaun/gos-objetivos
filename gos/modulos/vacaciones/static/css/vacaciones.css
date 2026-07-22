@@ -121,6 +121,68 @@ h1 {
   color: #fff;
 }
 
+#notas-card {
+  margin-bottom: 20px;
+}
+
+.nota-persona {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.nota-persona:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.nota-persona h3 {
+  font-size: 0.95rem;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+.nota-label {
+  display: inline-block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-right: 6px;
+}
+
+.nota-comentarios {
+  margin-top: 8px;
+}
+
+.nota-anio {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: var(--pe-bg);
+  border-radius: var(--gos-radius-md);
+  border: 1px solid var(--border);
+}
+
+.nota-anio strong {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.nota-text {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: var(--gos-font);
+  font-size: 0.8rem;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.notas-cell {
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
 .kpis {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
