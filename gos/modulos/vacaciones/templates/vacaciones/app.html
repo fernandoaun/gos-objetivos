@@ -160,9 +160,21 @@ const KPI_LABELS = {
   criticos: '— Críticos (+14 días)',
 };
 
+function rowHasNotas(row) {
+  return !!(row.comentario || row.nota_q || row.nota_r);
+}
+
+function esAdelanto(row) {
+  const text = [row.comentario, row.nota_q, row.nota_r].filter(Boolean).join('\n').toLowerCase();
+  return /adelant/.test(text);
+}
+
 function matchKpiFiltro(d) {
   const dias = d.dias_pendientes || 0;
-  if (state.kpiFiltro === 'pendientes' || state.kpiFiltro === 'deuda') return dias > 0;
+  // Deuda / pendientes: incluir también filas con notas (p.ej. adelantos 2026).
+  if (state.kpiFiltro === 'pendientes' || state.kpiFiltro === 'deuda') {
+    return dias > 0 || rowHasNotas(d);
+  }
   if (state.kpiFiltro === 'criticos') return dias > 14;
   return true;
 }
@@ -183,7 +195,10 @@ async function apiPostForm(path, formData) {
   return data;
 }
 
-function semaforo(dias) {
+function semaforo(dias, row = null) {
+  if (row && esAdelanto(row) && (dias || 0) === 0) {
+    return '<span class="badge warn">Adelanto</span>';
+  }
   if (dias === 0) return '<span class="badge ok">Al día ✓</span>';
   if (dias <= 14) return `<span class="badge warn">⚠ ${dias} días</span>`;
   return `<span class="badge bad">🔴 ${dias} días</span>`;
@@ -208,6 +223,8 @@ function renderPersonasList() {
       const v = cb.value;
       if (cb.checked) state.selectedPersonas.push(v);
       else state.selectedPersonas = state.selectedPersonas.filter(x => x !== v);
+      // Al elegir persona, soltar filtro KPI para no ocultar al día / adelantos.
+      if (state.selectedPersonas.length && state.kpiFiltro) state.kpiFiltro = null;
       updatePersonasUI();
       renderTable();
     };
@@ -243,7 +260,22 @@ function getFiltrado() {
 }
 
 function getFiltradoDetalle() {
-  return getFiltrado().filter(d => (d.dias_pendientes || 0) > 0).filter(matchKpiFiltro);
+  const base = getFiltrado();
+  // Si hay persona(s) elegida(s), mostrar todos sus años (al día, notas, adelantos).
+  if (state.selectedPersonas.length) {
+    if (state.kpiFiltro === 'criticos') {
+      return base.filter(d => (d.dias_pendientes || 0) > 14);
+    }
+    if (state.kpiFiltro === 'pendientes' || state.kpiFiltro === 'deuda') {
+      const conDeudaONotas = base.filter(d => (d.dias_pendientes || 0) > 0 || rowHasNotas(d));
+      return conDeudaONotas.length ? conDeudaONotas : base;
+    }
+    return base;
+  }
+  // Vista general: deuda o registros con notas del Excel (adelantos, bajas, etc.).
+  return base
+    .filter(d => (d.dias_pendientes || 0) > 0 || rowHasNotas(d))
+    .filter(matchKpiFiltro);
 }
 
 function updateKpiActive() {
@@ -269,14 +301,11 @@ function escHtml(s) {
     .replace(/"/g, '&quot;');
 }
 
-function rowHasNotas(row) {
-  return !!(row.comentario || row.nota_q || row.nota_r);
-}
-
 function notasResumen(row) {
   const parts = [];
   if (row.comentario) parts.push('📅');
   if (row.nota_q || row.nota_r) parts.push('📝');
+  if (esAdelanto(row)) parts.push('Adelanto');
   return parts.join(' ') || '—';
 }
 
@@ -305,7 +334,7 @@ function openPersonaModal(empleado) {
     <div class="persona-anio-card">
       <div class="persona-anio-head">
         <strong>${r.anio}</strong>
-        ${semaforo(r.dias_pendientes || 0)}
+        ${semaforo(r.dias_pendientes || 0, r)}
       </div>
       <div class="persona-anio-grid">
         <div><span class="nota-label">Disponibles</span><div>${r.dias_disponibles ?? 0}</div></div>
@@ -351,19 +380,21 @@ function renderNotasPanel() {
     const rows = rowsDePersona(emp).filter(d => !state.sectorSeleccionado || d.sector === state.sectorSeleccionado);
     const notaQ = rows.find(r => r.nota_q)?.nota_q || '';
     const notaR = rows.find(r => r.nota_r)?.nota_r || '';
+    const tieneAdelanto = rows.some(esAdelanto);
     const comentarios = rows
       .filter(r => r.comentario)
-      .map(r => `<div class="nota-anio"><strong>${r.anio}</strong><pre class="nota-text">${escHtml(r.comentario)}</pre></div>`)
+      .map(r => `<div class="nota-anio"><strong>${r.anio}${esAdelanto(r) ? ' · Adelanto' : ''}</strong><pre class="nota-text">${escHtml(r.comentario)}</pre></div>`)
       .join('');
+    const head = `<h3><button type="button" class="link-persona" data-persona="${escHtml(emp)}">${escHtml(emp)}</button>${tieneAdelanto ? ' <span class="badge warn">Adelanto</span>' : ''}</h3>`;
     if (!notaQ && !notaR && !comentarios) {
-      blocks.push(`<div class="nota-persona"><h3>${escHtml(emp)}</h3><p class="subtitle">Sin notas en el Excel</p></div>`);
+      blocks.push(`<div class="nota-persona">${head}<p class="subtitle">Sin notas en el Excel</p></div>`);
       continue;
     }
     blocks.push(`
       <div class="nota-persona">
-        <h3><button type="button" class="link-persona" data-persona="${escHtml(emp)}">${escHtml(emp)}</button></h3>
-        ${notaQ ? `<p><span class="nota-label">Columna Q</span> ${escHtml(notaQ)}</p>` : ''}
-        ${notaR ? `<p><span class="nota-label">Columna R</span> ${escHtml(notaR)}</p>` : ''}
+        ${head}
+        ${notaQ ? `<div class="nota-anio"><span class="nota-label">Columna Q</span><pre class="nota-text">${escHtml(notaQ)}</pre></div>` : ''}
+        ${notaR ? `<div class="nota-anio"><span class="nota-label">Columna R</span><pre class="nota-text">${escHtml(notaR)}</pre></div>` : ''}
         ${comentarios ? `<div class="nota-comentarios"><span class="nota-label">Detalle de días tomados</span>${comentarios}</div>` : ''}
       </div>`);
   }
@@ -399,7 +430,7 @@ function renderTable() {
       <td class="num">${row.anio}</td><td class="num">${row.dias_disponibles}</td>
       <td class="num">${row.tomados_planilla}</td><td class="num" style="color:var(--accent)">${row.tomados_real}</td>
       <td class="num" style="font-weight:700">${row.dias_pendientes}</td>
-      <td style="text-align:center">${semaforo(row.dias_pendientes||0)}</td>
+      <td style="text-align:center">${semaforo(row.dias_pendientes||0, row)}</td>
       <td class="notas-cell"><button type="button" class="link-persona" data-persona="${escHtml(row.empleado)}" title="${escHtml(title)}">${rowHasNotas(row) ? notasResumen(row) : 'Ver'}</button></td>
     </tr>`;
     }).join('')
@@ -608,7 +639,11 @@ document.querySelector('[data-export="excel"]').onclick = () => {
   ]), 'Por Sector');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
     ['Empleado','Sector','Año','Disponibles','Tomados (Planilla)','Tomados (Real)','Pendientes','Estado'],
-    ...filtrado.map(r => { const p = r.dias_pendientes||0; return [r.empleado,r.sector,r.anio,r.dias_disponibles,r.tomados_planilla,r.tomados_real,p, p===0?'Al día':p<=14?'Atención':'Crítico']; }),
+    ...filtrado.map(r => {
+      const p = r.dias_pendientes||0;
+      const estado = p===0 ? (esAdelanto(r) ? 'Adelanto' : 'Al día') : p<=14 ? 'Atención' : 'Crítico';
+      return [r.empleado,r.sector,r.anio,r.dias_disponibles,r.tomados_planilla,r.tomados_real,p, estado];
+    }),
   ]), 'Detalle Empleados');
   const fecha = new Date().toLocaleDateString('es-AR').replace(/\//g,'-');
   XLSX.writeFile(wb, `Vacaciones_${fecha}.xlsx`);
