@@ -180,10 +180,42 @@ h1 {
 
 .notas-cell {
   font-size: 0.8rem;
-  white-space: normal;
-  min-width: 220px;
-  max-width: 340px;
-  vertical-align: top;
+  white-space: nowrap;
+  width: 52px;
+  vertical-align: middle;
+}
+
+.nota-flag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0;
+  height: 0;
+  padding: 0;
+  border: none;
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-bottom: 16px solid #dc2626;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  vertical-align: middle;
+}
+
+.nota-flag:hover {
+  border-bottom-color: #b91c1c;
+}
+
+.nota-flag-bang {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  font-family: var(--gos-font);
 }
 
 .notas-stack {

@@ -199,16 +199,6 @@ function labelAdelanto(rowOrYears) {
   return '';
 }
 
-function matchKpiFiltro(d) {
-  const dias = d.dias_pendientes || 0;
-  // Deuda / pendientes: incluir también filas con notas (p.ej. adelantos 2026).
-  if (state.kpiFiltro === 'pendientes' || state.kpiFiltro === 'deuda') {
-    return dias > 0 || rowHasNotas(d);
-  }
-  if (state.kpiFiltro === 'criticos') return dias > 14;
-  return true;
-}
-
 async function apiGet(path, params = {}) {
   const qs = new URLSearchParams(Object.entries(params).filter(([,v]) => v)).toString();
   const res = await fetch(`${API}${path}${qs ? '?' + qs : ''}`, { credentials: 'same-origin' });
@@ -291,21 +281,13 @@ function getFiltrado() {
 
 function getFiltradoDetalle() {
   const base = getFiltrado();
-  // Si hay persona(s) elegida(s), mostrar todos sus años (al día, notas, adelantos).
-  if (state.selectedPersonas.length) {
-    if (state.kpiFiltro === 'criticos') {
-      return base.filter(d => (d.dias_pendientes || 0) > 14);
-    }
-    if (state.kpiFiltro === 'pendientes' || state.kpiFiltro === 'deuda') {
-      const conDeudaONotas = base.filter(d => (d.dias_pendientes || 0) > 0 || rowHasNotas(d));
-      return conDeudaONotas.length ? conDeudaONotas : base;
-    }
-    return base;
+  // Sin filtro KPI: mostrar a todos (al día, con deuda, con o sin notas).
+  if (!state.kpiFiltro) return base;
+  if (state.kpiFiltro === 'criticos') {
+    return base.filter(d => (d.dias_pendientes || 0) > 14);
   }
-  // Vista general: deuda o registros con notas del Excel (adelantos, bajas, etc.).
-  return base
-    .filter(d => (d.dias_pendientes || 0) > 0 || rowHasNotas(d))
-    .filter(matchKpiFiltro);
+  // Pendientes / deuda: incluir también filas con notas (p.ej. adelantos).
+  return base.filter(d => (d.dias_pendientes || 0) > 0 || rowHasNotas(d));
 }
 
 function updateKpiActive() {
@@ -332,39 +314,19 @@ function escHtml(s) {
 }
 
 function notasHtmlPersona(p) {
-  const rows = [...p.rows].sort((a, b) => (a.anio || 0) - (b.anio || 0));
-  const notaQ = rows.find(r => r.nota_q)?.nota_q || '';
-  const notaR = rows.find(r => r.nota_r)?.nota_r || '';
-  const adelYears = aniosAdelantoPersona(rows);
-  const chunks = [];
-  if (adelYears.length || rows.some(esAdelanto)) {
-    chunks.push(`<div class="nota-chip">${escHtml(labelAdelanto(adelYears.length ? adelYears : rows.find(esAdelanto)) || 'Adelanto')}</div>`);
-  }
-  for (const r of rows) {
-    if (!r.comentario) continue;
-    const adel = labelAdelanto(r);
-    chunks.push(`
-      <div class="nota-sticky">
-        <div class="nota-sticky-head">${r.anio}${adel ? ` · ${escHtml(adel)}` : ''}</div>
-        <pre class="nota-text">${escHtml(r.comentario)}</pre>
-      </div>`);
-  }
-  if (notaQ) {
-    chunks.push(`
-      <div class="nota-sticky">
-        <div class="nota-sticky-head">Columna Q${/adelant/i.test(notaQ) && adelYears.length ? ` · Adelanto ${adelYears.join(', ')}` : ''}</div>
-        <pre class="nota-text">${escHtml(notaQ)}</pre>
-      </div>`);
-  }
-  if (notaR) {
-    chunks.push(`
-      <div class="nota-sticky">
-        <div class="nota-sticky-head">Columna R${/adelant/i.test(notaR) && adelYears.length ? ` · Adelanto ${adelYears.join(', ')}` : ''}</div>
-        <pre class="nota-text">${escHtml(notaR)}</pre>
-      </div>`);
-  }
-  if (!chunks.length) return '<span class="muted">—</span>';
-  return `<div class="notas-stack">${chunks.join('')}</div>`;
+  if (!p.tieneNotas) return '<span class="muted">—</span>';
+  return `<button type="button" class="nota-flag" data-persona="${escHtml(p.empleado)}" title="Tiene notas — seleccioná la persona para ver el detalle" aria-label="Tiene notas del Excel">
+    <span class="nota-flag-bang" aria-hidden="true">!</span>
+  </button>`;
+}
+
+function seleccionarPersonaParaNotas(empleado) {
+  state.selectedPersonas = [empleado];
+  if (state.kpiFiltro) state.kpiFiltro = null;
+  updatePersonasUI();
+  renderPersonasList();
+  renderTable();
+  document.getElementById('notas-card')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function rowsDePersona(empleado) {
@@ -515,7 +477,7 @@ function renderTableHead(anios) {
       ${yearHeads}
       <th rowspan="2" class="num">Pend. total</th>
       <th rowspan="2" style="text-align:center;">Estado</th>
-      <th rowspan="2">Notas</th>
+      <th rowspan="2" style="text-align:center;">Notas</th>
     </tr>
     <tr>${subHeads}</tr>`;
 }
@@ -555,12 +517,15 @@ function renderTable() {
       ${anios.map(y => celdaAnio(p.byAnio[y])).join('')}
       <td class="num" style="font-weight:700">${p.pendTotal}</td>
       <td style="text-align:center">${estadoHtml}</td>
-      <td class="notas-cell">${notasHtmlPersona(p)}</td>
+      <td class="notas-cell" style="text-align:center;">${notasHtmlPersona(p)}</td>
     </tr>`;
     }).join('')
     : `<tr><td colspan="${colSpan}" style="text-align:center;color:var(--muted);padding:24px;">Sin registros para este filtro</td></tr>`;
-  document.querySelectorAll('#table-body [data-persona]').forEach(btn => {
+  document.querySelectorAll('#table-body .link-persona[data-persona]').forEach(btn => {
     btn.onclick = () => openPersonaModal(btn.dataset.persona);
+  });
+  document.querySelectorAll('#table-body .nota-flag[data-persona]').forEach(btn => {
+    btn.onclick = () => seleccionarPersonaParaNotas(btn.dataset.persona);
   });
 }
 
