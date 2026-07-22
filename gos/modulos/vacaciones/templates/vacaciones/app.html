@@ -44,9 +44,18 @@
 
   <div id="content" class="hidden">
     <div class="kpis">
-      <div class="card kpi blue"><div class="kpi-label">Total días pendientes</div><div class="kpi-value" id="kpi-total">0</div></div>
-      <div class="card kpi warn"><div class="kpi-label">Empleados con deuda</div><div class="kpi-value" id="kpi-deuda">0</div></div>
-      <div class="card kpi danger"><div class="kpi-label">Críticos (+14 días)</div><div class="kpi-value" id="kpi-rojo">0</div></div>
+      <button type="button" class="card kpi blue" data-kpi="todos" title="Ver detalle de pendientes">
+        <div class="kpi-label">Total días pendientes</div>
+        <div class="kpi-value" id="kpi-total">0</div>
+      </button>
+      <button type="button" class="card kpi warn" data-kpi="deuda" title="Ver empleados con deuda">
+        <div class="kpi-label">Empleados con deuda</div>
+        <div class="kpi-value" id="kpi-deuda">0</div>
+      </button>
+      <button type="button" class="card kpi danger" data-kpi="criticos" title="Ver críticos (+14 días)">
+        <div class="kpi-label">Críticos (+14 días)</div>
+        <div class="kpi-value" id="kpi-rojo">0</div>
+      </button>
     </div>
 
     <div class="charts-stack">
@@ -68,10 +77,16 @@
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" id="detalle-card">
       <div class="header-row">
-        <h2 style="font-size:1rem;">Detalle por Empleado <span id="sector-filter-label" style="color:var(--accent);font-weight:400;"></span></h2>
-        <span class="subtitle" id="table-count">0 registros</span>
+        <div>
+          <h2 style="font-size:1rem;">Detalle por Empleado <span id="sector-filter-label" style="color:var(--accent);font-weight:400;"></span></h2>
+          <p class="subtitle" id="kpi-filter-label"></p>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button type="button" class="btn-outline btn hidden" id="kpi-clear" style="padding:4px 10px;font-size:.75rem;">✕ Quitar filtro KPI</button>
+          <span class="subtitle" id="table-count">0 registros</span>
+        </div>
       </div>
       <div class="table-wrap">
         <table>
@@ -118,7 +133,13 @@ const state = {
   sectores: [], empleados: [], selectedPersonas: [],
   deuda: [], resumenSector: [], resumenPonderado: [],
   sectorChart: null, sectorPonderadoChart: null,
-  sectorSeleccionado: null, file: null,
+  sectorSeleccionado: null, kpiFiltro: null, file: null,
+};
+
+const KPI_LABELS = {
+  todos: 'Mostrando todos los registros del total',
+  deuda: 'Filtrado: empleados con días pendientes',
+  criticos: 'Filtrado: críticos (+14 días pendientes)',
 };
 
 async function apiGet(path, params = {}) {
@@ -196,17 +217,43 @@ function getFiltrado() {
   });
 }
 
+function getFiltradoDetalle() {
+  return getFiltrado().filter(d => {
+    const dias = d.dias_pendientes || 0;
+    if (state.kpiFiltro === 'deuda') return dias > 0;
+    if (state.kpiFiltro === 'criticos') return dias > 14;
+    return true;
+  });
+}
+
+function updateKpiActive() {
+  document.querySelectorAll('.kpi[data-kpi]').forEach(el => {
+    el.classList.toggle('active', el.dataset.kpi === state.kpiFiltro);
+  });
+  const label = document.getElementById('kpi-filter-label');
+  label.textContent = state.kpiFiltro ? (KPI_LABELS[state.kpiFiltro] || '') : '';
+  document.getElementById('kpi-clear').classList.toggle('hidden', !state.kpiFiltro);
+}
+
+function setKpiFiltro(filtro) {
+  state.kpiFiltro = state.kpiFiltro === filtro ? null : filtro;
+  renderTable();
+  document.getElementById('detalle-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function renderTable() {
-  const filtrado = getFiltrado().sort((a,b) => (b.dias_pendientes||0) - (a.dias_pendientes||0));
-  const total = filtrado.reduce((a,d) => a + (d.dias_pendientes||0), 0);
-  const conDeuda = filtrado.filter(d => (d.dias_pendientes||0) > 0).length;
-  const enRojo = filtrado.filter(d => (d.dias_pendientes||0) > 14).length;
+  const base = getFiltrado();
+  const filtrado = getFiltradoDetalle().sort((a,b) => (b.dias_pendientes||0) - (a.dias_pendientes||0));
+  const total = base.reduce((a,d) => a + (d.dias_pendientes||0), 0);
+  const conDeuda = base.filter(d => (d.dias_pendientes||0) > 0).length;
+  const enRojo = base.filter(d => (d.dias_pendientes||0) > 14).length;
   document.getElementById('kpi-total').textContent = total;
   document.getElementById('kpi-deuda').textContent = conDeuda;
   document.getElementById('kpi-rojo').textContent = enRojo;
   document.getElementById('table-count').textContent = `${filtrado.length} registros`;
   document.getElementById('btn-export').disabled = !filtrado.length;
   document.getElementById('sector-filter-label').textContent = state.sectorSeleccionado ? `— ${state.sectorSeleccionado}` : '';
+  updateKpiActive();
   document.getElementById('table-body').innerHTML = filtrado.map(row => `
     <tr>
       <td>${row.empleado}</td><td style="color:var(--muted)">${row.sector||''}</td>
@@ -353,6 +400,10 @@ async function initVacaciones() {
   updatePersonasUI();
   ['f-desde','f-hasta','f-sector'].forEach(id => document.getElementById(id).addEventListener('change', loadVacaciones));
   document.getElementById('chart-clear').onclick = () => { state.sectorSeleccionado = null; document.getElementById('chart-clear').classList.add('hidden'); renderChart(); renderTable(); };
+  document.querySelectorAll('.kpi[data-kpi]').forEach(el => {
+    el.onclick = () => setKpiFiltro(el.dataset.kpi);
+  });
+  document.getElementById('kpi-clear').onclick = () => { state.kpiFiltro = null; renderTable(); };
   await loadVacaciones();
 }
 
@@ -362,13 +413,14 @@ document.addEventListener('mousedown', e => {
   if (!e.target.closest('.export-menu')) document.getElementById('export-drop').classList.add('hidden');
 });
 document.querySelector('[data-export="excel"]').onclick = () => {
-  const filtrado = getFiltrado().sort((a,b) => (b.dias_pendientes||0) - (a.dias_pendientes||0));
+  const base = getFiltrado();
+  const filtrado = getFiltradoDetalle().sort((a,b) => (b.dias_pendientes||0) - (a.dias_pendientes||0));
   const desde = document.getElementById('f-desde').value;
   const hasta = document.getElementById('f-hasta').value;
   const periodo = desde && hasta ? `${desde} — ${hasta}` : 'Todos los períodos';
-  const total = filtrado.reduce((a,d) => a + (d.dias_pendientes||0), 0);
-  const conDeuda = filtrado.filter(d => (d.dias_pendientes||0) > 0).length;
-  const enRojo = filtrado.filter(d => (d.dias_pendientes||0) > 14).length;
+  const total = base.reduce((a,d) => a + (d.dias_pendientes||0), 0);
+  const conDeuda = base.filter(d => (d.dias_pendientes||0) > 0).length;
+  const enRojo = base.filter(d => (d.dias_pendientes||0) > 14).length;
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
     ['VACACIONES ADEUDADAS'], ['Período', periodo], [],

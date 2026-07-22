@@ -97,6 +97,29 @@ h1 {
 
 .kpi {
   border-left: 3px solid var(--accent);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: box-shadow 0.15s, border-color 0.15s, transform 0.15s;
+}
+
+.kpi:hover {
+  box-shadow: 0 2px 10px rgba(128, 128, 128, 0.18);
+  transform: translateY(-1px);
+}
+
+.kpi.active {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.kpi.warn.active {
+  outline-color: var(--yellow);
+}
+
+.kpi.danger.active {
+  outline-color: var(--red);
 }
 
 .kpi.warn {
