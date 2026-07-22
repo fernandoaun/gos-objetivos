@@ -148,18 +148,6 @@ function matchKpiFiltro(d) {
   return true;
 }
 
-function empleadosDelKpi(filtro) {
-  const rows = state.deuda.filter(d => {
-    const byS = !state.sectorSeleccionado || d.sector === state.sectorSeleccionado;
-    if (!byS) return false;
-    const dias = d.dias_pendientes || 0;
-    if (filtro === 'pendientes' || filtro === 'deuda') return dias > 0;
-    if (filtro === 'criticos') return dias > 14;
-    return false;
-  });
-  return [...new Set(rows.map(r => r.empleado))];
-}
-
 async function apiGet(path, params = {}) {
   const qs = new URLSearchParams(Object.entries(params).filter(([,v]) => v)).toString();
   const res = await fetch(`${API}${path}${qs ? '?' + qs : ''}`, { credentials: 'same-origin' });
@@ -249,35 +237,14 @@ function updateKpiActive() {
 }
 
 function setKpiFiltro(filtro) {
-  if (state.kpiFiltro === filtro) {
-    state.kpiFiltro = null;
-    state.selectedPersonas = [];
-  } else {
-    state.kpiFiltro = filtro;
-    // Aplica el filtro de personas como si se hubieran seleccionado en el multi-select
-    state.selectedPersonas = empleadosDelKpi(filtro);
-  }
-  updatePersonasUI();
-  renderPersonasList();
+  state.kpiFiltro = state.kpiFiltro === filtro ? null : filtro;
   renderTable();
   document.getElementById('detalle-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function renderTable() {
-  const base = getFiltrado().filter(d => {
-    // KPIs se calculan sin el recorte de personas del propio KPI (solo sector)
-    const byS = !state.sectorSeleccionado || d.sector === state.sectorSeleccionado;
-    return byS;
-  });
-  // Si hay filtro KPI, la tabla usa personas seleccionadas + match de severidad
-  const filtrado = (state.kpiFiltro
-    ? state.deuda.filter(d => {
-        const byP = state.selectedPersonas.includes(d.empleado);
-        const byS = !state.sectorSeleccionado || d.sector === state.sectorSeleccionado;
-        return byP && byS && matchKpiFiltro(d);
-      })
-    : getFiltrado()
-  ).sort((a,b) => (b.dias_pendientes||0) - (a.dias_pendientes||0));
+  const base = state.deuda.filter(d => !state.sectorSeleccionado || d.sector === state.sectorSeleccionado);
+  const filtrado = getFiltradoDetalle().sort((a,b) => (b.dias_pendientes||0) - (a.dias_pendientes||0));
 
   const total = base.reduce((a,d) => a + (d.dias_pendientes||0), 0);
   const conDeuda = new Set(base.filter(d => (d.dias_pendientes||0) > 0).map(d => d.empleado)).size;
@@ -411,11 +378,6 @@ async function loadVacaciones() {
     state.resumenPonderado = [...resumen].sort(
       (a, b) => (b.pendientes_por_persona || 0) - (a.pendientes_por_persona || 0)
     );
-    if (state.kpiFiltro) {
-      state.selectedPersonas = empleadosDelKpi(state.kpiFiltro);
-      updatePersonasUI();
-      renderPersonasList();
-    }
     renderChart();
     renderTable();
     document.getElementById('content').classList.remove('hidden');
@@ -447,9 +409,6 @@ async function initVacaciones() {
   });
   document.getElementById('kpi-clear').onclick = () => {
     state.kpiFiltro = null;
-    state.selectedPersonas = [];
-    updatePersonasUI();
-    renderPersonasList();
     renderTable();
   };
   await loadVacaciones();
@@ -462,14 +421,7 @@ document.addEventListener('mousedown', e => {
 });
 document.querySelector('[data-export="excel"]').onclick = () => {
   const base = state.deuda.filter(d => !state.sectorSeleccionado || d.sector === state.sectorSeleccionado);
-  const filtrado = (state.kpiFiltro
-    ? state.deuda.filter(d => {
-        const byP = state.selectedPersonas.includes(d.empleado);
-        const byS = !state.sectorSeleccionado || d.sector === state.sectorSeleccionado;
-        return byP && byS && matchKpiFiltro(d);
-      })
-    : getFiltrado()
-  ).sort((a,b) => (b.dias_pendientes||0) - (a.dias_pendientes||0));
+  const filtrado = getFiltradoDetalle().sort((a,b) => (b.dias_pendientes||0) - (a.dias_pendientes||0));
   const desde = document.getElementById('f-desde').value;
   const hasta = document.getElementById('f-hasta').value;
   const periodo = desde && hasta ? `${desde} — ${hasta}` : 'Todos los períodos';
