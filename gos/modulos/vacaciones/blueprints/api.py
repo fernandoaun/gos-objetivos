@@ -5,7 +5,8 @@ from flask import Blueprint, jsonify, request
 from flask_login import login_required
 
 from gos.extensions import db
-from gos.modulos.vacaciones.importer import import_excel, import_total_excel
+from gos.modulos.vacaciones.importer import import_excel
+from gos.modulos.vacaciones.tot_hs_importer import import_tot_hs_excel
 from gos.modulos.vacaciones import services
 
 bp = Blueprint("vacaciones_api", __name__)
@@ -26,10 +27,9 @@ def _parse_anios_arg():
 
 def _tot_hs_filters():
     return {
-        "desde": request.args.get("desde"),
-        "hasta": request.args.get("hasta"),
-        "sector": request.args.get("sector") or None,
-        "anios": _parse_anios_arg(),
+        "periodo": request.args.get("periodo") or None,
+        "cliente": request.args.get("cliente") or request.args.get("sector") or None,
+        "tipo_servicio": request.args.get("tipo_servicio") or None,
     }
 
 
@@ -107,7 +107,7 @@ def tot_hs_por_mes():
 @login_required
 def tot_hs_por_sector():
     filters = _tot_hs_filters()
-    filters.pop("sector", None)
+    filters.pop("cliente", None)
     return jsonify(services.get_tot_hs_por_sector(db.session, **filters))
 
 
@@ -197,21 +197,21 @@ def importar_excel():
 @bp.route("/importar/total", methods=["POST"])
 @login_required
 def importar_total():
-    """Carga horas diarias: conserva fechas previas y pisa (fecha, empleado) repetidos."""
-    outcome = _save_upload_and_import(import_total_excel)
+    """Carga Tot Hs. por período: períodos viejos se conservan; el mismo rango se pisa."""
+    outcome = _save_upload_and_import(import_tot_hs_excel)
     if isinstance(outcome, tuple):
         return outcome
     result = outcome
 
     partes = []
     if result["registros"] > 0:
-        rango = ""
-        if result.get("fecha_min") and result.get("fecha_max"):
-            rango = f" · rango {result['fecha_min']} → {result['fecha_max']}"
+        accion = "reemplazadas" if result.get("periodo_reemplazado") else "nuevas"
+        label = result.get("periodo_label") or (
+            f"{result.get('fecha_min')} → {result.get('fecha_max')}"
+        )
         partes.append(
-            f"{result['registros']} filas "
-            f"({result['registros_nuevos']} nuevas, "
-            f"{result['registros_actualizados']} actualizadas){rango}"
+            f"{result['registros']} filas {accion} · período {label} · "
+            f"{result.get('personas', 0)} personas"
         )
 
     return jsonify(

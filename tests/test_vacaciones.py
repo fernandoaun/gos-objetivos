@@ -207,8 +207,19 @@ def test_vacaciones_import_planilla_archivo_actualizado(auth_client, app):
     assert r.get_json() == [2023, 2024, 2025]
 
 
-def _xlsx_hours(rows, sheet_title="Horas diarias", headers=None):
-    """Excel de horas con nombre de hoja libre (se detecta por columnas)."""
+def test_tot_hs_shell_and_app(auth_client):
+    r = auth_client.get("/gos/vacaciones/tot-hs")
+    assert r.status_code == 200
+    assert b"vac-frame" in r.data
+
+    r = auth_client.get("/gos/vacaciones/app/?view=tot_hs")
+    assert r.status_code == 200
+    assert b"Tot Hs." in r.data
+    assert b"view-tot-hs" in r.data
+
+
+def _xlsx_tot_hs_period(title, rows, sheet_title="Total"):
+    """Excel tipo archivo (14): título con rango + Nombre/Servicio/Centro/horas."""
     import io
 
     import openpyxl
@@ -216,12 +227,13 @@ def _xlsx_hours(rows, sheet_title="Horas diarias", headers=None):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = sheet_title
-    ws.append(headers or [
-        "fecha", "empleado", "sector", "servicio", "centro", "situacion",
-        "total_horas", "hs_viaje", "hs50", "hs_noc", "hs_noc50", "hs100",
-        "viandas", "v_desayuno", "d_normales", "ausente", "fr_trabajados",
-        "feriados", "enfermedad", "traslado", "vacaciones", "licencia",
-        "suspension", "accidente", "francos_comp",
+    ws.append([title])
+    ws.append([
+        "Nombre", "Servicio", "Centro", "Cliente", "Tipo Servicio",
+        "Total Horas", "Hs.Viaje", "Hs.50", "Hs.Noct", "Hs.Noct50", "Hs.100",
+        "Viandas", "Desayunos", "D.Normales", "Ausente", "Fr.Trabajados",
+        "Feriado", "Enfermo", "Traslado", "Vacaciones", "Licencia",
+        "Accidente", "Fr.Compens", "TotalHs+HsViaje",
     ])
     for row in rows:
         ws.append(row)
@@ -231,117 +243,124 @@ def _xlsx_hours(rows, sheet_title="Horas diarias", headers=None):
     return buf
 
 
-def test_tot_hs_shell_and_app(auth_client):
-    r = auth_client.get("/gos/vacaciones/tot-hs")
-    assert r.status_code == 200
-    assert b"vac-frame" in r.data
-    assert b"view=tot_hs" in r.data or b"tot_hs" in r.data
-
-    r = auth_client.get("/gos/vacaciones/app/?view=tot_hs")
-    assert r.status_code == 200
-    assert b"Tot Hs." in r.data
-    assert b"view-tot-hs" in r.data
-
-
-def test_tot_hs_import_merge_and_overwrite(auth_client, app):
-    """Fechas nuevas se suman; (fecha, empleado) repetidos se pisan sin duplicar."""
+def test_tot_hs_import_period_merge_and_overwrite(auth_client, app):
+    """Períodos nuevos se suman; el mismo rango se reemplaza completo."""
     from datetime import date
 
-    buf1 = _xlsx_hours([
-        ["2025-06-01", "Pedro Test", "RRHH", "", "", "", 8, 0, 1, 0, 0, 0,
-         0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ["2025-06-02", "Pedro Test", "RRHH", "", "", "", 8, 0, 0, 0, 0, 0,
-         0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ], sheet_title="archivo (14)")
+    from gos.modulos.vacaciones.models import TotHs
+
+    buf1 = _xlsx_tot_hs_period(
+        "21/12/2025 al 20/07/2026",
+        [
+            ["ALIAS ALEJANDRO DARIO", "PAMPA-PTF-RDA", "PRAF-04", "PAMPA ENERGIA", "PLANTAS",
+             100, 10, 5, 2, 1, 3, 4, 1, 20, 0, 0, 1, 0, 2, 0, 0, 0, 0, 110],
+            ["ALIAS FERNANDO JAVIER", "GOS-OPE-PCL", "BASE NQN", "GOS", "PCL",
+             80, 0, 8, 0, 0, 4, 10, 0, 15, 0, 1, 0, 0, 0, 2, 0, 0, 0, 80],
+        ],
+    )
     r = auth_client.post(
         "/gos/vacaciones/api/importar/total",
-        data={"file": (buf1, "tot1.xlsx")},
+        data={"file": (buf1, "archivo (14).xlsx")},
         content_type="multipart/form-data",
     )
-    assert r.status_code == 200
+    assert r.status_code == 200, r.get_json()
     data = r.get_json()
     assert data["ok"] is True
     assert data["detalle"]["registros"] == 2
-    assert data["detalle"]["registros_nuevos"] == 2
+    assert data["detalle"]["periodo_reemplazado"] is False
+    assert data["detalle"]["fecha_min"] == "2025-12-21"
+    assert data["detalle"]["fecha_max"] == "2026-07-20"
 
-    # Segundo archivo: actualiza 01/06 y agrega 03/06
-    buf2 = _xlsx_hours([
-        ["2025-06-01", "Pedro Test", "RRHH", "", "", "", 10, 0, 2, 0, 0, 0,
-         0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        ["2025-06-03", "Pedro Test", "RRHH", "", "", "", 8, 0, 0, 0, 0, 0,
-         0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    ], sheet_title="Hoja1")
+    # Mismo período: pisa (reemplaza las 2 filas por 1)
+    buf2 = _xlsx_tot_hs_period(
+        "21/12/2025 al 20/07/2026",
+        [
+            ["ALIAS ALEJANDRO DARIO", "PAMPA-PTF-RDA", "PRAF-04", "PAMPA ENERGIA", "PLANTAS",
+             200, 20, 10, 0, 0, 0, 0, 0, 30, 0, 0, 0, 0, 0, 0, 0, 0, 0, 220],
+        ],
+        sheet_title="Hoja1",
+    )
     r = auth_client.post(
         "/gos/vacaciones/api/importar/total",
-        data={"file": (buf2, "tot2.xlsx")},
+        data={"file": (buf2, "archivo-upd.xlsx")},
         content_type="multipart/form-data",
     )
     assert r.status_code == 200
     data = r.get_json()
-    assert data["detalle"]["registros"] == 2
-    assert data["detalle"]["registros_nuevos"] == 1
-    assert data["detalle"]["registros_actualizados"] == 1
+    assert data["detalle"]["periodo_reemplazado"] is True
+    assert data["detalle"]["registros"] == 1
 
     with app.app_context():
         from gos.extensions import db
 
-        regs = (
-            db.session.query(Registro)
-            .filter_by(empleado="Pedro Test")
-            .order_by(Registro.fecha)
-            .all()
-        )
-        assert len(regs) == 3  # sin duplicar el 01/06
-        assert regs[0].fecha == date(2025, 6, 1)
-        assert regs[0].total_horas == 10  # pisado
-        assert regs[0].hs50 == 2
-        assert regs[1].fecha == date(2025, 6, 2)
-        assert regs[1].total_horas == 8  # conservado
-        assert regs[2].fecha == date(2025, 6, 3)
+        rows = db.session.query(TotHs).all()
+        assert len(rows) == 1
+        assert rows[0].empleado == "ALIAS ALEJANDRO DARIO"
+        assert rows[0].total_horas == 200
+        assert rows[0].periodo_desde == date(2025, 12, 21)
 
-    r = auth_client.get("/gos/vacaciones/api/tot-hs/resumen?anios=2025")
+    # Período distinto: se agrega sin borrar el anterior
+    buf3 = _xlsx_tot_hs_period(
+        "01/01/2025 al 20/12/2025",
+        [
+            ["PEZO SERGIO HERALDO", "SHELL-HWO-02", "H21", "SHELL CAPSA", "HOT WATER OIL",
+             50, 5, 2, 0, 0, 1, 3, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 55],
+        ],
+    )
+    r = auth_client.post(
+        "/gos/vacaciones/api/importar/total",
+        data={"file": (buf3, "archivo-prev.xlsx")},
+        content_type="multipart/form-data",
+    )
     assert r.status_code == 200
-    resumen = r.get_json()
-    assert resumen["registros"] == 3
-    assert resumen["total_horas"] == 26
-    assert resumen["personas"] == 1
+    assert r.get_json()["detalle"]["periodo_reemplazado"] is False
 
-    r = auth_client.get("/gos/vacaciones/api/tot-hs/por-empleado?anios=2025")
-    assert r.status_code == 200
-    empleados = r.get_json()
-    assert len(empleados) == 1
-    assert empleados[0]["empleado"] == "Pedro Test"
-    assert empleados[0]["total_horas"] == 26
+    with app.app_context():
+        from gos.extensions import db
+
+        assert db.session.query(TotHs).count() == 2
 
     r = auth_client.get("/gos/vacaciones/api/tot-hs/meta")
     assert r.status_code == 200
     meta = r.get_json()
-    assert meta["total_registros"] == 3
-    assert 2025 in meta["anios"]
+    assert meta["total_registros"] == 2
+    assert len(meta["periodos"]) == 2
+    assert "PAMPA ENERGIA" in meta["clientes"] or "SHELL CAPSA" in meta["clientes"]
 
-
-def test_tot_hs_import_by_spanish_headers_any_sheet_name(auth_client, app):
-    """Detecta columnas aunque el nombre de hoja no sea TOTAL y los headers varíen."""
-    buf = _xlsx_hours(
-        [["2025-07-01", "Ana Test", "IT", 8.5, 1]],
-        sheet_title="Planilla Julio",
-        headers=["Fecha", "Empleado", "Sector", "Total Horas", "Hs 50%"],
-    )
-    r = auth_client.post(
-        "/gos/vacaciones/api/importar/total",
-        data={"file": (buf, "julio.xlsx")},
-        content_type="multipart/form-data",
-    )
+    r = auth_client.get("/gos/vacaciones/api/tot-hs/resumen")
     assert r.status_code == 200
-    assert r.get_json()["detalle"]["registros"] == 1
+    resumen = r.get_json()
+    assert resumen["registros"] == 2
+    assert resumen["total_horas"] == 250
+    assert resumen["personas"] == 2
 
-    with app.app_context():
-        from gos.extensions import db
 
-        reg = db.session.query(Registro).filter_by(empleado="Ana Test").one()
-        assert reg.total_horas == 8.5
-        assert reg.hs50 == 1.0
-        assert reg.sector == "IT"
+def test_tot_hs_import_real_file_if_present(auth_client, app):
+    """Smoke test con el Excel real del usuario si está en Downloads."""
+    from pathlib import Path
+
+    path = Path(r"c:\Users\ferna\Downloads\archivo (14).xlsx")
+    if not path.is_file():
+        return
+
+    with path.open("rb") as f:
+        r = auth_client.post(
+            "/gos/vacaciones/api/importar/total",
+            data={"file": (f, "archivo (14).xlsx")},
+            content_type="multipart/form-data",
+        )
+    assert r.status_code == 200, r.get_json()
+    data = r.get_json()
+    assert data["detalle"]["registros"] == 679
+    assert data["detalle"]["personas"] == 165
+    assert data["detalle"]["fecha_min"] == "2025-12-21"
+    assert data["detalle"]["fecha_max"] == "2026-07-20"
+
+    r = auth_client.get("/gos/vacaciones/api/tot-hs/por-empleado")
+    assert r.status_code == 200
+    empleados = r.get_json()
+    assert len(empleados) == 165
+    assert empleados[0]["total_horas"] > 0
 
 
 def test_tot_hs_import_rejects_empty_workbook(auth_client):
@@ -360,5 +379,5 @@ def test_tot_hs_import_rejects_empty_workbook(auth_client):
         content_type="multipart/form-data",
     )
     assert r.status_code == 500
-    err = r.get_json()["error"]
-    assert "horas diarias" in err.lower() or "fecha" in err.lower()
+    err = r.get_json()["error"].lower()
+    assert "tot hs" in err or "período" in err or "periodo" in err or "nombre" in err

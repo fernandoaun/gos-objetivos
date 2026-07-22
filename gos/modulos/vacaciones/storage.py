@@ -5,7 +5,7 @@ from datetime import date, datetime
 
 from gos.extensions import db
 from gos.modulos.vacaciones.database import DB_PATH, LEGACY_DB
-from gos.modulos.vacaciones.models import Registro, Vacacion
+from gos.modulos.vacaciones.models import Registro, TotHs, Vacacion
 
 
 def migrate_legacy_data_if_empty() -> None:
@@ -73,6 +73,7 @@ def _migrate_from_local_sqlite(path) -> bool:
 
 def reset_for_tests() -> None:
     """Limpia tablas de vacaciones (solo tests)."""
+    TotHs.query.delete()
     Vacacion.query.delete()
     Registro.query.delete()
     db.session.commit()

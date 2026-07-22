@@ -13,7 +13,7 @@ _COLUMN_UPGRADES = [
 
 def ensure_vacaciones_schema() -> None:
     """Idempotente: crea tablas nuevas y agrega columnas faltantes."""
-    from gos.modulos.vacaciones.models import Registro, Vacacion  # noqa: F401
+    from gos.modulos.vacaciones.models import Registro, TotHs, Vacacion  # noqa: F401
 
     db.create_all()
     inspector = inspect(db.engine)

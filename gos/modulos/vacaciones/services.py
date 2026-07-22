@@ -5,7 +5,7 @@ from typing import Optional
 from sqlalchemy import extract, func, select, union
 from sqlalchemy.orm import Session
 
-from gos.modulos.vacaciones.models import Registro, Vacacion
+from gos.modulos.vacaciones.models import Registro, TotHs, Vacacion
 
 
 def get_anios(db: Session) -> list[int]:
@@ -183,95 +183,134 @@ def get_resumen_sector(
     return result
 
 
-def _registro_filters(
-    desde: Optional[str] = None,
-    hasta: Optional[str] = None,
-    sector: Optional[str] = None,
-    anios: Optional[list[int]] = None,
+def _parse_period_key(periodo: Optional[str]) -> Optional[tuple[str, str]]:
+    """'YYYY-MM-DD|YYYY-MM-DD' → (desde, hasta)."""
+    if not periodo or "|" not in periodo:
+        return None
+    a, b = periodo.split("|", 1)
+    a, b = a.strip(), b.strip()
+    if len(a) >= 10 and len(b) >= 10:
+        return a[:10], b[:10]
+    return None
+
+
+def _tot_hs_filters(
+    periodo: Optional[str] = None,
+    cliente: Optional[str] = None,
+    tipo_servicio: Optional[str] = None,
     empleado: Optional[str] = None,
 ):
-    """Filtros comunes sobre Registro para el dashboard Tot Hs."""
-    years = _resolve_anios(anios, desde, hasta)
     clauses = []
-    if years:
-        clauses.append(extract("year", Registro.fecha).in_(years))
-    else:
-        if desde:
-            clauses.append(Registro.fecha >= desde)
-        if hasta:
-            clauses.append(Registro.fecha <= hasta)
-    if sector:
-        clauses.append(Registro.sector == sector)
+    key = _parse_period_key(periodo)
+    if key:
+        clauses.append(TotHs.periodo_desde == key[0])
+        clauses.append(TotHs.periodo_hasta == key[1])
+    if cliente:
+        clauses.append(TotHs.cliente == cliente)
+    if tipo_servicio:
+        clauses.append(TotHs.tipo_servicio == tipo_servicio)
     if empleado:
-        clauses.append(Registro.empleado == empleado)
+        clauses.append(TotHs.empleado == empleado)
     return clauses
 
 
 def get_tot_hs_meta(db: Session) -> dict:
-    """Rango de fechas y años disponibles en registros diarios."""
+    """Períodos cargados y totales globales."""
+    periodos_rows = db.execute(
+        select(TotHs.periodo_desde, TotHs.periodo_hasta)
+        .distinct()
+        .order_by(TotHs.periodo_desde.desc(), TotHs.periodo_hasta.desc())
+    ).all()
+    periodos = []
+    for d, h in periodos_rows:
+        periodos.append(
+            {
+                "desde": d.isoformat(),
+                "hasta": h.isoformat(),
+                "key": f"{d.isoformat()}|{h.isoformat()}",
+                "label": f"{d.strftime('%d/%m/%Y')} al {h.strftime('%d/%m/%Y')}",
+            }
+        )
+
     row = db.execute(
         select(
-            func.min(Registro.fecha),
-            func.max(Registro.fecha),
-            func.count(Registro.id),
-            func.count(func.distinct(Registro.empleado)),
+            func.count(TotHs.id),
+            func.count(func.distinct(TotHs.empleado)),
+            func.min(TotHs.periodo_desde),
+            func.max(TotHs.periodo_hasta),
         )
     ).one()
-    fecha_min, fecha_max, total, personas = row
-    anios = db.execute(
-        select(extract("year", Registro.fecha).label("anio"))
-        .where(Registro.fecha.isnot(None))
-        .distinct()
-        .order_by(extract("year", Registro.fecha))
-    ).scalars().all()
+    total, personas, fmin, fmax = row
+
+    clientes = list(
+        db.execute(
+            select(TotHs.cliente)
+            .where(TotHs.cliente.isnot(None), TotHs.cliente != "")
+            .distinct()
+            .order_by(TotHs.cliente)
+        ).scalars().all()
+    )
+    tipos = list(
+        db.execute(
+            select(TotHs.tipo_servicio)
+            .where(TotHs.tipo_servicio.isnot(None), TotHs.tipo_servicio != "")
+            .distinct()
+            .order_by(TotHs.tipo_servicio)
+        ).scalars().all()
+    )
     return {
-        "fecha_min": fecha_min.isoformat() if fecha_min else None,
-        "fecha_max": fecha_max.isoformat() if fecha_max else None,
+        "periodos": periodos,
+        "fecha_min": fmin.isoformat() if fmin else None,
+        "fecha_max": fmax.isoformat() if fmax else None,
         "total_registros": int(total or 0),
         "personas": int(personas or 0),
-        "anios": [int(a) for a in anios if a is not None],
+        "clientes": clientes,
+        "tipos_servicio": tipos,
+        "anios": sorted({int(p["desde"][:4]) for p in periodos} | {int(p["hasta"][:4]) for p in periodos}),
     }
 
 
 def get_tot_hs_resumen(
     db: Session,
-    desde: Optional[str] = None,
-    hasta: Optional[str] = None,
-    sector: Optional[str] = None,
-    anios: Optional[list[int]] = None,
+    periodo: Optional[str] = None,
+    cliente: Optional[str] = None,
+    tipo_servicio: Optional[str] = None,
+    **_ignored,
 ) -> dict:
-    """KPIs agregados de horas y novedades."""
-    clauses = _registro_filters(desde, hasta, sector, anios)
+    clauses = _tot_hs_filters(periodo, cliente, tipo_servicio)
     q = select(
-        func.count(Registro.id),
-        func.count(func.distinct(Registro.empleado)),
-        func.min(Registro.fecha),
-        func.max(Registro.fecha),
-        func.coalesce(func.sum(Registro.total_horas), 0),
-        func.coalesce(func.sum(Registro.hs_viaje), 0),
-        func.coalesce(func.sum(Registro.hs50), 0),
-        func.coalesce(func.sum(Registro.hs_noc), 0),
-        func.coalesce(func.sum(Registro.hs_noc50), 0),
-        func.coalesce(func.sum(Registro.hs100), 0),
-        func.coalesce(func.sum(Registro.ausente), 0),
-        func.coalesce(func.sum(Registro.enfermedad), 0),
-        func.coalesce(func.sum(Registro.vacaciones), 0),
-        func.coalesce(func.sum(Registro.licencia), 0),
-        func.coalesce(func.sum(Registro.feriados), 0),
-        func.coalesce(func.sum(Registro.accidente), 0),
-        func.coalesce(func.sum(Registro.suspension), 0),
-        func.coalesce(func.sum(Registro.francos_comp), 0),
-        func.coalesce(func.sum(Registro.d_normales), 0),
-        func.coalesce(func.sum(Registro.viandas), 0),
+        func.count(TotHs.id),
+        func.count(func.distinct(TotHs.empleado)),
+        func.min(TotHs.periodo_desde),
+        func.max(TotHs.periodo_hasta),
+        func.coalesce(func.sum(TotHs.total_horas), 0),
+        func.coalesce(func.sum(TotHs.hs_viaje), 0),
+        func.coalesce(func.sum(TotHs.hs50), 0),
+        func.coalesce(func.sum(TotHs.hs_noc), 0),
+        func.coalesce(func.sum(TotHs.hs_noc50), 0),
+        func.coalesce(func.sum(TotHs.hs100), 0),
+        func.coalesce(func.sum(TotHs.total_hs_viaje), 0),
+        func.coalesce(func.sum(TotHs.ausente), 0),
+        func.coalesce(func.sum(TotHs.enfermedad), 0),
+        func.coalesce(func.sum(TotHs.vacaciones), 0),
+        func.coalesce(func.sum(TotHs.licencia), 0),
+        func.coalesce(func.sum(TotHs.feriados), 0),
+        func.coalesce(func.sum(TotHs.accidente), 0),
+        func.coalesce(func.sum(TotHs.francos_comp), 0),
+        func.coalesce(func.sum(TotHs.d_normales), 0),
+        func.coalesce(func.sum(TotHs.viandas), 0),
+        func.coalesce(func.sum(TotHs.traslado), 0),
+        func.coalesce(func.sum(TotHs.v_desayuno), 0),
+        func.coalesce(func.sum(TotHs.fr_trabajados), 0),
     )
     for c in clauses:
         q = q.where(c)
     row = db.execute(q).one()
     (
         registros, personas, fmin, fmax,
-        total_horas, hs_viaje, hs50, hs_noc, hs_noc50, hs100,
+        total_horas, hs_viaje, hs50, hs_noc, hs_noc50, hs100, total_hs_viaje,
         ausente, enfermedad, vacaciones, licencia, feriados,
-        accidente, suspension, francos_comp, d_normales, viandas,
+        accidente, francos_comp, d_normales, viandas, traslado, desayunos, fr_trab,
     ) = row
     extras = float(hs50 or 0) + float(hs100 or 0) + float(hs_noc or 0) + float(hs_noc50 or 0)
     return {
@@ -286,52 +325,57 @@ def get_tot_hs_resumen(
         "hs_noc50": round(float(hs_noc50 or 0), 2),
         "hs100": round(float(hs100 or 0), 2),
         "hs_extras": round(extras, 2),
-        "ausente": int(ausente or 0),
-        "enfermedad": int(enfermedad or 0),
-        "vacaciones": int(vacaciones or 0),
-        "licencia": int(licencia or 0),
-        "feriados": int(feriados or 0),
-        "accidente": int(accidente or 0),
-        "suspension": int(suspension or 0),
-        "francos_comp": int(francos_comp or 0),
-        "d_normales": int(d_normales or 0),
-        "viandas": int(viandas or 0),
+        "total_hs_viaje": round(float(total_hs_viaje or 0), 2),
+        "ausente": round(float(ausente or 0), 1),
+        "enfermedad": round(float(enfermedad or 0), 1),
+        "vacaciones": round(float(vacaciones or 0), 1),
+        "licencia": round(float(licencia or 0), 1),
+        "feriados": round(float(feriados or 0), 1),
+        "accidente": round(float(accidente or 0), 1),
+        "francos_comp": round(float(francos_comp or 0), 1),
+        "d_normales": round(float(d_normales or 0), 1),
+        "viandas": round(float(viandas or 0), 1),
+        "traslado": round(float(traslado or 0), 1),
+        "v_desayuno": round(float(desayunos or 0), 1),
+        "fr_trabajados": round(float(fr_trab or 0), 1),
+        "suspension": 0,
     }
 
 
-def get_tot_hs_por_mes(
+def get_tot_hs_por_periodo(
     db: Session,
-    desde: Optional[str] = None,
-    hasta: Optional[str] = None,
-    sector: Optional[str] = None,
-    anios: Optional[list[int]] = None,
+    periodo: Optional[str] = None,
+    cliente: Optional[str] = None,
+    tipo_servicio: Optional[str] = None,
+    **_ignored,
 ) -> list[dict]:
-    clauses = _registro_filters(desde, hasta, sector, anios)
-    year_col = extract("year", Registro.fecha).label("anio")
-    month_col = extract("month", Registro.fecha).label("mes")
+    clauses = _tot_hs_filters(periodo, cliente, tipo_servicio)
     q = select(
-        year_col,
-        month_col,
-        func.coalesce(func.sum(Registro.total_horas), 0),
-        func.coalesce(func.sum(Registro.hs50), 0),
-        func.coalesce(func.sum(Registro.hs100), 0),
-        func.coalesce(func.sum(Registro.hs_noc), 0),
-        func.coalesce(func.sum(Registro.hs_noc50), 0),
-        func.count(Registro.id),
-        func.count(func.distinct(Registro.empleado)),
+        TotHs.periodo_desde,
+        TotHs.periodo_hasta,
+        func.coalesce(func.sum(TotHs.total_horas), 0),
+        func.coalesce(func.sum(TotHs.hs50), 0),
+        func.coalesce(func.sum(TotHs.hs100), 0),
+        func.coalesce(func.sum(TotHs.hs_noc), 0),
+        func.coalesce(func.sum(TotHs.hs_noc50), 0),
+        func.count(TotHs.id),
+        func.count(func.distinct(TotHs.empleado)),
     )
     for c in clauses:
         q = q.where(c)
-    q = q.group_by(year_col, month_col).order_by(year_col, month_col)
+    q = q.group_by(TotHs.periodo_desde, TotHs.periodo_hasta).order_by(
+        TotHs.periodo_desde, TotHs.periodo_hasta
+    )
     rows = db.execute(q).all()
     result = []
-    for anio, mes, total, hs50, hs100, hs_noc, hs_noc50, regs, personas in rows:
+    for d, h, total, hs50, hs100, hs_noc, hs_noc50, regs, personas in rows:
         extras = float(hs50 or 0) + float(hs100 or 0) + float(hs_noc or 0) + float(hs_noc50 or 0)
         result.append(
             {
-                "anio": int(anio),
-                "mes": int(mes),
-                "periodo": f"{int(anio)}-{int(mes):02d}",
+                "desde": d.isoformat(),
+                "hasta": h.isoformat(),
+                "periodo": f"{d.strftime('%d/%m/%y')}–{h.strftime('%d/%m/%y')}",
+                "key": f"{d.isoformat()}|{h.isoformat()}",
                 "total_horas": round(float(total or 0), 2),
                 "hs_extras": round(extras, 2),
                 "registros": int(regs or 0),
@@ -341,39 +385,52 @@ def get_tot_hs_por_mes(
     return result
 
 
+def get_tot_hs_por_mes(
+    db: Session,
+    periodo: Optional[str] = None,
+    cliente: Optional[str] = None,
+    tipo_servicio: Optional[str] = None,
+    **_ignored,
+) -> list[dict]:
+    """Compat: el eje temporal real es el período cargado."""
+    return get_tot_hs_por_periodo(db, periodo, cliente, tipo_servicio)
+
+
 def get_tot_hs_por_sector(
     db: Session,
-    desde: Optional[str] = None,
-    hasta: Optional[str] = None,
-    anios: Optional[list[int]] = None,
+    periodo: Optional[str] = None,
+    tipo_servicio: Optional[str] = None,
+    **_ignored,
 ) -> list[dict]:
-    clauses = _registro_filters(desde, hasta, None, anios)
+    """Agrupa por cliente (equivalente útil al «sector» del archivo real)."""
+    clauses = _tot_hs_filters(periodo, None, tipo_servicio)
     q = select(
-        Registro.sector,
-        func.coalesce(func.sum(Registro.total_horas), 0),
-        func.coalesce(func.sum(Registro.hs50), 0),
-        func.coalesce(func.sum(Registro.hs100), 0),
-        func.coalesce(func.sum(Registro.hs_noc), 0),
-        func.coalesce(func.sum(Registro.hs_noc50), 0),
-        func.count(func.distinct(Registro.empleado)),
-        func.coalesce(func.sum(Registro.ausente), 0),
-        func.coalesce(func.sum(Registro.vacaciones), 0),
-    ).where(Registro.sector.isnot(None), Registro.sector != "")
+        TotHs.cliente,
+        func.coalesce(func.sum(TotHs.total_horas), 0),
+        func.coalesce(func.sum(TotHs.hs50), 0),
+        func.coalesce(func.sum(TotHs.hs100), 0),
+        func.coalesce(func.sum(TotHs.hs_noc), 0),
+        func.coalesce(func.sum(TotHs.hs_noc50), 0),
+        func.count(func.distinct(TotHs.empleado)),
+        func.coalesce(func.sum(TotHs.ausente), 0),
+        func.coalesce(func.sum(TotHs.vacaciones), 0),
+    ).where(TotHs.cliente.isnot(None), TotHs.cliente != "")
     for c in clauses:
         q = q.where(c)
-    q = q.group_by(Registro.sector)
+    q = q.group_by(TotHs.cliente)
     rows = db.execute(q).all()
     result = []
-    for sector, total, hs50, hs100, hs_noc, hs_noc50, personas, ausente, vacaciones in rows:
+    for cliente, total, hs50, hs100, hs_noc, hs_noc50, personas, ausente, vacaciones in rows:
         extras = float(hs50 or 0) + float(hs100 or 0) + float(hs_noc or 0) + float(hs_noc50 or 0)
         result.append(
             {
-                "sector": sector,
+                "sector": cliente,  # UI reutiliza «sector» como etiqueta del eje
+                "cliente": cliente,
                 "total_horas": round(float(total or 0), 2),
                 "hs_extras": round(extras, 2),
                 "personas": int(personas or 0),
-                "ausente": int(ausente or 0),
-                "vacaciones": int(vacaciones or 0),
+                "ausente": round(float(ausente or 0), 1),
+                "vacaciones": round(float(vacaciones or 0), 1),
                 "horas_por_persona": round(float(total or 0) / personas, 1) if personas else 0,
             }
         )
@@ -383,47 +440,45 @@ def get_tot_hs_por_sector(
 
 def get_tot_hs_por_empleado(
     db: Session,
-    desde: Optional[str] = None,
-    hasta: Optional[str] = None,
-    sector: Optional[str] = None,
-    anios: Optional[list[int]] = None,
+    periodo: Optional[str] = None,
+    cliente: Optional[str] = None,
+    tipo_servicio: Optional[str] = None,
+    **_ignored,
 ) -> list[dict]:
-    clauses = _registro_filters(desde, hasta, sector, anios)
+    clauses = _tot_hs_filters(periodo, cliente, tipo_servicio)
     q = select(
-        Registro.empleado,
-        Registro.sector,
-        func.coalesce(func.sum(Registro.total_horas), 0),
-        func.coalesce(func.sum(Registro.hs_viaje), 0),
-        func.coalesce(func.sum(Registro.hs50), 0),
-        func.coalesce(func.sum(Registro.hs_noc), 0),
-        func.coalesce(func.sum(Registro.hs_noc50), 0),
-        func.coalesce(func.sum(Registro.hs100), 0),
-        func.coalesce(func.sum(Registro.ausente), 0),
-        func.coalesce(func.sum(Registro.enfermedad), 0),
-        func.coalesce(func.sum(Registro.vacaciones), 0),
-        func.coalesce(func.sum(Registro.licencia), 0),
-        func.coalesce(func.sum(Registro.d_normales), 0),
-        func.count(Registro.id),
-        func.min(Registro.fecha),
-        func.max(Registro.fecha),
+        TotHs.empleado,
+        func.coalesce(func.sum(TotHs.total_horas), 0),
+        func.coalesce(func.sum(TotHs.hs_viaje), 0),
+        func.coalesce(func.sum(TotHs.hs50), 0),
+        func.coalesce(func.sum(TotHs.hs_noc), 0),
+        func.coalesce(func.sum(TotHs.hs_noc50), 0),
+        func.coalesce(func.sum(TotHs.hs100), 0),
+        func.coalesce(func.sum(TotHs.total_hs_viaje), 0),
+        func.coalesce(func.sum(TotHs.ausente), 0),
+        func.coalesce(func.sum(TotHs.enfermedad), 0),
+        func.coalesce(func.sum(TotHs.vacaciones), 0),
+        func.coalesce(func.sum(TotHs.licencia), 0),
+        func.coalesce(func.sum(TotHs.d_normales), 0),
+        func.count(TotHs.id),
+        func.min(TotHs.periodo_desde),
+        func.max(TotHs.periodo_hasta),
     )
     for c in clauses:
         q = q.where(c)
-    q = q.group_by(Registro.empleado, Registro.sector).order_by(
-        func.sum(Registro.total_horas).desc()
-    )
+    q = q.group_by(TotHs.empleado).order_by(func.sum(TotHs.total_horas).desc())
     rows = db.execute(q).all()
     result = []
     for row in rows:
         (
-            empleado, sect, total, hs_viaje, hs50, hs_noc, hs_noc50, hs100,
-            ausente, enfermedad, vacaciones, licencia, d_normales, dias, fmin, fmax,
+            empleado, total, hs_viaje, hs50, hs_noc, hs_noc50, hs100, total_hs_viaje,
+            ausente, enfermedad, vacaciones, licencia, d_normales, filas, fmin, fmax,
         ) = row
         extras = float(hs50 or 0) + float(hs100 or 0) + float(hs_noc or 0) + float(hs_noc50 or 0)
         result.append(
             {
                 "empleado": empleado,
-                "sector": sect,
+                "sector": None,
                 "total_horas": round(float(total or 0), 2),
                 "hs_viaje": round(float(hs_viaje or 0), 2),
                 "hs50": round(float(hs50 or 0), 2),
@@ -431,12 +486,14 @@ def get_tot_hs_por_empleado(
                 "hs_noc50": round(float(hs_noc50 or 0), 2),
                 "hs100": round(float(hs100 or 0), 2),
                 "hs_extras": round(extras, 2),
-                "ausente": int(ausente or 0),
-                "enfermedad": int(enfermedad or 0),
-                "vacaciones": int(vacaciones or 0),
-                "licencia": int(licencia or 0),
-                "d_normales": int(d_normales or 0),
-                "dias": int(dias or 0),
+                "total_hs_viaje": round(float(total_hs_viaje or 0), 2),
+                "ausente": round(float(ausente or 0), 1),
+                "enfermedad": round(float(enfermedad or 0), 1),
+                "vacaciones": round(float(vacaciones or 0), 1),
+                "licencia": round(float(licencia or 0), 1),
+                "d_normales": round(float(d_normales or 0), 1),
+                "dias": int(filas or 0),
+                "filas": int(filas or 0),
                 "fecha_min": fmin.isoformat() if fmin else None,
                 "fecha_max": fmax.isoformat() if fmax else None,
             }
@@ -446,40 +503,44 @@ def get_tot_hs_por_empleado(
 
 def get_tot_hs_detalle(
     db: Session,
-    desde: Optional[str] = None,
-    hasta: Optional[str] = None,
-    sector: Optional[str] = None,
-    anios: Optional[list[int]] = None,
+    periodo: Optional[str] = None,
+    cliente: Optional[str] = None,
+    tipo_servicio: Optional[str] = None,
     empleado: Optional[str] = None,
     limit: int = 500,
+    **_ignored,
 ) -> list[dict]:
-    """Últimos registros diarios (para drill-down)."""
-    clauses = _registro_filters(desde, hasta, sector, anios, empleado)
-    q = select(Registro).order_by(Registro.fecha.desc(), Registro.empleado)
+    clauses = _tot_hs_filters(periodo, cliente, tipo_servicio, empleado)
+    q = select(TotHs).order_by(
+        TotHs.total_horas.desc(), TotHs.empleado, TotHs.servicio
+    )
     for c in clauses:
         q = q.where(c)
     q = q.limit(max(1, min(limit, 2000)))
     rows = db.execute(q).scalars().all()
     return [
         {
-            "fecha": r.fecha.isoformat() if r.fecha else None,
+            "periodo_desde": r.periodo_desde.isoformat() if r.periodo_desde else None,
+            "periodo_hasta": r.periodo_hasta.isoformat() if r.periodo_hasta else None,
             "empleado": r.empleado,
-            "sector": r.sector,
             "servicio": r.servicio,
             "centro": r.centro,
-            "situacion": r.situacion,
+            "cliente": r.cliente,
+            "tipo_servicio": r.tipo_servicio,
             "total_horas": float(r.total_horas or 0),
             "hs_viaje": float(r.hs_viaje or 0),
             "hs50": float(r.hs50 or 0),
             "hs_noc": float(r.hs_noc or 0),
             "hs_noc50": float(r.hs_noc50 or 0),
             "hs100": float(r.hs100 or 0),
-            "ausente": int(r.ausente or 0),
-            "enfermedad": int(r.enfermedad or 0),
-            "vacaciones": int(r.vacaciones or 0),
-            "licencia": int(r.licencia or 0),
-            "feriados": int(r.feriados or 0),
-            "d_normales": int(r.d_normales or 0),
+            "total_hs_viaje": float(r.total_hs_viaje or 0),
+            "ausente": float(r.ausente or 0),
+            "enfermedad": float(r.enfermedad or 0),
+            "vacaciones": float(r.vacaciones or 0),
+            "licencia": float(r.licencia or 0),
+            "feriados": float(r.feriados or 0),
+            "d_normales": float(r.d_normales or 0),
+            "traslado": float(r.traslado or 0),
         }
         for r in rows
     ]

@@ -133,7 +133,7 @@
   <div class="header-row">
     <div>
       <h1>Tot Hs.</h1>
-      <p class="subtitle">Horas y novedades diarias · las fechas nuevas se suman; las repetidas (fecha + empleado) se actualizan</p>
+      <p class="subtitle">Resumen de horas por período · períodos nuevos se suman; si el rango de fechas ya existe, se reemplaza</p>
     </div>
     <div class="tot-hs-actions">
       <button type="button" class="btn-outline btn" id="ths-btn-upload">＋ Cargar Excel</button>
@@ -149,8 +149,8 @@
   <div class="card ths-upload-panel hidden" id="ths-upload-panel">
     <div class="header-row" style="margin-bottom:12px;">
       <div>
-        <h2 style="font-size:1rem;">Importar horas diarias</h2>
-        <p class="subtitle">Se detecta la hoja por su contenido (fecha, empleado, horas…). Fechas ya cargadas se conservan; si (fecha, empleado) ya existe, se pisa.</p>
+        <h2 style="font-size:1rem;">Importar Tot Hs.</h2>
+        <p class="subtitle">Excel con título de fechas (ej. <strong>21/12/2025 al 20/07/2026</strong>) y columnas Nombre, Servicio, Centro, Total Horas…</p>
       </div>
       <button type="button" class="btn-outline btn" id="ths-upload-close" style="padding:4px 10px;font-size:.75rem;">Cerrar</button>
     </div>
@@ -165,11 +165,12 @@
   </div>
 
   <div class="card filters">
-    <div class="year-filter">
-      <label>Años</label>
-      <div class="year-btns" id="ths-year-btns"></div>
+    <div class="year-filter" style="min-width:280px;flex:1;">
+      <label>Períodos</label>
+      <div class="year-btns" id="ths-period-btns"></div>
     </div>
-    <div><label>Sector</label><select id="ths-f-sector"><option value="">Todos los sectores</option></select></div>
+    <div><label>Cliente</label><select id="ths-f-cliente"><option value="">Todos los clientes</option></select></div>
+    <div><label>Tipo servicio</label><select id="ths-f-tipo"><option value="">Todos</option></select></div>
     <div class="ths-range-meta" id="ths-range-meta">
       <label>Cobertura</label>
       <div class="ths-range-text" id="ths-range-text">Sin datos cargados</div>
@@ -179,7 +180,7 @@
   <div id="ths-loading" class="spinner hidden">Cargando...</div>
   <div id="ths-empty" class="card ths-empty hidden">
     <h2>Sin horas cargadas</h2>
-    <p>Subí el primer Excel de horas diarias (con columnas de fecha, empleado y horas) para armar el dashboard.</p>
+    <p>Subí el Excel de Tot Hs. (con el rango de fechas en el título) para armar el dashboard.</p>
     <button type="button" class="btn" id="ths-empty-upload">Cargar Excel</button>
   </div>
 
@@ -198,7 +199,7 @@
         <div class="kpi-value" id="ths-kpi-personas">0</div>
       </div>
       <div class="card kpi ths-kpi-static" style="border-left-color:#6b7280;">
-        <div class="kpi-label">Registros</div>
+        <div class="kpi-label">Filas</div>
         <div class="kpi-value" id="ths-kpi-regs" style="color:#6b7280;">0</div>
       </div>
     </div>
@@ -207,12 +208,12 @@
 
     <div class="charts-stack ths-charts">
       <div class="card">
-        <h2 style="font-size:1rem;margin-bottom:8px;">Horas por mes</h2>
+        <h2 style="font-size:1rem;margin-bottom:8px;">Horas por período</h2>
         <div class="chart-box"><canvas id="ths-chart-mes"></canvas></div>
       </div>
       <div class="card">
         <div class="header-row" style="margin-bottom:0;">
-          <h2 style="font-size:1rem;">Horas por sector</h2>
+          <h2 style="font-size:1rem;">Horas por cliente</h2>
           <button type="button" class="btn-outline btn hidden" id="ths-chart-clear" style="padding:4px 10px;font-size:.75rem;">✕ Quitar filtro</button>
         </div>
         <div class="chart-box"><canvas id="ths-chart-sector"></canvas></div>
@@ -231,9 +232,9 @@
           <thead>
             <tr>
               <th>Empleado</th>
-              <th>Sector</th>
-              <th class="num">Días</th>
+              <th class="num">Filas</th>
               <th class="num">Total Hs</th>
+              <th class="num">Hs viaje</th>
               <th class="num">Hs 50%</th>
               <th class="num">Hs 100%</th>
               <th class="num">Hs noc</th>
@@ -1092,9 +1093,10 @@ document.getElementById('btn-import').onclick = runImport;
 
 // ── Tot Hs. ──
 const ths = {
-  anios: [], selectedAnios: [], sectores: [],
+  periodos: [], selectedPeriodo: null,
+  clientes: [], tipos: [],
   resumen: null, porMes: [], porSector: [], porEmpleado: [],
-  sectorSeleccionado: null,
+  clienteSeleccionado: null,
   chartMes: null, chartSector: null,
   file: null,
 };
@@ -1112,39 +1114,47 @@ function fmtFecha(iso) {
 
 function thsParams() {
   const p = {};
-  if (ths.selectedAnios.length) p.anios = ths.selectedAnios.join(',');
-  if (ths.sectorSeleccionado) p.sector = ths.sectorSeleccionado;
-  const sel = document.getElementById('ths-f-sector')?.value;
-  if (sel && !ths.sectorSeleccionado) p.sector = sel;
+  if (ths.selectedPeriodo) p.periodo = ths.selectedPeriodo;
+  const cliente = ths.clienteSeleccionado || document.getElementById('ths-f-cliente')?.value;
+  if (cliente) p.cliente = cliente;
+  const tipo = document.getElementById('ths-f-tipo')?.value;
+  if (tipo) p.tipo_servicio = tipo;
   return p;
 }
 
-function renderThsYears() {
-  const wrap = document.getElementById('ths-year-btns');
-  if (!ths.anios.length) {
-    wrap.innerHTML = '<span class="subtitle">Sin años</span>';
+function renderThsPeriods() {
+  const wrap = document.getElementById('ths-period-btns');
+  if (!ths.periodos.length) {
+    wrap.innerHTML = '<span class="subtitle">Sin períodos</span>';
     return;
   }
-  wrap.innerHTML = ths.anios.map(y =>
-    `<button type="button" class="year-btn ${ths.selectedAnios.includes(y) ? 'active' : ''}" data-y="${y}">${y}</button>`
-  ).join('');
+  wrap.innerHTML = [
+    `<button type="button" class="year-btn ${!ths.selectedPeriodo ? 'active' : ''}" data-key="">Todos</button>`,
+    ...ths.periodos.map(p =>
+      `<button type="button" class="year-btn ${ths.selectedPeriodo === p.key ? 'active' : ''}" data-key="${escHtml(p.key)}">${escHtml(p.label)}</button>`
+    ),
+  ].join('');
   wrap.querySelectorAll('.year-btn').forEach(btn => {
     btn.onclick = () => {
-      const y = Number(btn.dataset.y);
-      if (ths.selectedAnios.includes(y)) ths.selectedAnios = ths.selectedAnios.filter(x => x !== y);
-      else ths.selectedAnios = [...ths.selectedAnios, y].sort((a, b) => a - b);
-      renderThsYears();
+      ths.selectedPeriodo = btn.dataset.key || null;
+      renderThsPeriods();
       loadThsDashboard();
     };
   });
 }
 
-function renderThsSectores() {
-  const sel = document.getElementById('ths-f-sector');
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">Todos los sectores</option>' +
-    ths.sectores.map(s => `<option value="${escHtml(s)}">${escHtml(s)}</option>`).join('');
-  if (cur && ths.sectores.includes(cur)) sel.value = cur;
+function renderThsFilters() {
+  const cli = document.getElementById('ths-f-cliente');
+  const curCli = ths.clienteSeleccionado || cli.value;
+  cli.innerHTML = '<option value="">Todos los clientes</option>' +
+    ths.clientes.map(s => `<option value="${escHtml(s)}">${escHtml(s)}</option>`).join('');
+  if (curCli && ths.clientes.includes(curCli)) cli.value = curCli;
+
+  const tip = document.getElementById('ths-f-tipo');
+  const curTip = tip.value;
+  tip.innerHTML = '<option value="">Todos</option>' +
+    ths.tipos.map(s => `<option value="${escHtml(s)}">${escHtml(s)}</option>`).join('');
+  if (curTip && ths.tipos.includes(curTip)) tip.value = curTip;
 }
 
 function renderThsKpis() {
@@ -1161,23 +1171,24 @@ function renderThsKpis() {
 
   const items = [
     { label: 'Días normales', value: r.d_normales },
+    { label: 'Hs + viaje', value: r.total_hs_viaje, hours: true },
+    { label: 'Hs viaje', value: r.hs_viaje, hours: true },
+    { label: 'Hs 50%', value: r.hs50, hours: true },
+    { label: 'Hs 100%', value: r.hs100, hours: true },
+    { label: 'Hs noc.', value: (r.hs_noc || 0) + (r.hs_noc50 || 0), hours: true },
     { label: 'Ausentes', value: r.ausente },
     { label: 'Vacaciones', value: r.vacaciones },
     { label: 'Enfermedad', value: r.enfermedad },
     { label: 'Licencias', value: r.licencia },
     { label: 'Feriados', value: r.feriados },
+    { label: 'Traslados', value: r.traslado },
     { label: 'Accidentes', value: r.accidente },
-    { label: 'Suspensiones', value: r.suspension },
     { label: 'Francos comp.', value: r.francos_comp },
     { label: 'Viandas', value: r.viandas },
-    { label: 'Hs viaje', value: r.hs_viaje, hours: true },
-    { label: 'Hs 50%', value: r.hs50, hours: true },
-    { label: 'Hs 100%', value: r.hs100, hours: true },
-    { label: 'Hs noc.', value: r.hs_noc, hours: true },
+    { label: 'Desayunos', value: r.v_desayuno },
   ].filter(i => Number(i.value) > 0);
 
-  const box = document.getElementById('ths-novedades');
-  box.innerHTML = items.map(i => `
+  document.getElementById('ths-novedades').innerHTML = items.map(i => `
     <div class="ths-chip">
       <span class="ths-chip-val">${fmtNum(i.value, i.hours ? 1 : 0)}</span>
       <span class="ths-chip-lbl">${i.label}</span>
@@ -1207,7 +1218,7 @@ function renderThsCharts() {
     },
   });
 
-  const secLabels = ths.porSector.map(r => r.sector);
+  const secLabels = ths.porSector.map(r => r.sector || r.cliente);
   const secHoras = ths.porSector.map(r => r.total_horas);
   if (ths.chartSector) ths.chartSector.destroy();
   ths.chartSector = new Chart(document.getElementById('ths-chart-sector'), {
@@ -1218,7 +1229,7 @@ function renderThsCharts() {
         label: 'Total horas',
         data: secHoras,
         backgroundColor: secLabels.map(s =>
-          s === ths.sectorSeleccionado ? 'rgba(47, 111, 143, 0.9)' : 'rgba(47, 111, 143, 0.55)'
+          s === ths.clienteSeleccionado ? 'rgba(47, 111, 143, 0.9)' : 'rgba(47, 111, 143, 0.55)'
         ),
         borderRadius: 4,
       }],
@@ -1230,10 +1241,10 @@ function renderThsCharts() {
       plugins: { legend: { display: false } },
       onClick: (_e, els) => {
         if (!els.length) return;
-        const sector = secLabels[els[0].index];
-        ths.sectorSeleccionado = ths.sectorSeleccionado === sector ? null : sector;
-        document.getElementById('ths-f-sector').value = ths.sectorSeleccionado || '';
-        document.getElementById('ths-chart-clear').classList.toggle('hidden', !ths.sectorSeleccionado);
+        const cliente = secLabels[els[0].index];
+        ths.clienteSeleccionado = ths.clienteSeleccionado === cliente ? null : cliente;
+        document.getElementById('ths-f-cliente').value = ths.clienteSeleccionado || '';
+        document.getElementById('ths-chart-clear').classList.toggle('hidden', !ths.clienteSeleccionado);
         loadThsDashboard();
       },
       scales: { x: { beginAtZero: true } },
@@ -1247,15 +1258,15 @@ function renderThsTable() {
   document.getElementById('ths-table-count').textContent =
     `${rows.length} persona${rows.length === 1 ? '' : 's'}`;
   document.getElementById('ths-sector-label').textContent =
-    ths.sectorSeleccionado ? `— ${ths.sectorSeleccionado}` : '';
+    ths.clienteSeleccionado ? `— ${ths.clienteSeleccionado}` : '';
 
   body.innerHTML = rows.length
     ? rows.map(r => `
       <tr>
         <td><strong>${escHtml(r.empleado)}</strong></td>
-        <td>${escHtml(r.sector || '—')}</td>
-        <td class="num">${fmtNum(r.dias, 0)}</td>
+        <td class="num">${fmtNum(r.filas || r.dias, 0)}</td>
         <td class="num" style="font-weight:700">${fmtNum(r.total_horas)}</td>
+        <td class="num">${fmtNum(r.hs_viaje)}</td>
         <td class="num">${fmtNum(r.hs50)}</td>
         <td class="num">${fmtNum(r.hs100)}</td>
         <td class="num">${fmtNum((r.hs_noc || 0) + (r.hs_noc50 || 0))}</td>
@@ -1277,21 +1288,18 @@ async function loadThsDashboard() {
   empty.classList.add('hidden');
   try {
     const params = thsParams();
-    const sectorFilter = params.sector || null;
     const [resumen, porMes, porSector, porEmpleado] = await Promise.all([
       apiGet('/tot-hs/resumen', params),
       apiGet('/tot-hs/por-mes', params),
-      apiGet('/tot-hs/por-sector', { anios: params.anios }),
+      apiGet('/tot-hs/por-sector', { periodo: params.periodo, tipo_servicio: params.tipo_servicio }),
       apiGet('/tot-hs/por-empleado', params),
     ]);
     ths.resumen = resumen;
     ths.porMes = porMes;
     ths.porSector = porSector;
-    ths.porEmpleado = sectorFilter
-      ? porEmpleado.filter(r => r.sector === sectorFilter)
-      : porEmpleado;
+    ths.porEmpleado = porEmpleado;
 
-    if (!(resumen.registros > 0) && !ths.selectedAnios.length && !sectorFilter) {
+    if (!(resumen.registros > 0) && !ths.selectedPeriodo && !params.cliente) {
       empty.classList.remove('hidden');
       document.getElementById('ths-btn-export').disabled = true;
       return;
@@ -1312,33 +1320,32 @@ async function loadThsDashboard() {
 
 async function initTotHs() {
   try {
-    const [meta, sectores] = await Promise.all([
-      apiGet('/tot-hs/meta'),
-      apiGet('/dashboard/sectores'),
-    ]);
-    ths.anios = meta.anios || [];
-    ths.sectores = sectores || [];
-    if (!ths.selectedAnios.length && ths.anios.length) {
-      ths.selectedAnios = [ths.anios[ths.anios.length - 1]];
+    const meta = await apiGet('/tot-hs/meta');
+    ths.periodos = meta.periodos || [];
+    ths.clientes = meta.clientes || [];
+    ths.tipos = meta.tipos_servicio || [];
+    if (ths.selectedPeriodo && !ths.periodos.some(p => p.key === ths.selectedPeriodo)) {
+      ths.selectedPeriodo = null;
     }
-    renderThsYears();
-    renderThsSectores();
+    renderThsPeriods();
+    renderThsFilters();
     const rango = (meta.fecha_min && meta.fecha_max)
-      ? `${fmtFecha(meta.fecha_min)} → ${fmtFecha(meta.fecha_max)} · ${fmtNum(meta.total_registros, 0)} registros`
+      ? `${fmtFecha(meta.fecha_min)} → ${fmtFecha(meta.fecha_max)} · ${fmtNum(meta.total_registros, 0)} filas · ${fmtNum(meta.personas, 0)} personas`
       : 'Sin datos cargados';
     document.getElementById('ths-range-text').textContent = rango;
   } catch (_) { /* meta vacío ok */ }
   await loadThsDashboard();
 }
 
-document.getElementById('ths-f-sector').onchange = () => {
-  ths.sectorSeleccionado = document.getElementById('ths-f-sector').value || null;
-  document.getElementById('ths-chart-clear').classList.toggle('hidden', !ths.sectorSeleccionado);
+document.getElementById('ths-f-cliente').onchange = () => {
+  ths.clienteSeleccionado = document.getElementById('ths-f-cliente').value || null;
+  document.getElementById('ths-chart-clear').classList.toggle('hidden', !ths.clienteSeleccionado);
   loadThsDashboard();
 };
+document.getElementById('ths-f-tipo').onchange = () => loadThsDashboard();
 document.getElementById('ths-chart-clear').onclick = () => {
-  ths.sectorSeleccionado = null;
-  document.getElementById('ths-f-sector').value = '';
+  ths.clienteSeleccionado = null;
+  document.getElementById('ths-f-cliente').value = '';
   document.getElementById('ths-chart-clear').classList.add('hidden');
   loadThsDashboard();
 };
@@ -1385,12 +1392,14 @@ function handleThsFile(f) {
 function showThsImportResult(data) {
   const res = document.getElementById('ths-import-result');
   res.className = 'card result-ok';
-  res.innerHTML = `<h3 style="color:var(--green);margin-bottom:8px;">✓ Tot Hs. actualizado</h3>
+  const d = data.detalle || {};
+  const accion = d.periodo_reemplazado ? 'Período reemplazado' : 'Período nuevo';
+  res.innerHTML = `<h3 style="color:var(--green);margin-bottom:8px;">✓ ${accion}</h3>
     <p style="font-size:.85rem;color:var(--muted);">${escHtml(data.mensaje || '')}</p>`;
-  if (data.detalle?.registros > 0) {
-    res.innerHTML += `<div class="grid3"><div class="stat-box"><div class="val">${data.detalle.registros}</div><div class="lbl">Procesados</div></div>
-      <div class="stat-box"><div class="val" style="color:var(--accent)">${data.detalle.registros_nuevos}</div><div class="lbl">Nuevos</div></div>
-      <div class="stat-box"><div class="val" style="color:var(--yellow)">${data.detalle.registros_actualizados}</div><div class="lbl">Pisados</div></div></div>`;
+  if (d.registros > 0) {
+    res.innerHTML += `<div class="grid3"><div class="stat-box"><div class="val">${d.registros}</div><div class="lbl">Filas</div></div>
+      <div class="stat-box"><div class="val" style="color:var(--accent)">${d.personas || 0}</div><div class="lbl">Personas</div></div>
+      <div class="stat-box"><div class="val" style="color:var(--yellow);font-size:1rem;">${escHtml(d.periodo_label || '')}</div><div class="lbl">Período</div></div></div>`;
   }
   res.classList.remove('hidden');
 }
@@ -1436,22 +1445,22 @@ document.querySelector('#ths-export-drop [data-ths-export="excel"]').onclick = (
     ['Total horas', r.total_horas],
     ['Hs extras', r.hs_extras],
     ['Personas', r.personas],
-    ['Registros', r.registros],
+    ['Filas', r.registros],
     ['Desde', r.fecha_min],
     ['Hasta', r.fecha_max],
   ]), 'Resumen');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-    ['Periodo', 'Total horas', 'Hs extras', 'Personas', 'Registros'],
+    ['Periodo', 'Total horas', 'Hs extras', 'Personas', 'Filas'],
     ...ths.porMes.map(m => [m.periodo, m.total_horas, m.hs_extras, m.personas, m.registros]),
-  ]), 'Por mes');
+  ]), 'Por periodo');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-    ['Sector', 'Total horas', 'Hs extras', 'Personas', 'Hs/persona'],
+    ['Cliente', 'Total horas', 'Hs extras', 'Personas', 'Hs/persona'],
     ...ths.porSector.map(s => [s.sector, s.total_horas, s.hs_extras, s.personas, s.horas_por_persona]),
-  ]), 'Por sector');
+  ]), 'Por cliente');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-    ['Empleado', 'Sector', 'Días', 'Total Hs', 'Hs 50%', 'Hs 100%', 'Hs noc', 'Extras', 'Ausente', 'Vacaciones', 'Enfermedad', 'Licencia'],
+    ['Empleado', 'Filas', 'Total Hs', 'Hs viaje', 'Hs 50%', 'Hs 100%', 'Hs noc', 'Extras', 'Ausente', 'Vacaciones', 'Enfermedad', 'Licencia'],
     ...ths.porEmpleado.map(e => [
-      e.empleado, e.sector, e.dias, e.total_horas, e.hs50, e.hs100,
+      e.empleado, e.filas || e.dias, e.total_horas, e.hs_viaje, e.hs50, e.hs100,
       (e.hs_noc || 0) + (e.hs_noc50 || 0), e.hs_extras, e.ausente, e.vacaciones, e.enfermedad, e.licencia,
     ]),
   ]), 'Por empleado');
