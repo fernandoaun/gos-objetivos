@@ -183,6 +183,114 @@ h1 {
   white-space: nowrap;
 }
 
+.link-persona {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link-persona:hover {
+  color: var(--gos-green-dark);
+}
+
+.vac-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.vac-modal.hidden {
+  display: none !important;
+}
+
+.vac-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(30, 30, 30, 0.45);
+}
+
+.vac-modal-panel {
+  position: relative;
+  z-index: 1;
+  width: min(640px, 100%);
+  max-height: min(85vh, 720px);
+  overflow: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--gos-radius-xl);
+  box-shadow: var(--pe-shadow);
+  padding: 20px;
+}
+
+.vac-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.vac-modal-header h2 {
+  font-size: 1.1rem;
+  color: var(--gos-green-dark);
+}
+
+.persona-meta {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.persona-notas-box {
+  background: var(--pe-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--gos-radius-md);
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.persona-anio-card {
+  border: 1px solid var(--border);
+  border-radius: var(--gos-radius-md);
+  padding: 12px;
+  margin-bottom: 10px;
+  background: var(--pe-bg);
+}
+
+.persona-anio-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.persona-anio-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 640px) {
+  .persona-meta,
+  .persona-anio-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .kpis {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

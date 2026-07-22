@@ -111,6 +111,17 @@
   </div>
 </div>
 
+<div id="persona-modal" class="vac-modal hidden" role="dialog" aria-modal="true" aria-labelledby="persona-modal-title">
+  <div class="vac-modal-backdrop" data-close-modal></div>
+  <div class="vac-modal-panel">
+    <div class="vac-modal-header">
+      <h2 id="persona-modal-title">Persona</h2>
+      <button type="button" class="btn-outline btn" id="persona-modal-close" style="padding:4px 10px;font-size:.8rem;" aria-label="Cerrar">✕</button>
+    </div>
+    <div id="persona-modal-body" class="vac-modal-body"></div>
+  </div>
+</div>
+
 <div id="view-importar" class="app {% if initial_view != 'importar' %}hidden{% endif %}" style="max-width:720px;">
   <h1>Importar / Actualizar Datos</h1>
   <p class="subtitle" style="margin-bottom:20px;">Subí el Excel de vacaciones actualizado. Cada nueva versión reemplaza/actualiza los datos existentes.</p>
@@ -269,6 +280,64 @@ function notasResumen(row) {
   return parts.join(' ') || '—';
 }
 
+function rowsDePersona(empleado) {
+  return state.deuda
+    .filter(d => d.empleado === empleado)
+    .sort((a, b) => (a.anio || 0) - (b.anio || 0));
+}
+
+function openPersonaModal(empleado) {
+  const rows = rowsDePersona(empleado);
+  const modal = document.getElementById('persona-modal');
+  const title = document.getElementById('persona-modal-title');
+  const body = document.getElementById('persona-modal-body');
+  title.textContent = empleado;
+  if (!rows.length) {
+    body.innerHTML = '<p class="subtitle">Sin datos para esta persona</p>';
+    modal.classList.remove('hidden');
+    return;
+  }
+  const first = rows[0];
+  const notaQ = rows.find(r => r.nota_q)?.nota_q || '';
+  const notaR = rows.find(r => r.nota_r)?.nota_r || '';
+  const totalPend = rows.reduce((a, r) => a + (r.dias_pendientes || 0), 0);
+  const aniosHtml = rows.map(r => `
+    <div class="persona-anio-card">
+      <div class="persona-anio-head">
+        <strong>${r.anio}</strong>
+        ${semaforo(r.dias_pendientes || 0)}
+      </div>
+      <div class="persona-anio-grid">
+        <div><span class="nota-label">Disponibles</span><div>${r.dias_disponibles ?? 0}</div></div>
+        <div><span class="nota-label">Tomados planilla</span><div>${r.tomados_planilla ?? 0}</div></div>
+        <div><span class="nota-label">Tomados real</span><div>${r.tomados_real ?? 0}</div></div>
+        <div><span class="nota-label">Pendientes</span><div style="font-weight:700">${r.dias_pendientes ?? 0}</div></div>
+      </div>
+      ${r.comentario ? `<pre class="nota-text" style="margin-top:8px">${escHtml(r.comentario)}</pre>` : '<p class="subtitle" style="margin-top:8px">Sin detalle de días tomados</p>'}
+    </div>
+  `).join('');
+  body.innerHTML = `
+    <div class="persona-meta">
+      <div><span class="nota-label">Legajo</span><div>${first.legajo ?? '—'}</div></div>
+      <div><span class="nota-label">Sector</span><div>${escHtml(first.sector || '—')}</div></div>
+      <div><span class="nota-label">Total pendientes</span><div style="font-weight:700;color:var(--accent)">${totalPend}</div></div>
+    </div>
+    ${(notaQ || notaR) ? `
+      <div class="persona-notas-box">
+        <h3 style="font-size:.9rem;margin-bottom:8px;">Notas (columnas Q / R)</h3>
+        ${notaQ ? `<p><span class="nota-label">Q</span> ${escHtml(notaQ)}</p>` : ''}
+        ${notaR ? `<p><span class="nota-label">R</span> ${escHtml(notaR)}</p>` : ''}
+      </div>` : ''}
+    <h3 style="font-size:.9rem;margin:16px 0 8px;">Detalle por año</h3>
+    ${aniosHtml}
+  `;
+  modal.classList.remove('hidden');
+}
+
+function closePersonaModal() {
+  document.getElementById('persona-modal').classList.add('hidden');
+}
+
 function renderNotasPanel() {
   const card = document.getElementById('notas-card');
   const body = document.getElementById('notas-body');
@@ -279,9 +348,7 @@ function renderNotasPanel() {
   }
   const blocks = [];
   for (const emp of state.selectedPersonas) {
-    const rows = state.deuda
-      .filter(d => d.empleado === emp && (!state.sectorSeleccionado || d.sector === state.sectorSeleccionado))
-      .sort((a, b) => (a.anio || 0) - (b.anio || 0));
+    const rows = rowsDePersona(emp).filter(d => !state.sectorSeleccionado || d.sector === state.sectorSeleccionado);
     const notaQ = rows.find(r => r.nota_q)?.nota_q || '';
     const notaR = rows.find(r => r.nota_r)?.nota_r || '';
     const comentarios = rows
@@ -294,13 +361,16 @@ function renderNotasPanel() {
     }
     blocks.push(`
       <div class="nota-persona">
-        <h3>${escHtml(emp)}</h3>
+        <h3><button type="button" class="link-persona" data-persona="${escHtml(emp)}">${escHtml(emp)}</button></h3>
         ${notaQ ? `<p><span class="nota-label">Columna Q</span> ${escHtml(notaQ)}</p>` : ''}
         ${notaR ? `<p><span class="nota-label">Columna R</span> ${escHtml(notaR)}</p>` : ''}
         ${comentarios ? `<div class="nota-comentarios"><span class="nota-label">Detalle de días tomados</span>${comentarios}</div>` : ''}
       </div>`);
   }
   body.innerHTML = blocks.join('') || '<p class="subtitle">Sin notas para las personas seleccionadas</p>';
+  body.querySelectorAll('[data-persona]').forEach(btn => {
+    btn.onclick = () => openPersonaModal(btn.dataset.persona);
+  });
   card.classList.remove('hidden');
 }
 
@@ -324,15 +394,19 @@ function renderTable() {
       const title = [row.comentario, row.nota_q, row.nota_r].filter(Boolean).join('\n\n');
       return `
     <tr>
-      <td>${escHtml(row.empleado)}</td><td style="color:var(--muted)">${escHtml(row.sector||'')}</td>
+      <td><button type="button" class="link-persona" data-persona="${escHtml(row.empleado)}">${escHtml(row.empleado)}</button></td>
+      <td style="color:var(--muted)">${escHtml(row.sector||'')}</td>
       <td class="num">${row.anio}</td><td class="num">${row.dias_disponibles}</td>
       <td class="num">${row.tomados_planilla}</td><td class="num" style="color:var(--accent)">${row.tomados_real}</td>
       <td class="num" style="font-weight:700">${row.dias_pendientes}</td>
       <td style="text-align:center">${semaforo(row.dias_pendientes||0)}</td>
-      <td class="notas-cell" title="${escHtml(title)}">${rowHasNotas(row) ? notasResumen(row) : '—'}</td>
+      <td class="notas-cell"><button type="button" class="link-persona" data-persona="${escHtml(row.empleado)}" title="${escHtml(title)}">${rowHasNotas(row) ? notasResumen(row) : 'Ver'}</button></td>
     </tr>`;
     }).join('')
     : '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px;">Sin registros para este filtro</td></tr>';
+  document.querySelectorAll('#table-body [data-persona]').forEach(btn => {
+    btn.onclick = () => openPersonaModal(btn.dataset.persona);
+  });
 }
 
 function chartScaleOpts() {
@@ -499,6 +573,13 @@ async function initVacaciones() {
     state.kpiFiltro = null;
     renderTable();
   };
+  document.getElementById('persona-modal-close').onclick = closePersonaModal;
+  document.querySelectorAll('[data-close-modal]').forEach(el => {
+    el.onclick = closePersonaModal;
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closePersonaModal();
+  });
   await loadVacaciones();
 }
 
