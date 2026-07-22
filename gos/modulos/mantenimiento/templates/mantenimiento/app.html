@@ -44,22 +44,26 @@
 
   <div id="plan-content" class="hidden">
     <div class="kpis">
-      <div class="card kpi">
+      <button type="button" class="card kpi clickable" data-kpi="plan-unidades" aria-label="Ver detalle de unidades">
         <div class="kpi-label">Unidades</div>
         <div class="kpi-value" id="kpi-unidades">0</div>
-      </div>
-      <div class="card kpi info">
+        <span class="kpi-hint">Ver detalle</span>
+      </button>
+      <button type="button" class="card kpi info clickable" data-kpi="plan-p" aria-label="Ver detalle de programados">
         <div class="kpi-label">Programados (P) <span id="kpi-corte-hint" style="font-weight:400;text-transform:none;letter-spacing:0;"></span></div>
         <div class="kpi-value" id="kpi-p">0</div>
-      </div>
-      <div class="card kpi">
+        <span class="kpi-hint">Ver detalle</span>
+      </button>
+      <button type="button" class="card kpi clickable" data-kpi="plan-e" aria-label="Ver detalle de ejecutados">
         <div class="kpi-label">Ejecutados (E)</div>
         <div class="kpi-value" id="kpi-e">0</div>
-      </div>
-      <div class="card kpi" id="kpi-c-card">
+        <span class="kpi-hint">Ver detalle</span>
+      </button>
+      <button type="button" class="card kpi clickable" id="kpi-c-card" data-kpi="plan-c" aria-label="Ver detalle de cumplimiento">
         <div class="kpi-label">Cumplimiento a la fecha</div>
         <div class="kpi-value" id="kpi-c">—</div>
-      </div>
+        <span class="kpi-hint">Ver detalle</span>
+      </button>
     </div>
     <div class="kpis" id="kpi-tipos" style="margin-top:-8px;"></div>
 
@@ -139,30 +143,36 @@
 
   <div id="vtv-content" class="hidden" style="margin-top:20px;">
     <div class="kpis">
-      <div class="card kpi danger">
+      <button type="button" class="card kpi danger clickable" data-kpi="vtv-vencidas" aria-label="Ver unidades vencidas">
         <div class="kpi-label">Vencidas</div>
         <div class="kpi-value" id="vtv-kpi-vencidas">0</div>
-      </div>
-      <div class="card kpi warn">
+        <span class="kpi-hint">Ver detalle</span>
+      </button>
+      <button type="button" class="card kpi warn clickable" data-kpi="vtv-por_vencer" aria-label="Ver unidades por vencer">
         <div class="kpi-label">Por vencer (30 días)</div>
         <div class="kpi-value" id="vtv-kpi-alerta">0</div>
-      </div>
-      <div class="card kpi">
+        <span class="kpi-hint">Ver detalle</span>
+      </button>
+      <button type="button" class="card kpi clickable" data-kpi="vtv-vigentes" aria-label="Ver unidades vigentes">
         <div class="kpi-label">Vigentes</div>
         <div class="kpi-value" id="vtv-kpi-ok">0</div>
-      </div>
-      <div class="card kpi info">
+        <span class="kpi-hint">Ver detalle</span>
+      </button>
+      <button type="button" class="card kpi info clickable" data-kpi="vtv-programadas" aria-label="Ver unidades programadas">
         <div class="kpi-label">Programadas</div>
         <div class="kpi-value" id="vtv-kpi-prog">0</div>
-      </div>
-      <div class="card kpi warn">
+        <span class="kpi-hint">Ver detalle</span>
+      </button>
+      <button type="button" class="card kpi warn clickable" data-kpi="vtv-en_baja" aria-label="Ver unidades en baja">
         <div class="kpi-label">En baja / prep.</div>
         <div class="kpi-value" id="vtv-kpi-baja">0</div>
-      </div>
-      <div class="card kpi danger">
+        <span class="kpi-hint">Ver detalle</span>
+      </button>
+      <button type="button" class="card kpi danger clickable" data-kpi="vtv-bloqueadas" aria-label="Ver unidades bloqueadas">
         <div class="kpi-label">Bloqueadas</div>
         <div class="kpi-value" id="vtv-kpi-bloq">0</div>
-      </div>
+        <span class="kpi-hint">Ver detalle</span>
+      </button>
     </div>
 
     <div class="vtv-layout">
@@ -216,6 +226,20 @@
     <div class="card" style="margin-top:16px;">
       <h2 style="font-size:1rem;margin-bottom:12px;">Últimas VTV realizadas</h2>
       <div id="vtv-historial"></div>
+    </div>
+  </div>
+</div>
+
+<div id="kpi-modal" class="mant-modal hidden" role="dialog" aria-modal="true" aria-labelledby="kpi-modal-title">
+  <div class="mant-modal-backdrop" data-close-modal></div>
+  <div class="mant-modal-panel mant-modal-panel--wide">
+    <div class="mant-modal-header">
+      <h2 id="kpi-modal-title">Detalle</h2>
+      <button type="button" class="btn-outline btn" data-close-modal style="padding:4px 10px;">✕</button>
+    </div>
+    <div class="mant-modal-body">
+      <p class="kpi-detail-meta" id="kpi-modal-meta"></p>
+      <div id="kpi-modal-body"></div>
     </div>
   </div>
 </div>
@@ -496,10 +520,12 @@ async function loadPlan(anio) {
     }
     const porTipo = data.kpis.por_tipo || {};
     document.getElementById('kpi-tipos').innerHTML = [1, 2, 3, 4].map(t => `
-      <div class="card kpi" style="border-left-color:var(--r-color);">
+      <button type="button" class="card kpi clickable" style="border-left-color:var(--r-color);"
+        data-kpi="plan-tipo" data-tipo="${t}" aria-label="Ver detalle tipo ${t}">
         <div class="kpi-label">Tipo ${t} (R)</div>
         <div class="kpi-value" style="color:var(--r-color);">${fmtNum(porTipo[t] || 0)}</div>
-      </div>`).join('');
+        <span class="kpi-hint">Ver detalle</span>
+      </button>`).join('');
 
     renderPlanHead(mesCorte);
     renderPlanBody();
@@ -547,6 +573,195 @@ function fmtFecha(iso) {
   if (!iso) return '—';
   const [y, m, d] = iso.slice(0, 10).split('-');
   return `${d}/${m}/${y}`;
+}
+
+const MESES_CORTOS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+function mesesConValor(fila, key, mesCorte) {
+  return (fila.meses || [])
+    .map((m, i) => {
+      if (mesCorte != null && i + 1 > mesCorte) return null;
+      return Number(m?.[key]) > 0 ? MESES_CORTOS[i] : null;
+    })
+    .filter(Boolean)
+    .join(', ') || '—';
+}
+
+function kpiDetailTable(headers, rows) {
+  if (!rows.length) {
+    return '<p class="kpi-detail-empty">No hay registros para este indicador.</p>';
+  }
+  return `<div class="table-wrap" style="border:none;max-height:55vh;overflow:auto;">
+    <table class="kpi-detail-table">
+      <thead><tr>${headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
+      <tbody>${rows.map(cols =>
+        `<tr>${cols.map(c => `<td>${c}</td>`).join('')}</tr>`
+      ).join('')}</tbody>
+    </table>
+  </div>`;
+}
+
+function openKpiDetail(key, tipo) {
+  const titleEl = document.getElementById('kpi-modal-title');
+  const metaEl = document.getElementById('kpi-modal-meta');
+  const bodyEl = document.getElementById('kpi-modal-body');
+  let title = 'Detalle';
+  let meta = '';
+  let html = '';
+
+  if (key.startsWith('plan-')) {
+    const plan = state.plan;
+    if (!plan) return;
+    const filas = plan.filas || [];
+    const mesCorte = plan.mes_corte;
+    const corteTxt = mesCorte > 0
+      ? `hasta ${MESES_CORTOS[mesCorte - 1]} ${plan.anio}`
+      : `sin meses alcanzados en ${plan.anio}`;
+
+    if (key === 'plan-unidades') {
+      title = 'Unidades del plan';
+      meta = `${filas.length} unidad${filas.length === 1 ? '' : 'es'} · ${corteTxt}`;
+      html = kpiDetailTable(
+        ['Unidad', 'P', 'E', 'Cumplimiento'],
+        filas.map(f => [
+          `<strong>${esc(f.nombre)}</strong>`,
+          fmtNum(f.tot_p),
+          fmtNum(f.tot_e),
+          `<span class="${cumplClass(f.cumplimiento)}">${fmtPct(f.cumplimiento)}</span>`,
+        ])
+      );
+    } else if (key === 'plan-p') {
+      const rows = filas.filter(f => Number(f.tot_p) > 0);
+      title = 'Programados (P)';
+      meta = `${fmtNum(plan.kpis.programado)} programados en ${rows.length} unidad${rows.length === 1 ? '' : 'es'} · ${corteTxt}`;
+      html = kpiDetailTable(
+        ['Unidad', 'P', 'Meses con P'],
+        rows.map(f => [
+          `<strong>${esc(f.nombre)}</strong>`,
+          fmtNum(f.tot_p),
+          esc(mesesConValor(f, 'p', mesCorte)),
+        ])
+      );
+    } else if (key === 'plan-e') {
+      const rows = filas.filter(f => Number(f.tot_e) > 0);
+      title = 'Ejecutados (E)';
+      meta = `${fmtNum(plan.kpis.ejecutado)} ejecutados en ${rows.length} unidad${rows.length === 1 ? '' : 'es'} · ${corteTxt}`;
+      html = kpiDetailTable(
+        ['Unidad', 'E', 'Meses con E'],
+        rows.map(f => [
+          `<strong>${esc(f.nombre)}</strong>`,
+          fmtNum(f.tot_e),
+          esc(mesesConValor(f, 'e', mesCorte)),
+        ])
+      );
+    } else if (key === 'plan-c') {
+      const rows = [...filas]
+        .filter(f => Number(f.tot_p) > 0)
+        .sort((a, b) => (a.cumplimiento ?? -1) - (b.cumplimiento ?? -1));
+      title = 'Cumplimiento a la fecha';
+      meta = `Global ${fmtPct(plan.kpis.cumplimiento)} · ${rows.length} unidad${rows.length === 1 ? '' : 'es'} con P · ${corteTxt}`;
+      html = kpiDetailTable(
+        ['Unidad', 'P', 'E', 'Cumplimiento'],
+        rows.map(f => [
+          `<strong>${esc(f.nombre)}</strong>`,
+          fmtNum(f.tot_p),
+          fmtNum(f.tot_e),
+          `<span class="${cumplClass(f.cumplimiento)}">${fmtPct(f.cumplimiento)}</span>`,
+        ])
+      );
+    } else if (key === 'plan-tipo') {
+      const t = Number(tipo);
+      const detalle = [];
+      filas.forEach(f => {
+        (f.meses || []).forEach((m, i) => {
+          const r = Number(m?.r) || 0;
+          if (r === t) {
+            detalle.push({
+              nombre: f.nombre,
+              mes: MESES_CORTOS[i],
+              p: Number(m?.p) || 0,
+              e: Number(m?.e) || 0,
+            });
+          }
+        });
+      });
+      title = `Tipo ${t} (R) · MP${t}`;
+      meta = `${detalle.length} ocurrencia${detalle.length === 1 ? '' : 's'} en el plan ${plan.anio}`;
+      html = kpiDetailTable(
+        ['Unidad', 'Mes', 'P', 'E'],
+        detalle.map(d => [
+          `<strong>${esc(d.nombre)}</strong>`,
+          esc(d.mes),
+          fmtNum(d.p),
+          fmtNum(d.e),
+        ])
+      );
+    }
+  } else if (key.startsWith('vtv-')) {
+    const items = state.vtv?.items || [];
+    const filtros = {
+      'vtv-vencidas': {
+        title: 'VTV vencidas',
+        filter: it => it.estado === 'vencida',
+        meta: 'Unidades con vencimiento ya superado',
+      },
+      'vtv-por_vencer': {
+        title: 'Por vencer (30 días)',
+        filter: it => it.estado === 'por_vencer',
+        meta: 'Unidades que vencen dentro de los próximos 30 días',
+      },
+      'vtv-vigentes': {
+        title: 'VTV vigentes',
+        filter: it => it.estado === 'vigente',
+        meta: 'Unidades con VTV al día',
+      },
+      'vtv-programadas': {
+        title: 'Con turno programado',
+        filter: it => !!it.turno,
+        meta: 'Unidades con turno de VTV cargado',
+      },
+      'vtv-en_baja': {
+        title: 'En baja / preparación',
+        filter: it => !!it.en_baja,
+        meta: 'Unidades en período de baja (2 días antes del turno)',
+      },
+      'vtv-bloqueadas': {
+        title: 'Bloqueadas',
+        filter: it => it.estado === 'bloqueada' || !!it.bloqueado,
+        meta: 'Unidades bloqueadas tras VTV rechazada',
+      },
+    };
+    const cfg = filtros[key];
+    if (!cfg) return;
+    const rows = items.filter(cfg.filter);
+    title = cfg.title;
+    meta = `${rows.length} unidad${rows.length === 1 ? '' : 'es'} · ${cfg.meta}`;
+    html = kpiDetailTable(
+      ['Unidad', 'Vencimiento', 'Estado', 'Turno / baja'],
+      rows.map(it => {
+        const diasTxt = it.dias < 0
+          ? `${Math.abs(it.dias)} d vencida`
+          : it.dias === 0 ? 'Hoy' : `${it.dias} d`;
+        let turnoTxt = '—';
+        if (it.turno) {
+          turnoTxt = `VTV ${fmtFecha(it.turno.fecha_vtv)}<br><span class="subtitle">Baja ${fmtFecha(it.turno.fecha_baja)}${it.en_baja ? ' · en prep.' : ''}</span>`;
+        }
+        return [
+          `<strong>${esc(it.nombre)}</strong>`,
+          `${fmtFecha(it.vencimiento)}<div class="subtitle">${esc(diasTxt)}</div>`,
+          `${vtvBadge(it.estado)}${it.resultado_ultimo ? `<div class="subtitle" style="margin-top:4px;">Último: ${esc(it.resultado_ultimo)}</div>` : ''}`,
+          turnoTxt,
+        ];
+      })
+    );
+  } else {
+    return;
+  }
+
+  titleEl.textContent = title;
+  metaEl.textContent = meta;
+  bodyEl.innerHTML = html;
+  openModal('kpi-modal');
 }
 
 function openModal(id) {
@@ -863,6 +1078,16 @@ function bindImport() {
 document.getElementById('f-unidad')?.addEventListener('input', renderPlanBody);
 document.getElementById('vtv-estado')?.addEventListener('change', renderVtvBody);
 document.getElementById('vtv-buscar')?.addEventListener('input', renderVtvBody);
+
+document.addEventListener('click', (ev) => {
+  const kpi = ev.target.closest('[data-kpi]');
+  if (!kpi) return;
+  openKpiDetail(kpi.dataset.kpi, kpi.dataset.tipo);
+});
+
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape') closeModals();
+});
 
 const initial = '{{ initial_view }}';
 bindImport();
