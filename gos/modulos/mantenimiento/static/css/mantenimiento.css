@@ -280,6 +280,11 @@ table.plan-grid .mes-group {
   background: #eef2f7;
 }
 
+table.plan-grid thead th.mes-futuro {
+  opacity: 0.55;
+  background: #f9fafb;
+}
+
 .rpe-cell {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

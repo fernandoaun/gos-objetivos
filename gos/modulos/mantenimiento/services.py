@@ -61,7 +61,22 @@ def _cumplimiento(p: float, e: float) -> float | None:
     return round(e / p, 4)
 
 
-def get_plan(session: Session, anio: int | None = None) -> dict:
+def _mes_corte_cumplimiento(anio: int, hoy: date) -> int:
+    """Último mes que entra en C: solo meses ya alcanzados según la fecha actual.
+
+    - Año pasado → 12 (todo el año)
+    - Año futuro → 0 (nada entra todavía)
+    - Año actual → mes de hoy (inclusive)
+    """
+    if anio < hoy.year:
+        return 12
+    if anio > hoy.year:
+        return 0
+    return hoy.month
+
+
+def get_plan(session: Session, anio: int | None = None, hoy: date | None = None) -> dict:
+    hoy = hoy or date.today()
     anios = sorted(
         {
             row[0]
@@ -71,7 +86,9 @@ def get_plan(session: Session, anio: int | None = None) -> dict:
         reverse=True,
     )
     if anio is None:
-        anio = anios[0] if anios else date.today().year
+        anio = anios[0] if anios else hoy.year
+
+    mes_corte = _mes_corte_cumplimiento(anio, hoy)
 
     meta = session.execute(
         select(MantPlanMeta).where(MantPlanMeta.anio == anio)
@@ -98,8 +115,10 @@ def get_plan(session: Session, anio: int | None = None) -> dict:
             }
         row = by_unidad[u.id]
         row["meses"][cel.mes] = {"r": cel.r, "p": cel.p, "e": cel.e}
-        row["tot_p"] += cel.p or 0
-        row["tot_e"] += cel.e or 0
+        # P/E/C solo acumulan meses ya alcanzados (fecha actual)
+        if cel.mes <= mes_corte:
+            row["tot_p"] += cel.p or 0
+            row["tot_e"] += cel.e or 0
         tipo = int(cel.r) if cel.r and float(cel.r) == int(cel.r) else None
         if tipo in tipos_count:
             tipos_count[tipo] += 1
@@ -133,19 +152,23 @@ def get_plan(session: Session, anio: int | None = None) -> dict:
     for m in range(1, 13):
         mp = sum(f["meses"][m - 1]["p"] for f in filas)
         me = sum(f["meses"][m - 1]["e"] for f in filas)
+        cuenta = m <= mes_corte
         por_mes.append(
             {
                 "mes": m,
                 "label": MESES_LABEL[m],
                 "p": mp,
                 "e": me,
-                "cumplimiento": _cumplimiento(mp, me),
+                "cuenta_en_c": cuenta,
+                "cumplimiento": _cumplimiento(mp, me) if cuenta else None,
             }
         )
 
     return {
         "anio": anio,
         "anios": anios,
+        "hoy": hoy.isoformat(),
+        "mes_corte": mes_corte,
         "meta": {
             "titulo": meta.titulo if meta else None,
             "sector": meta.sector if meta else None,
@@ -164,7 +187,7 @@ def get_plan(session: Session, anio: int | None = None) -> dict:
             "r": "Referencia (tipo de mantenimiento 1–4)",
             "p": "Programado (mes en que se programó)",
             "e": "Ejecutado (mes en que se realizó)",
-            "c": "Cumplimiento (E/P)",
+            "c": "Cumplimiento (E/P) solo con meses ya alcanzados a la fecha",
         },
     }
 

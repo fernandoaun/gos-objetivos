@@ -20,7 +20,7 @@
       <span><i class="chip chip-r">R</i> Referencia (tipo 1–4)</span>
       <span><i class="chip chip-p">P</i> Programado</span>
       <span><i class="chip chip-e">E</i> Ejecutado</span>
-      <span>C = E ÷ P</span>
+      <span>C = E ÷ P (solo meses ya alcanzados)</span>
     </div>
   </div>
 
@@ -49,7 +49,7 @@
         <div class="kpi-value" id="kpi-unidades">0</div>
       </div>
       <div class="card kpi info">
-        <div class="kpi-label">Programados (P)</div>
+        <div class="kpi-label">Programados (P) <span id="kpi-corte-hint" style="font-weight:400;text-transform:none;letter-spacing:0;"></span></div>
         <div class="kpi-value" id="kpi-p">0</div>
       </div>
       <div class="card kpi">
@@ -57,7 +57,7 @@
         <div class="kpi-value" id="kpi-e">0</div>
       </div>
       <div class="card kpi" id="kpi-c-card">
-        <div class="kpi-label">Cumplimiento</div>
+        <div class="kpi-label">Cumplimiento a la fecha</div>
         <div class="kpi-value" id="kpi-c">—</div>
       </div>
     </div>
@@ -260,16 +260,22 @@ function renderYears(anios, selected) {
   });
 }
 
-function renderPlanHead() {
+function renderPlanHead(mesCorte) {
   const meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const thMeses = meses.map(m => `<th class="mes-group" colspan="1">${m}<div style="font-weight:500;font-size:.65rem;color:#6b7280;">R P E</div></th>`).join('');
+  const thMeses = meses.map((m, i) => {
+    const n = i + 1;
+    const futuro = mesCorte != null && n > mesCorte;
+    const cls = futuro ? 'mes-group mes-futuro' : 'mes-group';
+    const hint = futuro ? ' title="Aún no entra en el cumplimiento"' : '';
+    return `<th class="${cls}" colspan="1"${hint}>${m}<div style="font-weight:500;font-size:.65rem;color:#6b7280;">R P E</div></th>`;
+  }).join('');
   document.getElementById('plan-head').innerHTML = `
     <tr>
       <th class="unidad">Unidad</th>
       ${thMeses}
-      <th>P</th>
-      <th>E</th>
-      <th>C</th>
+      <th title="Programados hasta el mes actual">P</th>
+      <th title="Ejecutados hasta el mes actual">E</th>
+      <th title="Cumplimiento E/P solo con meses ya alcanzados">C</th>
     </tr>`;
 }
 
@@ -366,6 +372,12 @@ async function loadPlan(anio) {
     const cEl = document.getElementById('kpi-c');
     cEl.textContent = fmtPct(data.kpis.cumplimiento);
     cEl.className = 'kpi-value ' + cumplClass(data.kpis.cumplimiento);
+    const mesCorte = data.mes_corte;
+    const hint = document.getElementById('kpi-corte-hint');
+    if (hint) {
+      const labels = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+      hint.textContent = mesCorte > 0 ? `· hasta ${labels[mesCorte]}` : '· sin meses aún';
+    }
     const porTipo = data.kpis.por_tipo || {};
     document.getElementById('kpi-tipos').innerHTML = [1, 2, 3, 4].map(t => `
       <div class="card kpi" style="border-left-color:var(--r-color);">
@@ -373,7 +385,7 @@ async function loadPlan(anio) {
         <div class="kpi-value" style="color:var(--r-color);">${fmtNum(porTipo[t] || 0)}</div>
       </div>`).join('');
 
-    renderPlanHead();
+    renderPlanHead(mesCorte);
     renderPlanBody();
     renderChart(data.por_mes || []);
     content.classList.remove('hidden');
