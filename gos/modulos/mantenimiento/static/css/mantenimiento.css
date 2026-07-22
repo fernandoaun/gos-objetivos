@@ -390,14 +390,25 @@ table.vtv-table th {
 }
 
 .vtv-layout {
-  display: grid;
-  grid-template-columns: minmax(260px, 340px) 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
-  align-items: start;
+  width: 100%;
 }
 
-@media (max-width: 1000px) {
-  .vtv-layout { grid-template-columns: 1fr; }
+.vtv-layout > .card {
+  width: 100%;
+}
+
+#vtv-agenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+#vtv-agenda > .subtitle {
+  width: 100%;
+  margin: 0;
 }
 
 .agenda-item {
@@ -405,11 +416,13 @@ table.vtv-table th {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--border);
+  flex: 1 1 280px;
+  min-width: 240px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg, transparent);
 }
-
-.agenda-item:last-child { border-bottom: none; }
 
 .agenda-actions {
   display: flex;
@@ -495,4 +508,84 @@ table.vtv-table th {
   margin-top: 10px;
   color: var(--bad);
   font-size: 0.85rem;
+}
+
+.mp-refs {
+  margin-top: 16px;
+}
+
+.mp-refs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--gos-radius-md);
+  overflow: hidden;
+}
+
+.mp-refs-table th,
+.mp-refs-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  text-align: left;
+  line-height: 1.45;
+}
+
+.mp-refs-table tr:last-child th,
+.mp-refs-table tr:last-child td {
+  border-bottom: none;
+}
+
+.mp-refs-table th {
+  width: 140px;
+  background: #d6eaf8;
+  color: var(--text);
+  font-weight: 600;
+  border-right: 1px solid var(--border);
+}
+
+.mp-refs-table td {
+  background: var(--card);
+  color: var(--text);
+}
+
+.mp-code {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--gos-green-dark);
+}
+
+.mp-km {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .mp-refs-table,
+  .mp-refs-table tbody,
+  .mp-refs-table tr,
+  .mp-refs-table th,
+  .mp-refs-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .mp-refs-table th {
+    border-right: none;
+    border-bottom: none;
+  }
+
+  .mp-refs-table td {
+    border-bottom: 1px solid var(--border);
+    padding-top: 8px;
+  }
+
+  .mp-refs-table tr:last-child td {
+    border-bottom: none;
+  }
 }
