@@ -256,7 +256,18 @@
       <label class="field-label">Unidad</label>
       <select id="prog-unidad"></select>
       <label class="field-label">Fecha VTV</label>
-      <select id="prog-fecha"></select>
+      <input type="hidden" id="prog-fecha" value="">
+      <div class="vtv-cal" id="prog-cal" aria-label="Calendario de turnos VTV">
+        <div class="vtv-cal-head">
+          <button type="button" class="vtv-cal-nav" id="prog-cal-prev" aria-label="Mes anterior">‹</button>
+          <span class="vtv-cal-title" id="prog-cal-title"></span>
+          <button type="button" class="vtv-cal-nav" id="prog-cal-next" aria-label="Mes siguiente">›</button>
+        </div>
+        <div class="vtv-cal-weekdays" aria-hidden="true">
+          <span>Lu</span><span>Ma</span><span>Mi</span><span>Ju</span><span>Vi</span><span>Sa</span><span>Do</span>
+        </div>
+        <div class="vtv-cal-grid" id="prog-cal-grid"></div>
+      </div>
       <p class="subtitle" id="prog-baja-hint" style="margin:8px 0 12px;"></p>
       <label class="field-label">Observaciones</label>
       <textarea id="prog-obs" rows="2" placeholder="Opcional"></textarea>
@@ -328,6 +339,8 @@ const state = {
   vtv: null,
   chart: null,
   file: null,
+  calYear: null,
+  calMonth: null,
 };
 
 async function apiGet(path, params = {}) {
@@ -858,26 +871,91 @@ function renderVtvBody() {
 
 function fillProgForm(preselectUnidadId) {
   const items = state.vtv?.items || [];
-  const fechas = state.vtv?.fechas_disponibles || [];
   const selU = document.getElementById('prog-unidad');
-  const selF = document.getElementById('prog-fecha');
   selU.innerHTML = items
     .filter(it => !it.turno)
     .map(it => `<option value="${it.unidad_id}">${esc(it.nombre)} · vence ${fmtFecha(it.vencimiento)}</option>`)
     .join('');
   if (preselectUnidadId) selU.value = String(preselectUnidadId);
-  selF.innerHTML = fechas.map(f => `<option value="${f.fecha}" data-baja="${f.fecha_baja}">${esc(f.label)}</option>`).join('');
+  const hoy = state.vtv?.hoy ? new Date(state.vtv.hoy + 'T12:00:00') : new Date();
+  state.calYear = hoy.getFullYear();
+  state.calMonth = hoy.getMonth();
+  const primera = (state.vtv?.fechas_disponibles || [])[0]?.fecha || '';
+  document.getElementById('prog-fecha').value = primera;
+  if (primera) {
+    const d = new Date(primera + 'T12:00:00');
+    state.calYear = d.getFullYear();
+    state.calMonth = d.getMonth();
+  }
+  renderProgCalendar();
   updateProgBajaHint();
   document.getElementById('prog-obs').value = '';
   document.getElementById('prog-error').classList.add('hidden');
 }
 
+function isoDateLocal(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function addDaysIso(iso, days) {
+  const d = new Date(iso + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return isoDateLocal(d);
+}
+
+function isDiaVtv(d) {
+  const wd = d.getDay(); // 0=dom … 2=mar … 4=jue
+  return wd === 2 || wd === 4;
+}
+
+function renderProgCalendar() {
+  const title = document.getElementById('prog-cal-title');
+  const grid = document.getElementById('prog-cal-grid');
+  if (!title || !grid) return;
+  const year = state.calYear;
+  const month = state.calMonth;
+  const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  title.textContent = `${meses[month]} ${year}`;
+
+  const selected = document.getElementById('prog-fecha').value;
+  const hoyIso = state.vtv?.hoy || isoDateLocal(new Date());
+  const first = new Date(year, month, 1);
+  // Monday-first offset: Mon=0 … Sun=6
+  const startPad = (first.getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const cells = [];
+  for (let i = 0; i < startPad; i++) {
+    cells.push('<button type="button" class="vtv-cal-day is-other" tabindex="-1" disabled></button>');
+  }
+  for (let day = 1; day <= daysInMonth; day++) {
+    const d = new Date(year, month, day);
+    const iso = isoDateLocal(d);
+    const available = isDiaVtv(d) && iso >= hoyIso;
+    const cls = [
+      'vtv-cal-day',
+      available ? 'is-available' : '',
+      iso === selected ? 'is-selected' : '',
+      iso === hoyIso ? 'is-today' : '',
+    ].filter(Boolean).join(' ');
+    const disabled = available ? '' : ' disabled';
+    cells.push(`<button type="button" class="${cls}" data-fecha="${iso}"${disabled} aria-label="${fmtFecha(iso)}">${day}</button>`);
+  }
+  grid.innerHTML = cells.join('');
+}
+
 function updateProgBajaHint() {
-  const sel = document.getElementById('prog-fecha');
-  const opt = sel.selectedOptions[0];
+  const fecha = document.getElementById('prog-fecha').value;
   const hint = document.getElementById('prog-baja-hint');
-  if (!opt) { hint.textContent = ''; return; }
-  hint.textContent = `El vehículo baja el ${fmtFecha(opt.dataset.baja)} (2 días antes) para mantenimiento y preparación.`;
+  if (!fecha) {
+    hint.textContent = 'Elegí un martes o jueves en el calendario.';
+    return;
+  }
+  const baja = addDaysIso(fecha, -2);
+  hint.textContent = `El vehículo baja el ${fmtFecha(baja)} (2 días antes) para mantenimiento y preparación.`;
 }
 
 function updateResHint() {
@@ -943,7 +1021,23 @@ function bindVtvUi() {
     fillProgForm();
     openModal('vtv-modal-prog');
   });
-  document.getElementById('prog-fecha')?.addEventListener('change', updateProgBajaHint);
+  document.getElementById('prog-cal-prev')?.addEventListener('click', () => {
+    state.calMonth -= 1;
+    if (state.calMonth < 0) { state.calMonth = 11; state.calYear -= 1; }
+    renderProgCalendar();
+  });
+  document.getElementById('prog-cal-next')?.addEventListener('click', () => {
+    state.calMonth += 1;
+    if (state.calMonth > 11) { state.calMonth = 0; state.calYear += 1; }
+    renderProgCalendar();
+  });
+  document.getElementById('prog-cal-grid')?.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-fecha].is-available');
+    if (!btn) return;
+    document.getElementById('prog-fecha').value = btn.dataset.fecha;
+    renderProgCalendar();
+    updateProgBajaHint();
+  });
   document.getElementById('res-resultado')?.addEventListener('change', updateResHint);
   document.querySelectorAll('[data-close-modal]').forEach(el => {
     el.addEventListener('click', closeModals);
