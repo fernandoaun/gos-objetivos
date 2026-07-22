@@ -66,7 +66,7 @@ def module_descriptor() -> dict:
     return {
         "code": MODULE_NAME,
         "label": "Vacaciones",
-        "description": "Control de vacaciones adeudadas: planilla vs registros TOTAL.",
+        "description": "Planilla de vacaciones por empleado: carga Excel y seguimiento de días adeudados.",
         "icon": "bi-sun",
         "url": "/gos/vacaciones/",
     }

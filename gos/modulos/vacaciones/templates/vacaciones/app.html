@@ -14,7 +14,7 @@
   <div class="header-row">
     <div>
       <h1>Vacaciones Adeudadas</h1>
-      <p class="subtitle">Cruce entre planilla de vacaciones y registros del TOTAL</p>
+      <p class="subtitle">Planilla de vacaciones por empleado y año (con cruce TOTAL si está cargado)</p>
     </div>
     <div class="export-menu">
       <button class="btn" id="btn-export" disabled>Exportar informe</button>
@@ -80,7 +80,7 @@
 
 <div id="view-importar" class="app {% if initial_view != 'importar' %}hidden{% endif %}" style="max-width:720px;">
   <h1>Importar / Actualizar Datos</h1>
-  <p class="subtitle" style="margin-bottom:20px;">Subí un Excel con las hojas <strong>TOTAL</strong> y <strong>PLANILLA VACACIONES</strong>.</p>
+  <p class="subtitle" style="margin-bottom:20px;">Subí el Excel de vacaciones actualizado. Cada nueva versión reemplaza/actualiza los datos existentes.</p>
 
   <label class="card dropzone" id="dropzone" for="file-input">
     <div style="font-size:2.5rem;">📂</div>
@@ -95,8 +95,8 @@
 
   <div class="card" style="margin-top:20px;font-size:.85rem;color:var(--muted);">
     <h3 style="color:var(--text);margin-bottom:12px;">Formato esperado</h3>
-    <p><strong style="color:var(--text);">Hoja TOTAL:</strong> Fecha, Empleado, Sector, Servicio, Centro, Situación, Total Horas…</p>
-    <p style="margin-top:8px;"><strong style="color:var(--text);">Hoja PLANILLA VACACIONES:</strong> Legajo, Empleado, Fecha ingreso, Sector + bloques 2023/2024/2025.</p>
+    <p><strong style="color:var(--text);">Planilla de vacaciones (recomendado):</strong> Legajo, Empleado, Fecha ingreso, Sector y bloques por año (Días disponibles / tomados / pendientes), como el archivo “Archivo de Vacaciones-Actualizado…”.</p>
+    <p style="margin-top:8px;"><strong style="color:var(--text);">Opcional — hoja TOTAL:</strong> registros diarios (Fecha, Empleado, Sector…) para cruzar tomados reales vs planilla.</p>
   </div>
 </div>
 
@@ -274,9 +274,8 @@ async function initVacaciones() {
   const sel = document.getElementById('f-sector');
   sectores.forEach(s => { const o = document.createElement('option'); o.value = s; o.textContent = s; sel.appendChild(o); });
   if (anios.length) {
-    const y = anios[anios.length - 1];
-    document.getElementById('f-desde').value = `${y}-01-01`;
-    document.getElementById('f-hasta').value = `${y}-12-31`;
+    document.getElementById('f-desde').value = `${anios[0]}-01-01`;
+    document.getElementById('f-hasta').value = `${anios[anios.length - 1]}-12-31`;
   }
   renderPersonasList();
   updatePersonasUI();

@@ -2,36 +2,42 @@ from __future__ import annotations
 
 from typing import Optional
 
-from sqlalchemy import extract, func, select, text
+from sqlalchemy import extract, func, select, union
 from sqlalchemy.orm import Session
 
 from gos.modulos.vacaciones.models import Registro, Vacacion
 
 
 def get_anios(db: Session) -> list[int]:
-    rows = db.execute(
-        select(func.distinct(extract("year", Registro.fecha))).order_by(
-            extract("year", Registro.fecha)
-        )
-    ).scalars().all()
+    q_reg = select(extract("year", Registro.fecha).label("anio")).where(
+        Registro.fecha.isnot(None)
+    )
+    q_vac = select(Vacacion.anio.label("anio")).where(Vacacion.anio.isnot(None))
+    subq = union(q_reg, q_vac).subquery()
+    rows = db.execute(select(subq.c.anio).order_by(subq.c.anio)).scalars().all()
     return [int(r) for r in rows if r is not None]
 
 
 def get_sectores(db: Session) -> list[str]:
-    rows = db.execute(
-        select(func.distinct(Registro.sector))
-        .where(Registro.sector.isnot(None), Registro.sector != "SIN DATO")
-        .order_by(Registro.sector)
-    ).scalars().all()
+    q_reg = select(Registro.sector.label("sector")).where(
+        Registro.sector.isnot(None), Registro.sector != "SIN DATO"
+    )
+    q_vac = select(Vacacion.sector.label("sector")).where(
+        Vacacion.sector.isnot(None), Vacacion.sector != "SIN DATO"
+    )
+    subq = union(q_reg, q_vac).subquery()
+    rows = db.execute(select(subq.c.sector).order_by(subq.c.sector)).scalars().all()
     return [r for r in rows if r]
 
 
 def get_empleados(db: Session, sector: Optional[str] = None) -> list[str]:
-    q = select(func.distinct(Registro.empleado)).where(Registro.empleado.isnot(None))
+    q_reg = select(Registro.empleado.label("empleado")).where(Registro.empleado.isnot(None))
+    q_vac = select(Vacacion.empleado.label("empleado")).where(Vacacion.empleado.isnot(None))
     if sector:
-        q = q.where(Registro.sector == sector)
-    q = q.order_by(Registro.empleado)
-    return list(db.execute(q).scalars().all())
+        q_reg = q_reg.where(Registro.sector == sector)
+        q_vac = q_vac.where(Vacacion.sector == sector)
+    subq = union(q_reg, q_vac).subquery()
+    return list(db.execute(select(subq.c.empleado).order_by(subq.c.empleado)).scalars().all())
 
 
 def get_deuda_vacaciones(

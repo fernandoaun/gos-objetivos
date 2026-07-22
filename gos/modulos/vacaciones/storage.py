@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import date, datetime
 
 from gos.extensions import db
 from gos.modulos.vacaciones.database import DB_PATH, LEGACY_DB
@@ -20,6 +21,22 @@ def migrate_legacy_data_if_empty() -> None:
     _migrate_from_local_sqlite(LEGACY_DB)
 
 
+def _coerce_date(value):
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return date.fromisoformat(text[:10])
+    except ValueError:
+        return None
+
+
 def _migrate_from_local_sqlite(path) -> bool:
     from pathlib import Path
 
@@ -36,14 +53,18 @@ def _migrate_from_local_sqlite(path) -> bool:
         for row in reg_rows:
             data = dict(row)
             data.pop("id", None)
+            data["fecha"] = _coerce_date(data.get("fecha"))
+            if data["fecha"] is None:
+                continue
             db.session.add(Registro(**data))
         for row in vac_rows:
             data = dict(row)
             data.pop("id", None)
+            data["fecha_ingreso"] = _coerce_date(data.get("fecha_ingreso"))
             db.session.add(Vacacion(**data))
         db.session.commit()
         return True
-    except sqlite3.Error:
+    except Exception:
         db.session.rollback()
         return False
     finally:
