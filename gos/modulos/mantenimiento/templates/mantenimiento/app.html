@@ -88,15 +88,16 @@
 <div id="view-vtv" class="app {% if initial_view != 'vtv' %}hidden{% endif %}">
   <div class="header-row">
     <div>
-      <h1>Vencimientos VTV</h1>
-      <p class="subtitle">Estado de verificación técnica vehicular por unidad</p>
+      <h1>Planificación VTV</h1>
+      <p class="subtitle">Turnos martes y jueves · baja del vehículo 2 días antes · alerta a 30 días</p>
     </div>
+    <button type="button" class="btn" id="btn-vtv-programar">+ Programar VTV</button>
   </div>
 
   <div id="vtv-loading" class="spinner hidden" style="margin-top:20px;">Cargando VTV…</div>
   <div id="vtv-empty" class="card empty-card hidden" style="margin-top:20px;">
     <h2>Sin vencimientos VTV</h2>
-    <p>Importá el Excel con la hoja <strong>VTV</strong> para ver las fechas de vencimiento.</p>
+    <p>Importá el Excel con la hoja <strong>VTV</strong> para cargar las unidades y vencimientos.</p>
     <a class="btn" href="{{ url_for('mantenimiento_main.importar') }}" target="_parent">Ir a Importar</a>
   </div>
 
@@ -107,7 +108,7 @@
         <div class="kpi-value" id="vtv-kpi-vencidas">0</div>
       </div>
       <div class="card kpi warn">
-        <div class="kpi-label">Por vencer (60 días)</div>
+        <div class="kpi-label">Por vencer (30 días)</div>
         <div class="kpi-value" id="vtv-kpi-alerta">0</div>
       </div>
       <div class="card kpi">
@@ -115,41 +116,120 @@
         <div class="kpi-value" id="vtv-kpi-ok">0</div>
       </div>
       <div class="card kpi info">
-        <div class="kpi-label">Total</div>
-        <div class="kpi-value" id="vtv-kpi-total">0</div>
+        <div class="kpi-label">Programadas</div>
+        <div class="kpi-value" id="vtv-kpi-prog">0</div>
+      </div>
+      <div class="card kpi warn">
+        <div class="kpi-label">En baja / prep.</div>
+        <div class="kpi-value" id="vtv-kpi-baja">0</div>
+      </div>
+      <div class="card kpi danger">
+        <div class="kpi-label">Bloqueadas</div>
+        <div class="kpi-value" id="vtv-kpi-bloq">0</div>
       </div>
     </div>
 
-    <div class="card filters" style="margin-top:0;">
-      <div>
-        <label>Estado</label>
-        <select id="vtv-estado">
-          <option value="">Todos</option>
-          <option value="vencida">Vencidas</option>
-          <option value="por_vencer">Por vencer</option>
-          <option value="vigente">Vigentes</option>
-        </select>
+    <div class="vtv-layout">
+      <div class="card">
+        <div class="header-row" style="margin-bottom:12px;">
+          <h2 style="font-size:1rem;">Agenda de turnos</h2>
+          <span class="subtitle">Mar / Jue · preparación 2 días antes</span>
+        </div>
+        <div id="vtv-agenda"></div>
       </div>
-      <div>
-        <label>Buscar</label>
-        <input type="search" id="vtv-buscar" placeholder="Unidad…" autocomplete="off">
+
+      <div class="card">
+        <div class="header-row" style="margin-bottom:12px;">
+          <h2 style="font-size:1rem;">Unidades</h2>
+        </div>
+        <div class="filters" style="margin:0 0 12px;padding:0;border:none;box-shadow:none;background:transparent;">
+          <div>
+            <label>Estado</label>
+            <select id="vtv-estado">
+              <option value="">Todos</option>
+              <option value="vencida">Vencidas</option>
+              <option value="por_vencer">Por vencer</option>
+              <option value="vigente">Vigentes</option>
+              <option value="programada">Con turno</option>
+              <option value="en_baja">En baja</option>
+              <option value="bloqueada">Bloqueadas</option>
+            </select>
+          </div>
+          <div>
+            <label>Buscar</label>
+            <input type="search" id="vtv-buscar" placeholder="Unidad…" autocomplete="off">
+          </div>
+        </div>
+        <div class="table-wrap" style="border:none;">
+          <table class="vtv-table">
+            <thead>
+              <tr>
+                <th>Unidad</th>
+                <th>Vencimiento</th>
+                <th>Estado</th>
+                <th>Turno / baja</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="vtv-body"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
-    <div class="card">
-      <div class="table-wrap" style="border:none;">
-        <table class="vtv-table">
-          <thead>
-            <tr>
-              <th>Unidad</th>
-              <th>Vencimiento</th>
-              <th>Días</th>
-              <th>Estado</th>
-            </tr>
-          </thead>
-          <tbody id="vtv-body"></tbody>
-        </table>
-      </div>
+    <div class="card" style="margin-top:16px;">
+      <h2 style="font-size:1rem;margin-bottom:12px;">Últimas VTV realizadas</h2>
+      <div id="vtv-historial"></div>
+    </div>
+  </div>
+</div>
+
+<div id="vtv-modal-prog" class="mant-modal hidden" role="dialog" aria-modal="true">
+  <div class="mant-modal-backdrop" data-close-modal></div>
+  <div class="mant-modal-panel">
+    <div class="mant-modal-header">
+      <h2>Programar VTV</h2>
+      <button type="button" class="btn-outline btn" data-close-modal style="padding:4px 10px;">✕</button>
+    </div>
+    <div class="mant-modal-body">
+      <p class="subtitle" style="margin-bottom:14px;">Solo martes y jueves. El vehículo baja 2 días antes para preparación.</p>
+      <label class="field-label">Unidad</label>
+      <select id="prog-unidad"></select>
+      <label class="field-label">Fecha VTV</label>
+      <select id="prog-fecha"></select>
+      <p class="subtitle" id="prog-baja-hint" style="margin:8px 0 12px;"></p>
+      <label class="field-label">Observaciones</label>
+      <textarea id="prog-obs" rows="2" placeholder="Opcional"></textarea>
+      <div id="prog-error" class="form-error hidden"></div>
+      <button type="button" class="btn" id="prog-submit" style="width:100%;margin-top:14px;padding:10px;">Confirmar turno</button>
+    </div>
+  </div>
+</div>
+
+<div id="vtv-modal-res" class="mant-modal hidden" role="dialog" aria-modal="true">
+  <div class="mant-modal-backdrop" data-close-modal></div>
+  <div class="mant-modal-panel">
+    <div class="mant-modal-header">
+      <h2 id="res-title">Registrar resultado VTV</h2>
+      <button type="button" class="btn-outline btn" data-close-modal style="padding:4px 10px;">✕</button>
+    </div>
+    <div class="mant-modal-body">
+      <p class="subtitle" id="res-subtitle" style="margin-bottom:14px;"></p>
+      <label class="field-label">Resultado</label>
+      <select id="res-resultado">
+        <option value="apto">Apto — renueva 1 año</option>
+        <option value="condicional">Condicional — 30 días para reverificar</option>
+        <option value="rechazada">Rechazada — vehículo bloqueado</option>
+      </select>
+      <p class="subtitle" id="res-hint" style="margin:8px 0 12px;"></p>
+      <label class="field-label">Fecha realización</label>
+      <input type="date" id="res-fecha">
+      <label class="field-label">Certificado (PDF o imagen)</label>
+      <input type="file" id="res-cert" accept=".pdf,.jpg,.jpeg,.png,.webp">
+      <label class="field-label">Observaciones</label>
+      <textarea id="res-obs" rows="2" placeholder="Opcional"></textarea>
+      <div id="res-error" class="form-error hidden"></div>
+      <button type="button" class="btn" id="res-submit" style="width:100%;margin-top:14px;padding:10px;">Guardar resultado</button>
     </div>
   </div>
 </div>
@@ -398,10 +478,33 @@ async function loadPlan(anio) {
   }
 }
 
+async function apiPostJson(path, body) {
+  const res = await fetch(`${API}${path}`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); } catch { throw new Error(text.slice(0, 200) || 'Error del servidor'); }
+  if (!res.ok) throw new Error(data.error || 'Error en la solicitud');
+  return data;
+}
+
 function vtvBadge(estado) {
   if (estado === 'vencida') return '<span class="badge bad">Vencida</span>';
   if (estado === 'por_vencer') return '<span class="badge warn">Por vencer</span>';
-  return '<span class="badge ok">Vigente</span>';
+  if (estado === 'bloqueada') return '<span class="badge bad">Bloqueada</span>';
+  if (estado === 'vigente') return '<span class="badge ok">Vigente</span>';
+  return `<span class="badge">${esc(estado)}</span>`;
+}
+
+function resultadoBadge(r) {
+  if (r === 'apto') return '<span class="badge ok">Apto</span>';
+  if (r === 'condicional') return '<span class="badge warn">Condicional</span>';
+  if (r === 'rechazada') return '<span class="badge bad">Rechazada</span>';
+  return '—';
 }
 
 function fmtFecha(iso) {
@@ -410,36 +513,145 @@ function fmtFecha(iso) {
   return `${d}/${m}/${y}`;
 }
 
+function openModal(id) {
+  document.getElementById(id).classList.remove('hidden');
+}
+function closeModals() {
+  document.querySelectorAll('.mant-modal').forEach(el => el.classList.add('hidden'));
+}
+
 function filteredVtv() {
   const estado = document.getElementById('vtv-estado').value;
   const q = (document.getElementById('vtv-buscar').value || '').trim().toLowerCase();
   return (state.vtv?.items || []).filter(it => {
-    if (estado && it.estado !== estado) return false;
+    if (estado === 'programada' && !it.turno) return false;
+    if (estado === 'en_baja' && !it.en_baja) return false;
+    if (estado && !['programada', 'en_baja'].includes(estado) && it.estado !== estado) return false;
     if (q && !it.nombre.toLowerCase().includes(q) && !it.codigo.toLowerCase().includes(q)) return false;
     return true;
   });
+}
+
+function renderVtvAgenda() {
+  const agenda = state.vtv?.agenda || [];
+  const el = document.getElementById('vtv-agenda');
+  if (!agenda.length) {
+    el.innerHTML = '<p class="subtitle">No hay turnos programados.</p>';
+    return;
+  }
+  el.innerHTML = agenda.map(t => `
+    <div class="agenda-item">
+      <div>
+        <strong>${esc(t.nombre)}</strong>
+        <div class="subtitle">VTV ${fmtFecha(t.fecha_vtv)} · Baja desde ${fmtFecha(t.fecha_baja)}</div>
+      </div>
+      <div class="agenda-actions">
+        <button type="button" class="btn" data-realizar="${t.id}" style="padding:6px 10px;font-size:.78rem;">Registrar</button>
+        <button type="button" class="btn-outline btn" data-cancelar="${t.id}" style="padding:6px 10px;font-size:.78rem;">Cancelar</button>
+      </div>
+    </div>`).join('');
+}
+
+function renderVtvHistorial() {
+  const hist = state.vtv?.historial || [];
+  const el = document.getElementById('vtv-historial');
+  if (!hist.length) {
+    el.innerHTML = '<p class="subtitle">Todavía no hay VTV registradas.</p>';
+    return;
+  }
+  el.innerHTML = `<div class="table-wrap" style="border:none;"><table class="vtv-table"><thead>
+    <tr><th>Unidad</th><th>Fecha</th><th>Resultado</th><th>Certificado</th></tr>
+  </thead><tbody>${hist.map(t => `
+    <tr>
+      <td><strong>${esc(t.nombre)}</strong></td>
+      <td>${fmtFecha(t.fecha_realizada || t.fecha_vtv)}</td>
+      <td>${resultadoBadge(t.resultado)}</td>
+      <td>${t.tiene_certificado
+        ? `<a class="link-cert" href="${API}/vtv/turnos/${t.id}/certificado" target="_blank" rel="noopener">Descargar</a>
+           <label class="link-cert" style="margin-left:8px;cursor:pointer;">Reemplazar<input type="file" hidden data-cert-turno="${t.id}" accept=".pdf,.jpg,.jpeg,.png,.webp"></label>`
+        : `<label class="link-cert" style="cursor:pointer;">Subir<input type="file" hidden data-cert-turno="${t.id}" accept=".pdf,.jpg,.jpeg,.png,.webp"></label>`}
+      </td>
+    </tr>`).join('')}</tbody></table></div>`;
 }
 
 function renderVtvBody() {
   const items = filteredVtv();
   const body = document.getElementById('vtv-body');
   if (!items.length) {
-    body.innerHTML = `<tr><td colspan="4" style="color:var(--muted);padding:16px;">Sin resultados.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="5" style="color:var(--muted);padding:16px;">Sin resultados.</td></tr>`;
     return;
   }
   body.innerHTML = items.map(it => {
     const diasTxt = it.dias < 0
-      ? `${Math.abs(it.dias)} días vencida`
-      : it.dias === 0
-        ? 'Vence hoy'
-        : `${it.dias} días`;
+      ? `${Math.abs(it.dias)} d vencida`
+      : it.dias === 0 ? 'Hoy' : `${it.dias} d`;
+    let turnoTxt = '—';
+    if (it.turno) {
+      turnoTxt = `VTV ${fmtFecha(it.turno.fecha_vtv)}<br><span class="subtitle">Baja ${fmtFecha(it.turno.fecha_baja)}${it.en_baja ? ' · en prep.' : ''}</span>`;
+    }
+    const actions = [];
+    if (it.turno) {
+      actions.push(`<button type="button" class="btn" data-realizar="${it.turno.id}" style="padding:4px 8px;font-size:.72rem;">Registrar</button>`);
+    } else {
+      actions.push(`<button type="button" class="btn-outline btn" data-prog-unidad="${it.unidad_id}" style="padding:4px 8px;font-size:.72rem;">Programar</button>`);
+    }
     return `<tr>
       <td><strong>${esc(it.nombre)}</strong></td>
-      <td>${fmtFecha(it.vencimiento)}</td>
-      <td>${esc(diasTxt)}</td>
-      <td>${vtvBadge(it.estado)}</td>
+      <td>${fmtFecha(it.vencimiento)}<div class="subtitle">${esc(diasTxt)}</div></td>
+      <td>${vtvBadge(it.estado)}${it.resultado_ultimo ? `<div class="subtitle" style="margin-top:4px;">Último: ${esc(it.resultado_ultimo)}</div>` : ''}</td>
+      <td>${turnoTxt}</td>
+      <td>${actions.join(' ')}</td>
     </tr>`;
   }).join('');
+}
+
+function fillProgForm(preselectUnidadId) {
+  const items = state.vtv?.items || [];
+  const fechas = state.vtv?.fechas_disponibles || [];
+  const selU = document.getElementById('prog-unidad');
+  const selF = document.getElementById('prog-fecha');
+  selU.innerHTML = items
+    .filter(it => !it.turno)
+    .map(it => `<option value="${it.unidad_id}">${esc(it.nombre)} · vence ${fmtFecha(it.vencimiento)}</option>`)
+    .join('');
+  if (preselectUnidadId) selU.value = String(preselectUnidadId);
+  selF.innerHTML = fechas.map(f => `<option value="${f.fecha}" data-baja="${f.fecha_baja}">${esc(f.label)}</option>`).join('');
+  updateProgBajaHint();
+  document.getElementById('prog-obs').value = '';
+  document.getElementById('prog-error').classList.add('hidden');
+}
+
+function updateProgBajaHint() {
+  const sel = document.getElementById('prog-fecha');
+  const opt = sel.selectedOptions[0];
+  const hint = document.getElementById('prog-baja-hint');
+  if (!opt) { hint.textContent = ''; return; }
+  hint.textContent = `El vehículo baja el ${fmtFecha(opt.dataset.baja)} (2 días antes) para mantenimiento y preparación.`;
+}
+
+function updateResHint() {
+  const r = document.getElementById('res-resultado').value;
+  const hint = document.getElementById('res-hint');
+  if (r === 'apto') hint.textContent = 'El próximo vencimiento queda a 1 año desde la fecha de realización.';
+  else if (r === 'condicional') hint.textContent = 'Quedan 30 días para reverificar: hay que programar un nuevo turno.';
+  else hint.textContent = 'El vehículo queda bloqueado hasta corregir y aprobar una nueva VTV.';
+}
+
+function openRealizarModal(turnoId) {
+  const turno = (state.vtv?.agenda || []).find(t => t.id === turnoId)
+    || (state.vtv?.items || []).map(i => i.turno).find(t => t && t.id === turnoId);
+  state.turnoResId = turnoId;
+  document.getElementById('res-title').textContent = 'Registrar resultado VTV';
+  document.getElementById('res-subtitle').textContent = turno
+    ? `${turno.nombre} · turno ${fmtFecha(turno.fecha_vtv)}`
+    : `Turno #${turnoId}`;
+  document.getElementById('res-resultado').value = 'apto';
+  document.getElementById('res-fecha').value = turno?.fecha_vtv || '';
+  document.getElementById('res-cert').value = '';
+  document.getElementById('res-obs').value = '';
+  document.getElementById('res-error').classList.add('hidden');
+  updateResHint();
+  openModal('vtv-modal-res');
 }
 
 async function loadVtv() {
@@ -459,8 +671,12 @@ async function loadVtv() {
     document.getElementById('vtv-kpi-vencidas').textContent = data.kpis.vencidas;
     document.getElementById('vtv-kpi-alerta').textContent = data.kpis.por_vencer;
     document.getElementById('vtv-kpi-ok').textContent = data.kpis.vigentes;
-    document.getElementById('vtv-kpi-total').textContent = data.kpis.total;
+    document.getElementById('vtv-kpi-prog').textContent = data.kpis.programadas;
+    document.getElementById('vtv-kpi-baja').textContent = data.kpis.en_baja;
+    document.getElementById('vtv-kpi-bloq').textContent = data.kpis.bloqueadas;
+    renderVtvAgenda();
     renderVtvBody();
+    renderVtvHistorial();
     content.classList.remove('hidden');
   } catch (err) {
     empty.classList.remove('hidden');
@@ -469,6 +685,93 @@ async function loadVtv() {
   } finally {
     loading.classList.add('hidden');
   }
+}
+
+function bindVtvUi() {
+  document.getElementById('btn-vtv-programar')?.addEventListener('click', () => {
+    fillProgForm();
+    openModal('vtv-modal-prog');
+  });
+  document.getElementById('prog-fecha')?.addEventListener('change', updateProgBajaHint);
+  document.getElementById('res-resultado')?.addEventListener('change', updateResHint);
+  document.querySelectorAll('[data-close-modal]').forEach(el => {
+    el.addEventListener('click', closeModals);
+  });
+
+  document.getElementById('prog-submit')?.addEventListener('click', async () => {
+    const err = document.getElementById('prog-error');
+    err.classList.add('hidden');
+    try {
+      await apiPostJson('/vtv/programar', {
+        unidad_id: Number(document.getElementById('prog-unidad').value),
+        fecha_vtv: document.getElementById('prog-fecha').value,
+        observaciones: document.getElementById('prog-obs').value,
+      });
+      closeModals();
+      await loadVtv();
+    } catch (e) {
+      err.textContent = e.message || String(e);
+      err.classList.remove('hidden');
+    }
+  });
+
+  document.getElementById('res-submit')?.addEventListener('click', async () => {
+    const err = document.getElementById('res-error');
+    err.classList.add('hidden');
+    const turnoId = state.turnoResId;
+    if (!turnoId) return;
+    const fd = new FormData();
+    fd.append('resultado', document.getElementById('res-resultado').value);
+    fd.append('fecha_realizada', document.getElementById('res-fecha').value);
+    fd.append('observaciones', document.getElementById('res-obs').value);
+    const file = document.getElementById('res-cert').files?.[0];
+    if (file) fd.append('certificado', file);
+    try {
+      await apiPostForm(`/vtv/turnos/${turnoId}/realizar`, fd);
+      closeModals();
+      await loadVtv();
+    } catch (e) {
+      err.textContent = e.message || String(e);
+      err.classList.remove('hidden');
+    }
+  });
+
+  document.getElementById('view-vtv')?.addEventListener('click', async (ev) => {
+    const btnRes = ev.target.closest('[data-realizar]');
+    if (btnRes) {
+      openRealizarModal(Number(btnRes.dataset.realizar));
+      return;
+    }
+    const btnProg = ev.target.closest('[data-prog-unidad]');
+    if (btnProg) {
+      fillProgForm(Number(btnProg.dataset.progUnidad));
+      openModal('vtv-modal-prog');
+      return;
+    }
+    const btnCan = ev.target.closest('[data-cancelar]');
+    if (btnCan) {
+      if (!confirm('¿Cancelar este turno?')) return;
+      try {
+        await apiPostJson(`/vtv/turnos/${btnCan.dataset.cancelar}/cancelar`, {});
+        await loadVtv();
+      } catch (e) {
+        alert(e.message || e);
+      }
+    }
+  });
+
+  document.getElementById('view-vtv')?.addEventListener('change', async (ev) => {
+    const input = ev.target.closest('[data-cert-turno]');
+    if (!input || !input.files?.[0]) return;
+    const fd = new FormData();
+    fd.append('certificado', input.files[0]);
+    try {
+      await apiPostForm(`/vtv/turnos/${input.dataset.certTurno}/certificado`, fd);
+      await loadVtv();
+    } catch (e) {
+      alert(e.message || e);
+    }
+  });
 }
 
 function bindImport() {
@@ -527,6 +830,7 @@ document.getElementById('vtv-buscar')?.addEventListener('input', renderVtvBody);
 
 const initial = '{{ initial_view }}';
 bindImport();
+bindVtvUi();
 if (initial === 'vtv') loadVtv();
 else if (initial === 'plan') loadPlan();
 </script>

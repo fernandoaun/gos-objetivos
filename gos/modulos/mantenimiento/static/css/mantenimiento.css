@@ -388,3 +388,111 @@ table.vtv-table th {
   .app { padding: 16px; }
   .kpi-value { font-size: 1.3rem; }
 }
+
+.vtv-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 1000px) {
+  .vtv-layout { grid-template-columns: 1fr; }
+}
+
+.agenda-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.agenda-item:last-child { border-bottom: none; }
+
+.agenda-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.link-cert {
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.mant-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.mant-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.mant-modal-panel {
+  position: relative;
+  background: var(--card);
+  border-radius: var(--gos-radius-xl);
+  border: 1px solid var(--border);
+  width: min(480px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  box-shadow: var(--pe-shadow);
+}
+
+.mant-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mant-modal-header h2 {
+  font-size: 1.05rem;
+  color: var(--gos-green-dark);
+}
+
+.mant-modal-body {
+  padding: 16px 18px 20px;
+}
+
+.field-label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 12px 0 4px;
+}
+
+.mant-modal-body select,
+.mant-modal-body input[type="date"],
+.mant-modal-body input[type="file"],
+.mant-modal-body textarea {
+  width: 100%;
+  background: var(--pe-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--gos-radius-md);
+  padding: 8px 10px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: var(--text);
+}
+
+.form-error {
+  margin-top: 10px;
+  color: var(--bad);
+  font-size: 0.85rem;
+}

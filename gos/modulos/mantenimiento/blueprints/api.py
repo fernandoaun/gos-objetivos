@@ -1,7 +1,8 @@
 import os
 import tempfile
+from datetime import date, datetime
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_file
 from flask_login import login_required
 
 from gos.extensions import db
@@ -9,6 +10,18 @@ from gos.modulos.mantenimiento import services
 from gos.modulos.mantenimiento.importer import import_vtv_excel
 
 bp = Blueprint("mantenimiento_api", __name__)
+
+
+def _parse_date(raw: str | None) -> date | None:
+    if not raw:
+        return None
+    text = str(raw).strip()[:10]
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(text, fmt).date()
+        except ValueError:
+            continue
+    raise ValueError(f"Fecha inválida: {raw}")
 
 
 @bp.route("/health")
@@ -35,6 +48,111 @@ def plan():
 @login_required
 def vtv():
     return jsonify(services.get_vtv(db.session))
+
+
+@bp.route("/vtv/fechas")
+@login_required
+def vtv_fechas():
+    try:
+        cantidad = int(request.args.get("cantidad") or 24)
+    except ValueError:
+        cantidad = 24
+    return jsonify(services.fechas_vtv_disponibles(cantidad=min(cantidad, 60)))
+
+
+@bp.route("/vtv/programar", methods=["POST"])
+@login_required
+def vtv_programar():
+    data = request.get_json(silent=True) or {}
+    try:
+        unidad_id = int(data.get("unidad_id"))
+        fecha_vtv = _parse_date(data.get("fecha_vtv"))
+        if not fecha_vtv:
+            raise ValueError("Indicá la fecha de VTV.")
+        turno = services.programar_vtv(
+            db.session,
+            unidad_id=unidad_id,
+            fecha_vtv=fecha_vtv,
+            observaciones=data.get("observaciones"),
+        )
+    except (TypeError, ValueError) as exc:
+        db.session.rollback()
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({"error": str(exc)}), 500
+    return jsonify({"ok": True, "turno": turno})
+
+
+@bp.route("/vtv/turnos/<int:turno_id>/cancelar", methods=["POST"])
+@login_required
+def vtv_cancelar(turno_id: int):
+    try:
+        turno = services.cancelar_turno(db.session, turno_id)
+    except ValueError as exc:
+        db.session.rollback()
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"ok": True, "turno": turno})
+
+
+@bp.route("/vtv/turnos/<int:turno_id>/realizar", methods=["POST"])
+@login_required
+def vtv_realizar(turno_id: int):
+    # multipart o JSON
+    if request.content_type and "multipart/form-data" in request.content_type:
+        resultado = request.form.get("resultado")
+        observaciones = request.form.get("observaciones")
+        fecha_raw = request.form.get("fecha_realizada")
+        file_storage = request.files.get("certificado")
+    else:
+        data = request.get_json(silent=True) or {}
+        resultado = data.get("resultado")
+        observaciones = data.get("observaciones")
+        fecha_raw = data.get("fecha_realizada")
+        file_storage = None
+
+    try:
+        fecha = _parse_date(fecha_raw) if fecha_raw else None
+        out = services.registrar_resultado_vtv(
+            db.session,
+            turno_id=turno_id,
+            resultado=resultado,
+            fecha_realizada=fecha,
+            observaciones=observaciones,
+            file_storage=file_storage,
+        )
+    except ValueError as exc:
+        db.session.rollback()
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({"error": str(exc)}), 500
+    return jsonify({"ok": True, **out})
+
+
+@bp.route("/vtv/turnos/<int:turno_id>/certificado", methods=["POST"])
+@login_required
+def vtv_certificado_subir(turno_id: int):
+    file_storage = request.files.get("certificado") or request.files.get("file")
+    try:
+        turno = services.adjuntar_certificado(db.session, turno_id, file_storage)
+    except ValueError as exc:
+        db.session.rollback()
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        db.session.rollback()
+        return jsonify({"error": str(exc)}), 500
+    return jsonify({"ok": True, "turno": turno})
+
+
+@bp.route("/vtv/turnos/<int:turno_id>/certificado", methods=["GET"])
+@login_required
+def vtv_certificado_bajar(turno_id: int):
+    try:
+        path, nombre = services.obtener_certificado(db.session, turno_id)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
+    return send_file(path, as_attachment=True, download_name=nombre)
 
 
 @bp.route("/importar/excel", methods=["POST"])

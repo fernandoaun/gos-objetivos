@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from gos.extensions import db
 
 
@@ -12,6 +14,9 @@ class MantUnidad(db.Model):
 
     celdas = db.relationship("MantPlanCelda", back_populates="unidad", cascade="all, delete-orphan")
     vtv = db.relationship("MantVtv", back_populates="unidad", uselist=False, cascade="all, delete-orphan")
+    vtv_turnos = db.relationship(
+        "MantVtvTurno", back_populates="unidad", cascade="all, delete-orphan"
+    )
 
 
 class MantPlanCelda(db.Model):
@@ -36,6 +41,8 @@ class MantPlanCelda(db.Model):
 
 
 class MantVtv(db.Model):
+    """Estado actual de VTV por unidad (próximo vencimiento)."""
+
     __tablename__ = "mant_vtv"
     __table_args__ = (db.UniqueConstraint("unidad_id", name="uq_mant_vtv_unidad"),)
 
@@ -44,8 +51,37 @@ class MantVtv(db.Model):
         db.Integer, db.ForeignKey("mant_unidades.id", ondelete="CASCADE"), nullable=False
     )
     vencimiento = db.Column(db.Date, nullable=False)
+    bloqueado = db.Column(db.Boolean, nullable=False, default=False)
+    resultado_ultimo = db.Column(db.String(32))  # apto | condicional | rechazada
+    observaciones = db.Column(db.Text)
 
     unidad = db.relationship("MantUnidad", back_populates="vtv")
+
+
+class MantVtvTurno(db.Model):
+    """Turno de VTV: solo martes y jueves. Baja del vehículo = fecha_vtv − 2 días."""
+
+    __tablename__ = "mant_vtv_turnos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    unidad_id = db.Column(
+        db.Integer, db.ForeignKey("mant_unidades.id", ondelete="CASCADE"), nullable=False
+    )
+    fecha_vtv = db.Column(db.Date, nullable=False)
+    fecha_baja = db.Column(db.Date, nullable=False)
+    estado = db.Column(db.String(32), nullable=False, default="programada")
+    # programada | realizada | cancelada
+    resultado = db.Column(db.String(32))  # apto | condicional | rechazada
+    fecha_realizada = db.Column(db.Date)
+    certificado_path = db.Column(db.String(500))
+    certificado_nombre = db.Column(db.String(255))
+    observaciones = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(
+        db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    unidad = db.relationship("MantUnidad", back_populates="vtv_turnos")
 
 
 class MantPlanMeta(db.Model):
