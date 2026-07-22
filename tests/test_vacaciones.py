@@ -216,6 +216,18 @@ def test_tot_hs_shell_and_app(auth_client):
     assert r.status_code == 200
     assert b"Tot Hs." in r.data
     assert b"view-tot-hs" in r.data
+    assert b"Cargar Excel" not in r.data  # la carga vive en Importar datos
+    assert b"Importar datos" in r.data
+
+
+def test_importar_centraliza_cargas(auth_client):
+    r = auth_client.get("/gos/vacaciones/app/?view=importar")
+    assert r.status_code == 200
+    assert b"Importar datos" in r.data
+    assert b"Vacaciones adeudadas" in r.data
+    assert b"Tot Hs." in r.data
+    assert b"id=\"dropzone\"" in r.data
+    assert b"id=\"ths-dropzone\"" in r.data
 
 
 def _xlsx_tot_hs_period(title, rows, sheet_title="Total"):

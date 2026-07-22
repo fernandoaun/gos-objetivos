@@ -811,12 +811,6 @@ tr:hover td {
   flex-wrap: wrap;
 }
 
-.ths-upload-panel {
-  margin: 16px 0 4px;
-  border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--border));
-  background: color-mix(in srgb, var(--accent) 4%, var(--card));
-}
-
 .ths-dropzone {
   margin: 0;
   padding: 28px 20px;
@@ -892,6 +886,14 @@ tr:hover td {
   color: var(--muted);
 }
 
+.ths-chip-zero {
+  opacity: 0.55;
+}
+
+.ths-chip-zero .ths-chip-val {
+  color: var(--muted);
+}
+
 .ths-charts {
   margin-bottom: 20px;
 }
@@ -914,7 +916,41 @@ tr:hover td {
   margin-bottom: 18px;
 }
 
+.ths-empty a.btn {
+  display: inline-block;
+  text-decoration: none;
+  color: #fff;
+}
+
+.import-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.import-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.import-hint {
+  margin-top: 14px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.import-hint strong {
+  color: var(--text);
+}
+
 @media (max-width: 900px) {
+  .import-grid {
+    grid-template-columns: 1fr;
+  }
+
   .ths-kpis {
     grid-template-columns: repeat(2, 1fr);
   }

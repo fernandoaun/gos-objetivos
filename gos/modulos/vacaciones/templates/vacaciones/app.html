@@ -133,10 +133,9 @@
   <div class="header-row">
     <div>
       <h1>Tot Hs.</h1>
-      <p class="subtitle">Resumen de horas por período · períodos nuevos se suman; si el rango de fechas ya existe, se reemplaza</p>
+      <p class="subtitle">Resumen de horas por período · los archivos se cargan desde <strong>Importar datos</strong></p>
     </div>
     <div class="tot-hs-actions">
-      <button type="button" class="btn-outline btn" id="ths-btn-upload">＋ Cargar Excel</button>
       <div class="export-menu">
         <button class="btn" id="ths-btn-export" disabled>Exportar</button>
         <div class="export-drop hidden" id="ths-export-drop">
@@ -144,24 +143,6 @@
         </div>
       </div>
     </div>
-  </div>
-
-  <div class="card ths-upload-panel hidden" id="ths-upload-panel">
-    <div class="header-row" style="margin-bottom:12px;">
-      <div>
-        <h2 style="font-size:1rem;">Importar Tot Hs.</h2>
-        <p class="subtitle">Excel con título de fechas (ej. <strong>21/12/2025 al 20/07/2026</strong>) y columnas Nombre, Servicio, Centro, Total Horas…</p>
-      </div>
-      <button type="button" class="btn-outline btn" id="ths-upload-close" style="padding:4px 10px;font-size:.75rem;">Cerrar</button>
-    </div>
-    <div class="card dropzone ths-dropzone" id="ths-dropzone" role="button" tabindex="0" aria-label="Seleccionar archivo de horas">
-      <div class="ths-drop-icon">⬆</div>
-      <h3 id="ths-drop-title">Arrastrá el Excel de horas aquí</h3>
-      <p id="ths-drop-sub">o hacé clic · .xlsx / .xlsm</p>
-    </div>
-    <input type="file" id="ths-file-input" accept=".xlsx,.xlsm" hidden>
-    <div id="ths-import-status" class="hidden card" style="margin-top:12px;padding:14px;text-align:center;color:var(--muted);">Importando horas…</div>
-    <div id="ths-import-result" class="hidden card" style="margin-top:12px;"></div>
   </div>
 
   <div class="card filters">
@@ -180,8 +161,8 @@
   <div id="ths-loading" class="spinner hidden">Cargando...</div>
   <div id="ths-empty" class="card ths-empty hidden">
     <h2>Sin horas cargadas</h2>
-    <p>Subí el Excel de Tot Hs. (con el rango de fechas en el título) para armar el dashboard.</p>
-    <button type="button" class="btn" id="ths-empty-upload">Cargar Excel</button>
+    <p>Cargá el Excel de Tot Hs. desde <strong>Importar datos</strong> para armar el dashboard.</p>
+    <a class="btn" id="ths-empty-upload" href="{{ url_for('vacaciones_main.importar') }}" target="_parent">Ir a Importar datos</a>
   </div>
 
   <div id="ths-content" class="hidden">
@@ -252,25 +233,43 @@
   </div>
 </div>
 
-<div id="view-importar" class="app {% if initial_view != 'importar' %}hidden{% endif %}" style="max-width:720px;">
-  <h1>Importar / Actualizar Datos</h1>
-  <p class="subtitle" style="margin-bottom:20px;">Subí el Excel de vacaciones actualizado. Cada nueva versión reemplaza/actualiza los datos existentes.</p>
+<div id="view-importar" class="app {% if initial_view != 'importar' %}hidden{% endif %}" style="max-width:1100px;">
+  <h1>Importar datos</h1>
+  <p class="subtitle" style="margin-bottom:20px;">Centro de carga del módulo Vacaciones: planilla de vacaciones y Tot Hs.</p>
 
-  <div class="card dropzone" id="dropzone" role="button" tabindex="0" aria-label="Seleccionar archivo Excel">
-    <div style="font-size:2.5rem;">📂</div>
-    <h3 id="drop-title">Arrastrá el archivo Excel aquí</h3>
-    <p id="drop-sub">o hacé clic para seleccionar · .xlsx / .xlsm</p>
-  </div>
-  <input type="file" id="file-input" accept=".xlsx,.xlsm" hidden>
+  <div class="import-grid">
+    <section class="card import-card">
+      <h2 style="font-size:1.05rem;color:var(--gos-green-dark);">Vacaciones adeudadas</h2>
+      <p class="subtitle" style="margin-bottom:14px;">Planilla por empleado y año. Cada versión actualiza/reemplaza los períodos del Excel.</p>
+      <div class="card dropzone" id="dropzone" role="button" tabindex="0" aria-label="Seleccionar Excel de vacaciones">
+        <div class="ths-drop-icon">⬆</div>
+        <h3 id="drop-title">Excel de vacaciones</h3>
+        <p id="drop-sub">Arrastrá o hacé clic · .xlsx / .xlsm</p>
+      </div>
+      <input type="file" id="file-input" accept=".xlsx,.xlsm" hidden>
+      <button type="button" class="btn hidden" id="btn-import" style="width:100%;margin-top:12px;padding:12px;">Importar vacaciones</button>
+      <div id="import-status" class="hidden card" style="margin-top:12px;padding:12px;text-align:center;color:var(--muted);">Importando vacaciones…</div>
+      <div id="import-result" class="hidden card" style="margin-top:12px;"></div>
+      <div class="import-hint">
+        <strong>Formato:</strong> Legajo, Empleado, Fecha ingreso, Sector y bloques por año (disponibles / tomados / pendientes). También comentarios (triángulo) y columnas Q/R.
+      </div>
+    </section>
 
-  <button type="button" class="btn hidden" id="btn-import" style="width:100%;margin-top:16px;padding:14px;">Importar datos</button>
-  <div id="import-status" class="hidden card" style="margin-top:16px;padding:16px;text-align:center;color:var(--muted);">Importando datos, puede tardar varios minutos…</div>
-  <div id="import-result" class="hidden card" style="margin-top:16px;"></div>
-
-  <div class="card" style="margin-top:20px;font-size:.85rem;color:var(--muted);">
-    <h3 style="color:var(--text);margin-bottom:12px;">Formato esperado</h3>
-    <p><strong style="color:var(--text);">Planilla de vacaciones (recomendado):</strong> Legajo, Empleado, Fecha ingreso, Sector y bloques por año (Días disponibles / tomados / pendientes), como el archivo “Archivo de Vacaciones-Actualizado…”. Se importan también los comentarios de celda (triángulo rojo) y las columnas Q/R.</p>
-    <p style="margin-top:8px;"><strong style="color:var(--text);">Opcional — planilla de horas diarias:</strong> registros diarios (Fecha, Empleado, Sector, horas…) para cruzar tomados reales vs planilla. Se detecta por el contenido de las columnas.</p>
+    <section class="card import-card">
+      <h2 style="font-size:1.05rem;color:var(--gos-green-dark);">Tot Hs.</h2>
+      <p class="subtitle" style="margin-bottom:14px;">Resumen por período. Períodos nuevos se suman; si el rango ya existe, se reemplaza.</p>
+      <div class="card dropzone ths-dropzone" id="ths-dropzone" role="button" tabindex="0" aria-label="Seleccionar Excel Tot Hs.">
+        <div class="ths-drop-icon">⬆</div>
+        <h3 id="ths-drop-title">Excel de Tot Hs.</h3>
+        <p id="ths-drop-sub">Arrastrá o hacé clic · .xlsx / .xlsm</p>
+      </div>
+      <input type="file" id="ths-file-input" accept=".xlsx,.xlsm" hidden>
+      <div id="ths-import-status" class="hidden card" style="margin-top:12px;padding:12px;text-align:center;color:var(--muted);">Importando Tot Hs.…</div>
+      <div id="ths-import-result" class="hidden card" style="margin-top:12px;"></div>
+      <div class="import-hint">
+        <strong>Formato:</strong> título con fechas (ej. <em>21/12/2025 al 20/07/2026</em>) y columnas Nombre, Servicio, Centro, Cliente, Total Horas, Hs.Viaje…
+      </div>
+    </section>
   </div>
 </div>
 
@@ -1057,16 +1056,16 @@ function showImportResult(data) {
   res.innerHTML = `<h3 style="color:var(--green);margin-bottom:8px;">✓ Importación exitosa</h3><p style="font-size:.85rem;color:var(--muted);">${data.mensaje}</p>`;
   if (data.detalle?.registros > 0) res.innerHTML += `<div class="grid3"><div class="stat-box"><div class="val">${data.detalle.registros}</div><div class="lbl">Registros</div></div><div class="stat-box"><div class="val" style="color:var(--accent)">${data.detalle.registros_nuevos}</div><div class="lbl">Nuevos</div></div><div class="stat-box"><div class="val" style="color:var(--yellow)">${data.detalle.registros_actualizados}</div><div class="lbl">Actualizados</div></div></div>`;
   if (data.detalle?.vacaciones > 0) res.innerHTML += `<div class="grid3" style="margin-top:12px;"><div class="stat-box"><div class="val">${data.detalle.vacaciones}</div><div class="lbl">Vacaciones</div></div><div class="stat-box"><div class="val" style="color:var(--accent)">${data.detalle.vacaciones_nuevas}</div><div class="lbl">Nuevas</div></div><div class="stat-box"><div class="val" style="color:var(--yellow)">${data.detalle.vacaciones_actualizadas}</div><div class="lbl">Actualizadas</div></div></div>`;
-  res.innerHTML += `<p style="font-size:.8rem;color:var(--muted);margin-top:12px;">Los datos ya están disponibles en <strong>Vacaciones adeudadas</strong>.</p>`;
+  res.innerHTML += `<p style="font-size:.8rem;color:var(--muted);margin-top:12px;">Disponible en <strong>Vacaciones adeudadas</strong>.</p>`;
   res.classList.remove('hidden');
 }
 
 function showImportError(msg) {
   const res = document.getElementById('import-result');
   res.className = 'card result-err';
-  res.innerHTML = `<h3 style="color:var(--red);">Error al importar</h3><p style="font-size:.85rem;margin-top:8px;">${msg}</p>`;
+  res.innerHTML = `<h3 style="color:var(--red);">Error al importar</h3><p style="font-size:.85rem;margin-top:8px;">${escHtml(msg)}</p>`;
   res.classList.remove('hidden');
-  document.getElementById('drop-sub').textContent = 'o hacé clic para seleccionar · .xlsx / .xlsm';
+  document.getElementById('drop-sub').textContent = 'Arrastrá o hacé clic · .xlsx / .xlsm';
 }
 
 async function runImport() {
@@ -1091,14 +1090,91 @@ async function runImport() {
 
 document.getElementById('btn-import').onclick = runImport;
 
-// ── Tot Hs. ──
+// Importar Tot Hs. (desde Importar datos)
+const thsImport = { file: null };
+const thsDrop = document.getElementById('ths-dropzone');
+const thsFile = document.getElementById('ths-file-input');
+thsDrop.onclick = () => thsFile.click();
+thsDrop.onkeydown = e => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); thsFile.click(); }
+};
+thsDrop.ondragover = e => { e.preventDefault(); thsDrop.classList.add('drag'); };
+thsDrop.ondragleave = () => thsDrop.classList.remove('drag');
+thsDrop.ondrop = e => {
+  e.preventDefault();
+  thsDrop.classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if (f) handleThsFile(f);
+};
+thsFile.onchange = () => {
+  const f = thsFile.files[0];
+  if (f) handleThsFile(f);
+  thsFile.value = '';
+};
+
+function handleThsFile(f) {
+  const ext = f.name.toLowerCase();
+  if (!ext.endsWith('.xlsx') && !ext.endsWith('.xlsm')) {
+    showThsImportError('Solo se aceptan archivos Excel .xlsx o .xlsm.');
+    return;
+  }
+  thsImport.file = f;
+  document.getElementById('ths-drop-title').textContent = f.name;
+  document.getElementById('ths-drop-sub').textContent = `${(f.size / 1024 / 1024).toFixed(2)} MB · importando…`;
+  runThsImport();
+}
+
+function showThsImportResult(data) {
+  const res = document.getElementById('ths-import-result');
+  res.className = 'card result-ok';
+  const d = data.detalle || {};
+  const accion = d.periodo_reemplazado ? 'Período reemplazado' : 'Período nuevo';
+  res.innerHTML = `<h3 style="color:var(--green);margin-bottom:8px;">✓ ${accion}</h3>
+    <p style="font-size:.85rem;color:var(--muted);">${escHtml(data.mensaje || '')}</p>`;
+  if (d.registros > 0) {
+    res.innerHTML += `<div class="grid3"><div class="stat-box"><div class="val">${d.registros}</div><div class="lbl">Filas</div></div>
+      <div class="stat-box"><div class="val" style="color:var(--accent)">${d.personas || 0}</div><div class="lbl">Personas</div></div>
+      <div class="stat-box"><div class="val" style="color:var(--yellow);font-size:1rem;">${escHtml(d.periodo_label || '')}</div><div class="lbl">Período</div></div></div>`;
+  }
+  res.innerHTML += `<p style="font-size:.8rem;color:var(--muted);margin-top:12px;">Disponible en <strong>Tot Hs.</strong></p>`;
+  res.classList.remove('hidden');
+}
+
+function showThsImportError(msg) {
+  const res = document.getElementById('ths-import-result');
+  res.className = 'card result-err';
+  res.innerHTML = `<h3 style="color:var(--red);">Error al importar</h3><p style="font-size:.85rem;margin-top:8px;">${escHtml(msg)}</p>`;
+  res.classList.remove('hidden');
+  document.getElementById('ths-drop-sub').textContent = 'Arrastrá o hacé clic · .xlsx / .xlsm';
+}
+
+async function runThsImport() {
+  if (!thsImport.file) return;
+  const status = document.getElementById('ths-import-status');
+  const res = document.getElementById('ths-import-result');
+  status.classList.remove('hidden');
+  res.classList.add('hidden');
+  try {
+    const fd = new FormData();
+    fd.append('file', thsImport.file);
+    const data = await apiPostForm('/importar/total', fd);
+    showThsImportResult(data);
+    document.getElementById('ths-drop-sub').textContent = 'Archivo importado · podés cargar otro con nuevas fechas';
+  } catch (err) {
+    showThsImportError(err.message || 'Error al importar');
+  } finally {
+    status.classList.add('hidden');
+    thsImport.file = null;
+  }
+}
+
+// ── Tot Hs. dashboard ──
 const ths = {
   periodos: [], selectedPeriodo: null,
   clientes: [], tipos: [],
   resumen: null, porMes: [], porSector: [], porEmpleado: [],
   clienteSeleccionado: null,
   chartMes: null, chartSector: null,
-  file: null,
 };
 
 function fmtNum(n, digitos = 1) {
@@ -1268,15 +1344,24 @@ function renderThsTable() {
         <td class="num" style="font-weight:700">${fmtNum(r.total_horas)}</td>
         <td class="num">${fmtNum(r.hs_viaje)}</td>
         <td class="num">${fmtNum(r.hs50)}</td>
+        <td class="num">${fmtNum(r.hs_noc)}</td>
+        <td class="num">${fmtNum(r.hs_noc50)}</td>
         <td class="num">${fmtNum(r.hs100)}</td>
-        <td class="num">${fmtNum((r.hs_noc || 0) + (r.hs_noc50 || 0))}</td>
-        <td class="num">${fmtNum(r.hs_extras)}</td>
+        <td class="num">${fmtNum(r.viandas, 0)}</td>
+        <td class="num">${fmtNum(r.v_desayuno, 0)}</td>
+        <td class="num">${fmtNum(r.d_normales, 0)}</td>
         <td class="num">${fmtNum(r.ausente, 0)}</td>
-        <td class="num">${fmtNum(r.vacaciones, 0)}</td>
+        <td class="num">${fmtNum(r.fr_trabajados, 0)}</td>
+        <td class="num">${fmtNum(r.feriados, 0)}</td>
         <td class="num">${fmtNum(r.enfermedad, 0)}</td>
+        <td class="num">${fmtNum(r.traslado, 0)}</td>
+        <td class="num">${fmtNum(r.vacaciones, 0)}</td>
         <td class="num">${fmtNum(r.licencia, 0)}</td>
+        <td class="num">${fmtNum(r.accidente, 0)}</td>
+        <td class="num">${fmtNum(r.francos_comp, 0)}</td>
+        <td class="num">${fmtNum(r.total_hs_viaje)}</td>
       </tr>`).join('')
-    : `<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:24px;">Sin registros para este filtro</td></tr>`;
+    : `<tr><td colspan="21" style="text-align:center;color:var(--muted);padding:24px;">Sin registros para este filtro</td></tr>`;
 }
 
 async function loadThsDashboard() {
@@ -1350,89 +1435,6 @@ document.getElementById('ths-chart-clear').onclick = () => {
   loadThsDashboard();
 };
 
-function toggleThsUpload(show) {
-  document.getElementById('ths-upload-panel').classList.toggle('hidden', !show);
-}
-document.getElementById('ths-btn-upload').onclick = () => toggleThsUpload(true);
-document.getElementById('ths-empty-upload').onclick = () => toggleThsUpload(true);
-document.getElementById('ths-upload-close').onclick = () => toggleThsUpload(false);
-
-const thsDrop = document.getElementById('ths-dropzone');
-const thsFile = document.getElementById('ths-file-input');
-thsDrop.onclick = () => thsFile.click();
-thsDrop.onkeydown = e => {
-  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); thsFile.click(); }
-};
-thsDrop.ondragover = e => { e.preventDefault(); thsDrop.classList.add('drag'); };
-thsDrop.ondragleave = () => thsDrop.classList.remove('drag');
-thsDrop.ondrop = e => {
-  e.preventDefault();
-  thsDrop.classList.remove('drag');
-  const f = e.dataTransfer.files[0];
-  if (f) handleThsFile(f);
-};
-thsFile.onchange = () => {
-  const f = thsFile.files[0];
-  if (f) handleThsFile(f);
-  thsFile.value = '';
-};
-
-function handleThsFile(f) {
-  const ext = f.name.toLowerCase();
-  if (!ext.endsWith('.xlsx') && !ext.endsWith('.xlsm')) {
-    showThsImportError('Solo se aceptan archivos Excel .xlsx o .xlsm.');
-    return;
-  }
-  ths.file = f;
-  document.getElementById('ths-drop-title').textContent = f.name;
-  document.getElementById('ths-drop-sub').textContent = `${(f.size / 1024 / 1024).toFixed(2)} MB · importando…`;
-  runThsImport();
-}
-
-function showThsImportResult(data) {
-  const res = document.getElementById('ths-import-result');
-  res.className = 'card result-ok';
-  const d = data.detalle || {};
-  const accion = d.periodo_reemplazado ? 'Período reemplazado' : 'Período nuevo';
-  res.innerHTML = `<h3 style="color:var(--green);margin-bottom:8px;">✓ ${accion}</h3>
-    <p style="font-size:.85rem;color:var(--muted);">${escHtml(data.mensaje || '')}</p>`;
-  if (d.registros > 0) {
-    res.innerHTML += `<div class="grid3"><div class="stat-box"><div class="val">${d.registros}</div><div class="lbl">Filas</div></div>
-      <div class="stat-box"><div class="val" style="color:var(--accent)">${d.personas || 0}</div><div class="lbl">Personas</div></div>
-      <div class="stat-box"><div class="val" style="color:var(--yellow);font-size:1rem;">${escHtml(d.periodo_label || '')}</div><div class="lbl">Período</div></div></div>`;
-  }
-  res.classList.remove('hidden');
-}
-
-function showThsImportError(msg) {
-  const res = document.getElementById('ths-import-result');
-  res.className = 'card result-err';
-  res.innerHTML = `<h3 style="color:var(--red);">Error al importar</h3><p style="font-size:.85rem;margin-top:8px;">${escHtml(msg)}</p>`;
-  res.classList.remove('hidden');
-  document.getElementById('ths-drop-sub').textContent = 'o hacé clic · .xlsx / .xlsm';
-}
-
-async function runThsImport() {
-  if (!ths.file) return;
-  const status = document.getElementById('ths-import-status');
-  const res = document.getElementById('ths-import-result');
-  status.classList.remove('hidden');
-  res.classList.add('hidden');
-  try {
-    const fd = new FormData();
-    fd.append('file', ths.file);
-    const data = await apiPostForm('/importar/total', fd);
-    showThsImportResult(data);
-    document.getElementById('ths-drop-sub').textContent = 'Archivo importado · podés cargar otro con nuevas fechas';
-    await initTotHs();
-  } catch (err) {
-    showThsImportError(err.message || 'Error al importar');
-  } finally {
-    status.classList.add('hidden');
-    ths.file = null;
-  }
-}
-
 document.getElementById('ths-btn-export').onclick = () => {
   document.getElementById('ths-export-drop').classList.toggle('hidden');
 };
@@ -1458,10 +1460,13 @@ document.querySelector('#ths-export-drop [data-ths-export="excel"]').onclick = (
     ...ths.porSector.map(s => [s.sector, s.total_horas, s.hs_extras, s.personas, s.horas_por_persona]),
   ]), 'Por cliente');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-    ['Empleado', 'Filas', 'Total Hs', 'Hs viaje', 'Hs 50%', 'Hs 100%', 'Hs noc', 'Extras', 'Ausente', 'Vacaciones', 'Enfermedad', 'Licencia'],
+    ['Empleado', 'Filas', 'Total Hs', 'Hs viaje', 'Hs 50%', 'Hs noct', 'Hs noct50', 'Hs 100%',
+     'Viandas', 'Desayunos', 'D.Normales', 'Ausente', 'Fr.Trabajados', 'Feriado', 'Enfermo',
+     'Traslado', 'Vacaciones', 'Licencia', 'Accidente', 'Fr.Compens', 'TotalHs+HsViaje'],
     ...ths.porEmpleado.map(e => [
-      e.empleado, e.filas || e.dias, e.total_horas, e.hs_viaje, e.hs50, e.hs100,
-      (e.hs_noc || 0) + (e.hs_noc50 || 0), e.hs_extras, e.ausente, e.vacaciones, e.enfermedad, e.licencia,
+      e.empleado, e.filas || e.dias, e.total_horas, e.hs_viaje, e.hs50, e.hs_noc, e.hs_noc50, e.hs100,
+      e.viandas, e.v_desayuno, e.d_normales, e.ausente, e.fr_trabajados, e.feriados, e.enfermedad,
+      e.traslado, e.vacaciones, e.licencia, e.accidente, e.francos_comp, e.total_hs_viaje,
     ]),
   ]), 'Por empleado');
   const fecha = new Date().toLocaleDateString('es-AR').replace(/\//g, '-');
