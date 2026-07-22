@@ -226,7 +226,7 @@ function getFiltrado() {
 }
 
 function getFiltradoDetalle() {
-  return getFiltrado().filter(matchKpiFiltro);
+  return getFiltrado().filter(d => (d.dias_pendientes || 0) > 0).filter(matchKpiFiltro);
 }
 
 function updateKpiActive() {
