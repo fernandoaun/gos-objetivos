@@ -195,6 +195,7 @@ def test_vacaciones_import_planilla_archivo_actualizado(auth_client, app):
     assert len(deuda) == 6
     assert any(d["dias_pendientes"] == 17 for d in deuda)
     alias_api = next(d for d in deuda if d["empleado"].startswith("Alias") and d["anio"] == 2023)
+    assert alias_api["fecha_ingreso"] == "2007-01-01"
     assert alias_api["comentario"] == "(7) 01/01 al 07/01/2023"
     assert alias_api["nota_q"] == "Baja 2026"
     assert alias_api["nota_r"] == "Nota R test"

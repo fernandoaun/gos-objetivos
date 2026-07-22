@@ -191,6 +191,26 @@ function diasAdelantados(row) {
   return pend < 0 ? -pend : 0;
 }
 
+/** Años de antigüedad a la fecha de hoy (completos desde fecha_ingreso). */
+function antiguedadAnios(fechaIngreso, hoy = new Date()) {
+  if (!fechaIngreso) return null;
+  const raw = String(fechaIngreso).slice(0, 10);
+  const parts = raw.split('-').map(Number);
+  if (parts.length !== 3 || parts.some(n => !Number.isFinite(n))) return null;
+  const [y, m, d] = parts;
+  let anios = hoy.getFullYear() - y;
+  const mesHoy = hoy.getMonth() + 1;
+  const diaHoy = hoy.getDate();
+  if (mesHoy < m || (mesHoy === m && diaHoy < d)) anios -= 1;
+  return anios < 0 ? 0 : anios;
+}
+
+function textoAntiguedad(fechaIngreso) {
+  const n = antiguedadAnios(fechaIngreso);
+  if (n === null) return '—';
+  return `${n} año${n === 1 ? '' : 's'}`;
+}
+
 function textoNotasRow(row) {
   if (!row) return '';
   return [row.comentario, row.nota_q, row.nota_r].filter(Boolean).join('\n');
@@ -447,6 +467,8 @@ function openPersonaModal(empleado) {
   body.innerHTML = `
     <div class="persona-meta">
       <div><span class="nota-label">Legajo</span><div>${first.legajo ?? '—'}</div></div>
+      <div><span class="nota-label">Fecha ingreso</span><div>${first.fecha_ingreso ? escHtml(String(first.fecha_ingreso).slice(0, 10)) : '—'}</div></div>
+      <div><span class="nota-label">Antigüedad</span><div>${escHtml(textoAntiguedad(first.fecha_ingreso))}</div></div>
       <div><span class="nota-label">Sector</span><div>${escHtml(first.sector || '—')}</div></div>
       <div><span class="nota-label">Total pendientes</span><div style="font-weight:700;color:var(--accent)">${totalPend}</div></div>
     </div>
@@ -519,12 +541,13 @@ function agruparPorEmpleado(rows) {
   for (const r of rows) {
     let g = map.get(r.empleado);
     if (!g) {
-      g = { empleado: r.empleado, sector: r.sector || '', byAnio: {}, rows: [] };
+      g = { empleado: r.empleado, sector: r.sector || '', fecha_ingreso: r.fecha_ingreso || null, byAnio: {}, rows: [] };
       map.set(r.empleado, g);
     }
     g.byAnio[r.anio] = r;
     g.rows.push(r);
     if (r.sector) g.sector = r.sector;
+    if (r.fecha_ingreso) g.fecha_ingreso = r.fecha_ingreso;
   }
   return [...map.values()].map(g => {
     const yearRows = Object.values(g.byAnio);
@@ -551,6 +574,7 @@ function renderTableHead(anios) {
   document.getElementById('table-head').innerHTML = `
     <tr>
       <th rowspan="2">Empleado</th>
+      <th rowspan="2" class="num">Antigüedad</th>
       <th rowspan="2">Sector</th>
       ${yearHeads}
       <th rowspan="2" class="num">Pend. total</th>
@@ -584,7 +608,7 @@ function renderTable() {
   renderNotasPanel();
   renderTableHead(anios);
 
-  const colSpan = 2 + anios.length * 3 + 3;
+  const colSpan = 3 + anios.length * 3 + 3;
   document.getElementById('table-body').innerHTML = personas.length
     ? personas.map(p => {
       // Pend. total = suma de pendientes de cada año visible en la fila.
@@ -594,9 +618,11 @@ function renderTable() {
       const estadoHtml = estadoPersona(personaVista) === 'adelanto'
         ? `<span class="badge warn">${escHtml(etiquetaEstado(personaVista))}</span>`
         : semaforo(peor);
+      const antig = antiguedadAnios(p.fecha_ingreso);
       return `
     <tr>
       <td><button type="button" class="link-persona" data-persona="${escHtml(p.empleado)}">${escHtml(p.empleado)}</button></td>
+      <td class="num" title="${p.fecha_ingreso ? `Ingreso ${escHtml(String(p.fecha_ingreso).slice(0, 10))}` : ''}">${antig === null ? '—' : antig}</td>
       <td style="color:var(--muted)">${escHtml(p.sector||'')}</td>
       ${anios.map(y => celdaAnio(p.byAnio[y])).join('')}
       <td class="num" style="font-weight:700">${pendTotal}</td>
@@ -825,7 +851,7 @@ document.querySelector('[data-export="excel"]').onclick = () => {
     ['Sector','Días Pendientes','Personas','Días por Persona'],
     ...state.resumenSector.map(r => [r.sector, r.pendientes, r.personas, r.pendientes_por_persona]),
   ]), 'Por Sector');
-  const header = ['Empleado', 'Sector', ...anios.flatMap(y => [`${y} Disponibles`, `${y} Tomados`, `${y} Pendientes`]), 'Pend. total', 'Estado', 'Notas', 'Adelanto'];
+  const header = ['Empleado', 'Antigüedad', 'Fecha ingreso', 'Sector', ...anios.flatMap(y => [`${y} Disponibles`, `${y} Tomados`, `${y} Pendientes`]), 'Pend. total', 'Estado', 'Notas', 'Adelanto'];
   const detailRows = personas.map(p => {
     const pendTotal = anios.reduce((a, y) => a + diasPendientes(p.byAnio[y]), 0);
     const peor = anios.reduce((m, y) => Math.max(m, diasPendientes(p.byAnio[y])), 0);
@@ -842,8 +868,11 @@ document.querySelector('[data-export="excel"]').onclick = () => {
     const rr = p.rows.find(r => r.nota_r)?.nota_r;
     if (q) notas.push(`Q: ${q}`);
     if (rr) notas.push(`R: ${rr}`);
+    const antig = antiguedadAnios(p.fecha_ingreso);
     return [
       p.empleado,
+      antig === null ? '' : antig,
+      p.fecha_ingreso ? String(p.fecha_ingreso).slice(0, 10) : '',
       p.sector,
       ...anios.flatMap(y => {
         const r = p.byAnio[y];

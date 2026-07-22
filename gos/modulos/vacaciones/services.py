@@ -70,6 +70,7 @@ def get_deuda_vacaciones(
     q_planilla = select(
         Vacacion.legajo,
         Vacacion.empleado,
+        Vacacion.fecha_ingreso,
         Vacacion.sector,
         Vacacion.anio,
         Vacacion.dias_disponibles,
@@ -108,6 +109,7 @@ def get_deuda_vacaciones(
         (
             legajo,
             empleado,
+            fecha_ingreso,
             sect,
             anio_val,
             disponibles,
@@ -127,6 +129,7 @@ def get_deuda_vacaciones(
             {
                 "legajo": legajo,
                 "empleado": empleado,
+                "fecha_ingreso": fecha_ingreso.isoformat() if fecha_ingreso else None,
                 "sector": sect,
                 "anio": anio_val,
                 "dias_disponibles": disp,
