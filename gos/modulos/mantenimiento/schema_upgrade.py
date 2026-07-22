@@ -5,7 +5,7 @@ from sqlalchemy import inspect, text
 from gos.extensions import db
 
 _COLUMN_UPGRADES = [
-    ("mant_vtv", "bloqueado", "BOOLEAN DEFAULT 0"),
+    ("mant_vtv", "bloqueado", "BOOLEAN DEFAULT FALSE"),
     ("mant_vtv", "resultado_ultimo", "VARCHAR(32)"),
     ("mant_vtv", "observaciones", "TEXT"),
 ]
