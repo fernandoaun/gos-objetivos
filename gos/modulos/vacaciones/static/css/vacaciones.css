@@ -179,8 +179,51 @@ h1 {
 }
 
 .notas-cell {
-  font-size: 0.85rem;
-  white-space: nowrap;
+  font-size: 0.8rem;
+  white-space: normal;
+  min-width: 220px;
+  max-width: 340px;
+  vertical-align: top;
+}
+
+.notas-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nota-chip {
+  display: inline-block;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #f59e0b;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  width: fit-content;
+}
+
+.nota-sticky {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-left: 3px solid #f59e0b;
+  border-radius: 4px;
+  padding: 6px 8px;
+}
+
+.nota-sticky-head {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #b45309;
+  margin-bottom: 2px;
+}
+
+.nota-sticky .nota-text {
+  font-size: 0.75rem;
+  color: #78350f;
 }
 
 .link-persona {
@@ -380,6 +423,27 @@ th {
 th.num,
 td.num {
   text-align: right;
+}
+
+td.muted {
+  color: var(--muted);
+}
+
+.detalle-planilla th.anio-group {
+  text-align: center;
+  color: var(--accent);
+  border-bottom: none;
+  background: var(--pe-bg);
+}
+
+.detalle-planilla th.sub {
+  font-size: 0.68rem;
+  font-weight: 500;
+  background: var(--pe-bg);
+}
+
+.detalle-planilla thead tr:first-child th[rowspan] {
+  vertical-align: bottom;
 }
 
 td {
