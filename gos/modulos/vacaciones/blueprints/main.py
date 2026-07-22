@@ -10,6 +10,12 @@ def index():
     return render_template("vacaciones/shell.html", view="vacaciones")
 
 
+@bp.route("/tot-hs")
+@login_required
+def tot_hs():
+    return render_template("vacaciones/shell.html", view="tot_hs")
+
+
 @bp.route("/importar")
 @login_required
 def importar():

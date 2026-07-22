@@ -82,6 +82,11 @@ def _nav_items():
             "icon": "bi-calendar-check",
         },
         {
+            "label": "Tot Hs.",
+            "endpoint": "vacaciones_main.tot_hs",
+            "icon": "bi-clock-history",
+        },
+        {
             "label": "Importar datos",
             "endpoint": "vacaciones_main.importar",
             "icon": "bi-upload",

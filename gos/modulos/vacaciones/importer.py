@@ -267,6 +267,11 @@ def _import_total(filepath: str, db: Session, result: dict) -> None:
         if max_date is None or fecha > max_date:
             max_date = fecha
 
+    if min_date is not None:
+        result["fecha_min"] = min_date.isoformat()
+    if max_date is not None:
+        result["fecha_max"] = max_date.isoformat()
+
     if keys_en_excel:
         existing = db.execute(
             select(Registro.fecha, Registro.empleado).where(
@@ -293,6 +298,14 @@ def _import_total(filepath: str, db: Session, result: dict) -> None:
         db.commit()
         total += len(chunk)
     result["registros"] = total
+
+
+def _workbook_has_total_sheet(filepath: str) -> bool:
+    wb = _open_workbook(filepath)
+    try:
+        return "TOTAL" in wb.sheetnames
+    finally:
+        wb.close()
 
 
 # ── Planilla de vacaciones (una fila por empleado, bloques por año) ─────────
@@ -542,18 +555,34 @@ def _import_planilla(filepath: str, db: Session, result: dict) -> None:
 # ── Punto de entrada ────────────────────────────────────────────────────────
 
 
-def import_excel(filepath: str, db: Session) -> dict:
-    result = {
+def _empty_import_result() -> dict:
+    return {
         "registros": 0,
         "registros_nuevos": 0,
         "registros_actualizados": 0,
         "vacaciones": 0,
         "vacaciones_nuevas": 0,
         "vacaciones_actualizadas": 0,
+        "fecha_min": None,
+        "fecha_max": None,
         "errores": [],
     }
 
+
+def import_excel(filepath: str, db: Session) -> dict:
+    result = _empty_import_result()
     _import_total(filepath, db, result)
     _import_planilla(filepath, db, result)
+    return result
 
+
+def import_total_excel(filepath: str, db: Session) -> dict:
+    """Importa solo la hoja TOTAL: fechas nuevas se agregan; (fecha, empleado) repetidos se pisan."""
+    if not _workbook_has_total_sheet(filepath):
+        raise ValueError(
+            "El archivo no contiene una hoja llamada TOTAL. "
+            "Renombrá la hoja de horas diarias a TOTAL e intentá de nuevo."
+        )
+    result = _empty_import_result()
+    _import_total(filepath, db, result)
     return result

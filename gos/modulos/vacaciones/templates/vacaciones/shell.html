@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Vacaciones — GOS{% endblock %}
-{% block page_title %}{% if view == 'importar' %}Importar datos{% else %}Vacaciones adeudadas{% endif %}{% endblock %}
+{% block page_title %}{% if view == 'importar' %}Importar datos{% elif view == 'tot_hs' %}Tot Hs.{% else %}Vacaciones adeudadas{% endif %}{% endblock %}
 {% block extra_css %}
 <style>
   .pe-content:has(.vac-shell) {

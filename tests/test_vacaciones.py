@@ -205,3 +205,134 @@ def test_vacaciones_import_planilla_archivo_actualizado(auth_client, app):
 
     r = auth_client.get("/gos/vacaciones/api/dashboard/años")
     assert r.get_json() == [2023, 2024, 2025]
+
+
+def _xlsx_total(rows):
+    import io
+
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "TOTAL"
+    ws.append([
+        "fecha", "empleado", "sector", "servicio", "centro", "situacion",
+        "total_horas", "hs_viaje", "hs50", "hs_noc", "hs_noc50", "hs100",
+        "viandas", "v_desayuno", "d_normales", "ausente", "fr_trabajados",
+        "feriados", "enfermedad", "traslado", "vacaciones", "licencia",
+        "suspension", "accidente", "francos_comp",
+    ])
+    for row in rows:
+        ws.append(row)
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+def test_tot_hs_shell_and_app(auth_client):
+    r = auth_client.get("/gos/vacaciones/tot-hs")
+    assert r.status_code == 200
+    assert b"vac-frame" in r.data
+    assert b"view=tot_hs" in r.data or b"tot_hs" in r.data
+
+    r = auth_client.get("/gos/vacaciones/app/?view=tot_hs")
+    assert r.status_code == 200
+    assert b"Tot Hs." in r.data
+    assert b"view-tot-hs" in r.data
+
+
+def test_tot_hs_import_merge_and_overwrite(auth_client, app):
+    """Fechas nuevas se suman; (fecha, empleado) repetidos se pisan sin duplicar."""
+    from datetime import date
+
+    buf1 = _xlsx_total([
+        ["2025-06-01", "Pedro Test", "RRHH", "", "", "", 8, 0, 1, 0, 0, 0,
+         0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ["2025-06-02", "Pedro Test", "RRHH", "", "", "", 8, 0, 0, 0, 0, 0,
+         0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    ])
+    r = auth_client.post(
+        "/gos/vacaciones/api/importar/total",
+        data={"file": (buf1, "tot1.xlsx")},
+        content_type="multipart/form-data",
+    )
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data["ok"] is True
+    assert data["detalle"]["registros"] == 2
+    assert data["detalle"]["registros_nuevos"] == 2
+
+    # Segundo archivo: actualiza 01/06 y agrega 03/06
+    buf2 = _xlsx_total([
+        ["2025-06-01", "Pedro Test", "RRHH", "", "", "", 10, 0, 2, 0, 0, 0,
+         0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ["2025-06-03", "Pedro Test", "RRHH", "", "", "", 8, 0, 0, 0, 0, 0,
+         0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    ])
+    r = auth_client.post(
+        "/gos/vacaciones/api/importar/total",
+        data={"file": (buf2, "tot2.xlsx")},
+        content_type="multipart/form-data",
+    )
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data["detalle"]["registros"] == 2
+    assert data["detalle"]["registros_nuevos"] == 1
+    assert data["detalle"]["registros_actualizados"] == 1
+
+    with app.app_context():
+        from gos.extensions import db
+
+        regs = (
+            db.session.query(Registro)
+            .filter_by(empleado="Pedro Test")
+            .order_by(Registro.fecha)
+            .all()
+        )
+        assert len(regs) == 3  # sin duplicar el 01/06
+        assert regs[0].fecha == date(2025, 6, 1)
+        assert regs[0].total_horas == 10  # pisado
+        assert regs[0].hs50 == 2
+        assert regs[1].fecha == date(2025, 6, 2)
+        assert regs[1].total_horas == 8  # conservado
+        assert regs[2].fecha == date(2025, 6, 3)
+
+    r = auth_client.get("/gos/vacaciones/api/tot-hs/resumen?anios=2025")
+    assert r.status_code == 200
+    resumen = r.get_json()
+    assert resumen["registros"] == 3
+    assert resumen["total_horas"] == 26
+    assert resumen["personas"] == 1
+
+    r = auth_client.get("/gos/vacaciones/api/tot-hs/por-empleado?anios=2025")
+    assert r.status_code == 200
+    empleados = r.get_json()
+    assert len(empleados) == 1
+    assert empleados[0]["empleado"] == "Pedro Test"
+    assert empleados[0]["total_horas"] == 26
+
+    r = auth_client.get("/gos/vacaciones/api/tot-hs/meta")
+    assert r.status_code == 200
+    meta = r.get_json()
+    assert meta["total_registros"] == 3
+    assert 2025 in meta["anios"]
+
+
+def test_tot_hs_import_requires_total_sheet(auth_client):
+    import io
+
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    wb.active.title = "OTRA"
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    r = auth_client.post(
+        "/gos/vacaciones/api/importar/total",
+        data={"file": (buf, "sin_total.xlsx")},
+        content_type="multipart/form-data",
+    )
+    assert r.status_code == 500
+    assert "TOTAL" in r.get_json()["error"]
