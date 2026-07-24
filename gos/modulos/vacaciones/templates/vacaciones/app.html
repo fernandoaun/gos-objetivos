@@ -1220,15 +1220,27 @@ function fmtFecha(iso) {
   return `${d}/${m}/${y}`;
 }
 
+function thsDateValues() {
+  return {
+    desde: document.getElementById('ths-f-desde')?.value || '',
+    hasta: document.getElementById('ths-f-hasta')?.value || '',
+  };
+}
+
+function thsIsFullRange(desde, hasta) {
+  return !!(
+    ths.fechaMin && ths.fechaMax &&
+    desde === String(ths.fechaMin).slice(0, 10) &&
+    hasta === String(ths.fechaMax).slice(0, 10)
+  );
+}
+
 function thsParams() {
   const p = {};
-  if (ths.selectedPeriodo) p.periodo = ths.selectedPeriodo;
-  const desde = document.getElementById('ths-f-desde')?.value;
-  const hasta = document.getElementById('ths-f-hasta')?.value;
-  if (!ths.selectedPeriodo) {
-    if (desde) p.desde = desde;
-    if (hasta) p.hasta = hasta;
-  }
+  const { desde, hasta } = thsDateValues();
+  // El rango de fechas manda siempre; los botones de período solo sincronizan estos inputs.
+  if (desde) p.desde = desde;
+  if (hasta) p.hasta = hasta;
   const cliente = ths.clienteSeleccionado || document.getElementById('ths-f-cliente')?.value;
   if (cliente) p.cliente = cliente;
   const tipo = document.getElementById('ths-f-tipo')?.value;
@@ -1244,8 +1256,7 @@ function setThsDateInputs(desde, hasta) {
 }
 
 function syncThsPeriodFromDates() {
-  const desde = document.getElementById('ths-f-desde')?.value || '';
-  const hasta = document.getElementById('ths-f-hasta')?.value || '';
+  const { desde, hasta } = thsDateValues();
   if (!desde || !hasta) {
     ths.selectedPeriodo = null;
     return;
@@ -1261,8 +1272,10 @@ function renderThsPeriods() {
     wrap.innerHTML = '<span class="subtitle">Sin períodos</span>';
     return;
   }
+  const { desde, hasta } = thsDateValues();
+  const todosActive = !ths.selectedPeriodo && thsIsFullRange(desde, hasta);
   wrap.innerHTML = [
-    `<button type="button" class="year-btn ${!ths.selectedPeriodo ? 'active' : ''}" data-key="">Todos</button>`,
+    `<button type="button" class="year-btn ${todosActive ? 'active' : ''}" data-key="">Todos</button>`,
     ...ths.periodos.map(p =>
       `<button type="button" class="year-btn ${ths.selectedPeriodo === p.key ? 'active' : ''}" data-key="${escHtml(p.key)}">${escHtml(p.label)}</button>`
     ),
@@ -1614,6 +1627,7 @@ async function initTotHs() {
   await loadThsDashboard();
 }
 
+let _thsDateTimer = null;
 function onThsDateChange() {
   const desde = document.getElementById('ths-f-desde')?.value;
   const hasta = document.getElementById('ths-f-hasta')?.value;
@@ -1622,11 +1636,16 @@ function onThsDateChange() {
   }
   syncThsPeriodFromDates();
   renderThsPeriods();
-  loadThsDashboard();
+  clearTimeout(_thsDateTimer);
+  _thsDateTimer = setTimeout(() => loadThsDashboard(), 50);
 }
 
-document.getElementById('ths-f-desde').onchange = onThsDateChange;
-document.getElementById('ths-f-hasta').onchange = onThsDateChange;
+['ths-f-desde', 'ths-f-hasta'].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('change', onThsDateChange);
+  el.addEventListener('input', onThsDateChange);
+});
 document.getElementById('ths-kpi-modal-close').onclick = closeThsKpiModal;
 document.querySelectorAll('#ths-kpi-modal [data-close-modal]').forEach(el => {
   el.onclick = closeThsKpiModal;

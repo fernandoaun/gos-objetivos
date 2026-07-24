@@ -216,17 +216,19 @@ def _tot_hs_filters(
     hasta: Optional[str] = None,
 ):
     clauses = []
+    d_desde = _parse_iso_date(desde)
+    d_hasta = _parse_iso_date(hasta)
     key = _parse_period_key(periodo)
-    if key:
+    if d_desde or d_hasta:
+        # Contención: solo períodos que caben enteros en [desde, hasta].
+        # Tot Hs. guarda totales por período; no se puede recortar un período a medias.
+        if d_desde:
+            clauses.append(TotHs.periodo_desde >= d_desde)
+        if d_hasta:
+            clauses.append(TotHs.periodo_hasta <= d_hasta)
+    elif key:
         clauses.append(TotHs.periodo_desde == key[0])
         clauses.append(TotHs.periodo_hasta == key[1])
-    else:
-        d_desde = _parse_iso_date(desde)
-        d_hasta = _parse_iso_date(hasta)
-        if d_desde:
-            clauses.append(TotHs.periodo_hasta >= d_desde)
-        if d_hasta:
-            clauses.append(TotHs.periodo_desde <= d_hasta)
     if cliente:
         clauses.append(TotHs.cliente == cliente)
     if tipo_servicio:
