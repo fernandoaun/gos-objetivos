@@ -834,14 +834,24 @@ tr:hover td {
 }
 
 .ths-range-meta {
-  min-width: 220px;
+  min-width: 280px;
 }
 
-.ths-range-text {
+.ths-range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ths-range-inputs input[type="date"] {
+  min-width: 140px;
+}
+
+.ths-range-sep {
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--text);
-  padding: 8px 0;
+  color: var(--muted);
 }
 
 .ths-kpis .ths-kpi-static {

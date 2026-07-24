@@ -30,6 +30,8 @@ def _tot_hs_filters():
         "periodo": request.args.get("periodo") or None,
         "cliente": request.args.get("cliente") or request.args.get("sector") or None,
         "tipo_servicio": request.args.get("tipo_servicio") or None,
+        "desde": request.args.get("desde") or None,
+        "hasta": request.args.get("hasta") or None,
     }
 
 

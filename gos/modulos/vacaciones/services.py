@@ -1,11 +1,24 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import Optional
 
 from sqlalchemy import extract, func, select, union
 from sqlalchemy.orm import Session
 
 from gos.modulos.vacaciones.models import Registro, TotHs, Vacacion
+
+
+def _parse_iso_date(value: Optional[str]) -> Optional[date]:
+    if not value:
+        return None
+    raw = str(value).strip()[:10]
+    if len(raw) < 10:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        return None
 
 
 def get_anios(db: Session) -> list[int]:
@@ -199,12 +212,21 @@ def _tot_hs_filters(
     cliente: Optional[str] = None,
     tipo_servicio: Optional[str] = None,
     empleado: Optional[str] = None,
+    desde: Optional[str] = None,
+    hasta: Optional[str] = None,
 ):
     clauses = []
     key = _parse_period_key(periodo)
     if key:
         clauses.append(TotHs.periodo_desde == key[0])
         clauses.append(TotHs.periodo_hasta == key[1])
+    else:
+        d_desde = _parse_iso_date(desde)
+        d_hasta = _parse_iso_date(hasta)
+        if d_desde:
+            clauses.append(TotHs.periodo_hasta >= d_desde)
+        if d_hasta:
+            clauses.append(TotHs.periodo_desde <= d_hasta)
     if cliente:
         clauses.append(TotHs.cliente == cliente)
     if tipo_servicio:
@@ -275,9 +297,11 @@ def get_tot_hs_resumen(
     periodo: Optional[str] = None,
     cliente: Optional[str] = None,
     tipo_servicio: Optional[str] = None,
+    desde: Optional[str] = None,
+    hasta: Optional[str] = None,
     **_ignored,
 ) -> dict:
-    clauses = _tot_hs_filters(periodo, cliente, tipo_servicio)
+    clauses = _tot_hs_filters(periodo, cliente, tipo_servicio, desde=desde, hasta=hasta)
     q = select(
         func.count(TotHs.id),
         func.count(func.distinct(TotHs.empleado)),
@@ -347,9 +371,11 @@ def get_tot_hs_por_periodo(
     periodo: Optional[str] = None,
     cliente: Optional[str] = None,
     tipo_servicio: Optional[str] = None,
+    desde: Optional[str] = None,
+    hasta: Optional[str] = None,
     **_ignored,
 ) -> list[dict]:
-    clauses = _tot_hs_filters(periodo, cliente, tipo_servicio)
+    clauses = _tot_hs_filters(periodo, cliente, tipo_servicio, desde=desde, hasta=hasta)
     q = select(
         TotHs.periodo_desde,
         TotHs.periodo_hasta,
@@ -390,20 +416,26 @@ def get_tot_hs_por_mes(
     periodo: Optional[str] = None,
     cliente: Optional[str] = None,
     tipo_servicio: Optional[str] = None,
+    desde: Optional[str] = None,
+    hasta: Optional[str] = None,
     **_ignored,
 ) -> list[dict]:
     """Compat: el eje temporal real es el período cargado."""
-    return get_tot_hs_por_periodo(db, periodo, cliente, tipo_servicio)
+    return get_tot_hs_por_periodo(
+        db, periodo, cliente, tipo_servicio, desde=desde, hasta=hasta
+    )
 
 
 def get_tot_hs_por_sector(
     db: Session,
     periodo: Optional[str] = None,
     tipo_servicio: Optional[str] = None,
+    desde: Optional[str] = None,
+    hasta: Optional[str] = None,
     **_ignored,
 ) -> list[dict]:
     """Agrupa por cliente (equivalente útil al «sector» del archivo real)."""
-    clauses = _tot_hs_filters(periodo, None, tipo_servicio)
+    clauses = _tot_hs_filters(periodo, None, tipo_servicio, desde=desde, hasta=hasta)
     q = select(
         TotHs.cliente,
         func.coalesce(func.sum(TotHs.total_horas), 0),
@@ -443,9 +475,11 @@ def get_tot_hs_por_empleado(
     periodo: Optional[str] = None,
     cliente: Optional[str] = None,
     tipo_servicio: Optional[str] = None,
+    desde: Optional[str] = None,
+    hasta: Optional[str] = None,
     **_ignored,
 ) -> list[dict]:
-    clauses = _tot_hs_filters(periodo, cliente, tipo_servicio)
+    clauses = _tot_hs_filters(periodo, cliente, tipo_servicio, desde=desde, hasta=hasta)
     q = select(
         TotHs.empleado,
         func.coalesce(func.sum(TotHs.total_horas), 0),
@@ -523,10 +557,14 @@ def get_tot_hs_detalle(
     cliente: Optional[str] = None,
     tipo_servicio: Optional[str] = None,
     empleado: Optional[str] = None,
+    desde: Optional[str] = None,
+    hasta: Optional[str] = None,
     limit: int = 500,
     **_ignored,
 ) -> list[dict]:
-    clauses = _tot_hs_filters(periodo, cliente, tipo_servicio, empleado)
+    clauses = _tot_hs_filters(
+        periodo, cliente, tipo_servicio, empleado, desde=desde, hasta=hasta
+    )
     q = select(TotHs).order_by(
         TotHs.total_horas.desc(), TotHs.empleado, TotHs.servicio
     )

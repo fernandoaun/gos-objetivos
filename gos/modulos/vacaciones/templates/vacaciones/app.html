@@ -153,8 +153,12 @@
     <div><label>Cliente</label><select id="ths-f-cliente"><option value="">Todos los clientes</option></select></div>
     <div><label>Tipo servicio</label><select id="ths-f-tipo"><option value="">Todos</option></select></div>
     <div class="ths-range-meta" id="ths-range-meta">
-      <label>Cobertura</label>
-      <div class="ths-range-text" id="ths-range-text">Sin datos cargados</div>
+      <label>Rango</label>
+      <div class="ths-range-inputs">
+        <input type="date" id="ths-f-desde" title="Desde">
+        <span class="ths-range-sep">al</span>
+        <input type="date" id="ths-f-hasta" title="Hasta">
+      </div>
     </div>
   </div>
 
@@ -1181,6 +1185,7 @@ async function runThsImport() {
 const ths = {
   periodos: [], selectedPeriodo: null,
   clientes: [], tipos: [],
+  fechaMin: null, fechaMax: null,
   resumen: null, porMes: [], porSector: [], porEmpleado: [],
   clienteSeleccionado: null,
   chartMes: null, chartSector: null,
@@ -1200,11 +1205,36 @@ function fmtFecha(iso) {
 function thsParams() {
   const p = {};
   if (ths.selectedPeriodo) p.periodo = ths.selectedPeriodo;
+  const desde = document.getElementById('ths-f-desde')?.value;
+  const hasta = document.getElementById('ths-f-hasta')?.value;
+  if (!ths.selectedPeriodo) {
+    if (desde) p.desde = desde;
+    if (hasta) p.hasta = hasta;
+  }
   const cliente = ths.clienteSeleccionado || document.getElementById('ths-f-cliente')?.value;
   if (cliente) p.cliente = cliente;
   const tipo = document.getElementById('ths-f-tipo')?.value;
   if (tipo) p.tipo_servicio = tipo;
   return p;
+}
+
+function setThsDateInputs(desde, hasta) {
+  const d = document.getElementById('ths-f-desde');
+  const h = document.getElementById('ths-f-hasta');
+  if (d) d.value = desde ? String(desde).slice(0, 10) : '';
+  if (h) h.value = hasta ? String(hasta).slice(0, 10) : '';
+}
+
+function syncThsPeriodFromDates() {
+  const desde = document.getElementById('ths-f-desde')?.value || '';
+  const hasta = document.getElementById('ths-f-hasta')?.value || '';
+  if (!desde || !hasta) {
+    ths.selectedPeriodo = null;
+    return;
+  }
+  const key = `${desde}|${hasta}`;
+  const match = ths.periodos.find(p => p.key === key);
+  ths.selectedPeriodo = match ? match.key : null;
 }
 
 function renderThsPeriods() {
@@ -1221,7 +1251,15 @@ function renderThsPeriods() {
   ].join('');
   wrap.querySelectorAll('.year-btn').forEach(btn => {
     btn.onclick = () => {
-      ths.selectedPeriodo = btn.dataset.key || null;
+      const key = btn.dataset.key || '';
+      if (!key) {
+        ths.selectedPeriodo = null;
+        setThsDateInputs(ths.fechaMin, ths.fechaMax);
+      } else {
+        ths.selectedPeriodo = key;
+        const [d, h] = key.split('|');
+        setThsDateInputs(d, h);
+      }
       renderThsPeriods();
       loadThsDashboard();
     };
@@ -1248,11 +1286,6 @@ function renderThsKpis() {
   document.getElementById('ths-kpi-extras').textContent = fmtNum(r.hs_extras, 1);
   document.getElementById('ths-kpi-personas').textContent = fmtNum(r.personas, 0);
   document.getElementById('ths-kpi-regs').textContent = fmtNum(r.registros, 0);
-
-  const rango = (r.fecha_min && r.fecha_max)
-    ? `${fmtFecha(r.fecha_min)} → ${fmtFecha(r.fecha_max)}`
-    : 'Sin datos en el filtro';
-  document.getElementById('ths-range-text').textContent = rango;
 
   const items = [
     { label: 'Días normales', value: r.d_normales },
@@ -1389,7 +1422,12 @@ async function loadThsDashboard() {
     const [resumen, porMes, porSector, porEmpleado] = await Promise.all([
       apiGet('/tot-hs/resumen', params),
       apiGet('/tot-hs/por-mes', params),
-      apiGet('/tot-hs/por-sector', { periodo: params.periodo, tipo_servicio: params.tipo_servicio }),
+      apiGet('/tot-hs/por-sector', {
+        periodo: params.periodo,
+        tipo_servicio: params.tipo_servicio,
+        desde: params.desde,
+        hasta: params.hasta,
+      }),
       apiGet('/tot-hs/por-empleado', params),
     ]);
     ths.resumen = resumen;
@@ -1397,7 +1435,7 @@ async function loadThsDashboard() {
     ths.porSector = porSector;
     ths.porEmpleado = porEmpleado;
 
-    if (!(resumen.registros > 0) && !ths.selectedPeriodo && !params.cliente) {
+    if (!(resumen.registros > 0) && !ths.selectedPeriodo && !params.cliente && !params.desde && !params.hasta) {
       empty.classList.remove('hidden');
       document.getElementById('ths-btn-export').disabled = true;
       return;
@@ -1422,19 +1460,35 @@ async function initTotHs() {
     ths.periodos = meta.periodos || [];
     ths.clientes = meta.clientes || [];
     ths.tipos = meta.tipos_servicio || [];
+    ths.fechaMin = meta.fecha_min || null;
+    ths.fechaMax = meta.fecha_max || null;
     if (ths.selectedPeriodo && !ths.periodos.some(p => p.key === ths.selectedPeriodo)) {
       ths.selectedPeriodo = null;
     }
+    const dEl = document.getElementById('ths-f-desde');
+    const hEl = document.getElementById('ths-f-hasta');
+    if (dEl && !dEl.value) dEl.value = ths.fechaMin || '';
+    if (hEl && !hEl.value) hEl.value = ths.fechaMax || '';
+    syncThsPeriodFromDates();
     renderThsPeriods();
     renderThsFilters();
-    const rango = (meta.fecha_min && meta.fecha_max)
-      ? `${fmtFecha(meta.fecha_min)} → ${fmtFecha(meta.fecha_max)} · ${fmtNum(meta.total_registros, 0)} filas · ${fmtNum(meta.personas, 0)} personas`
-      : 'Sin datos cargados';
-    document.getElementById('ths-range-text').textContent = rango;
   } catch (_) { /* meta vacío ok */ }
   await loadThsDashboard();
 }
 
+function onThsDateChange() {
+  const desde = document.getElementById('ths-f-desde')?.value;
+  const hasta = document.getElementById('ths-f-hasta')?.value;
+  if (desde && hasta && desde > hasta) {
+    document.getElementById('ths-f-hasta').value = desde;
+  }
+  syncThsPeriodFromDates();
+  renderThsPeriods();
+  loadThsDashboard();
+}
+
+document.getElementById('ths-f-desde').onchange = onThsDateChange;
+document.getElementById('ths-f-hasta').onchange = onThsDateChange;
 document.getElementById('ths-f-cliente').onchange = () => {
   ths.clienteSeleccionado = document.getElementById('ths-f-cliente').value || null;
   document.getElementById('ths-chart-clear').classList.toggle('hidden', !ths.clienteSeleccionado);
