@@ -1382,7 +1382,13 @@ function renderThsKpis() {
 
 const THS_KPI_DEFS = {
   total_horas: { title: 'Total horas', field: 'total_horas', hours: true, col: 'Total Hs' },
-  hs_extras: { title: 'Hs. extras', field: 'hs_extras', hours: true, col: 'Hs extras' },
+  hs_extras: {
+    title: 'Hs. extras',
+    hours: true,
+    col: 'Hs extras',
+    getValue: r =>
+      (Number(r.hs50) || 0) + (Number(r.hs100) || 0) + (Number(r.hs_noc) || 0) + (Number(r.hs_noc50) || 0),
+  },
   personas: { title: 'Personas', field: null, hours: false, col: null, listAll: true },
   filas: { title: 'Filas', field: 'filas', hours: false, col: 'Filas', listAll: true },
   d_normales: { title: 'Días normales', field: 'd_normales', hours: false, col: 'D.Normales' },
@@ -1394,7 +1400,7 @@ const THS_KPI_DEFS = {
     title: 'Hs nocturnas',
     hours: true,
     col: 'Hs noc.',
-    valueOf: r => (Number(r.hs_noc) || 0) + (Number(r.hs_noc50) || 0),
+    getValue: r => (Number(r.hs_noc) || 0) + (Number(r.hs_noc50) || 0),
   },
   ausente: { title: 'Ausentes', field: 'ausente', hours: false, col: 'Ausente' },
   vacaciones: { title: 'Vacaciones', field: 'vacaciones', hours: false, col: 'Vacaciones' },
@@ -1410,7 +1416,7 @@ const THS_KPI_DEFS = {
 };
 
 function thsKpiValue(row, def) {
-  if (def.valueOf) return Number(def.valueOf(row)) || 0;
+  if (typeof def.getValue === 'function') return Number(def.getValue(row)) || 0;
   if (def.field === 'filas') return Number(row.filas || row.dias) || 0;
   if (!def.field) return 1;
   return Number(row[def.field]) || 0;
