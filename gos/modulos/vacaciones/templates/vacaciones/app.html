@@ -129,6 +129,18 @@
   </div>
 </div>
 
+<div id="ths-kpi-modal" class="vac-modal hidden" role="dialog" aria-modal="true" aria-labelledby="ths-kpi-modal-title">
+  <div class="vac-modal-backdrop" data-close-modal></div>
+  <div class="vac-modal-panel vac-modal-panel--wide">
+    <div class="vac-modal-header">
+      <h2 id="ths-kpi-modal-title">Detalle KPI</h2>
+      <button type="button" class="btn-outline btn" id="ths-kpi-modal-close" style="padding:4px 10px;font-size:.8rem;" aria-label="Cerrar">✕</button>
+    </div>
+    <p class="kpi-detail-meta" id="ths-kpi-modal-meta"></p>
+    <div id="ths-kpi-modal-body" class="vac-modal-body"></div>
+  </div>
+</div>
+
 <div id="view-tot-hs" class="app {% if initial_view != 'tot_hs' %}hidden{% endif %}">
   <div class="header-row">
     <div>
@@ -171,22 +183,22 @@
 
   <div id="ths-content" class="hidden">
     <div class="kpis ths-kpis">
-      <div class="card kpi blue ths-kpi-static">
+      <button type="button" class="card kpi blue clickable" data-ths-kpi="total_horas" title="Ver detalle por empleado">
         <div class="kpi-label">Total horas</div>
         <div class="kpi-value" id="ths-kpi-horas">0</div>
-      </div>
-      <div class="card kpi warn ths-kpi-static">
+      </button>
+      <button type="button" class="card kpi warn clickable" data-ths-kpi="hs_extras" title="Ver detalle por empleado">
         <div class="kpi-label">Hs. extras</div>
         <div class="kpi-value" id="ths-kpi-extras">0</div>
-      </div>
-      <div class="card kpi info ths-kpi-static">
+      </button>
+      <button type="button" class="card kpi info clickable" data-ths-kpi="personas" title="Ver detalle por empleado">
         <div class="kpi-label">Personas</div>
         <div class="kpi-value" id="ths-kpi-personas">0</div>
-      </div>
-      <div class="card kpi ths-kpi-static" style="border-left-color:#6b7280;">
+      </button>
+      <button type="button" class="card kpi clickable" data-ths-kpi="filas" title="Ver detalle por empleado" style="border-left-color:#6b7280;">
         <div class="kpi-label">Filas</div>
         <div class="kpi-value" id="ths-kpi-regs" style="color:#6b7280;">0</div>
-      </div>
+      </button>
     </div>
 
     <div class="ths-novedades" id="ths-novedades"></div>
@@ -624,6 +636,15 @@ function closePersonaModal() {
   document.getElementById('persona-modal').classList.add('hidden');
 }
 
+function closeThsKpiModal() {
+  document.getElementById('ths-kpi-modal')?.classList.add('hidden');
+}
+
+function closeVacModals() {
+  closePersonaModal();
+  closeThsKpiModal();
+}
+
 function renderNotasPanel() {
   const card = document.getElementById('notas-card');
   const body = document.getElementById('notas-body');
@@ -944,12 +965,9 @@ async function initVacaciones() {
     document.getElementById('f-estado').value = '';
     renderTable();
   };
-  document.getElementById('persona-modal-close').onclick = closePersonaModal;
-  document.querySelectorAll('[data-close-modal]').forEach(el => {
-    el.onclick = closePersonaModal;
-  });
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') closePersonaModal();
+  document.getElementById('persona-modal-close').onclick = closeVacModals;
+  document.querySelectorAll('#persona-modal [data-close-modal]').forEach(el => {
+    el.onclick = closeVacModals;
   });
   await loadVacaciones();
 }
@@ -1288,33 +1306,153 @@ function renderThsKpis() {
   document.getElementById('ths-kpi-regs').textContent = fmtNum(r.registros, 0);
 
   const items = [
-    { label: 'Días normales', value: r.d_normales },
-    { label: 'Hs + viaje', value: r.total_hs_viaje, hours: true },
-    { label: 'Hs viaje', value: r.hs_viaje, hours: true },
-    { label: 'Hs 50%', value: r.hs50, hours: true },
-    { label: 'Hs 100%', value: r.hs100, hours: true },
-    { label: 'Hs noc.', value: (r.hs_noc || 0) + (r.hs_noc50 || 0), hours: true },
-    { label: 'Ausentes', value: r.ausente },
-    { label: 'Vacaciones', value: r.vacaciones },
-    { label: 'Enfermedad', value: r.enfermedad },
-    { label: 'Licencias', value: r.licencia },
-    { label: 'Feriados', value: r.feriados },
-    { label: 'Traslados', value: r.traslado },
-    { label: 'Accidentes', value: r.accidente },
-    { label: 'Francos trab.', value: r.fr_trabajados },
-    { label: 'Francos comp.', value: r.francos_comp },
-    { label: 'Viandas', value: r.viandas },
-    { label: 'Desayunos', value: r.v_desayuno },
+    { key: 'd_normales', label: 'Días normales', value: r.d_normales },
+    { key: 'total_hs_viaje', label: 'Hs + viaje', value: r.total_hs_viaje, hours: true },
+    { key: 'hs_viaje', label: 'Hs viaje', value: r.hs_viaje, hours: true },
+    { key: 'hs50', label: 'Hs 50%', value: r.hs50, hours: true },
+    { key: 'hs100', label: 'Hs 100%', value: r.hs100, hours: true },
+    { key: 'hs_noc', label: 'Hs noc.', value: (r.hs_noc || 0) + (r.hs_noc50 || 0), hours: true },
+    { key: 'ausente', label: 'Ausentes', value: r.ausente },
+    { key: 'vacaciones', label: 'Vacaciones', value: r.vacaciones },
+    { key: 'enfermedad', label: 'Enfermedad', value: r.enfermedad },
+    { key: 'licencia', label: 'Licencias', value: r.licencia },
+    { key: 'feriados', label: 'Feriados', value: r.feriados },
+    { key: 'traslado', label: 'Traslados', value: r.traslado },
+    { key: 'accidente', label: 'Accidentes', value: r.accidente },
+    { key: 'fr_trabajados', label: 'Francos trab.', value: r.fr_trabajados },
+    { key: 'francos_comp', label: 'Francos comp.', value: r.francos_comp },
+    { key: 'viandas', label: 'Viandas', value: r.viandas },
+    { key: 'v_desayuno', label: 'Desayunos', value: r.v_desayuno },
   ];
 
   document.getElementById('ths-novedades').innerHTML = items.map(i => {
     const zero = !(Number(i.value) > 0);
     return `
-    <div class="ths-chip${zero ? ' ths-chip-zero' : ''}">
+    <button type="button" class="ths-chip clickable${zero ? ' ths-chip-zero' : ''}" data-ths-kpi="${i.key}" title="Ver detalle por empleado">
       <span class="ths-chip-val">${fmtNum(i.value, i.hours ? 1 : 0)}</span>
       <span class="ths-chip-lbl">${i.label}</span>
-    </div>`;
+    </button>`;
   }).join('');
+
+  document.querySelectorAll('#ths-novedades [data-ths-kpi]').forEach(el => {
+    el.onclick = () => openThsKpiDetail(el.dataset.thsKpi);
+  });
+}
+
+const THS_KPI_DEFS = {
+  total_horas: { title: 'Total horas', field: 'total_horas', hours: true, col: 'Total Hs' },
+  hs_extras: { title: 'Hs. extras', field: 'hs_extras', hours: true, col: 'Hs extras' },
+  personas: { title: 'Personas', field: null, hours: false, col: null, listAll: true },
+  filas: { title: 'Filas', field: 'filas', hours: false, col: 'Filas', listAll: true },
+  d_normales: { title: 'Días normales', field: 'd_normales', hours: false, col: 'D.Normales' },
+  total_hs_viaje: { title: 'Hs + viaje', field: 'total_hs_viaje', hours: true, col: 'TotalHs+HsViaje' },
+  hs_viaje: { title: 'Hs viaje', field: 'hs_viaje', hours: true, col: 'Hs viaje' },
+  hs50: { title: 'Hs 50%', field: 'hs50', hours: true, col: 'Hs 50%' },
+  hs100: { title: 'Hs 100%', field: 'hs100', hours: true, col: 'Hs 100%' },
+  hs_noc: {
+    title: 'Hs nocturnas',
+    hours: true,
+    col: 'Hs noc.',
+    valueOf: r => (Number(r.hs_noc) || 0) + (Number(r.hs_noc50) || 0),
+  },
+  ausente: { title: 'Ausentes', field: 'ausente', hours: false, col: 'Ausente' },
+  vacaciones: { title: 'Vacaciones', field: 'vacaciones', hours: false, col: 'Vacaciones' },
+  enfermedad: { title: 'Enfermedad', field: 'enfermedad', hours: false, col: 'Enfermo' },
+  licencia: { title: 'Licencias', field: 'licencia', hours: false, col: 'Licencia' },
+  feriados: { title: 'Feriados', field: 'feriados', hours: false, col: 'Feriado' },
+  traslado: { title: 'Traslados', field: 'traslado', hours: false, col: 'Traslado' },
+  accidente: { title: 'Accidentes', field: 'accidente', hours: false, col: 'Accidente' },
+  fr_trabajados: { title: 'Francos trabajados', field: 'fr_trabajados', hours: false, col: 'Fr.Trabajados' },
+  francos_comp: { title: 'Francos compensatorios', field: 'francos_comp', hours: false, col: 'Fr.Compens' },
+  viandas: { title: 'Viandas', field: 'viandas', hours: false, col: 'Viandas' },
+  v_desayuno: { title: 'Desayunos', field: 'v_desayuno', hours: false, col: 'Desayunos' },
+};
+
+function thsKpiValue(row, def) {
+  if (def.valueOf) return Number(def.valueOf(row)) || 0;
+  if (def.field === 'filas') return Number(row.filas || row.dias) || 0;
+  if (!def.field) return 1;
+  return Number(row[def.field]) || 0;
+}
+
+function thsKpiDetailTable(headers, rows) {
+  if (!rows.length) {
+    return '<p class="kpi-detail-empty">No hay registros para este indicador con el filtro actual.</p>';
+  }
+  return `<div class="table-wrap" style="border:none;max-height:55vh;overflow:auto;">
+    <table class="kpi-detail-table">
+      <thead><tr>${headers.map(h => `<th>${escHtml(h)}</th>`).join('')}</tr></thead>
+      <tbody>${rows.map(cols =>
+        `<tr>${cols.map(c => `<td>${c}</td>`).join('')}</tr>`
+      ).join('')}</tbody>
+    </table>
+  </div>`;
+}
+
+function openThsKpiDetail(key) {
+  const def = THS_KPI_DEFS[key];
+  if (!def) return;
+  const rowsSrc = ths.porEmpleado || [];
+  const withVal = rowsSrc
+    .map(r => ({ row: r, val: thsKpiValue(r, def) }))
+    .filter(x => def.listAll ? true : x.val > 0)
+    .sort((a, b) => b.val - a.val);
+
+  const total = withVal.reduce((s, x) => s + x.val, 0);
+  const filtro = ths.clienteSeleccionado ? ` · cliente ${ths.clienteSeleccionado}` : '';
+  const digitos = def.hours ? 1 : 0;
+
+  let headers;
+  let tableRows;
+  if (key === 'personas') {
+    headers = ['Empleado', 'Filas', 'Total Hs', 'Hs extras'];
+    tableRows = withVal.map(({ row: r }) => [
+      `<strong>${escHtml(r.empleado)}</strong>`,
+      fmtNum(r.filas || r.dias, 0),
+      fmtNum(r.total_horas, 1),
+      fmtNum(r.hs_extras, 1),
+    ]);
+  } else if (key === 'filas') {
+    headers = ['Empleado', 'Filas', 'Total Hs'];
+    tableRows = withVal.map(({ row: r, val }) => [
+      `<strong>${escHtml(r.empleado)}</strong>`,
+      fmtNum(val, 0),
+      fmtNum(r.total_horas, 1),
+    ]);
+  } else if (key === 'hs_extras') {
+    headers = ['Empleado', 'Hs extras', 'Hs 50%', 'Hs 100%', 'Hs noct', 'Hs noct50'];
+    tableRows = withVal.map(({ row: r, val }) => [
+      `<strong>${escHtml(r.empleado)}</strong>`,
+      fmtNum(val, 1),
+      fmtNum(r.hs50, 1),
+      fmtNum(r.hs100, 1),
+      fmtNum(r.hs_noc, 1),
+      fmtNum(r.hs_noc50, 1),
+    ]);
+  } else if (key === 'hs_noc') {
+    headers = ['Empleado', 'Hs noc.', 'Hs noct', 'Hs noct50'];
+    tableRows = withVal.map(({ row: r, val }) => [
+      `<strong>${escHtml(r.empleado)}</strong>`,
+      fmtNum(val, 1),
+      fmtNum(r.hs_noc, 1),
+      fmtNum(r.hs_noc50, 1),
+    ]);
+  } else {
+    headers = ['Empleado', def.col || 'Valor', 'Filas', 'Total Hs'];
+    tableRows = withVal.map(({ row: r, val }) => [
+      `<strong>${escHtml(r.empleado)}</strong>`,
+      fmtNum(val, digitos),
+      fmtNum(r.filas || r.dias, 0),
+      fmtNum(r.total_horas, 1),
+    ]);
+  }
+
+  document.getElementById('ths-kpi-modal-title').textContent = def.title;
+  document.getElementById('ths-kpi-modal-meta').textContent = key === 'personas'
+    ? `${withVal.length} persona${withVal.length === 1 ? '' : 's'}${filtro}`
+    : `${fmtNum(total, digitos)} total · ${withVal.length} persona${withVal.length === 1 ? '' : 's'}${filtro}`;
+  document.getElementById('ths-kpi-modal-body').innerHTML = thsKpiDetailTable(headers, tableRows);
+  document.getElementById('ths-kpi-modal').classList.remove('hidden');
 }
 
 function renderThsCharts() {
@@ -1489,6 +1627,13 @@ function onThsDateChange() {
 
 document.getElementById('ths-f-desde').onchange = onThsDateChange;
 document.getElementById('ths-f-hasta').onchange = onThsDateChange;
+document.getElementById('ths-kpi-modal-close').onclick = closeThsKpiModal;
+document.querySelectorAll('#ths-kpi-modal [data-close-modal]').forEach(el => {
+  el.onclick = closeThsKpiModal;
+});
+document.querySelectorAll('.ths-kpis [data-ths-kpi]').forEach(el => {
+  el.onclick = () => openThsKpiDetail(el.dataset.thsKpi);
+});
 document.getElementById('ths-f-cliente').onchange = () => {
   ths.clienteSeleccionado = document.getElementById('ths-f-cliente').value || null;
   document.getElementById('ths-chart-clear').classList.toggle('hidden', !ths.clienteSeleccionado);
@@ -1542,6 +1687,9 @@ document.querySelector('#ths-export-drop [data-ths-export="excel"]').onclick = (
 };
 
 // ── Init ──
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeVacModals();
+});
 const initialView = '{{ initial_view }}';
 if (initialView === 'vacaciones') initVacaciones();
 if (initialView === 'tot_hs') initTotHs();

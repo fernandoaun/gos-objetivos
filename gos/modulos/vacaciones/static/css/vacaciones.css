@@ -310,6 +310,10 @@ h1 {
   padding: 20px;
 }
 
+.vac-modal-panel--wide {
+  width: min(780px, 100%);
+}
+
 .vac-modal-header {
   display: flex;
   justify-content: space-between;
@@ -854,13 +858,10 @@ tr:hover td {
   color: var(--muted);
 }
 
-.ths-kpis .ths-kpi-static {
-  cursor: default;
-}
-
-.ths-kpis .ths-kpi-static:hover {
-  transform: none;
-  box-shadow: var(--pe-shadow);
+.ths-kpis .kpi.clickable {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .ths-novedades {
@@ -877,6 +878,25 @@ tr:hover td {
   padding: 10px 14px;
   min-width: 110px;
   box-shadow: var(--pe-shadow);
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.ths-chip.clickable {
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
+}
+
+.ths-chip.clickable:hover {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+.ths-chip.clickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .ths-chip-val {
@@ -902,6 +922,53 @@ tr:hover td {
 
 .ths-chip-zero .ths-chip-val {
   color: var(--muted);
+}
+
+.kpi-detail-meta {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.kpi-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.kpi-detail-table th,
+.kpi-detail-table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.kpi-detail-table th {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 600;
+  background: var(--pe-bg, transparent);
+  position: sticky;
+  top: 0;
+}
+
+.kpi-detail-table td:not(:first-child),
+.kpi-detail-table th:not(:first-child) {
+  text-align: right;
+}
+
+.kpi-detail-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.kpi-detail-empty {
+  margin: 0;
+  padding: 18px 4px;
+  color: var(--muted);
+  text-align: center;
 }
 
 .ths-charts {
