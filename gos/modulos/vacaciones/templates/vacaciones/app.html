@@ -217,13 +217,22 @@
               <th class="num">Total Hs</th>
               <th class="num">Hs viaje</th>
               <th class="num">Hs 50%</th>
+              <th class="num">Hs noct</th>
+              <th class="num">Hs noct50</th>
               <th class="num">Hs 100%</th>
-              <th class="num">Hs noc</th>
-              <th class="num">Extras</th>
+              <th class="num">Viandas</th>
+              <th class="num">Desayunos</th>
+              <th class="num">D.Normales</th>
               <th class="num">Ausente</th>
-              <th class="num">Vac.</th>
-              <th class="num">Enf.</th>
-              <th class="num">Lic.</th>
+              <th class="num">Fr.Trabajados</th>
+              <th class="num">Feriado</th>
+              <th class="num">Enfermo</th>
+              <th class="num">Traslado</th>
+              <th class="num">Vacaciones</th>
+              <th class="num">Licencia</th>
+              <th class="num">Accidente</th>
+              <th class="num">Fr.Compens</th>
+              <th class="num">TotalHs+HsViaje</th>
             </tr>
           </thead>
           <tbody id="ths-table-body"></tbody>
@@ -1259,16 +1268,20 @@ function renderThsKpis() {
     { label: 'Feriados', value: r.feriados },
     { label: 'Traslados', value: r.traslado },
     { label: 'Accidentes', value: r.accidente },
+    { label: 'Francos trab.', value: r.fr_trabajados },
     { label: 'Francos comp.', value: r.francos_comp },
     { label: 'Viandas', value: r.viandas },
     { label: 'Desayunos', value: r.v_desayuno },
-  ].filter(i => Number(i.value) > 0);
+  ];
 
-  document.getElementById('ths-novedades').innerHTML = items.map(i => `
-    <div class="ths-chip">
+  document.getElementById('ths-novedades').innerHTML = items.map(i => {
+    const zero = !(Number(i.value) > 0);
+    return `
+    <div class="ths-chip${zero ? ' ths-chip-zero' : ''}">
       <span class="ths-chip-val">${fmtNum(i.value, i.hours ? 1 : 0)}</span>
       <span class="ths-chip-lbl">${i.label}</span>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function renderThsCharts() {
