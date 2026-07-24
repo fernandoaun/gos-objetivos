@@ -141,6 +141,18 @@
   </div>
 </div>
 
+<div id="ths-cliente-modal" class="vac-modal hidden" role="dialog" aria-modal="true" aria-labelledby="ths-cliente-modal-title">
+  <div class="vac-modal-backdrop" data-close-modal></div>
+  <div class="vac-modal-panel vac-modal-panel--xl">
+    <div class="vac-modal-header">
+      <h2 id="ths-cliente-modal-title">Cliente</h2>
+      <button type="button" class="btn-outline btn" id="ths-cliente-modal-close" style="padding:4px 10px;font-size:.8rem;" aria-label="Cerrar">✕</button>
+    </div>
+    <p class="kpi-detail-meta" id="ths-cliente-modal-meta"></p>
+    <div id="ths-cliente-modal-body" class="vac-modal-body"></div>
+  </div>
+</div>
+
 <div id="view-tot-hs" class="app {% if initial_view != 'tot_hs' %}hidden{% endif %}">
   <div class="header-row">
     <div>
@@ -210,7 +222,10 @@
       </div>
       <div class="card">
         <div class="header-row" style="margin-bottom:0;">
-          <h2 style="font-size:1rem;">Horas por cliente</h2>
+          <div>
+            <h2 style="font-size:1rem;">Horas por cliente</h2>
+            <p class="subtitle">Clic en una barra para ver detalle y gráficos</p>
+          </div>
           <button type="button" class="btn-outline btn hidden" id="ths-chart-clear" style="padding:4px 10px;font-size:.75rem;">✕ Quitar filtro</button>
         </div>
         <div class="chart-box"><canvas id="ths-chart-sector"></canvas></div>
@@ -640,9 +655,26 @@ function closeThsKpiModal() {
   document.getElementById('ths-kpi-modal')?.classList.add('hidden');
 }
 
+function destroyThsClienteCharts() {
+  if (ths.chartClienteComp) {
+    ths.chartClienteComp.destroy();
+    ths.chartClienteComp = null;
+  }
+  if (ths.chartClienteEmp) {
+    ths.chartClienteEmp.destroy();
+    ths.chartClienteEmp = null;
+  }
+}
+
+function closeThsClienteModal() {
+  destroyThsClienteCharts();
+  document.getElementById('ths-cliente-modal')?.classList.add('hidden');
+}
+
 function closeVacModals() {
   closePersonaModal();
   closeThsKpiModal();
+  closeThsClienteModal();
 }
 
 function renderNotasPanel() {
@@ -1207,6 +1239,7 @@ const ths = {
   resumen: null, porMes: [], porSector: [], porEmpleado: [],
   clienteSeleccionado: null,
   chartMes: null, chartSector: null,
+  chartClienteComp: null, chartClienteEmp: null,
 };
 
 function fmtNum(n, digitos = 1) {
@@ -1502,6 +1535,154 @@ function openThsKpiDetail(key) {
   document.getElementById('ths-kpi-modal').classList.remove('hidden');
 }
 
+function thsParamsForCliente(cliente) {
+  const p = thsParams();
+  p.cliente = cliente;
+  return p;
+}
+
+function renderThsClienteCharts(resumen, empleados) {
+  destroyThsClienteCharts();
+  const r = resumen || {};
+  const compLabels = ['Hs 50%', 'Hs 100%', 'Hs noct', 'Hs noct50'];
+  const compData = [
+    Number(r.hs50) || 0,
+    Number(r.hs100) || 0,
+    Number(r.hs_noc) || 0,
+    Number(r.hs_noc50) || 0,
+  ];
+  const compColors = [
+    'rgba(200, 140, 30, 0.8)',
+    'rgba(180, 70, 50, 0.8)',
+    'rgba(47, 111, 143, 0.8)',
+    'rgba(90, 140, 40, 0.8)',
+  ];
+
+  ths.chartClienteComp = new Chart(document.getElementById('ths-cliente-chart-comp'), {
+    type: 'doughnut',
+    data: {
+      labels: compLabels,
+      datasets: [{ data: compData, backgroundColor: compColors, borderWidth: 0 }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+      },
+    },
+  });
+
+  const top = (empleados || []).slice(0, 12);
+  ths.chartClienteEmp = new Chart(document.getElementById('ths-cliente-chart-emp'), {
+    type: 'bar',
+    data: {
+      labels: top.map(e => shortName(e.empleado)),
+      datasets: [
+        {
+          label: 'Total horas',
+          data: top.map(e => Number(e.total_horas) || 0),
+          backgroundColor: 'rgba(47, 111, 143, 0.7)',
+          borderRadius: 4,
+        },
+        {
+          label: 'Hs extras',
+          data: top.map(e =>
+            (Number(e.hs50) || 0) + (Number(e.hs100) || 0) + (Number(e.hs_noc) || 0) + (Number(e.hs_noc50) || 0)
+          ),
+          backgroundColor: 'rgba(200, 140, 30, 0.7)',
+          borderRadius: 4,
+        },
+      ],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
+      scales: { x: { beginAtZero: true } },
+    },
+  });
+}
+
+async function openThsClienteDetail(cliente) {
+  if (!cliente) return;
+  const modal = document.getElementById('ths-cliente-modal');
+  const body = document.getElementById('ths-cliente-modal-body');
+  document.getElementById('ths-cliente-modal-title').textContent = cliente;
+  document.getElementById('ths-cliente-modal-meta').textContent = 'Cargando detalle…';
+  body.innerHTML = '<p class="kpi-detail-empty">Cargando…</p>';
+  destroyThsClienteCharts();
+  modal.classList.remove('hidden');
+
+  try {
+    const params = thsParamsForCliente(cliente);
+    const [resumen, empleados] = await Promise.all([
+      apiGet('/tot-hs/resumen', params),
+      apiGet('/tot-hs/por-empleado', params),
+    ]);
+    const r = resumen || {};
+    const rows = Array.isArray(empleados) ? empleados : [];
+    document.getElementById('ths-cliente-modal-meta').textContent =
+      `${fmtNum(r.total_horas, 1)} hs · ${fmtNum(r.hs_extras, 1)} extras · ${fmtNum(r.personas, 0)} personas · ${fmtNum(r.registros, 0)} filas`;
+
+    const topRows = rows.slice(0, 25);
+    const tableHtml = thsKpiDetailTable(
+      ['Empleado', 'Filas', 'Total Hs', 'Hs extras', 'Hs viaje', 'Ausente', 'Vacaciones'],
+      topRows.map(e => {
+        const extras =
+          (Number(e.hs50) || 0) + (Number(e.hs100) || 0) + (Number(e.hs_noc) || 0) + (Number(e.hs_noc50) || 0);
+        return [
+          `<strong>${escHtml(e.empleado)}</strong>`,
+          fmtNum(e.filas || e.dias, 0),
+          fmtNum(e.total_horas, 1),
+          fmtNum(extras, 1),
+          fmtNum(e.hs_viaje, 1),
+          fmtNum(e.ausente, 0),
+          fmtNum(e.vacaciones, 0),
+        ];
+      })
+    );
+
+    body.innerHTML = `
+      <div class="ths-cliente-actions">
+        <button type="button" class="btn-outline btn" id="ths-cliente-filtrar" style="padding:4px 10px;font-size:.75rem;">Filtrar dashboard</button>
+      </div>
+      <div class="ths-cliente-kpis">
+        <div class="ths-cliente-kpi"><div class="ths-cliente-kpi-val">${fmtNum(r.total_horas, 1)}</div><div class="ths-cliente-kpi-lbl">Total horas</div></div>
+        <div class="ths-cliente-kpi"><div class="ths-cliente-kpi-val">${fmtNum(r.hs_extras, 1)}</div><div class="ths-cliente-kpi-lbl">Hs extras</div></div>
+        <div class="ths-cliente-kpi"><div class="ths-cliente-kpi-val">${fmtNum(r.personas, 0)}</div><div class="ths-cliente-kpi-lbl">Personas</div></div>
+        <div class="ths-cliente-kpi"><div class="ths-cliente-kpi-val">${fmtNum(r.horas_por_persona || (r.personas ? r.total_horas / r.personas : 0), 1)}</div><div class="ths-cliente-kpi-lbl">Hs / persona</div></div>
+      </div>
+      <div class="ths-cliente-charts">
+        <div class="ths-cliente-chart-card">
+          <h3>Composición de horas extras</h3>
+          <div class="ths-cliente-chart-box"><canvas id="ths-cliente-chart-comp"></canvas></div>
+        </div>
+        <div class="ths-cliente-chart-card">
+          <h3>Top personas</h3>
+          <div class="ths-cliente-chart-box"><canvas id="ths-cliente-chart-emp"></canvas></div>
+        </div>
+      </div>
+      <h3 style="font-size:.9rem;margin:0 0 8px;color:var(--gos-green-dark);">Detalle por empleado${rows.length > 25 ? ` (top 25 de ${rows.length})` : ''}</h3>
+      ${tableHtml}
+    `;
+
+    document.getElementById('ths-cliente-filtrar').onclick = () => {
+      ths.clienteSeleccionado = cliente;
+      document.getElementById('ths-f-cliente').value = cliente;
+      document.getElementById('ths-chart-clear').classList.remove('hidden');
+      closeThsClienteModal();
+      loadThsDashboard();
+    };
+
+    renderThsClienteCharts(r, rows);
+  } catch (err) {
+    document.getElementById('ths-cliente-modal-meta').textContent = '';
+    body.innerHTML = `<p class="kpi-detail-empty">${escHtml(err.message || 'No se pudo cargar el detalle')}</p>`;
+  }
+}
+
 function renderThsCharts() {
   const mesLabels = ths.porMes.map(r => r.periodo);
   const mesHoras = ths.porMes.map(r => r.total_horas);
@@ -1549,10 +1730,10 @@ function renderThsCharts() {
       onClick: (_e, els) => {
         if (!els.length) return;
         const cliente = secLabels[els[0].index];
-        ths.clienteSeleccionado = ths.clienteSeleccionado === cliente ? null : cliente;
-        document.getElementById('ths-f-cliente').value = ths.clienteSeleccionado || '';
-        document.getElementById('ths-chart-clear').classList.toggle('hidden', !ths.clienteSeleccionado);
-        loadThsDashboard();
+        if (cliente) openThsClienteDetail(cliente);
+      },
+      onHover: (event, els) => {
+        event.native.target.style.cursor = els.length ? 'pointer' : 'default';
       },
       scales: { x: { beginAtZero: true } },
     },
@@ -1681,6 +1862,10 @@ function onThsDateChange() {
 document.getElementById('ths-kpi-modal-close').onclick = closeThsKpiModal;
 document.querySelectorAll('#ths-kpi-modal [data-close-modal]').forEach(el => {
   el.onclick = closeThsKpiModal;
+});
+document.getElementById('ths-cliente-modal-close').onclick = closeThsClienteModal;
+document.querySelectorAll('#ths-cliente-modal [data-close-modal]').forEach(el => {
+  el.onclick = closeThsClienteModal;
 });
 document.querySelectorAll('.ths-kpis [data-ths-kpi]').forEach(el => {
   el.onclick = () => openThsKpiDetail(el.dataset.thsKpi);

@@ -314,6 +314,11 @@ h1 {
   width: min(780px, 100%);
 }
 
+.vac-modal-panel--xl {
+  width: min(980px, 100%);
+  max-height: min(90vh, 860px);
+}
+
 .vac-modal-header {
   display: flex;
   justify-content: space-between;
@@ -969,6 +974,76 @@ tr:hover td {
   padding: 18px 4px;
   color: var(--muted);
   text-align: center;
+}
+
+.ths-cliente-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.ths-cliente-kpi {
+  background: var(--pe-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--gos-radius-md);
+  padding: 10px 12px;
+}
+
+.ths-cliente-kpi-val {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--gos-green-dark);
+  line-height: 1.2;
+}
+
+.ths-cliente-kpi-lbl {
+  margin-top: 2px;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.ths-cliente-charts {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.ths-cliente-chart-card {
+  background: var(--pe-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--gos-radius-md);
+  padding: 12px;
+}
+
+.ths-cliente-chart-card h3 {
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+  color: var(--gos-green-dark);
+}
+
+.ths-cliente-chart-box {
+  position: relative;
+  height: 220px;
+}
+
+.ths-cliente-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 720px) {
+  .ths-cliente-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ths-cliente-charts {
+    grid-template-columns: 1fr;
+  }
 }
 
 .ths-charts {
