@@ -1255,6 +1255,34 @@ function setThsDateInputs(desde, hasta) {
   if (h) h.value = hasta ? String(hasta).slice(0, 10) : '';
 }
 
+function thsOverlappingPeriods(desde, hasta) {
+  if (!desde || !hasta) return [];
+  return (ths.periodos || []).filter(p => p.desde <= hasta && p.hasta >= desde);
+}
+
+/** Ajusta el rango a los períodos cargados que tocan la selección (Tot Hs. es por período entero). */
+function snapThsDatesToPeriods() {
+  const { desde, hasta } = thsDateValues();
+  if (!desde || !hasta || !ths.periodos.length) {
+    ths.selectedPeriodo = null;
+    return;
+  }
+  const hit = thsOverlappingPeriods(desde, hasta);
+  if (!hit.length) {
+    ths.selectedPeriodo = null;
+    return;
+  }
+  if (hit.length === 1) {
+    setThsDateInputs(hit[0].desde, hit[0].hasta);
+    ths.selectedPeriodo = hit[0].key;
+    return;
+  }
+  const d = [...hit].map(p => p.desde).sort()[0];
+  const h = [...hit].map(p => p.hasta).sort().at(-1);
+  setThsDateInputs(d, h);
+  ths.selectedPeriodo = null;
+}
+
 function syncThsPeriodFromDates() {
   const { desde, hasta } = thsDateValues();
   if (!desde || !hasta) {
@@ -1627,24 +1655,22 @@ async function initTotHs() {
   await loadThsDashboard();
 }
 
-let _thsDateTimer = null;
 function onThsDateChange() {
-  const desde = document.getElementById('ths-f-desde')?.value;
-  const hasta = document.getElementById('ths-f-hasta')?.value;
+  const { desde, hasta } = thsDateValues();
   if (desde && hasta && desde > hasta) {
     document.getElementById('ths-f-hasta').value = desde;
   }
+  // Los Tot Hs. son por período completo: si el rango toca un período, usamos ese período.
+  snapThsDatesToPeriods();
   syncThsPeriodFromDates();
   renderThsPeriods();
-  clearTimeout(_thsDateTimer);
-  _thsDateTimer = setTimeout(() => loadThsDashboard(), 50);
+  loadThsDashboard();
 }
 
 ['ths-f-desde', 'ths-f-hasta'].forEach(id => {
   const el = document.getElementById(id);
   if (!el) return;
   el.addEventListener('change', onThsDateChange);
-  el.addEventListener('input', onThsDateChange);
 });
 document.getElementById('ths-kpi-modal-close').onclick = closeThsKpiModal;
 document.querySelectorAll('#ths-kpi-modal [data-close-modal]').forEach(el => {

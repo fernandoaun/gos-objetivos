@@ -220,12 +220,12 @@ def _tot_hs_filters(
     d_hasta = _parse_iso_date(hasta)
     key = _parse_period_key(periodo)
     if d_desde or d_hasta:
-        # Contención: solo períodos que caben enteros en [desde, hasta].
-        # Tot Hs. guarda totales por período; no se puede recortar un período a medias.
+        # Solapamiento: períodos que tocan [desde, hasta].
+        # Tot Hs. son totales del período completo (no se puede partir por día).
         if d_desde:
-            clauses.append(TotHs.periodo_desde >= d_desde)
+            clauses.append(TotHs.periodo_hasta >= d_desde)
         if d_hasta:
-            clauses.append(TotHs.periodo_hasta <= d_hasta)
+            clauses.append(TotHs.periodo_desde <= d_hasta)
     elif key:
         clauses.append(TotHs.periodo_desde == key[0])
         clauses.append(TotHs.periodo_hasta == key[1])
