@@ -17,7 +17,18 @@ def login():
         password = request.form.get("password", "")
         remember = request.form.get("remember") == "on"
 
-        user = Usuario.query.filter_by(email=email, activo=True).first()
+        try:
+            user = Usuario.query.filter_by(email=email, activo=True).first()
+        except Exception:
+            from gos.extensions import db
+
+            db.session.rollback()
+            flash(
+                "Error de base de datos al iniciar sesión. Revisá los logs de Render o /gos/objetivos/api/v1/health?db=1.",
+                "danger",
+            )
+            return render_template("auth/login.html")
+
         if user and user.check_password(password):
             login_user(user, remember=remember)
             next_url = request.args.get("next")

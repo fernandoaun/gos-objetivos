@@ -39,21 +39,24 @@ def create_app(config_name: str | None = None) -> Flask:
     with app.app_context():
         _ensure_schema()
 
-    if not app.config.get("TESTING"):
-        with app.app_context():
-            try:
-                _bootstrap_database()
-            except Exception:
-                app.logger.exception(
-                    "No se pudo inicializar la base al arrancar; el servicio sigue activo."
-                )
-
     @login_manager.user_loader
     def load_user(user_id):
         return db.session.get(Usuario, int(user_id))
 
     _register_core_blueprints(app)
     _register_modules(app)
+
+    # Bootstrap después de registrar módulos (necesita tablas de Objetivos, etc.).
+    if not app.config.get("TESTING"):
+        with app.app_context():
+            try:
+                _bootstrap_database()
+            except Exception:
+                db.session.rollback()
+                app.logger.exception(
+                    "No se pudo inicializar la base al arrancar; el servicio sigue activo."
+                )
+
     _register_module_access_guard(app)
     _register_auto_login(app)
 

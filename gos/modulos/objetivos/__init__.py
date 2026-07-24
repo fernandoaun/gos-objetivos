@@ -10,6 +10,10 @@ URL_PREFIX = "/gos/objetivos"
 def register(app: Flask, url_prefix: str = URL_PREFIX) -> None:
     _ensure_template_loader(app)
     _register_models()
+    with app.app_context():
+        from gos.modulos.objetivos.schema_upgrade import ensure_objetivos_schema
+
+        ensure_objetivos_schema()
     _register_blueprints(app, url_prefix)
     _register_context(app)
 

@@ -16,22 +16,32 @@ def _import_auth_ok() -> bool:
 
 @bp.route("/health")
 def health():
+    uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
+    backend = "postgresql" if uri.startswith("postgres") else "sqlite"
     payload = {
         "ok": True,
         "service": "gos-objetivos",
         "version": APP_VERSION,
         "features": ["foda-word", "foda-crud", "foda-pdf"],
+        "database_backend": backend,
     }
     if request.args.get("db") == "1":
-        from gos.modulos.objetivos.models import FodaItem, KpiIndicador, Objetivo
+        try:
+            from gos.modulos.objetivos.models import FodaItem, KpiIndicador, Objetivo
+            from gos.models import Usuario
 
-        uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
-        payload["db"] = {
-            "backend": "postgresql" if uri.startswith("postgres") else "sqlite",
-            "foda_items": FodaItem.query.count(),
-            "objetivos": Objetivo.query.count(),
-            "kpi_indicadores": KpiIndicador.query.count(),
-        }
+            payload["db"] = {
+                "backend": backend,
+                "usuarios": Usuario.query.count(),
+                "foda_items": FodaItem.query.count(),
+                "objetivos": Objetivo.query.count(),
+                "kpi_indicadores": KpiIndicador.query.count(),
+            }
+        except Exception as exc:
+            current_app.logger.exception("health db check failed")
+            payload["ok"] = False
+            payload["db_error"] = f"{type(exc).__name__}: {exc}"
+            return jsonify(payload), 500
     return jsonify(payload)
 
 
@@ -40,16 +50,25 @@ def import_status():
     from gos.modulos.objetivos.models import FodaItem, KpiIndicador, Objetivo
 
     uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
-    return jsonify({
-        "ok": True,
-        "import_secret_configured": bool(env.import_secret()),
-        "database_backend": "postgresql" if uri.startswith("postgres") else "sqlite",
-        "db": {
-            "foda_items": FodaItem.query.count(),
-            "objetivos": Objetivo.query.count(),
-            "kpi_indicadores": KpiIndicador.query.count(),
-        },
-    })
+    try:
+        return jsonify({
+            "ok": True,
+            "import_secret_configured": bool(env.import_secret()),
+            "database_backend": "postgresql" if uri.startswith("postgres") else "sqlite",
+            "db": {
+                "foda_items": FodaItem.query.count(),
+                "objetivos": Objetivo.query.count(),
+                "kpi_indicadores": KpiIndicador.query.count(),
+            },
+        })
+    except Exception as exc:
+        current_app.logger.exception("import-status failed")
+        return jsonify({
+            "ok": False,
+            "import_secret_configured": bool(env.import_secret()),
+            "database_backend": "postgresql" if uri.startswith("postgres") else "sqlite",
+            "error": f"{type(exc).__name__}: {exc}",
+        }), 500
 
 
 @bp.route("/admin/import-db", methods=["POST"])
