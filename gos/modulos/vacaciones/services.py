@@ -207,6 +207,32 @@ def _parse_period_key(periodo: Optional[str]) -> Optional[tuple[str, str]]:
     return None
 
 
+_MESES_ES = (
+    "",
+    "Enero",
+    "Febrero",
+    "Marzo",
+    "Abril",
+    "Mayo",
+    "Junio",
+    "Julio",
+    "Agosto",
+    "Septiembre",
+    "Octubre",
+    "Noviembre",
+    "Diciembre",
+)
+
+
+def _tot_hs_period_label(desde: date, hasta: date, *, with_year: bool = False) -> str:
+    """Etiqueta del período: mes contable = mes de hasta (ej. 21/01–20/02 → Febrero)."""
+    # Períodos mensuales típicos (~30 días, 21 al 20). Rangos largos conservan fechas.
+    if (hasta - desde).days <= 40:
+        name = _MESES_ES[hasta.month]
+        return f"{name} {hasta.year}" if with_year else name
+    return f"{desde.strftime('%d/%m/%Y')} al {hasta.strftime('%d/%m/%Y')}"
+
+
 def _tot_hs_periods_overlap(a_desde: date, a_hasta: date, b_desde: date, b_hasta: date) -> bool:
     """True si los rangos coinciden o se pisan en al menos un día."""
     return a_desde <= b_hasta and a_hasta >= b_desde
@@ -313,6 +339,7 @@ def get_tot_hs_meta(db: Session) -> dict:
     purge_overlapping_tot_hs_periods(db)
 
     active = _active_tot_hs_period_pairs(db)
+    with_year = len({h.year for _d, h in active}) > 1
     periodos = []
     for d, h in sorted(active, key=lambda p: (p[0], p[1]), reverse=True):
         periodos.append(
@@ -320,7 +347,7 @@ def get_tot_hs_meta(db: Session) -> dict:
                 "desde": d.isoformat(),
                 "hasta": h.isoformat(),
                 "key": f"{d.isoformat()}|{h.isoformat()}",
-                "label": f"{d.strftime('%d/%m/%Y')} al {h.strftime('%d/%m/%Y')}",
+                "label": _tot_hs_period_label(d, h, with_year=with_year),
             }
         )
 
@@ -470,6 +497,8 @@ def get_tot_hs_por_periodo(
         TotHs.periodo_desde, TotHs.periodo_hasta
     )
     rows = db.execute(q).all()
+    years = {h.year for d, h, *_rest in rows}
+    with_year = len(years) > 1
     result = []
     for d, h, total, hs50, hs100, hs_noc, hs_noc50, regs, personas in rows:
         extras = float(hs50 or 0) + float(hs100 or 0) + float(hs_noc or 0) + float(hs_noc50 or 0)
@@ -477,7 +506,7 @@ def get_tot_hs_por_periodo(
             {
                 "desde": d.isoformat(),
                 "hasta": h.isoformat(),
-                "periodo": f"{d.strftime('%d/%m/%y')}–{h.strftime('%d/%m/%y')}",
+                "periodo": _tot_hs_period_label(d, h, with_year=with_year),
                 "key": f"{d.isoformat()}|{h.isoformat()}",
                 "total_horas": round(float(total or 0), 2),
                 "hs_extras": round(extras, 2),

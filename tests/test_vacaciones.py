@@ -350,6 +350,44 @@ def test_tot_hs_import_period_merge_and_overwrite(auth_client, app):
     assert resumen["personas"] == 2
 
 
+def test_tot_hs_period_labels_use_month_name(auth_client, app):
+    """Períodos tipo 21/MM al 20/MM+1 se muestran por el mes de hasta (Febrero, etc.)."""
+    buf = _xlsx_tot_hs_period(
+        "21/01/2026 al 20/02/2026",
+        [
+            ["EMP TEST", "SRV", "C1", "CLI", "TIPO",
+             10, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10],
+        ],
+    )
+    r = auth_client.post(
+        "/gos/vacaciones/api/importar/total",
+        data={"file": (buf, "feb.xlsx")},
+        content_type="multipart/form-data",
+    )
+    assert r.status_code == 200
+
+    buf2 = _xlsx_tot_hs_period(
+        "21/02/2026 al 20/03/2026",
+        [
+            ["EMP TEST", "SRV", "C1", "CLI", "TIPO",
+             20, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 20],
+        ],
+    )
+    r = auth_client.post(
+        "/gos/vacaciones/api/importar/total",
+        data={"file": (buf2, "mar.xlsx")},
+        content_type="multipart/form-data",
+    )
+    assert r.status_code == 200
+
+    meta = auth_client.get("/gos/vacaciones/api/tot-hs/meta").get_json()
+    labels = [p["label"] for p in meta["periodos"]]
+    assert labels == ["Marzo", "Febrero"]
+
+    por_mes = auth_client.get("/gos/vacaciones/api/tot-hs/por-mes").get_json()
+    assert [r["periodo"] for r in por_mes] == ["Febrero", "Marzo"]
+
+
 def test_tot_hs_import_overlap_removes_older(auth_client, app):
     """Si el nuevo período se pisa con uno viejo, el antiguo se borra y no se muestra."""
     from datetime import date
