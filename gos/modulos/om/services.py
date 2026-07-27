@@ -60,6 +60,41 @@ def _validate(data: dict) -> None:
         raise OmValidationError("Datos de modulo invalidos", field_errors)
 
 
+def _primer_nombre_apellido(nombre: str | None, apellido: str | None) -> str:
+    """Solo el primer nombre y el primer apellido (p. ej. Juan García)."""
+    n = (nombre or "").strip().split()
+    a = (apellido or "").strip().split()
+    if n and a:
+        return f"{n[0]} {a[0]}"
+    if a and not n:
+        return a[0]
+    # Todo en un solo campo: tomar las dos primeras palabras (nombre + apellido).
+    if len(n) >= 2:
+        return f"{n[0]} {n[1]}"
+    if n:
+        return n[0]
+    return (nombre or "").strip()
+
+
+def _nombre_corto_texto(full: str | None) -> str:
+    """Acorta un nombre ya concatenado a primer nombre + primer apellido."""
+    parts = (full or "").strip().split()
+    if len(parts) <= 2:
+        return (full or "").strip()
+    return f"{parts[0]} {parts[1]}"
+
+
+def _display_personnel_name(p: OmPersonnel) -> str:
+    """Nombre corto para UI; si hay vínculo a Capacitación, lo resuelve en vivo."""
+    if p.participante_id:
+        from gos.modulos.capacitacion.models.participante import Participante
+
+        part = db.session.get(Participante, p.participante_id)
+        if part:
+            return _primer_nombre_apellido(part.nombre, part.apellido)
+    return _nombre_corto_texto(p.name)
+
+
 def _to_api_shape(row: OmModule) -> dict:
     units, tools, supplies = [], [], []
     for item in row.items or []:
@@ -81,7 +116,7 @@ def _to_api_shape(row: OmModule) -> dict:
         personnel.append(
             {
                 "participanteId": p.participante_id,
-                "name": p.name,
+                "name": _display_personnel_name(p),
                 "role": p.role,
                 "phones": [{"type": ph.type, "number": ph.number} for ph in (p.phones or [])],
             }
@@ -154,16 +189,34 @@ def _insert_relations(module: OmModule, data: dict) -> None:
             participante_id = int(participante_id) if participante_id is not None else None
         except (TypeError, ValueError):
             participante_id = None
+
+        name = (person.get("name") or "").strip()
+        role = person.get("role") or None
+        phones = list(person.get("phones") or [])
+
+        if participante_id:
+            from gos.modulos.capacitacion.models.participante import Participante
+
+            part = db.session.get(Participante, participante_id)
+            if part:
+                name = _primer_nombre_apellido(part.nombre, part.apellido)
+                if not role and part.puesto:
+                    role = part.puesto.nombre
+                if not phones and part.telefono:
+                    phones = [{"type": "Personal", "number": part.telefono}]
+        else:
+            name = _nombre_corto_texto(name)
+
         personnel = OmPersonnel(
             module=module,
             participante_id=participante_id,
-            name=person.get("name") or "",
-            role=person.get("role") or None,
+            name=name,
+            role=role,
             sort_order=i,
         )
         db.session.add(personnel)
         db.session.flush()
-        for phone in person.get("phones") or []:
+        for phone in phones:
             number = (phone.get("number") or "").strip()
             if not number:
                 continue
@@ -197,18 +250,6 @@ def _insert_relations(module: OmModule, data: dict) -> None:
                 db.session.add(
                     OmItem(module=module, kind=kind, value=value, sort_order=i)
                 )
-
-
-def _primer_nombre_apellido(nombre: str | None, apellido: str | None) -> str:
-    """Solo el primer nombre y el primer apellido (p. ej. Juan García)."""
-    n = (nombre or "").strip().split()
-    a = (apellido or "").strip().split()
-    parts = []
-    if n:
-        parts.append(n[0])
-    if a:
-        parts.append(a[0])
-    return " ".join(parts) if parts else (nombre or "").strip()
 
 
 def catalog_personal(empresa_id: int, q: str | None = None) -> list[dict]:
