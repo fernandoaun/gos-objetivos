@@ -6,7 +6,10 @@ Hojas esperadas:
   - P = 1 si ese mantenimiento se programó en el mes
   - E = 1 si ese mantenimiento se ejecutó en el mes
 - VTV: unidad + vencimiento VTV
-- Ordenes / Tareas: datos del reporte mensual (export Power BI)
+- OTs / Ordenes, TAREAS / Tareas, SOLICITUDES: reporte mensual (Excel fuente Power BI)
+
+Al reimportar se reemplazan por completo los años presentes en cada hoja del archivo.
+Los años que no aparecen en el archivo no se tocan.
 """
 
 from __future__ import annotations
@@ -23,6 +26,7 @@ from gos.modulos.mantenimiento.models import (
     MantPlanCelda,
     MantPlanMeta,
     MantReporteOrden,
+    MantReporteSolicitud,
     MantReporteTarea,
     MantUnidad,
     MantVtv,
@@ -381,21 +385,62 @@ def _trimestre(mes: int) -> int:
     return ((mes - 1) // 3) + 1
 
 
+def _str_opt(value, max_len: int) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    return text[:max_len]
+
+
+def _nro_str(value) -> str | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    if isinstance(value, int):
+        return str(value)
+    text = str(value).strip()
+    if not text:
+        return None
+    # "694.0" → "694"
+    try:
+        f = float(text.replace(",", "."))
+        if f.is_integer():
+            return str(int(f))
+    except ValueError:
+        pass
+    return text
+
+
+def _find_header_row(rows: list, *needles_groups: tuple[str, ...]) -> int:
+    for i, row in enumerate(rows[:15]):
+        joined = " ".join(_norm_header(c) for c in row if c is not None)
+        if all(any(n in joined for n in group) for group in needles_groups):
+            return i
+    return 0
+
+
+def _replace_by_years(session: Session, model, anios: set[int], rows: list) -> None:
+    """Borra solo los años presentes en el archivo e inserta el snapshot completo."""
+    if not anios:
+        return
+    session.execute(delete(model).where(model.anio.in_(sorted(anios))))
+    session.flush()
+    session.add_all(rows)
+
+
 def _parse_reporte_ordenes(ws, session: Session) -> dict:
     rows = list(ws.iter_rows(values_only=True))
     if not rows:
         return {"ordenes": 0, "anios_ordenes": []}
-    header_idx = 0
-    for i, row in enumerate(rows[:10]):
-        joined = " ".join(_norm_header(c) for c in row if c is not None)
-        if "unidad" in joined and ("orden" in joined or "estado" in joined):
-            header_idx = i
-            break
+    header_idx = _find_header_row(rows, ("unidad",), ("orden", "estado"))
     cmap = _col_map(list(rows[header_idx]))
     if "unidad" not in cmap:
-        raise ValueError("Hoja Órdenes: no se encontró la columna Unidad.")
+        raise ValueError("Hoja OTs/Órdenes: no se encontró la columna Unidad.")
 
-    parsed = []
+    by_nro: dict[str, MantReporteOrden] = {}
     anios: set[int] = set()
     for row in rows[header_idx + 1 :]:
         if not row or all(c is None or str(c).strip() == "" for c in row):
@@ -408,33 +453,42 @@ def _parse_reporte_ordenes(ws, session: Session) -> dict:
         )
         if not fecha:
             continue
-        nro = str(
+        nro = _nro_str(
             _row_get(row, cmap, "nro orden", "nroorden", "n orden", "orden", "indice")
-            or ""
-        ).strip() or f"{unidad}-{fecha.isoformat()}"
-        estado = str(
-            _row_get(row, cmap, "estado orden", "estado", "estado soli") or "Sin estado"
-        ).strip() or "Sin estado"
-        parsed.append(
-            MantReporteOrden(
-                nro_orden=nro[:64],
-                unidad=unidad[:128],
-                estado=estado[:64],
-                fecha=fecha,
-                anio=fecha.year,
-                mes=fecha.month,
-                trimestre=_trimestre(fecha.month),
-            )
+        ) or f"{unidad}-{fecha.isoformat()}"
+        nro_sol = _nro_str(_row_get(row, cmap, "nro solicitud", "nrosolicitud", "solicitud"))
+        estado = (
+            str(
+                _row_get(row, cmap, "estado orden", "estado") or "Sin estado"
+            ).strip()
+            or "Sin estado"
+        )
+        by_nro[nro[:64]] = MantReporteOrden(
+            nro_orden=nro[:64],
+            unidad=unidad[:128],
+            estado=estado[:64],
+            nro_solicitud=nro_sol[:64] if nro_sol else None,
+            estado_solicitud=_str_opt(
+                _row_get(row, cmap, "estado solicitud", "estado soli"), 64
+            ),
+            ingreso_taller=_parse_date(
+                _row_get(row, cmap, "ingreso taller", "f ingreso", "ingreso")
+            ),
+            km=_cell_num(_row_get(row, cmap, "km", default=None))
+            if _row_get(row, cmap, "km") is not None
+            else None,
+            hs=_cell_num(_row_get(row, cmap, "hs", "horas", default=None))
+            if _row_get(row, cmap, "hs", "horas") is not None
+            else None,
+            fecha=fecha,
+            anio=fecha.year,
+            mes=fecha.month,
+            trimestre=_trimestre(fecha.month),
         )
         anios.add(fecha.year)
 
-    if anios:
-        session.execute(
-            delete(MantReporteOrden).where(MantReporteOrden.anio.in_(sorted(anios)))
-        )
-        session.flush()
-        session.add_all(parsed)
-
+    parsed = list(by_nro.values())
+    _replace_by_years(session, MantReporteOrden, anios, parsed)
     return {"ordenes": len(parsed), "anios_ordenes": sorted(anios)}
 
 
@@ -442,19 +496,14 @@ def _parse_reporte_tareas(ws, session: Session) -> dict:
     rows = list(ws.iter_rows(values_only=True))
     if not rows:
         return {"tareas": 0, "anios_tareas": []}
-    header_idx = 0
-    for i, row in enumerate(rows[:10]):
-        joined = " ".join(_norm_header(c) for c in row if c is not None)
-        if "unidad" in joined and ("hora" in joined or "clase" in joined or "tarea" in joined):
-            header_idx = i
-            break
+    header_idx = _find_header_row(rows, ("unidad",), ("hora", "clase", "tarea"))
     cmap = _col_map(list(rows[header_idx]))
     if "unidad" not in cmap:
         raise ValueError("Hoja Tareas: no se encontró la columna Unidad.")
 
-    parsed = []
+    by_nro: dict[str, MantReporteTarea] = {}
     anios: set[int] = set()
-    for row in rows[header_idx + 1 :]:
+    for idx, row in enumerate(rows[header_idx + 1 :]):
         if not row or all(c is None or str(c).strip() == "" for c in row):
             continue
         unidad = str(_row_get(row, cmap, "unidad", "equipo") or "").strip()
@@ -463,44 +512,149 @@ def _parse_reporte_tareas(ws, session: Session) -> dict:
         fecha = _parse_date(_row_get(row, cmap, "fecha", "fecha tarea", "alta"))
         if not fecha:
             continue
-        horas = _cell_num(_row_get(row, cmap, "total horas", "horas", "tiempo neto", default=0))
-        nro_orden = _row_get(row, cmap, "orden", "nro orden", "nroorden")
-        parsed.append(
-            MantReporteTarea(
-                nro_orden=str(nro_orden).strip()[:64] if nro_orden is not None else None,
-                unidad=unidad[:128],
-                tipo=str(_row_get(row, cmap, "tipo") or "").strip()[:64] or None,
-                clase=str(_row_get(row, cmap, "clase") or "").strip()[:64] or None,
-                categoria=str(_row_get(row, cmap, "categoria") or "").strip()[:64] or None,
-                lugar=str(_row_get(row, cmap, "lugar") or "").strip()[:64] or None,
-                total_horas=horas,
-                fecha=fecha,
-                anio=fecha.year,
-                mes=fecha.month,
-                trimestre=_trimestre(fecha.month),
-            )
+        horas = _cell_num(
+            _row_get(row, cmap, "total horas", "horas", "tiempo neto", default=0)
+        )
+        nro_orden = _nro_str(_row_get(row, cmap, "orden", "nro orden", "nroorden"))
+        nro_tarea = _nro_str(_row_get(row, cmap, "tarea", "nro tarea", "nrotarea"))
+        if not nro_tarea:
+            nro_tarea = f"{nro_orden or unidad}-{fecha.isoformat()}-{idx}"
+        desc = _str_opt(_row_get(row, cmap, "descripcion", "descripción"), 500)
+        by_nro[nro_tarea[:64]] = MantReporteTarea(
+            nro_tarea=nro_tarea[:64],
+            nro_orden=nro_orden[:64] if nro_orden else None,
+            unidad=unidad[:128],
+            tipo=_str_opt(_row_get(row, cmap, "tipo"), 64),
+            clase=_str_opt(_row_get(row, cmap, "clase"), 64),
+            categoria=_str_opt(_row_get(row, cmap, "categoria"), 64),
+            lugar=_str_opt(_row_get(row, cmap, "lugar"), 64),
+            estado=_str_opt(_row_get(row, cmap, "estado"), 64),
+            solicitante=_str_opt(_row_get(row, cmap, "solicitante"), 128),
+            urgencia=_str_opt(_row_get(row, cmap, "urgencia"), 64),
+            descripcion=desc,
+            cant_personal=_cell_num(_row_get(row, cmap, "cant personal", "personal", default=None))
+            if _row_get(row, cmap, "cant personal", "personal") is not None
+            else None,
+            tercerizado=_str_opt(_row_get(row, cmap, "tercerizado"), 64),
+            total_horas=horas,
+            fecha=fecha,
+            anio=fecha.year,
+            mes=fecha.month,
+            trimestre=_trimestre(fecha.month),
         )
         anios.add(fecha.year)
 
-    if anios:
-        session.execute(
-            delete(MantReporteTarea).where(MantReporteTarea.anio.in_(sorted(anios)))
-        )
-        session.flush()
-        session.add_all(parsed)
-
+    parsed = list(by_nro.values())
+    _replace_by_years(session, MantReporteTarea, anios, parsed)
     return {"tareas": len(parsed), "anios_tareas": sorted(anios)}
+
+
+def _parse_reporte_solicitudes(ws, session: Session) -> dict:
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows:
+        return {"solicitudes": 0, "anios_solicitudes": []}
+    header_idx = _find_header_row(rows, ("unidad",), ("solicitud", "soli"))
+    cmap = _col_map(list(rows[header_idx]))
+    if "unidad" not in cmap:
+        raise ValueError("Hoja Solicitudes: no se encontró la columna Unidad.")
+
+    by_nro: dict[str, MantReporteSolicitud] = {}
+    anios: set[int] = set()
+    for row in rows[header_idx + 1 :]:
+        if not row or all(c is None or str(c).strip() == "" for c in row):
+            continue
+        unidad = str(_row_get(row, cmap, "unidad", "equipo") or "").strip()
+        if not unidad:
+            continue
+        fecha = _parse_date(_row_get(row, cmap, "fecha", "fecha solicitud", "alta"))
+        if not fecha:
+            continue
+        nro = _nro_str(
+            _row_get(row, cmap, "nro solicitud", "nrosolicitud", "solicitud", "indice")
+        ) or f"{unidad}-{fecha.isoformat()}"
+        nro_orden = _nro_str(_row_get(row, cmap, "nro orden", "nroorden", "orden"))
+        # 0 en Excel = sin orden asociada
+        if nro_orden in ("0", "0.0"):
+            nro_orden = None
+        estado = (
+            str(
+                _row_get(row, cmap, "estado soli", "estado solicitud", "estado")
+                or "Sin estado"
+            ).strip()
+            or "Sin estado"
+        )
+        by_nro[nro[:64]] = MantReporteSolicitud(
+            nro_solicitud=nro[:64],
+            fecha=fecha,
+            unidad=unidad[:128],
+            tipo=_str_opt(_row_get(row, cmap, "tipo"), 128),
+            estado=estado[:64],
+            solicitante=_str_opt(_row_get(row, cmap, "solicitante"), 128),
+            fecha_solicitud_ingreso=_parse_date(
+                _row_get(
+                    row,
+                    cmap,
+                    "fsolicingresso",
+                    "fsolic ingreso",
+                    "fecha solicitud ingreso",
+                )
+            ),
+            fecha_ingresar=_parse_date(
+                _row_get(row, cmap, "fingresar", "f ingresar", "fecha ingresar")
+            ),
+            fecha_retirar=_parse_date(
+                _row_get(row, cmap, "fretirar", "f retirar", "fecha retirar")
+            ),
+            nro_orden=nro_orden[:64] if nro_orden else None,
+            estado_orden=_str_opt(_row_get(row, cmap, "estado orden"), 64),
+            anio=fecha.year,
+            mes=fecha.month,
+            trimestre=_trimestre(fecha.month),
+        )
+        anios.add(fecha.year)
+
+    parsed = list(by_nro.values())
+    _replace_by_years(session, MantReporteSolicitud, anios, parsed)
+    return {"solicitudes": len(parsed), "anios_solicitudes": sorted(anios)}
+
+
+def _find_ordenes_sheet(wb):
+    """Prioriza OTs / Ordenes; evita coincidir con SOLICITUDES."""
+    lower = {name.lower().strip(): name for name in wb.sheetnames}
+    for cand in ("ots", "ordenes", "órdenes", "orden"):
+        if cand in lower:
+            return wb[lower[cand]]
+    for name in wb.sheetnames:
+        nl = name.lower().strip()
+        if "solicitud" in nl:
+            continue
+        if nl in ("ots", "ot") or "orden" in nl:
+            return wb[name]
+    return None
 
 
 def import_vtv_excel(path: str | Path, session: Session) -> dict:
     path = Path(path)
-    wb = load_workbook(path, data_only=True)
+    # read_only ahorra memoria en Excels grandes (TAREAS ~10k+ filas).
+    # Informe/VTV usan ws.cell → necesitan workbook normal.
+    wb_peek = load_workbook(path, read_only=True, data_only=True)
+    sheetnames = list(wb_peek.sheetnames)
+    has_informe = _find_sheet(wb_peek, "Informe", "Plan", "Mantenimiento") is not None
+    has_vtv = _find_sheet(wb_peek, "VTV", "Vtv") is not None
+    wb_peek.close()
+
+    if has_informe or has_vtv:
+        wb = load_workbook(path, data_only=True)
+    else:
+        wb = load_workbook(path, read_only=True, data_only=True)
+
     cache: dict[str, MantUnidad] = {}
 
     informe = _find_sheet(wb, "Informe", "Plan", "Mantenimiento")
     vtv_sheet = _find_sheet(wb, "VTV", "Vtv")
-    ordenes_sheet = _find_sheet(wb, "Ordenes", "Órdenes", "Orden")
-    tareas_sheet = _find_sheet(wb, "Tareas", "Tarea")
+    ordenes_sheet = _find_ordenes_sheet(wb)
+    tareas_sheet = _find_sheet(wb, "TAREAS", "Tareas", "Tarea")
+    solicitudes_sheet = _find_sheet(wb, "SOLICITUDES", "Solicitudes", "Solicitud")
 
     result = {
         "anio": None,
@@ -511,9 +665,11 @@ def import_vtv_excel(path: str | Path, session: Session) -> dict:
         "vtv": 0,
         "ordenes": 0,
         "tareas": 0,
+        "solicitudes": 0,
         "anios_ordenes": [],
         "anios_tareas": [],
-        "hojas": wb.sheetnames,
+        "anios_solicitudes": [],
+        "hojas": sheetnames,
     }
 
     if (
@@ -521,10 +677,12 @@ def import_vtv_excel(path: str | Path, session: Session) -> dict:
         and vtv_sheet is None
         and ordenes_sheet is None
         and tareas_sheet is None
+        and solicitudes_sheet is None
     ):
+        wb.close()
         raise ValueError(
-            "El Excel no tiene hojas 'Informe', 'VTV', 'Ordenes' ni 'Tareas'. "
-            f"Hojas encontradas: {', '.join(wb.sheetnames)}"
+            "El Excel no tiene hojas 'Informe', 'VTV', 'OTs'/'Ordenes', 'Tareas' ni 'Solicitudes'. "
+            f"Hojas encontradas: {', '.join(sheetnames)}"
         )
 
     if informe is not None:
@@ -541,5 +699,9 @@ def import_vtv_excel(path: str | Path, session: Session) -> dict:
     if tareas_sheet is not None:
         result.update(_parse_reporte_tareas(tareas_sheet, session))
 
+    if solicitudes_sheet is not None:
+        result.update(_parse_reporte_solicitudes(solicitudes_sheet, session))
+
     session.commit()
+    wb.close()
     return result

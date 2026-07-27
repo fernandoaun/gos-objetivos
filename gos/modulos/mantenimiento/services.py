@@ -11,6 +11,7 @@ from gos.modulos.mantenimiento.models import (
     MantPlanCelda,
     MantPlanMeta,
     MantReporteOrden,
+    MantReporteSolicitud,
     MantReporteTarea,
     MantUnidad,
     MantVtv,
@@ -553,7 +554,7 @@ def get_reporte_mensual(
     anio: int | None = None,
     trimestre: int | None = None,
 ) -> dict:
-    """Dashboard tipo Power BI «Reporte Mensual»: órdenes + horas por clase/lugar/unidad."""
+    """Dashboard tipo Power BI «Reporte Mensual»: órdenes + horas + solicitudes."""
     anios = sorted(
         {
             row[0]
@@ -563,6 +564,11 @@ def get_reporte_mensual(
         | {
             row[0]
             for row in session.execute(select(MantReporteTarea.anio).distinct()).all()
+            if row[0]
+        }
+        | {
+            row[0]
+            for row in session.execute(select(MantReporteSolicitud.anio).distinct()).all()
             if row[0]
         },
         reverse=True,
@@ -574,12 +580,15 @@ def get_reporte_mensual(
 
     ordenes_q = select(MantReporteOrden).where(MantReporteOrden.anio == anio)
     tareas_q = select(MantReporteTarea).where(MantReporteTarea.anio == anio)
+    solicitudes_q = select(MantReporteSolicitud).where(MantReporteSolicitud.anio == anio)
     if trimestre:
         ordenes_q = ordenes_q.where(MantReporteOrden.trimestre == trimestre)
         tareas_q = tareas_q.where(MantReporteTarea.trimestre == trimestre)
+        solicitudes_q = solicitudes_q.where(MantReporteSolicitud.trimestre == trimestre)
 
     ordenes = list(session.execute(ordenes_q).scalars())
     tareas = list(session.execute(tareas_q).scalars())
+    solicitudes = list(session.execute(solicitudes_q).scalars())
 
     estados = sorted({(o.estado or "Sin estado").strip() or "Sin estado" for o in ordenes})
     meses_rango = list(range((trimestre - 1) * 3 + 1, trimestre * 3 + 1)) if trimestre else list(range(1, 13))
@@ -597,6 +606,13 @@ def get_reporte_mensual(
         ordenes_por_mes.append(fila)
 
     horas_totales = round(sum(float(t.total_horas or 0) for t in tareas), 2)
+    solicitudes_por_estado = _agg_count(solicitudes, lambda s: s.estado)
+    solicitudes_por_mes = []
+    for mes in meses_rango:
+        total = sum(1 for s in solicitudes if s.mes == mes)
+        solicitudes_por_mes.append(
+            {"mes": mes, "label": MESES_LABEL[mes], "total": total}
+        )
 
     return {
         "anio": anio,
@@ -608,6 +624,7 @@ def get_reporte_mensual(
             "horas": horas_totales,
             "unidades_con_orden": len({(o.unidad or "").strip() for o in ordenes if (o.unidad or "").strip()}),
             "tareas": len(tareas),
+            "solicitudes": len(solicitudes),
         },
         "horas_por_clase": _agg_sum(tareas, lambda t: t.clase, lambda t: t.total_horas),
         "horas_por_lugar": _agg_sum(tareas, lambda t: t.lugar, lambda t: t.total_horas),
@@ -615,4 +632,6 @@ def get_reporte_mensual(
         "estados": estados,
         "equipos_demanda": _agg_count(ordenes, lambda o: o.unidad)[:15],
         "horas_por_unidad": _agg_sum(tareas, lambda t: t.unidad, lambda t: t.total_horas)[:15],
+        "solicitudes_por_estado": solicitudes_por_estado,
+        "solicitudes_por_mes": solicitudes_por_mes,
     }

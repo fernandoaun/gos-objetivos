@@ -309,7 +309,7 @@
   <div class="header-row">
     <div>
       <h1>Reporte mensual</h1>
-      <p class="subtitle">Dashboard del sector de mantenimiento · órdenes, horas y demanda por equipo</p>
+      <p class="subtitle">Dashboard del sector de mantenimiento · órdenes, horas, solicitudes y demanda por equipo</p>
     </div>
   </div>
 
@@ -317,8 +317,8 @@
   <div id="rm-empty" class="card empty-card hidden" style="margin-top:20px;">
     <h2>Sin datos del reporte mensual</h2>
     <p>
-      Todavía no hay órdenes ni tareas cargadas. Cuando subas los documentos del reporte
-      (órdenes de trabajo y tareas / horas), la información se va a ver acá como en el Power BI.
+      Todavía no hay órdenes, tareas ni solicitudes cargadas. Cuando subas el Excel
+      (OTs, TAREAS y SOLICITUDES), la información se va a ver acá como en el Power BI.
     </p>
   </div>
 
@@ -357,6 +357,10 @@
         <div class="kpi-label">Tareas</div>
         <div class="kpi-value" id="rm-kpi-tareas">0</div>
       </div>
+      <div class="card kpi">
+        <div class="kpi-label">Solicitudes</div>
+        <div class="kpi-value" id="rm-kpi-solicitudes">0</div>
+      </div>
     </div>
 
     <div class="rm-grid">
@@ -380,6 +384,14 @@
         <h2 class="rm-chart-title">Horas hombre dedicadas por unidad</h2>
         <div class="rm-chart-wrap rm-chart-tall"><canvas id="rm-chart-horas-unidad"></canvas></div>
       </div>
+      <div class="card rm-chart-card">
+        <h2 class="rm-chart-title">Solicitudes por estado</h2>
+        <div class="rm-chart-wrap"><canvas id="rm-chart-solicitudes"></canvas></div>
+      </div>
+      <div class="card rm-chart-card">
+        <h2 class="rm-chart-title">Solicitudes por mes</h2>
+        <div class="rm-chart-wrap rm-chart-tall"><canvas id="rm-chart-solicitudes-mes"></canvas></div>
+      </div>
     </div>
   </div>
 </div>
@@ -387,7 +399,8 @@
 <div id="view-importar" class="app {% if initial_view != 'importar' %}hidden{% endif %}" style="max-width:720px;">
   <h1>Importar datos</h1>
   <p class="subtitle" style="margin-bottom:20px;">
-    Excel con hojas <strong>Informe</strong> / <strong>VTV</strong> (plan) o <strong>Ordenes</strong> / <strong>Tareas</strong> (reporte mensual).
+    Excel con hojas <strong>Informe</strong> / <strong>VTV</strong> (plan) o
+    <strong>OTs</strong> / <strong>TAREAS</strong> / <strong>SOLICITUDES</strong> (reporte mensual).
   </p>
 
   <section class="card">
@@ -404,8 +417,10 @@
       <strong>Informe:</strong> fila de meses (Enero…Diciembre) con subcolumnas R / P / E por unidad.
       R = tipo de mantenimiento (1–4), P = mes programado, E = mes ejecutado.<br>
       <strong>VTV:</strong> columnas Unidad y Vencimiento VTV.<br>
-      <strong>Ordenes / Tareas:</strong> export del Power BI (Reporte MANT) o Excel fuente con fechas, unidad, estado y horas.
-      Al reimportar se reemplazan los años presentes en el archivo.<br>
+      <strong>OTs / TAREAS / SOLICITUDES:</strong> Excel fuente del Power BI (Reporte MANT) con fechas, unidad, estado y horas.
+      Al subir se reemplazan por completo los años que vienen en el archivo (p. ej. todo 2022).
+      No subir un parcial del mismo año: se perdería lo que no esté en el archivo.
+      Los años que no aparecen en el Excel no se tocan.<br>
       Al reimportar el mismo año del plan se reemplazan las celdas R/P/E y se actualizan vencimientos VTV.
     </div>
   </section>
@@ -1423,6 +1438,52 @@ function renderRmCharts(data) {
       },
     },
   });
+
+  const solEstado = data.solicitudes_por_estado || [];
+  rmChart('rm-chart-solicitudes', {
+    type: 'doughnut',
+    data: {
+      labels: solEstado.map(x => x.label),
+      datasets: [{
+        data: solEstado.map(x => x.valor),
+        backgroundColor: solEstado.map((_, i) => RM_COLORS[(i + 1) % RM_COLORS.length]),
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.label}: ${fmtNum(ctx.raw)}`,
+          },
+        },
+      },
+    },
+  });
+
+  const solMes = data.solicitudes_por_mes || [];
+  rmChart('rm-chart-solicitudes-mes', {
+    type: 'bar',
+    data: {
+      labels: solMes.map(m => m.label),
+      datasets: [{
+        label: 'Solicitudes',
+        data: solMes.map(m => m.total || 0),
+        backgroundColor: 'rgba(217, 119, 6, 0.8)',
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false } },
+        y: { beginAtZero: true, ticks: { precision: 0 } },
+      },
+    },
+  });
 }
 
 async function loadReporteMensual(anio, trimestre) {
@@ -1453,6 +1514,8 @@ async function loadReporteMensual(anio, trimestre) {
     document.getElementById('rm-kpi-horas').textContent = fmtNum(data.kpis?.horas);
     document.getElementById('rm-kpi-unidades').textContent = fmtNum(data.kpis?.unidades_con_orden);
     document.getElementById('rm-kpi-tareas').textContent = fmtNum(data.kpis?.tareas);
+    const kpiSol = document.getElementById('rm-kpi-solicitudes');
+    if (kpiSol) kpiSol.textContent = fmtNum(data.kpis?.solicitudes);
     content.classList.remove('hidden');
     renderRmCharts(data);
   } catch (err) {

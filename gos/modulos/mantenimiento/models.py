@@ -102,6 +102,7 @@ class MantReporteOrden(db.Model):
 
     __tablename__ = "mant_reporte_ordenes"
     __table_args__ = (
+        db.UniqueConstraint("nro_orden", name="uq_mant_reporte_orden_nro"),
         db.Index("ix_mant_reporte_orden_anio_mes", "anio", "mes"),
     )
 
@@ -109,6 +110,11 @@ class MantReporteOrden(db.Model):
     nro_orden = db.Column(db.String(64), nullable=False)
     unidad = db.Column(db.String(128), nullable=False)
     estado = db.Column(db.String(64), nullable=False, default="")
+    nro_solicitud = db.Column(db.String(64))
+    estado_solicitud = db.Column(db.String(64))
+    ingreso_taller = db.Column(db.Date)
+    km = db.Column(db.Float)
+    hs = db.Column(db.Float)
     fecha = db.Column(db.Date)
     anio = db.Column(db.Integer, nullable=False)
     mes = db.Column(db.Integer, nullable=False)  # 1-12
@@ -121,18 +127,53 @@ class MantReporteTarea(db.Model):
 
     __tablename__ = "mant_reporte_tareas"
     __table_args__ = (
+        db.UniqueConstraint("nro_tarea", name="uq_mant_reporte_tarea_nro"),
         db.Index("ix_mant_reporte_tarea_anio_mes", "anio", "mes"),
     )
 
     id = db.Column(db.Integer, primary_key=True)
+    nro_tarea = db.Column(db.String(64))
     nro_orden = db.Column(db.String(64))
     unidad = db.Column(db.String(128), nullable=False)
     tipo = db.Column(db.String(64))
     clase = db.Column(db.String(64))
     categoria = db.Column(db.String(64))
     lugar = db.Column(db.String(64))
+    estado = db.Column(db.String(64))
+    solicitante = db.Column(db.String(128))
+    urgencia = db.Column(db.String(64))
+    descripcion = db.Column(db.String(500))
+    cant_personal = db.Column(db.Float)
+    tercerizado = db.Column(db.String(64))
     total_horas = db.Column(db.Float, nullable=False, default=0)
     fecha = db.Column(db.Date)
+    anio = db.Column(db.Integer, nullable=False)
+    mes = db.Column(db.Integer, nullable=False)  # 1-12
+    trimestre = db.Column(db.Integer, nullable=False)  # 1-4
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class MantReporteSolicitud(db.Model):
+    """Solicitudes de mantenimiento del reporte mensual."""
+
+    __tablename__ = "mant_reporte_solicitudes"
+    __table_args__ = (
+        db.UniqueConstraint("nro_solicitud", name="uq_mant_reporte_solicitud_nro"),
+        db.Index("ix_mant_reporte_solicitud_anio_mes", "anio", "mes"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    nro_solicitud = db.Column(db.String(64), nullable=False)
+    fecha = db.Column(db.Date)
+    unidad = db.Column(db.String(128), nullable=False)
+    tipo = db.Column(db.String(128))
+    estado = db.Column(db.String(64), nullable=False, default="")
+    solicitante = db.Column(db.String(128))
+    fecha_solicitud_ingreso = db.Column(db.Date)
+    fecha_ingresar = db.Column(db.Date)
+    fecha_retirar = db.Column(db.Date)
+    nro_orden = db.Column(db.String(64))
+    estado_orden = db.Column(db.String(64))
     anio = db.Column(db.Integer, nullable=False)
     mes = db.Column(db.Integer, nullable=False)  # 1-12
     trimestre = db.Column(db.Integer, nullable=False)  # 1-4

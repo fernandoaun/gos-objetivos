@@ -208,6 +208,8 @@ def importar_excel():
         partes.append(f"{result['ordenes']} órdenes")
     if result.get("tareas"):
         partes.append(f"{result['tareas']} tareas")
+    if result.get("solicitudes"):
+        partes.append(f"{result['solicitudes']} solicitudes")
 
     return jsonify(
         {
