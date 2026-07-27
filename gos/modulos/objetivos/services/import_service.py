@@ -68,10 +68,11 @@ def _tables_present(connection, tables: list[str]) -> list[str]:
 
 
 def _clear_tables(connection, tables: list[str]) -> None:
-    """Vacía solo las tablas listadas, sin CASCADE a tablas fuera del import.
+    """Vacía las tablas del import.
 
-    Antes se usaba TRUNCATE ... CASCADE sobre empresas/usuarios, lo que borraba
-    perfiles (y otras hijas) sin restaurarlas después.
+    En Render (Postgres managed) no hay permiso para session_replication_role.
+    Usamos TRUNCATE ... CASCADE; por eso perfiles y demás tablas críticas
+    deben estar en TABLES para restaurarse después del wipe.
     """
     to_clear = _tables_present(connection, tables)
     if not to_clear:
@@ -79,14 +80,9 @@ def _clear_tables(connection, tables: list[str]) -> None:
 
     if connection.dialect.name == "postgresql":
         tables_sql = ", ".join(f'"{table}"' for table in to_clear)
-        # replica: ignora FKs/triggers solo en esta sesión; no toca otras tablas.
-        connection.execute(text("SET session_replication_role = replica"))
-        try:
-            connection.execute(
-                text(f"TRUNCATE TABLE {tables_sql} RESTART IDENTITY")
-            )
-        finally:
-            connection.execute(text("SET session_replication_role = origin"))
+        connection.execute(
+            text(f"TRUNCATE TABLE {tables_sql} RESTART IDENTITY CASCADE")
+        )
         return
 
     connection.execute(text("PRAGMA foreign_keys = OFF"))
