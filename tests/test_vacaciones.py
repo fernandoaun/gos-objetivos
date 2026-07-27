@@ -216,6 +216,7 @@ def test_tot_hs_shell_and_app(auth_client):
     assert r.status_code == 200
     assert b"Tot Hs." in r.data
     assert b"view-tot-hs" in r.data
+    assert b"ths-f-desde" not in r.data
     assert b"Cargar Excel" not in r.data  # la carga vive en Importar datos
     assert b"Importar datos" in r.data
 

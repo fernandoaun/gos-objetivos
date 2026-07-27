@@ -842,27 +842,6 @@ tr:hover td {
   font-weight: 700;
 }
 
-.ths-range-meta {
-  min-width: 280px;
-}
-
-.ths-range-inputs {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.ths-range-inputs input[type="date"] {
-  min-width: 140px;
-}
-
-.ths-range-sep {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--muted);
-}
-
 .ths-kpis .kpi.clickable {
   width: 100%;
   appearance: none;

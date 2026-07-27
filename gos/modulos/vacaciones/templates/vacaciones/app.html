@@ -176,14 +176,6 @@
     </div>
     <div><label>Cliente</label><select id="ths-f-cliente"><option value="">Todos los clientes</option></select></div>
     <div><label>Tipo servicio</label><select id="ths-f-tipo"><option value="">Todos</option></select></div>
-    <div class="ths-range-meta" id="ths-range-meta">
-      <label>Rango</label>
-      <div class="ths-range-inputs">
-        <input type="date" id="ths-f-desde" title="Desde">
-        <span class="ths-range-sep">al</span>
-        <input type="date" id="ths-f-hasta" title="Hasta">
-      </div>
-    </div>
   </div>
 
   <div id="ths-loading" class="spinner hidden">Cargando...</div>
@@ -1242,7 +1234,6 @@ async function runThsImport() {
 const ths = {
   periodos: [], selectedPeriodo: null,
   clientes: [], tipos: [],
-  fechaMin: null, fechaMax: null,
   resumen: null, porMes: [], porSector: [], porEmpleado: [],
   clienteSeleccionado: null,
   chartMes: null, chartSector: null,
@@ -1260,78 +1251,14 @@ function fmtFecha(iso) {
   return `${d}/${m}/${y}`;
 }
 
-function thsDateValues() {
-  return {
-    desde: document.getElementById('ths-f-desde')?.value || '',
-    hasta: document.getElementById('ths-f-hasta')?.value || '',
-  };
-}
-
-function thsIsFullRange(desde, hasta) {
-  return !!(
-    ths.fechaMin && ths.fechaMax &&
-    desde === String(ths.fechaMin).slice(0, 10) &&
-    hasta === String(ths.fechaMax).slice(0, 10)
-  );
-}
-
 function thsParams() {
   const p = {};
-  const { desde, hasta } = thsDateValues();
-  // El rango de fechas manda siempre; los botones de período solo sincronizan estos inputs.
-  if (desde) p.desde = desde;
-  if (hasta) p.hasta = hasta;
+  if (ths.selectedPeriodo) p.periodo = ths.selectedPeriodo;
   const cliente = ths.clienteSeleccionado || document.getElementById('ths-f-cliente')?.value;
   if (cliente) p.cliente = cliente;
   const tipo = document.getElementById('ths-f-tipo')?.value;
   if (tipo) p.tipo_servicio = tipo;
   return p;
-}
-
-function setThsDateInputs(desde, hasta) {
-  const d = document.getElementById('ths-f-desde');
-  const h = document.getElementById('ths-f-hasta');
-  if (d) d.value = desde ? String(desde).slice(0, 10) : '';
-  if (h) h.value = hasta ? String(hasta).slice(0, 10) : '';
-}
-
-function thsOverlappingPeriods(desde, hasta) {
-  if (!desde || !hasta) return [];
-  return (ths.periodos || []).filter(p => p.desde <= hasta && p.hasta >= desde);
-}
-
-/** Ajusta el rango a los períodos cargados que tocan la selección (Tot Hs. es por período entero). */
-function snapThsDatesToPeriods() {
-  const { desde, hasta } = thsDateValues();
-  if (!desde || !hasta || !ths.periodos.length) {
-    ths.selectedPeriodo = null;
-    return;
-  }
-  const hit = thsOverlappingPeriods(desde, hasta);
-  if (!hit.length) {
-    ths.selectedPeriodo = null;
-    return;
-  }
-  if (hit.length === 1) {
-    setThsDateInputs(hit[0].desde, hit[0].hasta);
-    ths.selectedPeriodo = hit[0].key;
-    return;
-  }
-  const d = [...hit].map(p => p.desde).sort()[0];
-  const h = [...hit].map(p => p.hasta).sort().at(-1);
-  setThsDateInputs(d, h);
-  ths.selectedPeriodo = null;
-}
-
-function syncThsPeriodFromDates() {
-  const { desde, hasta } = thsDateValues();
-  if (!desde || !hasta) {
-    ths.selectedPeriodo = null;
-    return;
-  }
-  const key = `${desde}|${hasta}`;
-  const match = ths.periodos.find(p => p.key === key);
-  ths.selectedPeriodo = match ? match.key : null;
 }
 
 function renderThsPeriods() {
@@ -1340,8 +1267,7 @@ function renderThsPeriods() {
     wrap.innerHTML = '<span class="subtitle">Sin períodos</span>';
     return;
   }
-  const { desde, hasta } = thsDateValues();
-  const todosActive = !ths.selectedPeriodo && thsIsFullRange(desde, hasta);
+  const todosActive = !ths.selectedPeriodo;
   wrap.innerHTML = [
     `<button type="button" class="year-btn ${todosActive ? 'active' : ''}" data-key="">Todos</button>`,
     ...ths.periodos.map(p =>
@@ -1350,15 +1276,7 @@ function renderThsPeriods() {
   ].join('');
   wrap.querySelectorAll('.year-btn').forEach(btn => {
     btn.onclick = () => {
-      const key = btn.dataset.key || '';
-      if (!key) {
-        ths.selectedPeriodo = null;
-        setThsDateInputs(ths.fechaMin, ths.fechaMax);
-      } else {
-        ths.selectedPeriodo = key;
-        const [d, h] = key.split('|');
-        setThsDateInputs(d, h);
-      }
+      ths.selectedPeriodo = btn.dataset.key || null;
       renderThsPeriods();
       loadThsDashboard();
     };
@@ -1798,8 +1716,6 @@ async function loadThsDashboard() {
       apiGet('/tot-hs/por-sector', {
         periodo: params.periodo,
         tipo_servicio: params.tipo_servicio,
-        desde: params.desde,
-        hasta: params.hasta,
       }),
       apiGet('/tot-hs/por-empleado', params),
     ]);
@@ -1808,7 +1724,7 @@ async function loadThsDashboard() {
     ths.porSector = porSector;
     ths.porEmpleado = porEmpleado;
 
-    if (!(resumen.registros > 0) && !ths.selectedPeriodo && !params.cliente && !params.desde && !params.hasta) {
+    if (!(resumen.registros > 0) && !ths.selectedPeriodo && !params.cliente && !params.periodo) {
       empty.classList.remove('hidden');
       document.getElementById('ths-btn-export').disabled = true;
       return;
@@ -1833,39 +1749,15 @@ async function initTotHs() {
     ths.periodos = meta.periodos || [];
     ths.clientes = meta.clientes || [];
     ths.tipos = meta.tipos_servicio || [];
-    ths.fechaMin = meta.fecha_min || null;
-    ths.fechaMax = meta.fecha_max || null;
     if (ths.selectedPeriodo && !ths.periodos.some(p => p.key === ths.selectedPeriodo)) {
       ths.selectedPeriodo = null;
     }
-    const dEl = document.getElementById('ths-f-desde');
-    const hEl = document.getElementById('ths-f-hasta');
-    if (dEl && !dEl.value) dEl.value = ths.fechaMin || '';
-    if (hEl && !hEl.value) hEl.value = ths.fechaMax || '';
-    syncThsPeriodFromDates();
     renderThsPeriods();
     renderThsFilters();
   } catch (_) { /* meta vacío ok */ }
   await loadThsDashboard();
 }
 
-function onThsDateChange() {
-  const { desde, hasta } = thsDateValues();
-  if (desde && hasta && desde > hasta) {
-    document.getElementById('ths-f-hasta').value = desde;
-  }
-  // Los Tot Hs. son por período completo: si el rango toca un período, usamos ese período.
-  snapThsDatesToPeriods();
-  syncThsPeriodFromDates();
-  renderThsPeriods();
-  loadThsDashboard();
-}
-
-['ths-f-desde', 'ths-f-hasta'].forEach(id => {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.addEventListener('change', onThsDateChange);
-});
 document.getElementById('ths-kpi-modal-close').onclick = closeThsKpiModal;
 document.querySelectorAll('#ths-kpi-modal [data-close-modal]').forEach(el => {
   el.onclick = closeThsKpiModal;
