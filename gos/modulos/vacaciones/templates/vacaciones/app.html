@@ -153,6 +153,18 @@
   </div>
 </div>
 
+<div id="ths-empleado-modal" class="vac-modal hidden" role="dialog" aria-modal="true" aria-labelledby="ths-empleado-modal-title">
+  <div class="vac-modal-backdrop" data-close-modal></div>
+  <div class="vac-modal-panel vac-modal-panel--xl">
+    <div class="vac-modal-header">
+      <h2 id="ths-empleado-modal-title">Persona</h2>
+      <button type="button" class="btn-outline btn" id="ths-empleado-modal-close" style="padding:4px 10px;font-size:.8rem;" aria-label="Cerrar">✕</button>
+    </div>
+    <p class="kpi-detail-meta" id="ths-empleado-modal-meta"></p>
+    <div id="ths-empleado-modal-body" class="vac-modal-body"></div>
+  </div>
+</div>
+
 <div id="view-tot-hs" class="app {% if initial_view != 'tot_hs' %}hidden{% endif %}">
   <div class="header-row">
     <div>
@@ -267,6 +279,7 @@
       <div class="header-row">
         <div>
           <h2 style="font-size:1rem;">Detalle por empleado <span id="ths-sector-label" style="color:var(--accent);font-weight:400;"></span></h2>
+          <p class="subtitle">Clic en un nombre para ver detalle y gráficos del período</p>
         </div>
         <span class="subtitle" id="ths-table-count">0 personas</span>
       </div>
@@ -703,10 +716,25 @@ function closeThsClienteModal() {
   document.getElementById('ths-cliente-modal')?.classList.add('hidden');
 }
 
+function destroyThsEmpleadoCharts() {
+  ['chartEmpComp', 'chartEmpServ', 'chartEmpMes', 'chartEmpNov'].forEach(k => {
+    if (ths[k]) {
+      ths[k].destroy();
+      ths[k] = null;
+    }
+  });
+}
+
+function closeThsEmpleadoModal() {
+  destroyThsEmpleadoCharts();
+  document.getElementById('ths-empleado-modal')?.classList.add('hidden');
+}
+
 function closeVacModals() {
   closePersonaModal();
   closeThsKpiModal();
   closeThsClienteModal();
+  closeThsEmpleadoModal();
 }
 
 function renderNotasPanel() {
@@ -1279,6 +1307,7 @@ const ths = {
   clienteSeleccionado: null,
   chartMes: null, chartSector: null,
   chartClienteComp: null, chartClienteEmp: null,
+  chartEmpComp: null, chartEmpServ: null, chartEmpMes: null, chartEmpNov: null,
   chartCmpAbs: null, chartCmpPct: null, chartCmpNov: null, chartCmpVar: null,
 };
 
@@ -1775,7 +1804,7 @@ function openThsKpiDetail(key) {
   if (key === 'personas') {
     headers = ['Empleado', 'Extras / total', 'Total Hs', 'Hs extras'];
     tableRows = withVal.map(({ row: r }) => [
-      `<strong>${escHtml(r.empleado)}</strong>`,
+      thsPersonaBtn(r.empleado),
       fmtPct(thsExtrasOfTotal(r)),
       fmtNum(r.total_horas, 1),
       fmtNum(r.hs_extras, 1),
@@ -1783,7 +1812,7 @@ function openThsKpiDetail(key) {
   } else if (key === 'extras_pct') {
     headers = ['Empleado', 'Extras / total', 'Hs extras', 'Total Hs'];
     tableRows = withVal.map(({ row: r, val }) => [
-      `<strong>${escHtml(r.empleado)}</strong>`,
+      thsPersonaBtn(r.empleado),
       fmtPct(val),
       fmtNum(r.hs_extras, 1),
       fmtNum(r.total_horas, 1),
@@ -1791,7 +1820,7 @@ function openThsKpiDetail(key) {
   } else if (key === 'hs_extras') {
     headers = ['Empleado', 'Hs extras', 'Hs 50%', 'Hs 100%', 'Hs noct', 'Hs noct50'];
     tableRows = withVal.map(({ row: r, val }) => [
-      `<strong>${escHtml(r.empleado)}</strong>`,
+      thsPersonaBtn(r.empleado),
       fmtNum(val, 1),
       fmtNum(r.hs50, 1),
       fmtNum(r.hs100, 1),
@@ -1801,7 +1830,7 @@ function openThsKpiDetail(key) {
   } else if (key === 'hs_noc') {
     headers = ['Empleado', 'Hs noc.', 'Hs noct', 'Hs noct50'];
     tableRows = withVal.map(({ row: r, val }) => [
-      `<strong>${escHtml(r.empleado)}</strong>`,
+      thsPersonaBtn(r.empleado),
       fmtNum(val, 1),
       fmtNum(r.hs_noc, 1),
       fmtNum(r.hs_noc50, 1),
@@ -1809,7 +1838,7 @@ function openThsKpiDetail(key) {
   } else {
     headers = ['Empleado', def.col || 'Valor', 'Extras / total', 'Total Hs'];
     tableRows = withVal.map(({ row: r, val }) => [
-      `<strong>${escHtml(r.empleado)}</strong>`,
+      thsPersonaBtn(r.empleado),
       fmtNum(val, digitos),
       fmtPct(thsExtrasOfTotal(r)),
       fmtNum(r.total_horas, 1),
@@ -1822,7 +1851,9 @@ function openThsKpiDetail(key) {
     : key === 'extras_pct'
       ? `${fmtPct(thsExtrasOfTotal(ths.resumen || {}))} global · ${withVal.length} persona${withVal.length === 1 ? '' : 's'}${filtro}`
       : `${fmtNum(total, digitos)} total · ${withVal.length} persona${withVal.length === 1 ? '' : 's'}${filtro}`;
-  document.getElementById('ths-kpi-modal-body').innerHTML = thsKpiDetailTable(headers, tableRows);
+  const kpiBody = document.getElementById('ths-kpi-modal-body');
+  kpiBody.innerHTML = thsKpiDetailTable(headers, tableRows);
+  bindThsPersonaLinks(kpiBody, { kpiKey: key });
   document.getElementById('ths-kpi-modal').classList.remove('hidden');
 }
 
@@ -1892,6 +1923,15 @@ function renderThsClienteCharts(resumen, empleados) {
       maintainAspectRatio: false,
       plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
       scales: { x: { beginAtZero: true } },
+      onClick: (_e, els) => {
+        if (!els.length) return;
+        const emp = top[els[0].index]?.empleado;
+        const cliente = document.getElementById('ths-cliente-modal-title')?.textContent;
+        if (emp) openThsEmpleadoDetail(emp, { cliente: cliente || undefined });
+      },
+      onHover: (event, els) => {
+        event.native.target.style.cursor = els.length ? 'pointer' : 'default';
+      },
     },
   });
 }
@@ -1924,7 +1964,7 @@ async function openThsClienteDetail(cliente) {
         const extras =
           (Number(e.hs50) || 0) + (Number(e.hs100) || 0) + (Number(e.hs_noc) || 0) + (Number(e.hs_noc50) || 0);
         return [
-          `<strong>${escHtml(e.empleado)}</strong>`,
+          thsPersonaBtn(e.empleado),
           fmtPct(thsExtrasOfTotal({ ...e, hs_extras: extras })),
           fmtNum(e.total_horas, 1),
           fmtNum(extras, 1),
@@ -1968,8 +2008,375 @@ async function openThsClienteDetail(cliente) {
     };
 
     renderThsClienteCharts(r, rows);
+    bindThsPersonaLinks(body, { cliente });
   } catch (err) {
     document.getElementById('ths-cliente-modal-meta').textContent = '';
+    body.innerHTML = `<p class="kpi-detail-empty">${escHtml(err.message || 'No se pudo cargar el detalle')}</p>`;
+  }
+}
+
+function thsPersonaBtn(empleado) {
+  return `<button type="button" class="link-persona" data-ths-empleado="${escHtml(empleado)}">${escHtml(empleado)}</button>`;
+}
+
+function bindThsPersonaLinks(root, opts = {}) {
+  (root || document).querySelectorAll('[data-ths-empleado]').forEach(btn => {
+    btn.onclick = e => {
+      e.preventDefault();
+      e.stopPropagation();
+      openThsEmpleadoDetail(btn.dataset.thsEmpleado, opts);
+    };
+  });
+}
+
+function thsSumField(rows, key) {
+  return rows.reduce((a, r) => a + (Number(r[key]) || 0), 0);
+}
+
+function thsAggregateDetalle(rows) {
+  const keys = [
+    'total_horas', 'hs_viaje', 'hs50', 'hs_noc', 'hs_noc50', 'hs100', 'total_hs_viaje',
+    'viandas', 'v_desayuno', 'd_normales', 'ausente', 'fr_trabajados', 'feriados',
+    'enfermedad', 'traslado', 'vacaciones', 'licencia', 'accidente', 'francos_comp',
+  ];
+  const out = {};
+  for (const k of keys) out[k] = thsSumField(rows, k);
+  out.hs_extras = out.hs50 + out.hs100 + out.hs_noc + out.hs_noc50;
+  out.filas = rows.length;
+  return out;
+}
+
+function thsPeriodKeyOfRow(r) {
+  return `${r.periodo_desde || ''}|${r.periodo_hasta || ''}`;
+}
+
+function thsLabelForPeriodKey(key) {
+  const hit = ths.periodos.find(p => p.key === key);
+  if (hit) return hit.label;
+  const [d, h] = String(key).split('|');
+  if (d && h) return `${fmtFecha(d)} – ${fmtFecha(h)}`;
+  return key || '—';
+}
+
+function thsParamsForEmpleado(opts = {}) {
+  const p = { ...thsParams() };
+  if (opts.cliente) p.cliente = opts.cliente;
+  // En comparativo pedimos todo y filtramos a los 2 períodos en el cliente.
+  if (thsIsCompareMode()) delete p.periodo;
+  return p;
+}
+
+function renderThsEmpleadoCharts(agg, rows, focusKey) {
+  destroyThsEmpleadoCharts();
+
+  const extrasParts = [
+    { label: 'Hs 50%', val: agg.hs50, color: 'rgba(200, 140, 30, 0.8)' },
+    { label: 'Hs 100%', val: agg.hs100, color: 'rgba(180, 70, 50, 0.8)' },
+    { label: 'Hs noct', val: agg.hs_noc, color: 'rgba(47, 111, 143, 0.8)' },
+    { label: 'Hs noct50', val: agg.hs_noc50, color: 'rgba(90, 140, 40, 0.8)' },
+  ];
+  ths.chartEmpComp = new Chart(document.getElementById('ths-emp-chart-comp'), {
+    type: 'doughnut',
+    data: {
+      labels: extrasParts.map(x => x.label),
+      datasets: [{
+        data: extrasParts.map(x => x.val),
+        backgroundColor: extrasParts.map(x => x.color),
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.label}: ${fmtNum(ctx.parsed, 1)}`,
+          },
+        },
+      },
+    },
+  });
+
+  const byServ = new Map();
+  for (const r of rows) {
+    const label = [r.servicio, r.centro].filter(Boolean).join(' · ') || r.cliente || 'Sin servicio';
+    const cur = byServ.get(label) || { total_horas: 0, hs_extras: 0 };
+    cur.total_horas += Number(r.total_horas) || 0;
+    cur.hs_extras +=
+      (Number(r.hs50) || 0) + (Number(r.hs100) || 0) + (Number(r.hs_noc) || 0) + (Number(r.hs_noc50) || 0);
+    byServ.set(label, cur);
+  }
+  const servRows = [...byServ.entries()]
+    .map(([label, v]) => ({ label, ...v }))
+    .sort((a, b) => b.total_horas - a.total_horas)
+    .slice(0, 10);
+  ths.chartEmpServ = new Chart(document.getElementById('ths-emp-chart-serv'), {
+    type: 'bar',
+    data: {
+      labels: servRows.map(s => s.label.length > 28 ? `${s.label.slice(0, 26)}…` : s.label),
+      datasets: [
+        {
+          label: 'Total horas',
+          data: servRows.map(s => s.total_horas),
+          backgroundColor: 'rgba(47, 111, 143, 0.7)',
+          borderRadius: 4,
+        },
+        {
+          label: 'Hs extras',
+          data: servRows.map(s => s.hs_extras),
+          backgroundColor: 'rgba(200, 140, 30, 0.7)',
+          borderRadius: 4,
+        },
+      ],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
+      scales: { x: { beginAtZero: true } },
+    },
+  });
+
+  const byMes = new Map();
+  for (const r of rows) {
+    const key = thsPeriodKeyOfRow(r);
+    const cur = byMes.get(key) || { total_horas: 0, hs_extras: 0 };
+    cur.total_horas += Number(r.total_horas) || 0;
+    cur.hs_extras +=
+      (Number(r.hs50) || 0) + (Number(r.hs100) || 0) + (Number(r.hs_noc) || 0) + (Number(r.hs_noc50) || 0);
+    byMes.set(key, cur);
+  }
+  const mesKeys = [...byMes.keys()].sort((a, b) => a.localeCompare(b));
+  const mesCanvas = document.getElementById('ths-emp-chart-mes');
+  if (mesCanvas && mesKeys.length) {
+    ths.chartEmpMes = new Chart(mesCanvas, {
+      type: 'bar',
+      data: {
+        labels: mesKeys.map(thsLabelForPeriodKey),
+        datasets: [
+          {
+            label: 'Total horas',
+            data: mesKeys.map(k => byMes.get(k).total_horas),
+            backgroundColor: 'rgba(90, 140, 40, 0.75)',
+            borderRadius: 4,
+            yAxisID: 'y',
+          },
+          {
+            label: 'Hs extras',
+            data: mesKeys.map(k => byMes.get(k).hs_extras),
+            backgroundColor: 'rgba(200, 140, 30, 0.7)',
+            borderRadius: 4,
+            yAxisID: 'y',
+          },
+          {
+            label: 'Extras / total',
+            data: mesKeys.map(k => {
+              const m = byMes.get(k);
+              return m.total_horas ? (m.hs_extras / m.total_horas) * 100 : 0;
+            }),
+            backgroundColor: 'rgba(47, 111, 143, 0.7)',
+            borderRadius: 4,
+            yAxisID: 'y1',
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                if (ctx.dataset.yAxisID === 'y1') return `${ctx.dataset.label}: ${fmtPct(ctx.parsed.y)}`;
+                return `${ctx.dataset.label}: ${fmtNum(ctx.parsed.y, 1)}`;
+              },
+            },
+          },
+        },
+        scales: {
+          y: { beginAtZero: true, position: 'left' },
+          y1: {
+            beginAtZero: true,
+            position: 'right',
+            grid: { drawOnChartArea: false },
+            ticks: { callback: v => `${v}%` },
+          },
+        },
+      },
+    });
+  }
+
+  const novItems = [
+    { key: 'ausente', label: 'Ausentes' },
+    { key: 'vacaciones', label: 'Vacaciones' },
+    { key: 'enfermedad', label: 'Enfermedad' },
+    { key: 'licencia', label: 'Licencias' },
+    { key: 'feriados', label: 'Fer. trab.' },
+    { key: 'traslado', label: 'Traslados' },
+    { key: 'fr_trabajados', label: 'Fr. trab.' },
+    { key: 'accidente', label: 'Accidentes' },
+    { key: 'francos_comp', label: 'Fr. comp.' },
+    { key: 'viandas', label: 'Viandas' },
+    { key: 'v_desayuno', label: 'Desayunos' },
+  ].map(x => ({ ...x, val: Number(agg[x.key]) || 0 }))
+    .filter(x => x.val > 0 || x.key === focusKey)
+    .sort((a, b) => {
+      if (a.key === focusKey) return -1;
+      if (b.key === focusKey) return 1;
+      return b.val - a.val;
+    });
+  const novCanvas = document.getElementById('ths-emp-chart-nov');
+  if (novCanvas && novItems.length) {
+    ths.chartEmpNov = new Chart(novCanvas, {
+      type: 'bar',
+      data: {
+        labels: novItems.map(x => x.label),
+        datasets: [{
+          label: 'Cantidad',
+          data: novItems.map(x => x.val),
+          backgroundColor: novItems.map(x =>
+            x.key === focusKey ? 'rgba(180, 83, 9, 0.85)' : 'rgba(107, 114, 128, 0.55)'
+          ),
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true } },
+      },
+    });
+  }
+}
+
+async function openThsEmpleadoDetail(empleado, opts = {}) {
+  if (!empleado) return;
+  const kpiKey = opts.kpiKey || null;
+  const def = kpiKey ? THS_KPI_DEFS[kpiKey] : null;
+  const modal = document.getElementById('ths-empleado-modal');
+  const body = document.getElementById('ths-empleado-modal-body');
+  document.getElementById('ths-empleado-modal-title').textContent = empleado;
+  document.getElementById('ths-empleado-modal-meta').textContent = 'Cargando detalle…';
+  body.innerHTML = '<p class="kpi-detail-empty">Cargando…</p>';
+  destroyThsEmpleadoCharts();
+  modal.classList.remove('hidden');
+
+  try {
+    const params = thsParamsForEmpleado(opts);
+    let rows = await apiGet('/tot-hs/detalle', { ...params, empleado, limit: 2000 });
+    rows = Array.isArray(rows) ? rows : [];
+
+    if (thsIsCompareMode() && ths.selectedPeriodos.length) {
+      const allow = new Set(ths.selectedPeriodos);
+      rows = rows.filter(r => allow.has(thsPeriodKeyOfRow(r)));
+    }
+
+    if (!rows.length) {
+      document.getElementById('ths-empleado-modal-meta').textContent = '';
+      body.innerHTML = '<p class="kpi-detail-empty">Sin registros para esta persona con el filtro actual.</p>';
+      return;
+    }
+
+    const agg = thsAggregateDetalle(rows);
+    const focusVal = def ? thsKpiValue(agg, def) : null;
+    const scopeParts = [];
+    if (thsIsCompareMode()) {
+      scopeParts.push(ths.selectedPeriodos.map(thsPeriodLabel).join(' vs '));
+    } else if (ths.selectedPeriodos.length === 1) {
+      scopeParts.push(thsPeriodLabel(ths.selectedPeriodos[0]));
+    } else {
+      scopeParts.push('Todos los períodos');
+    }
+    if (params.cliente) scopeParts.push(`cliente ${params.cliente}`);
+    if (def) scopeParts.push(`KPI: ${def.title}`);
+
+    document.getElementById('ths-empleado-modal-meta').textContent =
+      `${scopeParts.join(' · ')} · ${fmtNum(agg.filas, 0)} fila${agg.filas === 1 ? '' : 's'}`;
+
+    const kpiCards = [
+      { key: 'total_horas', label: 'Total horas', value: fmtNum(agg.total_horas, 1) },
+      { key: 'hs_extras', label: 'Hs extras', value: fmtNum(agg.hs_extras, 1) },
+      { key: 'extras_pct', label: 'Extras / total', value: fmtPct(thsExtrasOfTotal(agg)) },
+      { key: 'hs_viaje', label: 'Hs viaje', value: fmtNum(agg.hs_viaje, 1) },
+      { key: 'd_normales', label: 'Días normales', value: fmtNum(agg.d_normales, 0) },
+      { key: 'feriados', label: 'Fer. trab.', value: fmtNum(agg.feriados, 0) },
+    ];
+    if (def && !kpiCards.some(c => c.key === kpiKey)) {
+      const digitos = def.hours ? 1 : (kpiKey === 'extras_pct' ? 1 : 0);
+      kpiCards.unshift({
+        key: kpiKey,
+        label: def.title,
+        value: kpiKey === 'extras_pct' ? fmtPct(focusVal) : fmtNum(focusVal, digitos),
+      });
+    }
+
+    const periodKeys = [...new Set(rows.map(thsPeriodKeyOfRow))].sort();
+    const showMesChart = periodKeys.length > 1;
+    const chartsClass = showMesChart ? 'ths-empleado-charts ths-empleado-charts--3' : 'ths-empleado-charts';
+
+    const tableHtml = thsKpiDetailTable(
+      ['Período', 'Servicio', 'Centro', 'Cliente', 'Total Hs', 'Extras', 'Viaje', 'Ausente', 'Vacaciones', 'Fer. trab.'],
+      rows
+        .slice()
+        .sort((a, b) => (b.total_horas || 0) - (a.total_horas || 0))
+        .map(r => {
+          const extras =
+            (Number(r.hs50) || 0) + (Number(r.hs100) || 0) + (Number(r.hs_noc) || 0) + (Number(r.hs_noc50) || 0);
+          return [
+            escHtml(thsLabelForPeriodKey(thsPeriodKeyOfRow(r))),
+            escHtml(r.servicio || '—'),
+            escHtml(r.centro || '—'),
+            escHtml(r.cliente || '—'),
+            fmtNum(r.total_horas, 1),
+            fmtNum(extras, 1),
+            fmtNum(r.hs_viaje, 1),
+            fmtNum(r.ausente, 0),
+            fmtNum(r.vacaciones, 0),
+            fmtNum(r.feriados, 0),
+          ];
+        })
+    );
+
+    body.innerHTML = `
+      <div class="ths-cliente-kpis" style="grid-template-columns:repeat(auto-fit,minmax(110px,1fr));">
+        ${kpiCards.map(c => `
+          <div class="ths-cliente-kpi${c.key === kpiKey ? ' ths-emp-focus' : ''}">
+            <div class="ths-cliente-kpi-val">${c.value}</div>
+            <div class="ths-cliente-kpi-lbl">${escHtml(c.label)}</div>
+          </div>`).join('')}
+      </div>
+      <div class="${chartsClass}">
+        <div class="ths-cliente-chart-card">
+          <h3>Composición de horas extras</h3>
+          <div class="ths-cliente-chart-box"><canvas id="ths-emp-chart-comp"></canvas></div>
+        </div>
+        <div class="ths-cliente-chart-card">
+          <h3>Por servicio / centro</h3>
+          <div class="ths-cliente-chart-box"><canvas id="ths-emp-chart-serv"></canvas></div>
+        </div>
+        ${showMesChart ? `
+        <div class="ths-cliente-chart-card">
+          <h3>Por período</h3>
+          <div class="ths-cliente-chart-box"><canvas id="ths-emp-chart-mes"></canvas></div>
+        </div>` : ''}
+        <div class="ths-cliente-chart-card">
+          <h3>Novedades</h3>
+          <div class="ths-cliente-chart-box"><canvas id="ths-emp-chart-nov"></canvas></div>
+        </div>
+      </div>
+      <h3 style="font-size:.9rem;margin:0 0 8px;color:var(--gos-green-dark);">Detalle por servicio / centro</h3>
+      ${tableHtml}
+    `;
+
+    renderThsEmpleadoCharts(agg, rows, kpiKey);
+  } catch (err) {
+    document.getElementById('ths-empleado-modal-meta').textContent = '';
     body.innerHTML = `<p class="kpi-detail-empty">${escHtml(err.message || 'No se pudo cargar el detalle')}</p>`;
   }
 }
@@ -1978,6 +2385,7 @@ function renderThsCharts() {
   const mesLabels = ths.porMes.map(r => r.periodo);
   const mesHoras = ths.porMes.map(r => r.total_horas);
   const mesExtras = ths.porMes.map(r => r.hs_extras);
+  const mesExtrasPct = ths.porMes.map(r => thsExtrasOfTotal(r) ?? 0);
 
   if (ths.chartMes) ths.chartMes.destroy();
   ths.chartMes = new Chart(document.getElementById('ths-chart-mes'), {
@@ -1985,15 +2393,43 @@ function renderThsCharts() {
     data: {
       labels: mesLabels,
       datasets: [
-        { label: 'Total horas', data: mesHoras, backgroundColor: 'rgba(90, 140, 40, 0.75)', borderRadius: 4 },
-        { label: 'Hs extras', data: mesExtras, backgroundColor: 'rgba(200, 140, 30, 0.7)', borderRadius: 4 },
+        { label: 'Total horas', data: mesHoras, backgroundColor: 'rgba(90, 140, 40, 0.75)', borderRadius: 4, yAxisID: 'y' },
+        { label: 'Hs extras', data: mesExtras, backgroundColor: 'rgba(200, 140, 30, 0.7)', borderRadius: 4, yAxisID: 'y' },
+        {
+          label: 'Extras / total',
+          data: mesExtrasPct,
+          backgroundColor: 'rgba(47, 111, 143, 0.7)',
+          borderRadius: 4,
+          yAxisID: 'y1',
+        },
       ],
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { position: 'top' } },
-      scales: { x: { stacked: false }, y: { beginAtZero: true } },
+      plugins: {
+        legend: { position: 'top' },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed.y;
+              if (ctx.dataset.yAxisID === 'y1') return `${ctx.dataset.label}: ${fmtPct(v)}`;
+              return `${ctx.dataset.label}: ${fmtNum(v, 1)}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: { stacked: false },
+        y: { beginAtZero: true, position: 'left', title: { display: true, text: 'Horas' } },
+        y1: {
+          beginAtZero: true,
+          position: 'right',
+          grid: { drawOnChartArea: false },
+          ticks: { callback: v => `${v}%` },
+          title: { display: true, text: 'Extras / total' },
+        },
+      },
     },
   });
 
@@ -2042,7 +2478,7 @@ function renderThsTable() {
   body.innerHTML = rows.length
     ? rows.map(r => `
       <tr>
-        <td><strong>${escHtml(r.empleado)}</strong></td>
+        <td>${thsPersonaBtn(r.empleado)}</td>
         <td class="num">${fmtPct(thsExtrasOfTotal(r))}</td>
         <td class="num" style="font-weight:700">${fmtNum(r.total_horas)}</td>
         <td class="num">${fmtNum(r.hs_viaje)}</td>
@@ -2065,6 +2501,7 @@ function renderThsTable() {
         <td class="num">${fmtNum(r.total_hs_viaje)}</td>
       </tr>`).join('')
     : `<tr><td colspan="21" style="text-align:center;color:var(--muted);padding:24px;">Sin registros para este filtro</td></tr>`;
+  bindThsPersonaLinks(body);
 }
 
 async function loadThsDashboard() {
@@ -2154,6 +2591,10 @@ document.getElementById('ths-cliente-modal-close').onclick = closeThsClienteModa
 document.querySelectorAll('#ths-cliente-modal [data-close-modal]').forEach(el => {
   el.onclick = closeThsClienteModal;
 });
+document.getElementById('ths-empleado-modal-close').onclick = closeThsEmpleadoModal;
+document.querySelectorAll('#ths-empleado-modal [data-close-modal]').forEach(el => {
+  el.onclick = closeThsEmpleadoModal;
+});
 document.querySelectorAll('.ths-kpis [data-ths-kpi]').forEach(el => {
   el.onclick = () => openThsKpiDetail(el.dataset.thsKpi);
 });
@@ -2226,7 +2667,13 @@ document.querySelector('#ths-export-drop [data-ths-export="excel"]').onclick = (
 
 // ── Init ──
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeVacModals();
+  if (e.key !== 'Escape') return;
+  const empModal = document.getElementById('ths-empleado-modal');
+  if (empModal && !empModal.classList.contains('hidden')) {
+    closeThsEmpleadoModal();
+    return;
+  }
+  closeVacModals();
 });
 const initialView = '{{ initial_view }}';
 if (initialView === 'vacaciones') initVacaciones();

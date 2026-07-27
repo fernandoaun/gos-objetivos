@@ -1142,11 +1142,33 @@ tr:hover td {
   margin-bottom: 12px;
 }
 
+.ths-emp-focus {
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--pe-bg));
+}
+
+.ths-emp-focus .ths-cliente-kpi-val {
+  color: var(--accent);
+}
+
+.ths-empleado-charts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.ths-empleado-charts--3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
 @media (max-width: 720px) {
   .ths-cliente-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .ths-cliente-charts {
+  .ths-cliente-charts,
+  .ths-empleado-charts,
+  .ths-empleado-charts--3 {
     grid-template-columns: 1fr;
   }
 }

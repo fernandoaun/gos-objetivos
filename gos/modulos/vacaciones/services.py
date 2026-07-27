@@ -802,13 +802,18 @@ def get_tot_hs_detalle(
             "hs_noc50": float(r.hs_noc50 or 0),
             "hs100": float(r.hs100 or 0),
             "total_hs_viaje": float(r.total_hs_viaje or 0),
+            "viandas": float(r.viandas or 0),
+            "v_desayuno": float(r.v_desayuno or 0),
+            "d_normales": float(r.d_normales or 0),
             "ausente": float(r.ausente or 0),
+            "fr_trabajados": float(r.fr_trabajados or 0),
+            "feriados": float(r.feriados or 0),
             "enfermedad": float(r.enfermedad or 0),
+            "traslado": float(r.traslado or 0),
             "vacaciones": float(r.vacaciones or 0),
             "licencia": float(r.licencia or 0),
-            "feriados": float(r.feriados or 0),
-            "d_normales": float(r.d_normales or 0),
-            "traslado": float(r.traslado or 0),
+            "accidente": float(r.accidente or 0),
+            "francos_comp": float(r.francos_comp or 0),
         }
         for r in rows
     ]
