@@ -486,7 +486,7 @@ _THS_COMPARE_METRICS = (
     ("vacaciones", "Vacaciones", False),
     ("enfermedad", "Enfermedad", False),
     ("licencia", "Licencias", False),
-    ("feriados", "Feriados", False),
+    ("feriados", "Feriados trab.", False),
     ("traslado", "Traslados", False),
     ("fr_trabajados", "Francos trabajados", False),
     ("francos_comp", "Francos compens.", False),

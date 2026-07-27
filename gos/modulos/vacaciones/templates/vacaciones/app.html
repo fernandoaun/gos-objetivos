@@ -287,7 +287,7 @@
               <th class="num">D.Normales</th>
               <th class="num">Ausente</th>
               <th class="num">Fr.Trabajados</th>
-              <th class="num">Feriado</th>
+              <th class="num">Fer.Trabajados</th>
               <th class="num">Enfermo</th>
               <th class="num">Traslado</th>
               <th class="num">Vacaciones</th>
@@ -1491,7 +1491,7 @@ function renderThsCompareCharts(data) {
     ['vacaciones', 'Vacaciones'],
     ['enfermedad', 'Enfermedad'],
     ['licencia', 'Licencias'],
-    ['feriados', 'Feriados'],
+    ['feriados', 'Fer. trab.'],
     ['traslado', 'Traslados'],
     ['fr_trabajados', 'Fr. trab.'],
     ['viandas', 'Viandas'],
@@ -1673,7 +1673,7 @@ function renderThsKpis() {
     { key: 'vacaciones', label: 'Vacaciones', value: r.vacaciones },
     { key: 'enfermedad', label: 'Enfermedad', value: r.enfermedad },
     { key: 'licencia', label: 'Licencias', value: r.licencia },
-    { key: 'feriados', label: 'Feriados', value: r.feriados },
+    { key: 'feriados', label: 'Fer. trab.', value: r.feriados },
     { key: 'traslado', label: 'Traslados', value: r.traslado },
     { key: 'accidente', label: 'Accidentes', value: r.accidente },
     { key: 'fr_trabajados', label: 'Francos trab.', value: r.fr_trabajados },
@@ -1728,7 +1728,7 @@ const THS_KPI_DEFS = {
   vacaciones: { title: 'Vacaciones', field: 'vacaciones', hours: false, col: 'Vacaciones' },
   enfermedad: { title: 'Enfermedad', field: 'enfermedad', hours: false, col: 'Enfermo' },
   licencia: { title: 'Licencias', field: 'licencia', hours: false, col: 'Licencia' },
-  feriados: { title: 'Feriados', field: 'feriados', hours: false, col: 'Feriado' },
+  feriados: { title: 'Feriados trabajados', field: 'feriados', hours: false, col: 'Feriado' },
   traslado: { title: 'Traslados', field: 'traslado', hours: false, col: 'Traslado' },
   accidente: { title: 'Accidentes', field: 'accidente', hours: false, col: 'Accidente' },
   fr_trabajados: { title: 'Francos trabajados', field: 'fr_trabajados', hours: false, col: 'Fr.Trabajados' },
@@ -2211,7 +2211,7 @@ document.querySelector('#ths-export-drop [data-ths-export="excel"]').onclick = (
   ]), 'Por cliente');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
     ['Empleado', 'Extras / total %', 'Total Hs', 'Hs viaje', 'Hs 50%', 'Hs noct', 'Hs noct50', 'Hs 100%',
-     'Viandas', 'Desayunos', 'D.Normales', 'Ausente', 'Fr.Trabajados', 'Feriado', 'Enfermo',
+     'Viandas', 'Desayunos', 'D.Normales', 'Ausente', 'Fr.Trabajados', 'Fer.Trabajados', 'Enfermo',
      'Traslado', 'Vacaciones', 'Licencia', 'Accidente', 'Fr.Compens', 'TotalHs+HsViaje'],
     ...ths.porEmpleado.map(e => [
       e.empleado, thsExtrasOfTotal(e), e.total_horas, e.hs_viaje, e.hs50, e.hs_noc, e.hs_noc50, e.hs100,
