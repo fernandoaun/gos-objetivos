@@ -305,6 +305,85 @@
   </div>
 </div>
 
+<div id="view-reporte-mensual" class="app {% if initial_view != 'reporte_mensual' %}hidden{% endif %}">
+  <div class="header-row">
+    <div>
+      <h1>Reporte mensual</h1>
+      <p class="subtitle">Dashboard del sector de mantenimiento · órdenes, horas y demanda por equipo</p>
+    </div>
+  </div>
+
+  <div id="rm-loading" class="spinner hidden" style="margin-top:20px;">Cargando reporte…</div>
+  <div id="rm-empty" class="card empty-card hidden" style="margin-top:20px;">
+    <h2>Sin datos del reporte mensual</h2>
+    <p>
+      Todavía no hay órdenes ni tareas cargadas. Cuando subas los documentos del reporte
+      (órdenes de trabajo y tareas / horas), la información se va a ver acá como en el Power BI.
+    </p>
+  </div>
+
+  <div id="rm-content" class="hidden" style="margin-top:20px;">
+    <div class="filters" style="margin-top:0;">
+      <div>
+        <label>Año</label>
+        <div class="year-btns" id="rm-year-btns"></div>
+      </div>
+      <div>
+        <label>Trimestre</label>
+        <select id="rm-trimestre">
+          <option value="">Todo el año</option>
+          <option value="1">T1</option>
+          <option value="2">T2</option>
+          <option value="3">T3</option>
+          <option value="4">T4</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="kpis">
+      <div class="card kpi">
+        <div class="kpi-label">Órdenes</div>
+        <div class="kpi-value" id="rm-kpi-ordenes">0</div>
+      </div>
+      <div class="card kpi info">
+        <div class="kpi-label">Horas hombre</div>
+        <div class="kpi-value" id="rm-kpi-horas">0</div>
+      </div>
+      <div class="card kpi">
+        <div class="kpi-label">Equipos con órdenes</div>
+        <div class="kpi-value" id="rm-kpi-unidades">0</div>
+      </div>
+      <div class="card kpi">
+        <div class="kpi-label">Tareas</div>
+        <div class="kpi-value" id="rm-kpi-tareas">0</div>
+      </div>
+    </div>
+
+    <div class="rm-grid">
+      <div class="card rm-chart-card">
+        <h2 class="rm-chart-title">Tipo de mantenimiento por horas</h2>
+        <div class="rm-chart-wrap"><canvas id="rm-chart-clase"></canvas></div>
+      </div>
+      <div class="card rm-chart-card">
+        <h2 class="rm-chart-title">Horas por lugar</h2>
+        <div class="rm-chart-wrap"><canvas id="rm-chart-lugar"></canvas></div>
+      </div>
+      <div class="card rm-chart-card rm-chart-wide">
+        <h2 class="rm-chart-title">Órdenes según estado</h2>
+        <div class="rm-chart-wrap rm-chart-tall"><canvas id="rm-chart-estado"></canvas></div>
+      </div>
+      <div class="card rm-chart-card">
+        <h2 class="rm-chart-title">Equipos con mayor demanda</h2>
+        <div class="rm-chart-wrap rm-chart-tall"><canvas id="rm-chart-demanda"></canvas></div>
+      </div>
+      <div class="card rm-chart-card">
+        <h2 class="rm-chart-title">Horas hombre dedicadas por unidad</h2>
+        <div class="rm-chart-wrap rm-chart-tall"><canvas id="rm-chart-horas-unidad"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="view-importar" class="app {% if initial_view != 'importar' %}hidden{% endif %}" style="max-width:720px;">
   <h1>Importar plan / VTV</h1>
   <p class="subtitle" style="margin-bottom:20px;">
@@ -337,7 +416,9 @@ const state = {
   anio: null,
   plan: null,
   vtv: null,
+  reporte: null,
   chart: null,
+  rmCharts: {},
   file: null,
   calYear: null,
   calMonth: null,
@@ -1183,11 +1264,224 @@ document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape') closeModals();
 });
 
+const RM_COLORS = [
+  'rgba(22, 163, 74, 0.85)',
+  'rgba(47, 111, 143, 0.85)',
+  'rgba(217, 119, 6, 0.85)',
+  'rgba(185, 28, 28, 0.75)',
+  'rgba(107, 114, 128, 0.8)',
+  'rgba(13, 148, 136, 0.85)',
+  'rgba(79, 70, 229, 0.75)',
+  'rgba(190, 24, 93, 0.75)',
+];
+
+function destroyRmCharts() {
+  Object.values(state.rmCharts).forEach((c) => {
+    try { c.destroy(); } catch (_) {}
+  });
+  state.rmCharts = {};
+}
+
+function rmChart(canvasId, config) {
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+  if (state.rmCharts[canvasId]) {
+    state.rmCharts[canvasId].destroy();
+  }
+  state.rmCharts[canvasId] = new Chart(ctx, config);
+}
+
+function renderRmYears(anios, selected) {
+  const el = document.getElementById('rm-year-btns');
+  if (!anios.length) {
+    el.innerHTML = `<button type="button" class="year-btn active" data-anio="${selected}">${selected}</button>`;
+    return;
+  }
+  el.innerHTML = anios.map(y =>
+    `<button type="button" class="year-btn ${y === selected ? 'active' : ''}" data-anio="${y}">${y}</button>`
+  ).join('');
+}
+
+function renderRmCharts(data) {
+  destroyRmCharts();
+  const clase = data.horas_por_clase || [];
+  const lugar = data.horas_por_lugar || [];
+  const demanda = data.equipos_demanda || [];
+  const horasUnidad = data.horas_por_unidad || [];
+  const porMes = data.ordenes_por_mes || [];
+  const estados = data.estados || [];
+
+  rmChart('rm-chart-clase', {
+    type: 'doughnut',
+    data: {
+      labels: clase.map(x => x.label),
+      datasets: [{
+        data: clase.map(x => x.valor),
+        backgroundColor: clase.map((_, i) => RM_COLORS[i % RM_COLORS.length]),
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.label}: ${fmtNum(ctx.raw)} h`,
+          },
+        },
+      },
+    },
+  });
+
+  rmChart('rm-chart-lugar', {
+    type: 'pie',
+    data: {
+      labels: lugar.map(x => x.label),
+      datasets: [{
+        data: lugar.map(x => x.valor),
+        backgroundColor: lugar.map((_, i) => RM_COLORS[(i + 2) % RM_COLORS.length]),
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.label}: ${fmtNum(ctx.raw)} h`,
+          },
+        },
+      },
+    },
+  });
+
+  rmChart('rm-chart-estado', {
+    type: 'bar',
+    data: {
+      labels: porMes.map(m => m.label),
+      datasets: estados.map((estado, i) => ({
+        label: estado,
+        data: porMes.map(m => (m.por_estado && m.por_estado[estado]) || 0),
+        backgroundColor: RM_COLORS[i % RM_COLORS.length],
+      })),
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom' } },
+      scales: {
+        x: { stacked: false, grid: { display: false } },
+        y: { beginAtZero: true, ticks: { precision: 0 } },
+      },
+    },
+  });
+
+  rmChart('rm-chart-demanda', {
+    type: 'bar',
+    data: {
+      labels: demanda.map(x => x.label),
+      datasets: [{
+        label: 'Órdenes',
+        data: demanda.map(x => x.valor),
+        backgroundColor: 'rgba(47, 111, 143, 0.8)',
+      }],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { beginAtZero: true, ticks: { precision: 0 } },
+        y: { grid: { display: false } },
+      },
+    },
+  });
+
+  rmChart('rm-chart-horas-unidad', {
+    type: 'bar',
+    data: {
+      labels: horasUnidad.map(x => x.label),
+      datasets: [{
+        label: 'Horas',
+        data: horasUnidad.map(x => x.valor),
+        backgroundColor: 'rgba(22, 163, 74, 0.8)',
+      }],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { beginAtZero: true },
+        y: { grid: { display: false } },
+      },
+    },
+  });
+}
+
+async function loadReporteMensual(anio, trimestre) {
+  const loading = document.getElementById('rm-loading');
+  const empty = document.getElementById('rm-empty');
+  const content = document.getElementById('rm-content');
+  loading.classList.remove('hidden');
+  empty.classList.add('hidden');
+  content.classList.add('hidden');
+  try {
+    const params = {};
+    if (anio) params.anio = anio;
+    if (trimestre) params.trimestre = trimestre;
+    const data = await apiGet('/reporte-mensual', params);
+    state.reporte = data;
+    renderRmYears(data.anios || [], data.anio);
+    const sel = document.getElementById('rm-trimestre');
+    if (sel && document.activeElement !== sel) {
+      sel.value = data.trimestre ? String(data.trimestre) : '';
+    }
+    loading.classList.add('hidden');
+    if (!data.tiene_datos) {
+      empty.classList.remove('hidden');
+      destroyRmCharts();
+      return;
+    }
+    document.getElementById('rm-kpi-ordenes').textContent = fmtNum(data.kpis?.ordenes);
+    document.getElementById('rm-kpi-horas').textContent = fmtNum(data.kpis?.horas);
+    document.getElementById('rm-kpi-unidades').textContent = fmtNum(data.kpis?.unidades_con_orden);
+    document.getElementById('rm-kpi-tareas').textContent = fmtNum(data.kpis?.tareas);
+    content.classList.remove('hidden');
+    renderRmCharts(data);
+  } catch (err) {
+    loading.classList.add('hidden');
+    empty.classList.remove('hidden');
+    empty.querySelector('h2').textContent = 'Error al cargar el reporte';
+    empty.querySelector('p').textContent = err.message || 'No se pudo obtener el reporte mensual.';
+  }
+}
+
+function bindReporteMensualUi() {
+  document.getElementById('rm-year-btns')?.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-anio]');
+    if (!btn) return;
+    const trim = document.getElementById('rm-trimestre')?.value || '';
+    loadReporteMensual(Number(btn.dataset.anio), trim ? Number(trim) : null);
+  });
+  document.getElementById('rm-trimestre')?.addEventListener('change', (ev) => {
+    const anio = state.reporte?.anio;
+    const trim = ev.target.value;
+    loadReporteMensual(anio, trim ? Number(trim) : null);
+  });
+}
+
 const initial = '{{ initial_view }}';
 bindImport();
 bindVtvUi();
+bindReporteMensualUi();
 if (initial === 'vtv') loadVtv();
 else if (initial === 'plan') loadPlan();
+else if (initial === 'reporte_mensual') loadReporteMensual();
 </script>
 </body>
 </html>

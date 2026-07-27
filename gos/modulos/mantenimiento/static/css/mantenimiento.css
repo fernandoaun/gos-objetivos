@@ -771,3 +771,44 @@ table.vtv-table th {
     border-bottom: none;
   }
 }
+
+/* Reporte mensual */
+.rm-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.rm-chart-card {
+  min-width: 0;
+}
+
+.rm-chart-wide {
+  grid-column: 1 / -1;
+}
+
+.rm-chart-title {
+  font-size: 1rem;
+  margin-bottom: 12px;
+  color: var(--gos-green-dark);
+}
+
+.rm-chart-wrap {
+  position: relative;
+  height: 260px;
+}
+
+.rm-chart-tall {
+  height: 320px;
+}
+
+@media (max-width: 900px) {
+  .rm-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rm-chart-wide {
+    grid-column: auto;
+  }
+}

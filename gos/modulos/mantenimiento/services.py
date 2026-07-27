@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session, joinedload
 from gos.modulos.mantenimiento.models import (
     MantPlanCelda,
     MantPlanMeta,
+    MantReporteOrden,
+    MantReporteTarea,
     MantUnidad,
     MantVtv,
     MantVtvTurno,
@@ -521,4 +523,96 @@ def get_plan(session: Session, anio: int | None = None, hoy: date | None = None)
             "e": "Ejecutado (mes en que se realizó)",
             "c": "Cumplimiento (E/P) solo con meses ya alcanzados a la fecha",
         },
+    }
+
+
+def _agg_count(items: list, key_fn) -> list[dict]:
+    counts: dict[str, int] = {}
+    for item in items:
+        key = (key_fn(item) or "Sin dato").strip() or "Sin dato"
+        counts[key] = counts.get(key, 0) + 1
+    return [
+        {"label": label, "valor": valor}
+        for label, valor in sorted(counts.items(), key=lambda x: (-x[1], x[0]))
+    ]
+
+
+def _agg_sum(items: list, key_fn, value_fn) -> list[dict]:
+    totals: dict[str, float] = {}
+    for item in items:
+        key = (key_fn(item) or "Sin dato").strip() or "Sin dato"
+        totals[key] = totals.get(key, 0.0) + float(value_fn(item) or 0)
+    return [
+        {"label": label, "valor": round(valor, 2)}
+        for label, valor in sorted(totals.items(), key=lambda x: (-x[1], x[0]))
+    ]
+
+
+def get_reporte_mensual(
+    session: Session,
+    anio: int | None = None,
+    trimestre: int | None = None,
+) -> dict:
+    """Dashboard tipo Power BI «Reporte Mensual»: órdenes + horas por clase/lugar/unidad."""
+    anios = sorted(
+        {
+            row[0]
+            for row in session.execute(select(MantReporteOrden.anio).distinct()).all()
+            if row[0]
+        }
+        | {
+            row[0]
+            for row in session.execute(select(MantReporteTarea.anio).distinct()).all()
+            if row[0]
+        },
+        reverse=True,
+    )
+    if anio is None:
+        anio = anios[0] if anios else date.today().year
+    if trimestre is not None and trimestre not in (1, 2, 3, 4):
+        trimestre = None
+
+    ordenes_q = select(MantReporteOrden).where(MantReporteOrden.anio == anio)
+    tareas_q = select(MantReporteTarea).where(MantReporteTarea.anio == anio)
+    if trimestre:
+        ordenes_q = ordenes_q.where(MantReporteOrden.trimestre == trimestre)
+        tareas_q = tareas_q.where(MantReporteTarea.trimestre == trimestre)
+
+    ordenes = list(session.execute(ordenes_q).scalars())
+    tareas = list(session.execute(tareas_q).scalars())
+
+    estados = sorted({(o.estado or "Sin estado").strip() or "Sin estado" for o in ordenes})
+    meses_rango = list(range((trimestre - 1) * 3 + 1, trimestre * 3 + 1)) if trimestre else list(range(1, 13))
+    ordenes_por_mes = []
+    for mes in meses_rango:
+        fila = {"mes": mes, "label": MESES_LABEL[mes], "total": 0, "por_estado": {}}
+        for estado in estados:
+            fila["por_estado"][estado] = 0
+        for o in ordenes:
+            if o.mes != mes:
+                continue
+            estado = (o.estado or "Sin estado").strip() or "Sin estado"
+            fila["total"] += 1
+            fila["por_estado"][estado] = fila["por_estado"].get(estado, 0) + 1
+        ordenes_por_mes.append(fila)
+
+    horas_totales = round(sum(float(t.total_horas or 0) for t in tareas), 2)
+
+    return {
+        "anio": anio,
+        "anios": anios,
+        "trimestre": trimestre,
+        "tiene_datos": bool(anios),
+        "kpis": {
+            "ordenes": len(ordenes),
+            "horas": horas_totales,
+            "unidades_con_orden": len({(o.unidad or "").strip() for o in ordenes if (o.unidad or "").strip()}),
+            "tareas": len(tareas),
+        },
+        "horas_por_clase": _agg_sum(tareas, lambda t: t.clase, lambda t: t.total_horas),
+        "horas_por_lugar": _agg_sum(tareas, lambda t: t.lugar, lambda t: t.total_horas),
+        "ordenes_por_mes": ordenes_por_mes,
+        "estados": estados,
+        "equipos_demanda": _agg_count(ordenes, lambda o: o.unidad)[:15],
+        "horas_por_unidad": _agg_sum(tareas, lambda t: t.unidad, lambda t: t.total_horas)[:15],
     }

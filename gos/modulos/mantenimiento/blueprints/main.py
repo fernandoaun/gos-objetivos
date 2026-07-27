@@ -16,6 +16,12 @@ def vtv():
     return render_template("mantenimiento/shell.html", view="vtv")
 
 
+@bp.route("/reporte-mensual")
+@login_required
+def reporte_mensual():
+    return render_template("mantenimiento/shell.html", view="reporte_mensual")
+
+
 @bp.route("/importar")
 @login_required
 def importar():

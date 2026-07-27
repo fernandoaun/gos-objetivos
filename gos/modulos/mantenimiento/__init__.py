@@ -66,7 +66,7 @@ def module_descriptor() -> dict:
     return {
         "code": MODULE_NAME,
         "label": "Mantenimiento",
-        "description": "Plan preventivo Pampa y planificación VTV (turnos, resultados, certificados).",
+        "description": "Plan preventivo, VTV y reporte mensual del sector de mantenimiento.",
         "icon": "bi-wrench-adjustable",
         "url": "/gos/mantenimiento/",
     }
@@ -83,6 +83,11 @@ def _nav_items():
             "label": "VTV",
             "endpoint": "mantenimiento_main.vtv",
             "icon": "bi-shield-check",
+        },
+        {
+            "label": "Reporte mensual",
+            "endpoint": "mantenimiento_main.reporte_mensual",
+            "icon": "bi-bar-chart-line",
         },
         {
             "label": "Importar",

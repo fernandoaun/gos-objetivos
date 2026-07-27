@@ -50,6 +50,16 @@ def vtv():
     return jsonify(services.get_vtv(db.session))
 
 
+@bp.route("/reporte-mensual")
+@login_required
+def reporte_mensual():
+    anio_raw = request.args.get("anio")
+    trim_raw = request.args.get("trimestre")
+    anio = int(anio_raw) if anio_raw and anio_raw.isdigit() else None
+    trimestre = int(trim_raw) if trim_raw and trim_raw.isdigit() else None
+    return jsonify(services.get_reporte_mensual(db.session, anio=anio, trimestre=trimestre))
+
+
 @bp.route("/vtv/fechas")
 @login_required
 def vtv_fechas():

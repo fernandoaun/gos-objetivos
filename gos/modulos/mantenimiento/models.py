@@ -95,3 +95,45 @@ class MantPlanMeta(db.Model):
     titulo = db.Column(db.String(255))
     sector = db.Column(db.String(128))
     observaciones = db.Column(db.Text)
+
+
+class MantReporteOrden(db.Model):
+    """Órdenes de trabajo del reporte mensual de mantenimiento."""
+
+    __tablename__ = "mant_reporte_ordenes"
+    __table_args__ = (
+        db.Index("ix_mant_reporte_orden_anio_mes", "anio", "mes"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    nro_orden = db.Column(db.String(64), nullable=False)
+    unidad = db.Column(db.String(128), nullable=False)
+    estado = db.Column(db.String(64), nullable=False, default="")
+    fecha = db.Column(db.Date)
+    anio = db.Column(db.Integer, nullable=False)
+    mes = db.Column(db.Integer, nullable=False)  # 1-12
+    trimestre = db.Column(db.Integer, nullable=False)  # 1-4
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class MantReporteTarea(db.Model):
+    """Tareas / horas hombre del reporte mensual de mantenimiento."""
+
+    __tablename__ = "mant_reporte_tareas"
+    __table_args__ = (
+        db.Index("ix_mant_reporte_tarea_anio_mes", "anio", "mes"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    nro_orden = db.Column(db.String(64))
+    unidad = db.Column(db.String(128), nullable=False)
+    tipo = db.Column(db.String(64))
+    clase = db.Column(db.String(64))
+    categoria = db.Column(db.String(64))
+    lugar = db.Column(db.String(64))
+    total_horas = db.Column(db.Float, nullable=False, default=0)
+    fecha = db.Column(db.Date)
+    anio = db.Column(db.Integer, nullable=False)
+    mes = db.Column(db.Integer, nullable=False)  # 1-12
+    trimestre = db.Column(db.Integer, nullable=False)  # 1-4
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)

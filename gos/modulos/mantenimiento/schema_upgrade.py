@@ -15,6 +15,8 @@ def ensure_mantenimiento_schema() -> None:
     from gos.modulos.mantenimiento.models import (  # noqa: F401
         MantPlanCelda,
         MantPlanMeta,
+        MantReporteOrden,
+        MantReporteTarea,
         MantUnidad,
         MantVtv,
         MantVtvTurno,
