@@ -199,6 +199,18 @@ def _insert_relations(module: OmModule, data: dict) -> None:
                 )
 
 
+def _primer_nombre_apellido(nombre: str | None, apellido: str | None) -> str:
+    """Solo el primer nombre y el primer apellido (p. ej. Juan García)."""
+    n = (nombre or "").strip().split()
+    a = (apellido or "").strip().split()
+    parts = []
+    if n:
+        parts.append(n[0])
+    if a:
+        parts.append(a[0])
+    return " ".join(parts) if parts else (nombre or "").strip()
+
+
 def catalog_personal(empresa_id: int, q: str | None = None) -> list[dict]:
     """Personas activas de Capacitación para asignar en O&M."""
     from gos.modulos.capacitacion.models.participante import Participante
@@ -208,8 +220,13 @@ def catalog_personal(empresa_id: int, q: str | None = None) -> list[dict]:
     needle = (q or "").strip().lower()
     items = []
     for p in rows:
-        nombre = p.nombre_completo
-        if needle and needle not in nombre.lower() and needle not in (p.legajo or "").lower():
+        nombre = _primer_nombre_apellido(p.nombre, p.apellido)
+        full = p.nombre_completo
+        if needle and (
+            needle not in nombre.lower()
+            and needle not in full.lower()
+            and needle not in (p.legajo or "").lower()
+        ):
             continue
         phones = []
         if p.telefono:
