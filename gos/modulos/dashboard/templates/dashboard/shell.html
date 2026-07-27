@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}DashBoard — GOS{% endblock %}
+{% block page_title %}DashBoard{% endblock %}
+{% block extra_css %}
+<style>
+  .pe-content:has(.dashboard-shell) {
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .dashboard-shell {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+  }
+  .dashboard-frame {
+    flex: 1;
+    border: 0;
+    width: 100%;
+    min-height: calc(100vh - 120px);
+    background: #030712;
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="dashboard-shell w-100">
+  <iframe class="dashboard-frame" src="{{ url_for('dashboard_main.app') }}" title="DashBoard"></iframe>
+</div>
+{% endblock %}

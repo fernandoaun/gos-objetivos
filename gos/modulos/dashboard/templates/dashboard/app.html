@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GOS Command Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Orbitron:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/tokens.css" />
+  <link rel="stylesheet" href="{{ url_for('dashboard_static.static', filename='css/dashboard.css') }}" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="scene-root" aria-hidden="true"></div>
+  <div class="scanline" aria-hidden="true"></div>
+
+  <div class="hud">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-eyebrow">Green Oil Services · Ops</div>
+        <h1 class="brand-title">COMMAND CENTER</h1>
+        <p class="brand-sub" id="generated-at">Sincronizando módulos…</p>
+      </div>
+      <div class="health-block">
+        <div class="health-label">Health index</div>
+        <div class="health-value" id="health-value">—</div>
+        <div class="health-meta" id="health-meta">—</div>
+      </div>
+    </header>
+
+    <div class="mid">
+      <aside class="side-panel" id="panel-left"></aside>
+      <div class="center-void">
+        <div class="hint">Arrastrá el puntero · clic en módulo</div>
+      </div>
+      <aside class="side-panel side-panel--right" id="panel-right"></aside>
+    </div>
+
+    <footer class="footer">
+      <div class="footer-stat" id="footer-stat">Módulos · —</div>
+      <button type="button" class="btn-refresh" id="btn-refresh">Refresh</button>
+    </footer>
+  </div>
+
+  <div class="loading" id="loading">Cargando telemetría…</div>
+  <div class="error" id="error" hidden></div>
+
+  <script type="module">
+    import { initScene, updateScene, setFocus } from "{{ url_for('dashboard_static.static', filename='js/command-center.js') }}";
+
+    const loading = document.getElementById("loading");
+    const errorEl = document.getElementById("error");
+    const panelLeft = document.getElementById("panel-left");
+    const panelRight = document.getElementById("panel-right");
+    let current = null;
+    let focusCode = null;
+
+    function fmt(v) {
+      if (v == null || v === "") return "—";
+      if (typeof v === "number") {
+        return Number.isInteger(v) ? String(v) : v.toLocaleString("es-AR", { maximumFractionDigits: 1 });
+      }
+      return String(v);
+    }
+
+    function cardHTML(mod) {
+      const score = mod.score == null ? "—" : `${Math.round(mod.score)}%`;
+      const metrics = (mod.metrics || []).slice(0, 4).map((m) =>
+        `<div class="metric"><strong>${fmt(m.value)}</strong>${m.label}</div>`
+      ).join("");
+      const active = focusCode === mod.code ? " is-active" : "";
+      return `
+        <a class="module-card glass${active}" href="${mod.url || "#"}" data-code="${mod.code}"
+           style="--card-accent:${mod.color || "#00e5ff"}"
+           title="Abrir ${mod.label}">
+          <div class="module-card-head">
+            <span class="module-card-name">${mod.label}</span>
+            <span class="module-card-score">${score}</span>
+          </div>
+          <p class="module-card-headline">${mod.headline || (mod.ok ? "" : "Error")}</p>
+          <div class="module-metrics">${metrics}</div>
+        </a>`;
+    }
+
+    function syncActiveCards() {
+      document.querySelectorAll(".module-card").forEach((el) => {
+        el.classList.toggle("is-active", el.dataset.code === focusCode);
+      });
+    }
+
+    function renderPanels(data) {
+      const mods = data.modules || [];
+      const mid = Math.ceil(mods.length / 2);
+      panelLeft.innerHTML = mods.slice(0, mid).map(cardHTML).join("");
+      panelRight.innerHTML = mods.slice(mid).map(cardHTML).join("");
+    }
+
+    function onPanelInteract(ev) {
+      const card = ev.target.closest(".module-card");
+      if (!card) return;
+      if (ev.type === "mouseover") {
+        if (focusCode === card.dataset.code) return;
+        focusCode = card.dataset.code;
+        setFocus(focusCode, current);
+        syncActiveCards();
+      }
+      if (ev.type === "click" && ev.shiftKey) {
+        ev.preventDefault();
+        focusCode = card.dataset.code;
+        setFocus(focusCode, current);
+        syncActiveCards();
+      }
+    }
+
+    panelLeft.addEventListener("mouseover", onPanelInteract);
+    panelRight.addEventListener("mouseover", onPanelInteract);
+    panelLeft.addEventListener("click", onPanelInteract);
+    panelRight.addEventListener("click", onPanelInteract);
+
+    function renderHUD(data) {
+      const health = data.health;
+      document.getElementById("health-value").textContent =
+        health == null ? "—" : `${Math.round(health)}%`;
+      document.getElementById("health-meta").textContent =
+        `${data.alerts || 0} alertas · ${data.modules_ok}/${data.modules_total} online`;
+      document.getElementById("footer-stat").innerHTML =
+        `Módulos online · <span>${data.modules_ok}/${data.modules_total}</span>`;
+      const ts = data.generated_at ? new Date(data.generated_at) : new Date();
+      document.getElementById("generated-at").textContent =
+        `Telemetría · ${ts.toLocaleString("es-AR")}`;
+    }
+
+    async function load() {
+      loading.hidden = false;
+      errorEl.hidden = true;
+      try {
+        const res = await fetch("/gos/dashboard/api/summary", { credentials: "same-origin" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        current = await res.json();
+        if (current.error) throw new Error(current.error);
+        renderHUD(current);
+        renderPanels(current);
+        updateScene(current, focusCode);
+      } catch (err) {
+        errorEl.hidden = false;
+        errorEl.textContent = `Fallo de telemetría · ${err.message || err}`;
+      } finally {
+        loading.hidden = true;
+      }
+    }
+
+    initScene();
+    document.getElementById("btn-refresh").addEventListener("click", load);
+    load();
+    setInterval(load, 120000);
+  </script>
+</body>
+</html>

@@ -2,9 +2,18 @@
 
 from flask_login import AnonymousUserMixin
 
-MODULO_CODES = ("objetivos", "capacitacion", "hwo", "vacaciones", "ralenti", "mantenimiento")
+MODULO_CODES = (
+    "dashboard",
+    "objetivos",
+    "capacitacion",
+    "hwo",
+    "vacaciones",
+    "ralenti",
+    "mantenimiento",
+)
 
 MODULO_LABELS = {
+    "dashboard": "DashBoard",
     "objetivos": "Objetivos",
     "capacitacion": "Capacitación",
     "hwo": "Análisis",
@@ -53,6 +62,8 @@ def usuario_puede_acceder_modulo(user, code: str) -> bool:
 
 
 def modulo_desde_ruta(path: str) -> str | None:
+    if path.startswith("/gos/dashboard"):
+        return "dashboard"
     if path.startswith("/gos/objetivos"):
         return "objetivos"
     if path.startswith("/gos/capacitacion"):

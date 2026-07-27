@@ -70,6 +70,7 @@ def create_app(config_name: str | None = None) -> Flask:
 
         modules = []
         with app.app_context():
+            from gos.modulos.dashboard import module_descriptor as dashboard_descriptor
             from gos.modulos.hwo import module_descriptor as hwo_descriptor
             from gos.modulos.objetivos import module_descriptor as objetivos_descriptor
             from gos.modulos.vacaciones import module_descriptor as vacaciones_descriptor
@@ -77,6 +78,7 @@ def create_app(config_name: str | None = None) -> Flask:
             from gos.modulos.ralenti import module_descriptor as ralenti_descriptor
             from gos.modulos.mantenimiento import module_descriptor as mantenimiento_descriptor
 
+            modules.append(dashboard_descriptor())
             modules.append(objetivos_descriptor())
             modules.append(capacitacion_descriptor())
             modules.append(hwo_descriptor())
@@ -87,7 +89,9 @@ def create_app(config_name: str | None = None) -> Flask:
         modules = modulos_para_usuario(current_user, modules)
 
         current_module = ""
-        if request.path.startswith("/gos/objetivos"):
+        if request.path.startswith("/gos/dashboard"):
+            current_module = "dashboard"
+        elif request.path.startswith("/gos/objetivos"):
             current_module = "objetivos"
         elif request.path.startswith("/gos/hwo"):
             current_module = "hwo"
@@ -141,6 +145,7 @@ def _register_core_blueprints(app: Flask) -> None:
 
 
 def _register_modules(app: Flask) -> None:
+    from gos.modulos.dashboard import register as register_dashboard
     from gos.modulos.hwo import register as register_hwo
     from gos.modulos.objetivos import register as register_objetivos
     from gos.modulos.vacaciones import register as register_vacaciones
@@ -148,6 +153,7 @@ def _register_modules(app: Flask) -> None:
     from gos.modulos.ralenti import register as register_ralenti
     from gos.modulos.mantenimiento import register as register_mantenimiento
 
+    register_dashboard(app)
     register_objetivos(app)
     register_capacitacion(app)
     register_hwo(app)
@@ -168,6 +174,7 @@ def _register_module_access_guard(app: Flask) -> None:
             return
         if request.endpoint in (
             "static",
+            "dashboard_static.static",
             "objetivos_static.static",
             "capacitacion_static.static",
             "hwo_static.static",
@@ -195,6 +202,7 @@ def _register_auto_login(app: Flask) -> None:
     def _auto_login():
         if request.endpoint in (
             "static",
+            "dashboard_static.static",
             "objetivos_static.static",
             "capacitacion_static.static",
             "hwo_static.static",
