@@ -1081,6 +1081,26 @@ tr:hover td {
   text-align: center;
 }
 
+.ths-kpi-evo {
+  margin-bottom: 14px;
+  background: var(--pe-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--gos-radius-md);
+  padding: 12px;
+}
+
+.ths-kpi-evo h3,
+.ths-kpi-list-title {
+  font-size: 0.9rem;
+  margin: 0 0 8px;
+  color: var(--gos-green-dark);
+}
+
+.ths-kpi-evo-box {
+  position: relative;
+  height: 200px;
+}
+
 .ths-cliente-kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

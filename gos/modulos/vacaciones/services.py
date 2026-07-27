@@ -592,10 +592,24 @@ def get_tot_hs_por_periodo(
         TotHs.periodo_desde,
         TotHs.periodo_hasta,
         func.coalesce(func.sum(TotHs.total_horas), 0),
+        func.coalesce(func.sum(TotHs.hs_viaje), 0),
         func.coalesce(func.sum(TotHs.hs50), 0),
-        func.coalesce(func.sum(TotHs.hs100), 0),
         func.coalesce(func.sum(TotHs.hs_noc), 0),
         func.coalesce(func.sum(TotHs.hs_noc50), 0),
+        func.coalesce(func.sum(TotHs.hs100), 0),
+        func.coalesce(func.sum(TotHs.total_hs_viaje), 0),
+        func.coalesce(func.sum(TotHs.ausente), 0),
+        func.coalesce(func.sum(TotHs.enfermedad), 0),
+        func.coalesce(func.sum(TotHs.vacaciones), 0),
+        func.coalesce(func.sum(TotHs.licencia), 0),
+        func.coalesce(func.sum(TotHs.feriados), 0),
+        func.coalesce(func.sum(TotHs.accidente), 0),
+        func.coalesce(func.sum(TotHs.francos_comp), 0),
+        func.coalesce(func.sum(TotHs.d_normales), 0),
+        func.coalesce(func.sum(TotHs.viandas), 0),
+        func.coalesce(func.sum(TotHs.traslado), 0),
+        func.coalesce(func.sum(TotHs.v_desayuno), 0),
+        func.coalesce(func.sum(TotHs.fr_trabajados), 0),
         func.count(TotHs.id),
         func.count(func.distinct(TotHs.empleado)),
     )
@@ -608,7 +622,12 @@ def get_tot_hs_por_periodo(
     years = {h.year for d, h, *_rest in rows}
     with_year = len(years) > 1
     result = []
-    for d, h, total, hs50, hs100, hs_noc, hs_noc50, regs, personas in rows:
+    for (
+        d, h, total, hs_viaje, hs50, hs_noc, hs_noc50, hs100, total_hs_viaje,
+        ausente, enfermedad, vacaciones, licencia, feriados,
+        accidente, francos_comp, d_normales, viandas, traslado, desayunos, fr_trab,
+        regs, personas,
+    ) in rows:
         extras = float(hs50 or 0) + float(hs100 or 0) + float(hs_noc or 0) + float(hs_noc50 or 0)
         result.append(
             {
@@ -617,7 +636,25 @@ def get_tot_hs_por_periodo(
                 "periodo": _tot_hs_period_label(d, h, with_year=with_year),
                 "key": f"{d.isoformat()}|{h.isoformat()}",
                 "total_horas": round(float(total or 0), 2),
+                "hs_viaje": round(float(hs_viaje or 0), 2),
+                "hs50": round(float(hs50 or 0), 2),
+                "hs_noc": round(float(hs_noc or 0), 2),
+                "hs_noc50": round(float(hs_noc50 or 0), 2),
+                "hs100": round(float(hs100 or 0), 2),
                 "hs_extras": round(extras, 2),
+                "total_hs_viaje": round(float(total_hs_viaje or 0), 2),
+                "ausente": round(float(ausente or 0), 1),
+                "enfermedad": round(float(enfermedad or 0), 1),
+                "vacaciones": round(float(vacaciones or 0), 1),
+                "licencia": round(float(licencia or 0), 1),
+                "feriados": round(float(feriados or 0), 1),
+                "accidente": round(float(accidente or 0), 1),
+                "francos_comp": round(float(francos_comp or 0), 1),
+                "d_normales": round(float(d_normales or 0), 1),
+                "viandas": round(float(viandas or 0), 1),
+                "traslado": round(float(traslado or 0), 1),
+                "v_desayuno": round(float(desayunos or 0), 1),
+                "fr_trabajados": round(float(fr_trab or 0), 1),
                 "registros": int(regs or 0),
                 "personas": int(personas or 0),
             }

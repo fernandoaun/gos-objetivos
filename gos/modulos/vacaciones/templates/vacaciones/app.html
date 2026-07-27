@@ -131,7 +131,7 @@
 
 <div id="ths-kpi-modal" class="vac-modal hidden" role="dialog" aria-modal="true" aria-labelledby="ths-kpi-modal-title">
   <div class="vac-modal-backdrop" data-close-modal></div>
-  <div class="vac-modal-panel vac-modal-panel--wide">
+  <div class="vac-modal-panel vac-modal-panel--xl">
     <div class="vac-modal-header">
       <h2 id="ths-kpi-modal-title">Detalle KPI</h2>
       <button type="button" class="btn-outline btn" id="ths-kpi-modal-close" style="padding:4px 10px;font-size:.8rem;" aria-label="Cerrar">✕</button>
@@ -696,7 +696,15 @@ function closePersonaModal() {
   document.getElementById('persona-modal').classList.add('hidden');
 }
 
+function destroyThsKpiChart() {
+  if (ths.chartKpiEvo) {
+    ths.chartKpiEvo.destroy();
+    ths.chartKpiEvo = null;
+  }
+}
+
 function closeThsKpiModal() {
+  destroyThsKpiChart();
   document.getElementById('ths-kpi-modal')?.classList.add('hidden');
 }
 
@@ -1309,6 +1317,7 @@ const ths = {
   chartClienteComp: null, chartClienteEmp: null,
   chartEmpComp: null, chartEmpServ: null, chartEmpMes: null, chartEmpNov: null,
   chartCmpAbs: null, chartCmpPct: null, chartCmpNov: null, chartCmpVar: null,
+  chartKpiEvo: null,
 };
 
 function fmtNum(n, digitos = 1) {
@@ -1776,7 +1785,7 @@ function thsKpiDetailTable(headers, rows) {
   if (!rows.length) {
     return '<p class="kpi-detail-empty">No hay registros para este indicador con el filtro actual.</p>';
   }
-  return `<div class="table-wrap" style="border:none;max-height:55vh;overflow:auto;">
+  return `<div class="table-wrap" style="border:none;max-height:42vh;overflow:auto;">
     <table class="kpi-detail-table">
       <thead><tr>${headers.map(h => `<th>${escHtml(h)}</th>`).join('')}</tr></thead>
       <tbody>${rows.map(cols =>
@@ -1786,7 +1795,91 @@ function thsKpiDetailTable(headers, rows) {
   </div>`;
 }
 
-function openThsKpiDetail(key) {
+function thsKpiSeriesValue(row, key, def) {
+  if (key === 'personas') return Number(row.personas) || 0;
+  if (key === 'extras_pct') return thsExtrasOfTotal(row) || 0;
+  if (key === 'hs_extras') {
+    const v = Number(row.hs_extras);
+    if (!Number.isNaN(v) && row.hs_extras != null) return v;
+  }
+  return thsKpiValue(row, def);
+}
+
+async function thsKpiEvolutionSeries() {
+  let series = Array.isArray(ths.porMes) ? ths.porMes : [];
+  if (series.length >= 2) return series;
+  // Con un solo período filtrado, traer todos para mostrar evolución temporal.
+  const p = { ...thsParams() };
+  delete p.periodo;
+  try {
+    const all = await apiGet('/tot-hs/por-mes', p);
+    return Array.isArray(all) && all.length ? all : series;
+  } catch {
+    return series;
+  }
+}
+
+function renderThsKpiEvolutionChart(key, def, series) {
+  destroyThsKpiChart();
+  const canvas = document.getElementById('ths-kpi-evo-chart');
+  if (!canvas || !series.length) return;
+
+  const isPct = key === 'extras_pct';
+  const digitos = isPct ? 1 : (key === 'personas' ? 0 : (def.hours ? 1 : 0));
+  const values = series.map(r => thsKpiSeriesValue(r, key, def));
+  const labels = series.map(r => r.periodo);
+  const color = key === 'hs_extras' || key === 'hs50' || key === 'hs100' || key === 'hs_noc'
+    ? 'rgba(200, 140, 30, 0.8)'
+    : key === 'personas'
+      ? 'rgba(47, 111, 143, 0.8)'
+      : key === 'extras_pct'
+        ? 'rgba(107, 114, 128, 0.85)'
+        : 'rgba(90, 140, 40, 0.8)';
+
+  ths.chartKpiEvo = new Chart(canvas, {
+    type: isPct ? 'line' : 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: def.title,
+        data: values,
+        backgroundColor: isPct ? 'rgba(107, 114, 128, 0.12)' : color,
+        borderColor: isPct ? color : undefined,
+        borderWidth: isPct ? 2.5 : 0,
+        pointRadius: isPct ? 4 : undefined,
+        pointHoverRadius: isPct ? 6 : undefined,
+        tension: isPct ? 0.25 : undefined,
+        fill: isPct,
+        borderRadius: isPct ? undefined : 4,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed.y;
+              return isPct ? `${def.title}: ${fmtPct(v)}` : `${def.title}: ${fmtNum(v, digitos)}`;
+            },
+          },
+        },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: v => (isPct ? `${fmtNum(v, 0)}%` : fmtNum(v, digitos > 0 ? 0 : 0)),
+          },
+        },
+      },
+    },
+  });
+}
+
+async function openThsKpiDetail(key) {
   const def = THS_KPI_DEFS[key];
   if (!def) return;
   const rowsSrc = ths.porEmpleado || [];
@@ -1851,10 +1944,29 @@ function openThsKpiDetail(key) {
     : key === 'extras_pct'
       ? `${fmtPct(thsExtrasOfTotal(ths.resumen || {}))} global · ${withVal.length} persona${withVal.length === 1 ? '' : 's'}${filtro}`
       : `${fmtNum(total, digitos)} total · ${withVal.length} persona${withVal.length === 1 ? '' : 's'}${filtro}`;
+
   const kpiBody = document.getElementById('ths-kpi-modal-body');
-  kpiBody.innerHTML = thsKpiDetailTable(headers, tableRows);
+  destroyThsKpiChart();
+  kpiBody.innerHTML = `
+    <div class="ths-kpi-evo">
+      <h3>Evolución por período</h3>
+      <div class="ths-kpi-evo-box"><canvas id="ths-kpi-evo-chart"></canvas></div>
+    </div>
+    <h3 class="ths-kpi-list-title">Detalle por persona</h3>
+    ${thsKpiDetailTable(headers, tableRows)}
+  `;
   bindThsPersonaLinks(kpiBody, { kpiKey: key });
   document.getElementById('ths-kpi-modal').classList.remove('hidden');
+
+  const series = await thsKpiEvolutionSeries();
+  // Si el modal se cerró mientras cargaba, no pintar.
+  if (document.getElementById('ths-kpi-modal')?.classList.contains('hidden')) return;
+  if (!series.length) {
+    document.querySelector('#ths-kpi-modal-body .ths-kpi-evo')?.remove();
+    return;
+  }
+  if (!document.getElementById('ths-kpi-evo-chart')) return;
+  renderThsKpiEvolutionChart(key, def, series);
 }
 
 function thsParamsForCliente(cliente) {
