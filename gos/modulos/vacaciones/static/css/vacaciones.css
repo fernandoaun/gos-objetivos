@@ -812,6 +812,18 @@ tr:hover td {
 }
 
 /* ── Tot Hs. dashboard ── */
+.ths-kpis {
+  grid-template-columns: repeat(6, 1fr);
+}
+
+.ths-kpis .kpi-value {
+  font-size: 1.45rem;
+}
+
+.ths-kpis .kpi-label {
+  font-size: 0.62rem;
+  line-height: 1.25;
+}
 
 .tot-hs-actions {
   display: flex;
@@ -1245,6 +1257,12 @@ tr:hover td {
   color: var(--text);
 }
 
+@media (max-width: 1200px) {
+  .ths-kpis {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 @media (max-width: 900px) {
   .import-grid {
     grid-template-columns: 1fr;
@@ -1252,6 +1270,10 @@ tr:hover td {
 
   .ths-kpis {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .ths-kpis .kpi-value {
+    font-size: 1.6rem;
   }
 }
 

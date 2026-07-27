@@ -254,6 +254,14 @@
         <div class="kpi-label">Extras / total</div>
         <div class="kpi-value" id="ths-kpi-extras-pct" style="color:#6b7280;">—</div>
       </button>
+      <button type="button" class="card kpi blue clickable" data-ths-kpi="total_hs_viaje" title="Ver detalle por empleado" style="border-left-color:#0d9488;">
+        <div class="kpi-label">TotalHs+HsViaje</div>
+        <div class="kpi-value" id="ths-kpi-hs-viaje" style="color:#0d9488;">0</div>
+      </button>
+      <button type="button" class="card kpi clickable" data-ths-kpi="extras_pct_viaje" title="Ver detalle por empleado" style="border-left-color:#475569;">
+        <div class="kpi-label">HsExtra / TotalHs+HsViaje</div>
+        <div class="kpi-value" id="ths-kpi-extras-pct-viaje" style="color:#475569;">—</div>
+      </button>
     </div>
 
     <div class="ths-novedades" id="ths-novedades"></div>
@@ -1336,8 +1344,7 @@ function fmtPct(n) {
   return `${fmtNum(n, 1)}%`;
 }
 
-function thsExtrasOfTotal(row) {
-  const tot = Number(row?.total_horas) || 0;
+function thsExtrasHours(row) {
   let extras = Number(row?.hs_extras);
   if (Number.isNaN(extras) || row?.hs_extras == null) {
     extras =
@@ -1346,6 +1353,25 @@ function thsExtrasOfTotal(row) {
       (Number(row?.hs_noc) || 0) +
       (Number(row?.hs_noc50) || 0);
   }
+  return extras;
+}
+
+function thsTotalHsViaje(row) {
+  const fromCol = Number(row?.total_hs_viaje);
+  if (!Number.isNaN(fromCol) && fromCol > 0) return fromCol;
+  return (Number(row?.total_horas) || 0) + (Number(row?.hs_viaje) || 0);
+}
+
+function thsExtrasOfTotal(row) {
+  const tot = Number(row?.total_horas) || 0;
+  const extras = thsExtrasHours(row);
+  if (!tot) return null;
+  return (extras / tot) * 100;
+}
+
+function thsExtrasOfTotalHsViaje(row) {
+  const tot = thsTotalHsViaje(row);
+  const extras = thsExtrasHours(row);
   if (!tot) return null;
   return (extras / tot) * 100;
 }
@@ -1699,10 +1725,11 @@ function renderThsKpis() {
   document.getElementById('ths-kpi-extras').textContent = fmtNum(r.hs_extras, 1);
   document.getElementById('ths-kpi-personas').textContent = fmtNum(r.personas, 0);
   document.getElementById('ths-kpi-extras-pct').textContent = fmtPct(thsExtrasOfTotal(r));
+  document.getElementById('ths-kpi-hs-viaje').textContent = fmtNum(thsTotalHsViaje(r), 1);
+  document.getElementById('ths-kpi-extras-pct-viaje').textContent = fmtPct(thsExtrasOfTotalHsViaje(r));
 
   const items = [
     { key: 'd_normales', label: 'Días normales', value: r.d_normales },
-    { key: 'total_hs_viaje', label: 'Hs + viaje', value: r.total_hs_viaje, hours: true },
     { key: 'hs_viaje', label: 'Hs viaje', value: r.hs_viaje, hours: true },
     { key: 'hs50', label: 'Hs 50%', value: r.hs50, hours: true },
     { key: 'hs100', label: 'Hs 100%', value: r.hs100, hours: true },
@@ -1751,8 +1778,20 @@ const THS_KPI_DEFS = {
     listAll: true,
     getValue: r => thsExtrasOfTotal(r) || 0,
   },
+  extras_pct_viaje: {
+    title: 'HsExtra / TotalHs+HsViaje',
+    hours: false,
+    col: 'Extras / hs+viaje',
+    listAll: true,
+    getValue: r => thsExtrasOfTotalHsViaje(r) || 0,
+  },
   d_normales: { title: 'Días normales', field: 'd_normales', hours: false, col: 'D.Normales' },
-  total_hs_viaje: { title: 'Hs + viaje', field: 'total_hs_viaje', hours: true, col: 'TotalHs+HsViaje' },
+  total_hs_viaje: {
+    title: 'TotalHs+HsViaje',
+    hours: true,
+    col: 'TotalHs+HsViaje',
+    getValue: r => thsTotalHsViaje(r),
+  },
   hs_viaje: { title: 'Hs viaje', field: 'hs_viaje', hours: true, col: 'Hs viaje' },
   hs50: { title: 'Hs 50%', field: 'hs50', hours: true, col: 'Hs 50%' },
   hs100: { title: 'Hs 100%', field: 'hs100', hours: true, col: 'Hs 100%' },
@@ -1798,6 +1837,7 @@ function thsKpiDetailTable(headers, rows) {
 function thsKpiSeriesValue(row, key, def) {
   if (key === 'personas') return Number(row.personas) || 0;
   if (key === 'extras_pct') return thsExtrasOfTotal(row) || 0;
+  if (key === 'extras_pct_viaje') return thsExtrasOfTotalHsViaje(row) || 0;
   if (key === 'hs_extras') {
     const v = Number(row.hs_extras);
     if (!Number.isNaN(v) && row.hs_extras != null) return v;
@@ -1824,7 +1864,7 @@ function renderThsKpiEvolutionChart(key, def, series) {
   const canvas = document.getElementById('ths-kpi-evo-chart');
   if (!canvas || !series.length) return;
 
-  const isPct = key === 'extras_pct';
+  const isPct = key === 'extras_pct' || key === 'extras_pct_viaje';
   const digitos = isPct ? 1 : (key === 'personas' ? 0 : (def.hours ? 1 : 0));
   const values = series.map(r => thsKpiSeriesValue(r, key, def));
   const labels = series.map(r => r.periodo);
@@ -1834,7 +1874,11 @@ function renderThsKpiEvolutionChart(key, def, series) {
       ? 'rgba(47, 111, 143, 0.8)'
       : key === 'extras_pct'
         ? 'rgba(107, 114, 128, 0.85)'
-        : 'rgba(90, 140, 40, 0.8)';
+        : key === 'extras_pct_viaje'
+          ? 'rgba(71, 85, 105, 0.85)'
+          : key === 'total_hs_viaje'
+            ? 'rgba(13, 148, 136, 0.8)'
+            : 'rgba(90, 140, 40, 0.8)';
 
   ths.chartKpiEvo = new Chart(canvas, {
     type: isPct ? 'line' : 'bar',
@@ -1890,7 +1934,7 @@ async function openThsKpiDetail(key) {
 
   const total = withVal.reduce((s, x) => s + x.val, 0);
   const filtro = ths.clienteSeleccionado ? ` · cliente ${ths.clienteSeleccionado}` : '';
-  const digitos = key === 'extras_pct' ? 1 : (def.hours ? 1 : 0);
+  const digitos = (key === 'extras_pct' || key === 'extras_pct_viaje') ? 1 : (def.hours ? 1 : 0);
 
   let headers;
   let tableRows;
@@ -1909,6 +1953,14 @@ async function openThsKpiDetail(key) {
       fmtPct(val),
       fmtNum(r.hs_extras, 1),
       fmtNum(r.total_horas, 1),
+    ]);
+  } else if (key === 'extras_pct_viaje') {
+    headers = ['Empleado', 'Extras / hs+viaje', 'Hs extras', 'TotalHs+HsViaje'];
+    tableRows = withVal.map(({ row: r, val }) => [
+      thsPersonaBtn(r.empleado),
+      fmtPct(val),
+      fmtNum(thsExtrasHours(r), 1),
+      fmtNum(thsTotalHsViaje(r), 1),
     ]);
   } else if (key === 'hs_extras') {
     headers = ['Empleado', 'Hs extras', 'Hs 50%', 'Hs 100%', 'Hs noct', 'Hs noct50'];
@@ -1943,6 +1995,8 @@ async function openThsKpiDetail(key) {
     ? `${withVal.length} persona${withVal.length === 1 ? '' : 's'}${filtro}`
     : key === 'extras_pct'
       ? `${fmtPct(thsExtrasOfTotal(ths.resumen || {}))} global · ${withVal.length} persona${withVal.length === 1 ? '' : 's'}${filtro}`
+      : key === 'extras_pct_viaje'
+        ? `${fmtPct(thsExtrasOfTotalHsViaje(ths.resumen || {}))} global · ${withVal.length} persona${withVal.length === 1 ? '' : 's'}${filtro}`
       : `${fmtNum(total, digitos)} total · ${withVal.length} persona${withVal.length === 1 ? '' : 's'}${filtro}`;
 
   const kpiBody = document.getElementById('ths-kpi-modal-body');
@@ -2427,11 +2481,12 @@ async function openThsEmpleadoDetail(empleado, opts = {}) {
       { key: 'feriados', label: 'Fer. trab.', value: fmtNum(agg.feriados, 0) },
     ];
     if (def && !kpiCards.some(c => c.key === kpiKey)) {
-      const digitos = def.hours ? 1 : (kpiKey === 'extras_pct' ? 1 : 0);
+      const isPct = kpiKey === 'extras_pct' || kpiKey === 'extras_pct_viaje';
+      const digitos = def.hours ? 1 : (isPct ? 1 : 0);
       kpiCards.unshift({
         key: kpiKey,
         label: def.title,
-        value: kpiKey === 'extras_pct' ? fmtPct(focusVal) : fmtNum(focusVal, digitos),
+        value: isPct ? fmtPct(focusVal) : fmtNum(focusVal, digitos),
       });
     }
 
