@@ -170,29 +170,24 @@
     <div class="fr3"><div class="fg"><label class="fl2">Diagrama</label><select class="fs" id="mSched"><option value="L-V Diurno">L-V Diurno</option><option value="L-V Rotativo">L-V Rotativo</option><option value="L-L Rotativo">L-L Rotativo</option><option value="L-L Rotativo 12h">L-L Rotativo 12hs</option></select></div><div class="fg"><label class="fl2">Guardias</label><select class="fs" id="mGuard"><option value="Sin guardias">Sin guardias</option><option value="Guardias pasivas">Guardias pasivas</option><option value="Guardias activas">Guardias activas</option></select></div><div class="fg"><label class="fl2">Ubicación</label><input type="text" class="fi" id="mLoc" value="Planta"></div></div>
     <div class="fg"><label class="fl2">Observaciones</label><textarea class="ft" id="mDesc" rows="2" placeholder="Notas..."></textarea></div>
 
-    <div class="fsc">👤 Personal <span class="ph" id="ppH" style="display:none;"></span></div>
+    <div class="fsc">👤 Personal <span style="font-size:.68rem;color:var(--t3);font-weight:400;">(desde Capacitación)</span></div>
     <div class="pl" id="pList"></div>
     <div class="tg" style="margin-top:8px;">
-      <input type="text" class="fi" id="pName" placeholder="Nombre">
-      <select class="fs" id="pRole" style="width:150px;"><option>Supervisor</option><option>Encargado de Turno</option><option>Oficial</option><option>Operador</option><option>Ayudante</option><option>Chofer Operador</option><option>Eslingador</option><option>Especialista</option><option>Amolador</option><option>Laboratorista</option></select>
+      <select class="fs" id="pSelect" style="flex:1;"><option value="">Elegir persona…</option></select>
       <button class="btn btn-p btn-sm" onclick="addP()">+ Agregar</button>
     </div>
-    <div class="tg" style="margin-top:6px;gap:6px;">
-      <select class="fs" id="pTelType" style="width:140px;"><option value="Corporativo">Tel Corporativo</option><option value="Personal">Tel Personal</option><option value="Compartido">Tel Compartido</option></select>
-      <input type="text" class="fi" id="pTelNum" placeholder="Número de teléfono" style="flex:1;">
-      <button class="btn btn-s btn-sm" onclick="addTel()">+ Tel</button>
+    <div class="fsc">🚗 Unidades <span style="font-size:.68rem;color:var(--t3);font-weight:400;">(desde Mantenimiento)</span></div>
+    <div class="tg">
+      <select class="fs" id="uSelect" style="flex:1;"><option value="">Elegir unidad…</option></select>
+      <button class="btn btn-p btn-sm" onclick="addUnit()">+</button>
     </div>
-    <div class="tc" id="telC" style="margin-top:6px;"></div>
-    <div class="fsc">🚗 Unidades <span class="ph" id="puH" style="display:none;"></span></div>
-    <div class="tg"><input type="text" class="fi" id="uIn" placeholder="Ej: Pick Up DC 4x4"><button class="btn btn-p btn-sm" onclick="addT('u')">+</button></div>
     <div class="tc" id="uC"></div>
-    <div class="fsc">🔧 Herramientas <span class="ph" id="ptH" style="display:none;"></span></div>
+    <div class="fsc">🔧 Herramientas</div>
     <div class="tg"><input type="text" class="fi" id="tIn" placeholder="Ej: Cámara termográfica"><button class="btn btn-p btn-sm" onclick="addT('t')">+</button></div>
     <div class="tc" id="tC"></div>
-    <div class="fsc">📦 Insumos <span class="ph" id="psH" style="display:none;"></span></div>
+    <div class="fsc">📦 Insumos</div>
     <div class="tg"><input type="text" class="fi" id="sIn" placeholder="Ej: Aceite, Filtros"><button class="btn btn-p btn-sm" onclick="addT('s')">+</button></div>
-    <div class="tc" id="sC"></div>
-  </div>
+    <div class="tc" id="sC"></div>  </div>
   <div class="mft"><button class="btn btn-s" onclick="closeM()">Cancelar</button><button class="btn btn-p" id="saveBtn" onclick="saveModule()">Guardar</button></div>
 </div>
 </div>
@@ -218,9 +213,22 @@
 var API_BASE={{ api_base|tojson }};
 var OM_USER={{ om_user|tojson }};
 var LOGOUT_URL={{ logout_url|tojson }};
-var M=[],cF='active',tP=[],tU=[],tT=[],tS=[],tTel=[],dId=null;
+var M=[],cF='active',tP=[],tU=[],tT=[],tS=[],dId=null;
+var CAT_PERSONAL=[],CAT_UNIDADES=[];
 
 function getUser(){return OM_USER}
+
+function unitLabel(u){
+  if(!u)return '';
+  if(typeof u==='string')return u;
+  return u.value||u.label||((u.codigo||'')+' — '+(u.nombre||''))||'';
+}
+function normalizeUnits(list){
+  return (list||[]).map(function(u){
+    if(typeof u==='string')return{unidadId:null,value:u};
+    return{unidadId:u.unidadId||u.id||null,value:unitLabel(u)};
+  });
+}
 
 async function api(path,opts){
   opts=opts||{};
@@ -232,6 +240,26 @@ async function api(path,opts){
   if(res.status===403){throw new Error((body&&body.message)||'Sin permiso')}
   if(!res.ok){throw new Error((body&&body.message)||'Error de red')}
   return body;
+}
+
+async function loadCatalogs(){
+  try{
+    var pers=await api('/catalog/personal');
+    CAT_PERSONAL=pers.data||[];
+    var sel=document.getElementById('pSelect');
+    sel.innerHTML='<option value="">Elegir persona…</option>'+CAT_PERSONAL.map(function(p){
+      var extra=(p.puesto?' · '+p.puesto:'')+(p.legajo?' · '+p.legajo:'');
+      return '<option value="'+p.id+'">'+H(p.nombre)+H(extra)+'</option>';
+    }).join('');
+  }catch(e){toast('No se pudo cargar personal de Capacitación','w')}
+  try{
+    var uni=await api('/catalog/unidades');
+    CAT_UNIDADES=uni.data||[];
+    var usel=document.getElementById('uSelect');
+    usel.innerHTML='<option value="">Elegir unidad…</option>'+CAT_UNIDADES.map(function(u){
+      return '<option value="'+u.id+'">'+H(u.label||((u.codigo||'')+' — '+(u.nombre||'')))+'</option>';
+    }).join('');
+  }catch(e){toast('No se pudo cargar unidades de Mantenimiento','w')}
 }
 
 async function loadModules(){
@@ -246,6 +274,7 @@ async function boot(){
   document.getElementById('backupBtn').style.display=(user&&user.role==='admin')?'':'none';
   document.getElementById('auditBtn').style.display=(user&&user.role==='admin')?'':'none';
   try{
+    await loadCatalogs();
     await loadModules();
   }catch(e){
     toast(e.message||'No se pudieron cargar los módulos','w');
@@ -288,8 +317,6 @@ async function loadAudit(){
 function fdt(iso){if(!iso)return'-';var d=new Date(iso);return fd(iso)+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')}
 
 function toast(msg,type){var t=document.getElementById('toast');t.textContent=msg;t.className='toast'+(type==='w'?' w':'');setTimeout(function(){t.className='toast show'},10);setTimeout(function(){t.className='toast'},3000)}
-function updH(){sH('ppH',document.getElementById('pName').value.trim());sH('puH',document.getElementById('uIn').value.trim());sH('ptH',document.getElementById('tIn').value.trim());sH('psH',document.getElementById('sIn').value.trim())}
-function sH(id,v){var e=document.getElementById(id);e.textContent=v?'pendiente':'';e.style.display=v?'inline-block':'none'}
 
 function updS(){
   var a=M.filter(function(m){return m.status==='active'});
@@ -309,7 +336,7 @@ function render(){
   var f=M.filter(function(m){
     if(cF==='active'&&m.status!=='active')return false;
     if(cF==='inactive'&&m.status!=='inactive')return false;
-    if(q){var p=[m.code,m.name,m.location,m.description,m.schedule,m.guard];(m.personnel||[]).forEach(function(x){p.push(x.name,x.role)});(m.units||[]).forEach(function(x){p.push(x)});(m.tools||[]).forEach(function(x){p.push(x)});(m.supplies||[]).forEach(function(x){p.push(x)});if(p.join(' ').toLowerCase().indexOf(q)===-1)return false}
+    if(q){var p=[m.code,m.name,m.location,m.description,m.schedule,m.guard];(m.personnel||[]).forEach(function(x){p.push(x.name,x.role)});(m.units||[]).forEach(function(x){p.push(unitLabel(x))});(m.tools||[]).forEach(function(x){p.push(x)});(m.supplies||[]).forEach(function(x){p.push(x)});if(p.join(' ').toLowerCase().indexOf(q)===-1)return false}
     return true;
   });
   if(!f.length){g.innerHTML='';e.style.display='block';e.querySelector('h3').textContent=M.length?'Sin resultados':'No hay módulos';e.querySelector('button').style.display=M.length?'none':''}
@@ -320,7 +347,7 @@ function render(){
 function card(m){
   var pc=(m.personnel||[]).length,uc=(m.units||[]).length,tc=(m.tools||[]).length,sc=(m.supplies||[]).length;
   var pr=pc?m.personnel.map(function(p){var ph='';if(p.phones&&p.phones.length){ph=' <span style="font-size:.6rem;color:var(--t3);">'+p.phones.map(function(tl){var ic=tl.type==='Corporativo'?'🏢':tl.type==='Personal'?'📱':'📞';return ic+H(tl.number)}).join(' ')+'</span>'}return'<div class="si4">'+H(p.name)+' <span class="rl">'+H(p.role)+'</span>'+ph+'</div>'}).join(''):'<span class="es">Sin personal</span>';
-  var un=uc?m.units.map(function(u){return'<div class="si4">'+H(u)+'</div>'}).join(''):'<span class="es">Sin unidades</span>';
+  var un=uc?m.units.map(function(u){return'<div class="si4">'+H(unitLabel(u))+'</div>'}).join(''):'<span class="es">Sin unidades</span>';
   var tl=tc?m.tools.map(function(t){return'<div class="si4">'+H(t)+'</div>'}).join(''):'';
   var sl=sc?m.supplies.map(function(s){return'<div class="si4">'+H(s)+'</div>'}).join(''):'';
   var mt='';
@@ -332,12 +359,11 @@ function card(m){
 
 function openModal(){clearF();document.getElementById('eId').value='';document.getElementById('mTitle').textContent='Nuevo Módulo';document.getElementById('mMod').classList.add('a')}
 function closeM(){document.getElementById('mMod').classList.remove('a');clearF()}
-function clearF(){document.getElementById('mCode').value='';document.getElementById('mName').value='';document.getElementById('mStatus').value='active';document.getElementById('mSched').value='L-V Diurno';document.getElementById('mGuard').value='Sin guardias';document.getElementById('mLoc').value='Planta';document.getElementById('mDesc').value='';document.getElementById('eId').value='';document.getElementById('pName').value='';document.getElementById('pTelType').value='Corporativo';document.getElementById('pTelNum').value='';document.getElementById('uIn').value='';document.getElementById('tIn').value='';document.getElementById('sIn').value='';tP=[];tU=[];tT=[];tS=[];tTel=[];rP();rTelC();rT('uC',tU,'u');rT('tC',tT,'t');rT('sC',tS,'s');updH()}
+function clearF(){document.getElementById('mCode').value='';document.getElementById('mName').value='';document.getElementById('mStatus').value='active';document.getElementById('mSched').value='L-V Diurno';document.getElementById('mGuard').value='Sin guardias';document.getElementById('mLoc').value='Planta';document.getElementById('mDesc').value='';document.getElementById('eId').value='';document.getElementById('pSelect').value='';document.getElementById('uSelect').value='';document.getElementById('tIn').value='';document.getElementById('sIn').value='';tP=[];tU=[];tT=[];tS=[];rP();rT('uC',tU,'u');rT('tC',tT,'t');rT('sC',tS,'s')}
 
-function edit(id){id=Number(id);var m=null;for(var i=0;i<M.length;i++){if(M[i].id===id){m=M[i];break}}if(!m)return;document.getElementById('eId').value=m.id;document.getElementById('mTitle').textContent='Editar '+(m.code||'');document.getElementById('mCode').value=m.code||'';document.getElementById('mName').value=m.name||'';document.getElementById('mStatus').value=m.status||'active';document.getElementById('mSched').value=m.schedule||'L-V Diurno';document.getElementById('mGuard').value=m.guard||'Sin guardias';document.getElementById('mLoc').value=m.location||'';document.getElementById('mDesc').value=m.description||'';tP=JSON.parse(JSON.stringify(m.personnel||[]));tU=(m.units||[]).slice();tT=(m.tools||[]).slice();tS=(m.supplies||[]).slice();tTel=[];rP();rTelC();rT('uC',tU,'u');rT('tC',tT,'t');rT('sC',tS,'s');updH();document.getElementById('mMod').classList.add('a')}
+function edit(id){id=Number(id);var m=null;for(var i=0;i<M.length;i++){if(M[i].id===id){m=M[i];break}}if(!m)return;document.getElementById('eId').value=m.id;document.getElementById('mTitle').textContent='Editar '+(m.code||'');document.getElementById('mCode').value=m.code||'';document.getElementById('mName').value=m.name||'';document.getElementById('mStatus').value=m.status||'active';document.getElementById('mSched').value=m.schedule||'L-V Diurno';document.getElementById('mGuard').value=m.guard||'Sin guardias';document.getElementById('mLoc').value=m.location||'';document.getElementById('mDesc').value=m.description||'';tP=JSON.parse(JSON.stringify(m.personnel||[]));tU=normalizeUnits(m.units||[]);tT=(m.tools||[]).slice();tS=(m.supplies||[]).slice();rP();rT('uC',tU,'u');rT('tC',tT,'t');rT('sC',tS,'s');document.getElementById('mMod').classList.add('a')}
 
-function flush(){var n=document.getElementById('pName').value.trim();if(n){tP.push({name:n,role:document.getElementById('pRole').value,phones:tTel.slice()});tTel=[];document.getElementById('pName').value='';rP();rTelC()}fT('uIn',tU,'uC','u');fT('tIn',tT,'tC','t');fT('sIn',tS,'sC','s');updH()}
-function fT(id,l,c,t){var i=document.getElementById(id),v=i.value.trim();if(v){l.push(v);i.value='';rT(c,l,t)}}
+function flush(){fT('tIn',tT,'tC','t');fT('sIn',tS,'sC','s')}
 
 async function saveModule(){
   flush();
@@ -385,22 +411,50 @@ async function toggle(id){
   }
 }
 
-function addP(){var n=document.getElementById('pName').value.trim(),r=document.getElementById('pRole').value;if(!n){document.getElementById('pName').focus();return}tP.push({name:n,role:r,phones:tTel.slice()});tTel=[];document.getElementById('pName').value='';document.getElementById('pTelType').value='Corporativo';document.getElementById('pTelNum').value='';document.getElementById('pName').focus();rP();rTelC();updH();toast('✓ '+n+' ('+r+')')}
+function addP(){
+  var sel=document.getElementById('pSelect');
+  var id=Number(sel.value);
+  if(!id){sel.focus();toast('Elegí una persona de Capacitación','w');return}
+  var person=null;
+  for(var i=0;i<CAT_PERSONAL.length;i++){if(CAT_PERSONAL[i].id===id){person=CAT_PERSONAL[i];break}}
+  if(!person)return;
+  for(var j=0;j<tP.length;j++){if(tP[j].participanteId===id){toast('Ya está asignada','w');return}}
+  tP.push({
+    participanteId:person.id,
+    name:person.nombre,
+    role:person.puesto||'',
+    phones:(person.phones||[]).slice()
+  });
+  sel.value='';
+  rP();
+  toast('✓ '+person.nombre+(person.puesto?' ('+person.puesto+')':''));
+}
 function rmP(i){tP.splice(i,1);rP()}
-function addTel(){var t=document.getElementById('pTelType').value,n=document.getElementById('pTelNum').value.trim();if(!n){document.getElementById('pTelNum').focus();return}tTel.push({type:t,number:n});document.getElementById('pTelNum').value='';document.getElementById('pTelNum').focus();rTelC()}
-function rmTel(i){tTel.splice(i,1);rTelC()}
-function rTelC(){var c=document.getElementById('telC');if(!tTel.length){c.innerHTML='';return}var h='';for(var i=0;i<tTel.length;i++){var tl=tTel[i];h+='<span class="tg2">'+H(tl.type)+': '+H(tl.number)+' <span class="tr" onclick="rmTel('+i+')">&times;</span></span>'}c.innerHTML=h}
 function rP(){var c=document.getElementById('pList');if(!tP.length){c.innerHTML='<span class="es" style="display:block;margin-bottom:4px;">Sin personal asignado</span>';return}var h='';for(var i=0;i<tP.length;i++){var p=tP[i];var phoneStr='';if(p.phones&&p.phones.length){var ph=p.phones.map(function(tl){var icon=tl.type==='Corporativo'?'🏢':tl.type==='Personal'?'📱':'📞';return icon+' '+H(tl.type)+': '+H(tl.number)}).join('  ');phoneStr='<span style="font-size:.65rem;color:var(--t3);margin-left:4px;">'+ph+'</span>'}h+='<div class="pr"><div class="si4" style="margin:0;">'+H(p.name)+' <span class="rl">'+H(p.role)+'</span>'+phoneStr+'</div><div></div><button class="btn-i" onclick="rmP('+i+')">✕</button></div>'}c.innerHTML=h}
 
-function addT(t){var ids={u:'uIn',t:'tIn',s:'sIn'},ls={u:tU,t:tT,s:tS},cs={u:'uC',t:'tC',s:'sC'};var i=document.getElementById(ids[t]),v=i.value.trim();if(!v){i.focus();return}ls[t].push(v);i.value='';i.focus();rT(cs[t],ls[t],t);updH()}
+function addUnit(){
+  var sel=document.getElementById('uSelect');
+  var id=Number(sel.value);
+  if(!id){sel.focus();toast('Elegí una unidad de Mantenimiento','w');return}
+  var u=null;
+  for(var i=0;i<CAT_UNIDADES.length;i++){if(CAT_UNIDADES[i].id===id){u=CAT_UNIDADES[i];break}}
+  if(!u)return;
+  for(var j=0;j<tU.length;j++){if(tU[j].unidadId===id){toast('Ya está asignada','w');return}}
+  tU.push({unidadId:u.id,value:u.label||((u.codigo||'')+' — '+(u.nombre||''))});
+  sel.value='';
+  rT('uC',tU,'u');
+  toast('✓ '+unitLabel(tU[tU.length-1]));
+}
+function addT(t){var ids={t:'tIn',s:'sIn'},ls={t:tT,s:tS},cs={t:'tC',s:'sC'};var i=document.getElementById(ids[t]),v=i.value.trim();if(!v){i.focus();return}ls[t].push(v);i.value='';i.focus();rT(cs[t],ls[t],t)}
+function fT(id,l,c,t){var i=document.getElementById(id);if(!i)return;var v=i.value.trim();if(v){l.push(v);i.value='';rT(c,l,t)}}
 function rmT(t,i){var ls={u:tU,t:tT,s:tS},cs={u:'uC',t:'tC',s:'sC'};ls[t].splice(i,1);rT(cs[t],ls[t],t)}
-function rT(c,l,t){var e=document.getElementById(c),h='';for(var i=0;i<l.length;i++){h+='<span class="tg2">'+H(l[i])+' <span class="tr" onclick="rmT(\''+t+'\','+i+')">&times;</span></span>'}e.innerHTML=h}
+function rT(c,l,t){var e=document.getElementById(c),h='';for(var i=0;i<l.length;i++){var label=t==='u'?unitLabel(l[i]):l[i];h+='<span class="tg2">'+H(label)+' <span class="tr" onclick="rmT(\''+t+'\','+i+')">&times;</span></span>'}e.innerHTML=h}
 
 function setF(f,el){cF=f;var cs=document.querySelectorAll('.ch');for(var i=0;i<cs.length;i++)cs[i].classList.remove('a');el.classList.add('a');render()}
 
 function openExport(){document.getElementById('eMod').classList.add('a')}
 function closeE(){document.getElementById('eMod').classList.remove('a')}
-function doExportCSV(){var csv='Código,Nombre,Estado,Diagrama,Guardias,Ubicación,Personal,Rol,Unidades,Herramientas,Insumos\n';M.forEach(function(m){var p=(m.personnel||[]).map(function(x){return x.name+' ('+x.role+')'}).join('; ');csv+='"'+(m.code||'')+'","'+m.name+'","'+m.status+'","'+(m.schedule||'')+'","'+(m.guard||'')+'","'+(m.location||'')+'","'+p+'","","'+(m.units||[]).join('; ')+'","'+(m.tools||[]).join('; ')+'","'+(m.supplies||[]).join('; ')+'"\n'});var b=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});dl(b,'modulos_data.csv');closeE();toast('CSV exportado')}
+function doExportCSV(){var csv='Código,Nombre,Estado,Diagrama,Guardias,Ubicación,Personal,Rol,Unidades,Herramientas,Insumos\n';M.forEach(function(m){var p=(m.personnel||[]).map(function(x){return x.name+' ('+x.role+')'}).join('; ');var units=(m.units||[]).map(unitLabel).join('; ');csv+='"'+(m.code||'')+'","'+m.name+'","'+m.status+'","'+(m.schedule||'')+'","'+(m.guard||'')+'","'+(m.location||'')+'","'+p+'","","'+units+'","'+(m.tools||[]).join('; ')+'","'+(m.supplies||[]).join('; ')+'"\n'});var b=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});dl(b,'modulos_data.csv');closeE();toast('CSV exportado')}
 function doExportPersonal(){
   var rows=[];
   rows.push(['Nombre','Rol','Módulo','Diagrama','Guardias','Tel Corporativo','Tel Personal','Tel Compartido']);
@@ -434,8 +488,7 @@ function fd(iso){if(!iso)return'-';var d=new Date(iso);var ms=['ene','feb','mar'
 function dateStamp(){return new Date().toISOString().slice(0,10)}
 function dl(b,f){var u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=f;a.click();URL.revokeObjectURL(u)}
 
-document.addEventListener('keydown',function(e){if(e.key==='Enter'){var id=e.target.id;if(id==='uIn'){e.preventDefault();addT('u')}else if(id==='tIn'){e.preventDefault();addT('t')}else if(id==='sIn'){e.preventDefault();addT('s')}else if(id==='pName'){e.preventDefault();addP()}else if(id==='pTelNum'){e.preventDefault();addTel()}}});
-document.addEventListener('input',function(e){if(['pName','uIn','tIn','sIn'].indexOf(e.target.id)!==-1)updH()});
+document.addEventListener('keydown',function(e){if(e.key==='Enter'){var id=e.target.id;if(id==='tIn'){e.preventDefault();addT('t')}else if(id==='sIn'){e.preventDefault();addT('s')}}});
 var ovs=document.querySelectorAll('.ov');for(var i=0;i<ovs.length;i++){ovs[i].addEventListener('click',function(e){if(e.target===this)this.classList.remove('a')})}
 
 boot();

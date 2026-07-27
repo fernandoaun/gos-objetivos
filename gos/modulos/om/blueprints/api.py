@@ -62,6 +62,27 @@ def me():
     )
 
 
+@bp.route("/catalog/personal")
+@login_required
+def catalog_personal():
+    try:
+        items = services.catalog_personal(
+            current_user.empresa_id, q=request.args.get("q")
+        )
+        return _ok(items)
+    except Exception as exc:  # noqa: BLE001
+        return _err(str(exc), 500)
+
+
+@bp.route("/catalog/unidades")
+@login_required
+def catalog_unidades():
+    try:
+        return _ok(services.catalog_unidades())
+    except Exception as exc:  # noqa: BLE001
+        return _err(str(exc), 500)
+
+
 @bp.route("/modules", methods=["GET"])
 @login_required
 def list_modules():

@@ -65,7 +65,12 @@ def _to_api_shape(row: OmModule) -> dict:
     for item in row.items or []:
         field = KIND_TO_FIELD.get(item.kind)
         if field == "units":
-            units.append(item.value)
+            units.append(
+                {
+                    "unidadId": item.unidad_id,
+                    "value": item.value,
+                }
+            )
         elif field == "tools":
             tools.append(item.value)
         elif field == "supplies":
@@ -75,6 +80,7 @@ def _to_api_shape(row: OmModule) -> dict:
     for p in row.personnel or []:
         personnel.append(
             {
+                "participanteId": p.participante_id,
                 "name": p.name,
                 "role": p.role,
                 "phones": [{"type": ph.type, "number": ph.number} for ph in (p.phones or [])],
@@ -128,10 +134,29 @@ def get_module_or_404(module_id: int) -> OmModule:
     return row
 
 
+def _normalize_unit_entry(raw) -> tuple[str, int | None]:
+    """Acepta string legacy o {value, unidadId}."""
+    if isinstance(raw, dict):
+        value = (raw.get("value") or raw.get("nombre") or "").strip()
+        unidad_id = raw.get("unidadId") or raw.get("unidad_id") or raw.get("id")
+        try:
+            unidad_id = int(unidad_id) if unidad_id is not None else None
+        except (TypeError, ValueError):
+            unidad_id = None
+        return value, unidad_id
+    return str(raw or "").strip(), None
+
+
 def _insert_relations(module: OmModule, data: dict) -> None:
     for i, person in enumerate(data.get("personnel") or []):
+        participante_id = person.get("participanteId") or person.get("participante_id")
+        try:
+            participante_id = int(participante_id) if participante_id is not None else None
+        except (TypeError, ValueError):
+            participante_id = None
         personnel = OmPersonnel(
             module=module,
+            participante_id=participante_id,
             name=person.get("name") or "",
             role=person.get("role") or None,
             sort_order=i,
@@ -139,19 +164,83 @@ def _insert_relations(module: OmModule, data: dict) -> None:
         db.session.add(personnel)
         db.session.flush()
         for phone in person.get("phones") or []:
+            number = (phone.get("number") or "").strip()
+            if not number:
+                continue
             db.session.add(
                 OmPhone(
                     personnel=personnel,
                     type=phone.get("type") or "Personal",
-                    number=phone.get("number") or "",
+                    number=number,
                 )
             )
 
     for field, kind in FIELD_TO_KIND.items():
-        for i, value in enumerate(data.get(field) or []):
-            db.session.add(
-                OmItem(module=module, kind=kind, value=value, sort_order=i)
-            )
+        for i, raw in enumerate(data.get(field) or []):
+            if kind == "unit":
+                value, unidad_id = _normalize_unit_entry(raw)
+                if not value:
+                    continue
+                db.session.add(
+                    OmItem(
+                        module=module,
+                        kind=kind,
+                        value=value,
+                        unidad_id=unidad_id,
+                        sort_order=i,
+                    )
+                )
+            else:
+                value = str(raw or "").strip()
+                if not value:
+                    continue
+                db.session.add(
+                    OmItem(module=module, kind=kind, value=value, sort_order=i)
+                )
+
+
+def catalog_personal(empresa_id: int, q: str | None = None) -> list[dict]:
+    """Personas activas de Capacitación para asignar en O&M."""
+    from gos.modulos.capacitacion.models.participante import Participante
+
+    query = Participante.query.filter_by(empresa_id=empresa_id, activo=True)
+    rows = query.order_by(Participante.apellido, Participante.nombre).all()
+    needle = (q or "").strip().lower()
+    items = []
+    for p in rows:
+        nombre = p.nombre_completo
+        if needle and needle not in nombre.lower() and needle not in (p.legajo or "").lower():
+            continue
+        phones = []
+        if p.telefono:
+            phones.append({"type": "Personal", "number": p.telefono})
+        items.append(
+            {
+                "id": p.id,
+                "nombre": nombre,
+                "legajo": p.legajo,
+                "puesto": p.puesto.nombre if p.puesto else None,
+                "telefono": p.telefono,
+                "phones": phones,
+            }
+        )
+    return items
+
+
+def catalog_unidades() -> list[dict]:
+    """Unidades activas de Mantenimiento para asignar en O&M."""
+    from gos.modulos.mantenimiento.services import get_meta
+
+    meta = get_meta(db.session)
+    return [
+        {
+            "id": u["id"],
+            "codigo": u["codigo"],
+            "nombre": u["nombre"],
+            "label": f'{u["codigo"]} — {u["nombre"]}',
+        }
+        for u in (meta.get("unidades") or [])
+    ]
 
 
 def _audit(
