@@ -284,6 +284,10 @@ def importar_tablas_json(tables_data: dict[str, list], target_url: str) -> dict[
             allowed = physical_cols & model_cols
 
             is_sqlite = tgt_conn.dialect.name == "sqlite"
+            try:
+                from psycopg2.extras import Json as PgJson
+            except ImportError:  # pragma: no cover
+                PgJson = None
             prepared: list[dict] = []
             for row in rows:
                 if not isinstance(row, dict):
@@ -294,11 +298,15 @@ def importar_tablas_json(tables_data: dict[str, list], target_url: str) -> dict[
                         item["valores_mes"] = json.loads(item["valores_mes"])
                     except (json.JSONDecodeError, TypeError):
                         pass
-                # SQLite no acepta dict/list en binds; Postgres JSON sí.
-                if is_sqlite:
-                    for key, value in list(item.items()):
-                        if isinstance(value, (dict, list)):
-                            item[key] = json.dumps(value, ensure_ascii=False)
+                for key, value in list(item.items()):
+                    if not isinstance(value, (dict, list)):
+                        continue
+                    if is_sqlite:
+                        item[key] = json.dumps(value, ensure_ascii=False)
+                    elif PgJson is not None:
+                        item[key] = PgJson(value)
+                    else:
+                        item[key] = json.dumps(value, ensure_ascii=False)
                 if (
                     empresa_id is not None
                     and "empresa_id" in allowed
