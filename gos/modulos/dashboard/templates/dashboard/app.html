@@ -78,7 +78,7 @@
       ).join("");
       const active = focusCode === mod.code ? " is-active" : "";
       return `
-        <a class="module-card glass${active}" href="${mod.url || "#"}" data-code="${mod.code}"
+        <a class="module-card glass${active}" href="${mod.url || "#"}" target="_top" data-code="${mod.code}"
            style="--card-accent:${mod.color || "#00e5ff"}"
            title="Abrir ${mod.label}">
           <div class="module-card-head">
