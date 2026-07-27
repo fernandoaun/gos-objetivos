@@ -194,12 +194,34 @@
           <p class="subtitle" id="ths-compare-subtitle"></p>
         </div>
       </div>
-      <div class="table-wrap">
-        <table class="ths-compare-table" id="ths-compare-table">
-          <thead id="ths-compare-head"></thead>
-          <tbody id="ths-compare-body"></tbody>
-        </table>
+      <div class="ths-compare-kpis" id="ths-compare-kpis"></div>
+      <div class="ths-compare-charts">
+        <div class="card ths-compare-chart-card">
+          <h3>Horas y personas</h3>
+          <div class="chart-box"><canvas id="ths-cmp-chart-abs"></canvas></div>
+        </div>
+        <div class="card ths-compare-chart-card">
+          <h3>% sobre total de horas</h3>
+          <div class="chart-box"><canvas id="ths-cmp-chart-pct"></canvas></div>
+        </div>
+        <div class="card ths-compare-chart-card">
+          <h3>Novedades (días / unidades)</h3>
+          <div class="chart-box"><canvas id="ths-cmp-chart-nov"></canvas></div>
+        </div>
+        <div class="card ths-compare-chart-card">
+          <h3>Variación % entre períodos</h3>
+          <div class="chart-box"><canvas id="ths-cmp-chart-var"></canvas></div>
+        </div>
       </div>
+      <details class="ths-compare-details">
+        <summary>Ver tabla de detalle</summary>
+        <div class="table-wrap">
+          <table class="ths-compare-table" id="ths-compare-table">
+            <thead id="ths-compare-head"></thead>
+            <tbody id="ths-compare-body"></tbody>
+          </table>
+        </div>
+      </details>
     </div>
 
     <div id="ths-dashboard-block">
@@ -1257,6 +1279,7 @@ const ths = {
   clienteSeleccionado: null,
   chartMes: null, chartSector: null,
   chartClienteComp: null, chartClienteEmp: null,
+  chartCmpAbs: null, chartCmpPct: null, chartCmpNov: null, chartCmpVar: null,
 };
 
 function fmtNum(n, digitos = 1) {
@@ -1365,11 +1388,169 @@ function thsDiffClass(v) {
   return n > 0 ? 'ths-diff-up' : 'ths-diff-down';
 }
 
+function destroyThsCompareCharts() {
+  ['chartCmpAbs', 'chartCmpPct', 'chartCmpNov', 'chartCmpVar'].forEach(k => {
+    if (ths[k]) {
+      ths[k].destroy();
+      ths[k] = null;
+    }
+  });
+}
+
+function thsCompareRow(data, key) {
+  return (data.filas || []).find(f => f.key === key) || null;
+}
+
+function renderThsCompareCharts(data) {
+  destroyThsCompareCharts();
+  const a = data.a || {};
+  const b = data.b || {};
+  const labelA = a.label || 'A';
+  const labelB = b.label || 'B';
+  const colorA = 'rgba(90, 140, 40, 0.8)';
+  const colorB = 'rgba(47, 111, 143, 0.8)';
+  const byKey = Object.fromEntries((data.filas || []).map(f => [f.key, f]));
+
+  const absKeys = [
+    ['total_horas', 'Total hs'],
+    ['hs_extras', 'Extras'],
+    ['hs_viaje', 'Viaje'],
+    ['total_hs_viaje', 'Hs+viaje'],
+    ['personas', 'Personas'],
+  ];
+  ths.chartCmpAbs = new Chart(document.getElementById('ths-cmp-chart-abs'), {
+    type: 'bar',
+    data: {
+      labels: absKeys.map(([, lbl]) => lbl),
+      datasets: [
+        { label: labelA, data: absKeys.map(([k]) => byKey[k]?.a ?? 0), backgroundColor: colorA, borderRadius: 4 },
+        { label: labelB, data: absKeys.map(([k]) => byKey[k]?.b ?? 0), backgroundColor: colorB, borderRadius: 4 },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' } },
+      scales: { y: { beginAtZero: true } },
+    },
+  });
+
+  const pctKeys = [
+    ['hs_extras', 'Extras'],
+    ['hs50', '50%'],
+    ['hs100', '100%'],
+    ['hs_noc', 'Noct'],
+    ['hs_noc50', 'Noct50'],
+    ['hs_viaje', 'Viaje'],
+  ];
+  ths.chartCmpPct = new Chart(document.getElementById('ths-cmp-chart-pct'), {
+    type: 'bar',
+    data: {
+      labels: pctKeys.map(([, lbl]) => lbl),
+      datasets: [
+        { label: labelA, data: pctKeys.map(([k]) => byKey[k]?.pct_a ?? 0), backgroundColor: colorA, borderRadius: 4 },
+        { label: labelB, data: pctKeys.map(([k]) => byKey[k]?.pct_b ?? 0), backgroundColor: colorB, borderRadius: 4 },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top' },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ${fmtNum(ctx.parsed.y, 1)}%`,
+          },
+        },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { callback: v => `${v}%` },
+        },
+      },
+    },
+  });
+
+  const novKeys = [
+    ['ausente', 'Ausentes'],
+    ['vacaciones', 'Vacaciones'],
+    ['enfermedad', 'Enfermedad'],
+    ['licencia', 'Licencias'],
+    ['feriados', 'Feriados'],
+    ['traslado', 'Traslados'],
+    ['fr_trabajados', 'Fr. trab.'],
+    ['viandas', 'Viandas'],
+  ];
+  ths.chartCmpNov = new Chart(document.getElementById('ths-cmp-chart-nov'), {
+    type: 'bar',
+    data: {
+      labels: novKeys.map(([, lbl]) => lbl),
+      datasets: [
+        { label: labelA, data: novKeys.map(([k]) => byKey[k]?.a ?? 0), backgroundColor: colorA, borderRadius: 4 },
+        { label: labelB, data: novKeys.map(([k]) => byKey[k]?.b ?? 0), backgroundColor: colorB, borderRadius: 4 },
+      ],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' } },
+      scales: { x: { beginAtZero: true } },
+    },
+  });
+
+  const varKeys = [
+    ['total_horas', 'Total hs'],
+    ['hs_extras', 'Extras'],
+    ['hs_viaje', 'Viaje'],
+    ['personas', 'Personas'],
+    ['ausente', 'Ausentes'],
+    ['vacaciones', 'Vacaciones'],
+    ['enfermedad', 'Enfermedad'],
+    ['viandas', 'Viandas'],
+  ];
+  const varData = varKeys.map(([k]) => byKey[k]?.var_pct ?? 0);
+  ths.chartCmpVar = new Chart(document.getElementById('ths-cmp-chart-var'), {
+    type: 'bar',
+    data: {
+      labels: varKeys.map(([, lbl]) => lbl),
+      datasets: [{
+        label: `Var. % (${labelA} → ${labelB})`,
+        data: varData,
+        backgroundColor: varData.map(v =>
+          v > 0 ? 'rgba(180, 83, 9, 0.75)' : v < 0 ? 'rgba(4, 120, 87, 0.75)' : 'rgba(107, 114, 128, 0.45)'
+        ),
+        borderRadius: 4,
+      }],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.parsed.x > 0 ? '+' : ''}${fmtNum(ctx.parsed.x, 1)}%`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: { callback: v => `${v}%` },
+        },
+      },
+    },
+  });
+}
+
 function renderThsComparativo() {
   const box = document.getElementById('ths-comparativo');
   const dash = document.getElementById('ths-dashboard-block');
   const data = ths.comparativo;
   if (!thsIsCompareMode() || !data) {
+    destroyThsCompareCharts();
     box.classList.add('hidden');
     dash.classList.remove('hidden');
     return;
@@ -1380,7 +1561,48 @@ function renderThsComparativo() {
   const a = data.a || {};
   const b = data.b || {};
   document.getElementById('ths-compare-subtitle').textContent =
-    `${a.label || 'Período A'} → ${b.label || 'Período B'} · % sobre total de horas de cada período`;
+    `${a.label || 'Período A'} → ${b.label || 'Período B'} · valores y % sobre total de horas de cada período`;
+
+  const tot = thsCompareRow(data, 'total_horas');
+  const per = thsCompareRow(data, 'personas');
+  const ext = thsCompareRow(data, 'hs_extras');
+  document.getElementById('ths-compare-kpis').innerHTML = [
+    {
+      label: 'Total horas',
+      a: tot?.a, b: tot?.b, dif: tot?.dif, var_pct: tot?.var_pct, dig: 1,
+    },
+    {
+      label: 'Hs. extras',
+      a: ext?.a, b: ext?.b, dif: ext?.dif, var_pct: ext?.var_pct, dig: 1,
+      pctA: ext?.pct_a, pctB: ext?.pct_b,
+    },
+    {
+      label: 'Personas',
+      a: per?.a, b: per?.b, dif: per?.dif, var_pct: per?.var_pct, dig: 0,
+    },
+  ].map(k => `
+    <div class="ths-compare-kpi">
+      <div class="ths-compare-kpi-lbl">${escHtml(k.label)}</div>
+      <div class="ths-compare-kpi-pair">
+        <div>
+          <span class="ths-compare-kpi-month">${escHtml(a.label || 'A')}</span>
+          <strong>${fmtNum(k.a, k.dig)}</strong>
+          ${k.pctA != null ? `<span class="ths-pct">${fmtPct(k.pctA)}</span>` : ''}
+        </div>
+        <div>
+          <span class="ths-compare-kpi-month">${escHtml(b.label || 'B')}</span>
+          <strong>${fmtNum(k.b, k.dig)}</strong>
+          ${k.pctB != null ? `<span class="ths-pct">${fmtPct(k.pctB)}</span>` : ''}
+        </div>
+      </div>
+      <div class="ths-compare-kpi-dif ${thsDiffClass(k.dif)}">
+        ${k.dif > 0 ? '+' : ''}${fmtNum(k.dif, k.dig)}
+        ${k.var_pct == null ? '' : ` · ${k.var_pct > 0 ? '+' : ''}${fmtNum(k.var_pct, 1)}%`}
+      </div>
+    </div>
+  `).join('');
+
+  renderThsCompareCharts(data);
 
   document.getElementById('ths-compare-head').innerHTML = `
     <tr>

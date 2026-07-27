@@ -383,7 +383,7 @@ def test_tot_hs_period_labels_use_month_name(auth_client, app):
 
     meta = auth_client.get("/gos/vacaciones/api/tot-hs/meta").get_json()
     labels = [p["label"] for p in meta["periodos"]]
-    assert labels == ["Marzo", "Febrero"]
+    assert labels == ["Febrero", "Marzo"]
 
     por_mes = auth_client.get("/gos/vacaciones/api/tot-hs/por-mes").get_json()
     assert [r["periodo"] for r in por_mes] == ["Febrero", "Marzo"]

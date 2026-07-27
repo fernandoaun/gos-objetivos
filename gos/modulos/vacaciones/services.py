@@ -341,7 +341,7 @@ def get_tot_hs_meta(db: Session) -> dict:
     active = _active_tot_hs_period_pairs(db)
     with_year = len({h.year for _d, h in active}) > 1
     periodos = []
-    for d, h in sorted(active, key=lambda p: (p[0], p[1]), reverse=True):
+    for d, h in sorted(active, key=lambda p: (p[0], p[1])):
         periodos.append(
             {
                 "desde": d.isoformat(),
