@@ -48,6 +48,7 @@ def health():
 @bp.route("/admin/import-status")
 def import_status():
     from gos.modulos.objetivos.models import FodaItem, KpiIndicador, Objetivo
+    from gos.models import Perfil, Usuario
 
     uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
     try:
@@ -59,6 +60,8 @@ def import_status():
                 "foda_items": FodaItem.query.count(),
                 "objetivos": Objetivo.query.count(),
                 "kpi_indicadores": KpiIndicador.query.count(),
+                "usuarios": Usuario.query.count(),
+                "perfiles": Perfil.query.count(),
             },
         })
     except Exception as exc:
@@ -69,6 +72,42 @@ def import_status():
             "database_backend": "postgresql" if uri.startswith("postgres") else "sqlite",
             "error": f"{type(exc).__name__}: {exc}",
         }), 500
+
+
+@bp.route("/admin/upsert-perfiles", methods=["POST"])
+def upsert_perfiles():
+    """Restaura/actualiza perfiles sin tocar el resto de la base (seguro post-wipe)."""
+    if not _import_auth_ok():
+        return jsonify({
+            "ok": False,
+            "error": "No autorizado. Configurá GOS_IMPORT_SECRET y enviá X-Import-Secret.",
+        }), 403
+
+    from gos.models import Empresa
+    from gos.services import perfil_service
+
+    payload = request.get_json(silent=True) or {}
+    perfiles = payload.get("perfiles")
+    if perfiles is None:
+        perfiles = list(perfil_service.PERFILES_BASE)
+    if not isinstance(perfiles, list):
+        return jsonify({"ok": False, "error": "perfiles debe ser una lista"}), 400
+
+    empresa = Empresa.query.order_by(Empresa.id).first()
+    if not empresa:
+        return jsonify({"ok": False, "error": "No hay empresa en la base"}), 400
+
+    try:
+        result = perfil_service.upsert_perfiles_empresa(empresa.id, perfiles)
+        return jsonify({
+            "ok": True,
+            "empresa_id": empresa.id,
+            **result,
+            "perfiles": perfil_service.exportar_perfiles_empresa(empresa.id),
+        })
+    except Exception as exc:
+        current_app.logger.exception("upsert-perfiles failed")
+        return jsonify({"ok": False, "error": str(exc)}), 500
 
 
 @bp.route("/admin/import-db", methods=["POST"])

@@ -83,3 +83,58 @@ def eliminar_perfil(perfil: Perfil) -> str | None:
     db.session.delete(perfil)
     db.session.commit()
     return None
+
+
+# Perfiles base (placeholders de la UI). No había backup recuperable.
+PERFILES_BASE = (
+    {
+        "nombre": "Operaciones",
+        "modulos": ["dashboard", "mantenimiento", "om", "ralenti", "capacitacion"],
+    },
+    {
+        "nombre": "Consultoría",
+        "modulos": ["dashboard", "objetivos", "hwo", "vacaciones", "capacitacion"],
+    },
+    {
+        "nombre": "Acceso completo",
+        "modulos": list(MODULO_CODES),
+    },
+)
+
+
+def upsert_perfiles_empresa(
+    empresa_id: int,
+    perfiles: list[dict],
+) -> dict[str, int]:
+    """Crea o actualiza perfiles por nombre. No borra perfiles ausentes en la lista."""
+    creados = 0
+    actualizados = 0
+    for item in perfiles:
+        nombre = (item.get("nombre") or "").strip()
+        if not nombre:
+            continue
+        modulos_norm = _normalizar_modulos(item.get("modulos"))
+        if not modulos_norm:
+            continue
+        existente = Perfil.query.filter_by(empresa_id=empresa_id, nombre=nombre).first()
+        if existente:
+            existente.modulos = modulos_norm
+            actualizados += 1
+        else:
+            db.session.add(
+                Perfil(empresa_id=empresa_id, nombre=nombre, modulos=modulos_norm)
+            )
+            creados += 1
+    db.session.commit()
+    return {"creados": creados, "actualizados": actualizados, "total": Perfil.query.filter_by(empresa_id=empresa_id).count()}
+
+
+def restaurar_perfiles_base(empresa_id: int) -> dict[str, int]:
+    return upsert_perfiles_empresa(empresa_id, list(PERFILES_BASE))
+
+
+def exportar_perfiles_empresa(empresa_id: int) -> list[dict]:
+    return [
+        {"nombre": p.nombre, "modulos": list(p.modulos or [])}
+        for p in listar_perfiles_empresa(empresa_id)
+    ]

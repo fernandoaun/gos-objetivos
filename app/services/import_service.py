@@ -14,6 +14,7 @@ TABLES = [
     "sectores",
     "areas",
     "responsables",
+    "perfiles",
     "usuarios",
     "foda_documentos",
     "foda_items",
@@ -59,9 +60,13 @@ def _clear_tables(connection) -> None:
 
     if connection.dialect.name == "postgresql":
         tables_sql = ", ".join(f'"{table}"' for table in to_clear)
-        connection.execute(
-            text(f"TRUNCATE TABLE {tables_sql} RESTART IDENTITY CASCADE")
-        )
+        connection.execute(text("SET session_replication_role = replica"))
+        try:
+            connection.execute(
+                text(f"TRUNCATE TABLE {tables_sql} RESTART IDENTITY")
+            )
+        finally:
+            connection.execute(text("SET session_replication_role = origin"))
         return
 
     connection.execute(text("PRAGMA foreign_keys = OFF"))

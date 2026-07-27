@@ -110,3 +110,26 @@ def test_perfil_no_eliminar_con_usuarios(auth_client, app):
     )
     assert r.status_code == 200
     assert b"No se puede eliminar" in r.data
+
+
+def test_restaurar_perfiles_base(app):
+    with app.app_context():
+        from gos.models import Empresa
+        from gos.services import perfil_service
+
+        emp = Empresa.query.first()
+        result = perfil_service.restaurar_perfiles_base(emp.id)
+        assert result["creados"] >= 3
+        nombres = {p["nombre"] for p in perfil_service.exportar_perfiles_empresa(emp.id)}
+        assert {"Operaciones", "Consultoría", "Acceso completo"} <= nombres
+        # Idempotente
+        result2 = perfil_service.restaurar_perfiles_base(emp.id)
+        assert result2["creados"] == 0
+        assert result2["actualizados"] >= 3
+
+
+def test_import_tables_incluye_perfiles():
+    from gos.modulos.objetivos.services.import_service import TABLES
+
+    assert "perfiles" in TABLES
+    assert TABLES.index("perfiles") < TABLES.index("usuarios")

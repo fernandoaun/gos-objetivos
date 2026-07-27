@@ -14,6 +14,8 @@ TABLES = [
     "sectores",
     "areas",
     "responsables",
+    # perfiles antes de usuarios (FK usuarios.perfil_id → perfiles.id)
+    "perfiles",
     "usuarios",
     "foda_documentos",
     "foda_items",
@@ -50,6 +52,7 @@ def _row_dict(row) -> dict:
 
 
 def _ensure_schema(target_url: str) -> None:
+    import gos.models  # noqa: F401  # empresas, perfiles, usuarios
     import gos.modulos.mantenimiento.models  # noqa: F401
     import gos.modulos.objetivos.models  # noqa: F401
     from gos.extensions import db
@@ -65,15 +68,25 @@ def _tables_present(connection, tables: list[str]) -> list[str]:
 
 
 def _clear_tables(connection, tables: list[str]) -> None:
+    """Vacía solo las tablas listadas, sin CASCADE a tablas fuera del import.
+
+    Antes se usaba TRUNCATE ... CASCADE sobre empresas/usuarios, lo que borraba
+    perfiles (y otras hijas) sin restaurarlas después.
+    """
     to_clear = _tables_present(connection, tables)
     if not to_clear:
         return
 
     if connection.dialect.name == "postgresql":
         tables_sql = ", ".join(f'"{table}"' for table in to_clear)
-        connection.execute(
-            text(f"TRUNCATE TABLE {tables_sql} RESTART IDENTITY CASCADE")
-        )
+        # replica: ignora FKs/triggers solo en esta sesión; no toca otras tablas.
+        connection.execute(text("SET session_replication_role = replica"))
+        try:
+            connection.execute(
+                text(f"TRUNCATE TABLE {tables_sql} RESTART IDENTITY")
+            )
+        finally:
+            connection.execute(text("SET session_replication_role = origin"))
         return
 
     connection.execute(text("PRAGMA foreign_keys = OFF"))
