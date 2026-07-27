@@ -284,6 +284,15 @@ def importar_tablas_json(tables_data: dict[str, list], target_url: str) -> dict[
             allowed = physical_cols & model_cols
 
             is_pg = tgt_conn.dialect.name == "postgresql"
+            from sqlalchemy import Boolean
+
+            bool_cols: set[str] = set()
+            if model_table is not None:
+                bool_cols = {
+                    col.name
+                    for col in model_table.columns
+                    if isinstance(col.type, Boolean) and col.name in allowed
+                }
             prepared: list[dict] = []
             json_cols: set[str] = set()
             for row in rows:
@@ -296,7 +305,9 @@ def importar_tablas_json(tables_data: dict[str, list], target_url: str) -> dict[
                     except (json.JSONDecodeError, TypeError):
                         pass
                 for key, value in list(item.items()):
-                    if isinstance(value, (dict, list)):
+                    if key in bool_cols and value is not None:
+                        item[key] = value not in (0, "0", "false", "False", False)
+                    elif isinstance(value, (dict, list)):
                         json_cols.add(key)
                         item[key] = json.dumps(value, ensure_ascii=False)
                 if (

@@ -1,2 +1,2 @@
-APP_VERSION = "0.2.19"
-APP_VERSION_LABEL = "v0.2.19 — CAST json en import-tables"
+APP_VERSION = "0.2.20"
+APP_VERSION_LABEL = "v0.2.20 — Bool cast en import-tables"
