@@ -283,12 +283,9 @@ def importar_tablas_json(tables_data: dict[str, list], target_url: str) -> dict[
             model_cols = {c.name for c in model_table.columns} if model_table is not None else physical_cols
             allowed = physical_cols & model_cols
 
-            is_sqlite = tgt_conn.dialect.name == "sqlite"
-            try:
-                from psycopg2.extras import Json as PgJson
-            except ImportError:  # pragma: no cover
-                PgJson = None
+            is_pg = tgt_conn.dialect.name == "postgresql"
             prepared: list[dict] = []
+            json_cols: set[str] = set()
             for row in rows:
                 if not isinstance(row, dict):
                     continue
@@ -299,13 +296,8 @@ def importar_tablas_json(tables_data: dict[str, list], target_url: str) -> dict[
                     except (json.JSONDecodeError, TypeError):
                         pass
                 for key, value in list(item.items()):
-                    if not isinstance(value, (dict, list)):
-                        continue
-                    if is_sqlite:
-                        item[key] = json.dumps(value, ensure_ascii=False)
-                    elif PgJson is not None:
-                        item[key] = PgJson(value)
-                    else:
+                    if isinstance(value, (dict, list)):
+                        json_cols.add(key)
                         item[key] = json.dumps(value, ensure_ascii=False)
                 if (
                     empresa_id is not None
@@ -324,7 +316,13 @@ def importar_tablas_json(tables_data: dict[str, list], target_url: str) -> dict[
                     continue
                 cols = sorted({k for row in chunk for k in row})
                 col_sql = ", ".join(f'"{c}"' for c in cols)
-                placeholders = ", ".join(f":{c}" for c in cols)
+                parts = []
+                for c in cols:
+                    if is_pg and c in json_cols:
+                        parts.append(f"CAST(:{c} AS json)")
+                    else:
+                        parts.append(f":{c}")
+                placeholders = ", ".join(parts)
                 stmt = text(
                     f'INSERT INTO "{table}" ({col_sql}) VALUES ({placeholders})'
                 )
