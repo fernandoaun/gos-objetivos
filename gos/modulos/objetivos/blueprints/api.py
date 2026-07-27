@@ -110,6 +110,69 @@ def upsert_perfiles():
         return jsonify({"ok": False, "error": str(exc)}), 500
 
 
+@bp.route("/admin/export-tables", methods=["GET", "POST"])
+def export_tables():
+    """Exporta tablas (JSON) para bajar datos de Render → local sin wipe."""
+    if not _import_auth_ok():
+        return jsonify({
+            "ok": False,
+            "error": "No autorizado. Configurá GOS_IMPORT_SECRET y enviá X-Import-Secret.",
+        }), 403
+
+    from sqlalchemy import inspect, text
+
+    from gos.extensions import db
+    from gos.modulos.objetivos.services.import_service import TABLES
+
+    payload = request.get_json(silent=True) or {}
+    requested = payload.get("tables") or request.args.getlist("table")
+    if not requested:
+        requested = [
+            "sectores",
+            "areas",
+            "responsables",
+            "objetivos",
+            "kpi_indicadores",
+            "foda_documentos",
+            "foda_items",
+            "dafo_tareas",
+            "planeamiento_config",
+        ]
+    allowed = set(TABLES)
+    tables = [t for t in requested if t in allowed]
+    if not tables:
+        return jsonify({"ok": False, "error": "Ninguna tabla válida"}), 400
+
+    try:
+        existing = set(inspect(db.engine).get_table_names())
+        out: dict[str, list] = {}
+        counts: dict[str, int] = {}
+        with db.engine.connect() as conn:
+            for table in tables:
+                if table not in existing:
+                    out[table] = []
+                    counts[table] = 0
+                    continue
+                rows = conn.execute(text(f'SELECT * FROM "{table}"')).mappings().all()
+                serializable = []
+                for row in rows:
+                    item = {}
+                    for key, value in dict(row).items():
+                        if hasattr(value, "isoformat"):
+                            item[key] = value.isoformat()
+                        elif isinstance(value, (bytes, memoryview)):
+                            item[key] = bytes(value).hex()
+                        else:
+                            item[key] = value
+                    serializable.append(item)
+                out[table] = serializable
+                counts[table] = len(serializable)
+        return jsonify({"ok": True, "counts": counts, "tables": out})
+    except Exception as exc:
+        current_app.logger.exception("export-tables failed")
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
 @bp.route("/admin/import-db", methods=["POST"])
 def import_db():
     """Restaura backup SQLite en la base que usa el servicio web."""

@@ -109,3 +109,5 @@ def test_import_tables_incluye_cap_y_perfiles():
     assert "om_modules" in TABLES
     assert "perfiles" in PROTECTED_TABLES
     assert "cap_participantes" in PROTECTED_TABLES
+    assert "objetivos" in PROTECTED_TABLES
+    assert "foda_items" in PROTECTED_TABLES

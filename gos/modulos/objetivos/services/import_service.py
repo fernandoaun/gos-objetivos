@@ -89,6 +89,15 @@ PROTECTED_TABLES = frozenset(
         *[t for t in TABLES if t.startswith("om_")],
         "hwo_datasets",
         "hwo_modalidad",
+        # Objetivos / FODA / catálogos (no pisar con SQLite vacío)
+        "sectores",
+        "areas",
+        "responsables",
+        "objetivos",
+        "kpi_indicadores",
+        "foda_documentos",
+        "foda_items",
+        "dafo_tareas",
     }
 )
 
