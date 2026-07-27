@@ -123,6 +123,9 @@ def _ensure_schema() -> None:
     from gos.modulos.hwo.models import HwoDataset, HwoModalidad  # noqa: F401
     from gos.modulos.vacaciones.models import Registro, Vacacion  # noqa: F401
     from gos.modulos.ralenti.models import RalentiConfig, RalentiEvent, RalentiFile  # noqa: F401
+    # Capacitación y Mantenimiento antes que O&M (FKs participante_id / unidad_id).
+    import gos.modulos.capacitacion.models  # noqa: F401
+    import gos.modulos.mantenimiento.models  # noqa: F401
     from gos.modulos.om.models import (  # noqa: F401
         OmAuditLog,
         OmItem,
