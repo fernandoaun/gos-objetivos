@@ -1,0 +1,25 @@
+---
+description: Flujo dual Git (código) + Render (producción/datos)
+alwaysApply: true
+---
+
+# Git y Render
+
+El usuario trabaja en **dos capas** que no se mezclan solas:
+
+## Código → GitHub → Render (deploy)
+
+- `commit` + `push` publican **código** (templates, CSS, Python).
+- Render redeploya desde GitHub; eso **no** actualiza filas de datos (VTV, Análisis, etc.).
+
+## Datos → base local → hay que subir a Render
+
+- Cambios en `instance/gos.db` (vencimientos VTV, datasets HWO/Análisis, importaciones) **no van en git**.
+- Para que se vean en https://gos-objetivos.onrender.com hay que **subir la base** (p. ej. `SUBIR BACKUP A RENDER.bat` / `scripts/subir_backup_a_render.py` con `GOS_IMPORT_SECRET`), o actualizar Postgres de Render con `RENDER_DATABASE_URL`.
+
+## Al hacer cambios de datos
+
+1. Aplicar en local.
+2. Verificar en `http://127.0.0.1:5000`.
+3. Preguntar / ofrecer **sincronizar a Render**; no asumir que el push de git alcanza.
+4. Si el usuario dice que “no ve el cambio” y el código ya está en main, sospechar **caché del navegador** o **datos viejos en Render**, no solo el commit.

@@ -199,7 +199,7 @@ def importar_excel():
 @bp.route("/importar/total", methods=["POST"])
 @login_required
 def importar_total():
-    """Carga Tot Hs. por período: períodos viejos se conservan; el mismo rango se pisa."""
+    """Carga Tot Hs.: períodos sin solape se conservan; iguales o solapados se pisan."""
     outcome = _save_upload_and_import(import_tot_hs_excel)
     if isinstance(outcome, tuple):
         return outcome
@@ -207,14 +207,22 @@ def importar_total():
 
     partes = []
     if result["registros"] > 0:
-        accion = "reemplazadas" if result.get("periodo_reemplazado") else "nuevas"
+        pisados = result.get("periodos_pisados") or []
         label = result.get("periodo_label") or (
             f"{result.get('fecha_min')} → {result.get('fecha_max')}"
         )
-        partes.append(
-            f"{result['registros']} filas {accion} · período {label} · "
-            f"{result.get('personas', 0)} personas"
-        )
+        if pisados:
+            labels = ", ".join(p.get("label") or f"{p['desde']}→{p['hasta']}" for p in pisados)
+            partes.append(
+                f"{result['registros']} filas cargadas · período {label} · "
+                f"{result.get('personas', 0)} personas · "
+                f"se quitó período solapado más antiguo: {labels}"
+            )
+        else:
+            partes.append(
+                f"{result['registros']} filas nuevas · período {label} · "
+                f"{result.get('personas', 0)} personas"
+            )
 
     return jsonify(
         {

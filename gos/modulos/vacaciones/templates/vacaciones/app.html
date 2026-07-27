@@ -1191,13 +1191,20 @@ function showThsImportResult(data) {
   const res = document.getElementById('ths-import-result');
   res.className = 'card result-ok';
   const d = data.detalle || {};
-  const accion = d.periodo_reemplazado ? 'Período reemplazado' : 'Período nuevo';
+  const pisados = d.periodos_pisados || [];
+  const accion = pisados.length
+    ? 'Período cargado (se quitó solape anterior)'
+    : (d.periodo_reemplazado ? 'Período reemplazado' : 'Período nuevo');
   res.innerHTML = `<h3 style="color:var(--green);margin-bottom:8px;">✓ ${accion}</h3>
     <p style="font-size:.85rem;color:var(--muted);">${escHtml(data.mensaje || '')}</p>`;
   if (d.registros > 0) {
     res.innerHTML += `<div class="grid3"><div class="stat-box"><div class="val">${d.registros}</div><div class="lbl">Filas</div></div>
       <div class="stat-box"><div class="val" style="color:var(--accent)">${d.personas || 0}</div><div class="lbl">Personas</div></div>
       <div class="stat-box"><div class="val" style="color:var(--yellow);font-size:1rem;">${escHtml(d.periodo_label || '')}</div><div class="lbl">Período</div></div></div>`;
+  }
+  if (pisados.length) {
+    const labels = pisados.map(p => escHtml(p.label || `${p.desde} → ${p.hasta}`)).join(', ');
+    res.innerHTML += `<p style="font-size:.8rem;color:var(--muted);margin-top:10px;">Quitado por solape: <strong>${labels}</strong></p>`;
   }
   res.innerHTML += `<p style="font-size:.8rem;color:var(--muted);margin-top:12px;">Disponible en <strong>Tot Hs.</strong></p>`;
   res.classList.remove('hidden');

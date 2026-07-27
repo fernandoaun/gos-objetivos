@@ -256,7 +256,7 @@ def _xlsx_tot_hs_period(title, rows, sheet_title="Total"):
 
 
 def test_tot_hs_import_period_merge_and_overwrite(auth_client, app):
-    """Períodos nuevos se suman; el mismo rango se reemplaza completo."""
+    """Períodos sin solape se suman; el mismo rango o un solape pisa al más antiguo."""
     from datetime import date
 
     from gos.modulos.vacaciones.models import TotHs
@@ -280,6 +280,7 @@ def test_tot_hs_import_period_merge_and_overwrite(auth_client, app):
     assert data["ok"] is True
     assert data["detalle"]["registros"] == 2
     assert data["detalle"]["periodo_reemplazado"] is False
+    assert data["detalle"]["periodos_pisados"] == []
     assert data["detalle"]["fecha_min"] == "2025-12-21"
     assert data["detalle"]["fecha_max"] == "2026-07-20"
 
@@ -300,6 +301,7 @@ def test_tot_hs_import_period_merge_and_overwrite(auth_client, app):
     assert r.status_code == 200
     data = r.get_json()
     assert data["detalle"]["periodo_reemplazado"] is True
+    assert len(data["detalle"]["periodos_pisados"]) == 1
     assert data["detalle"]["registros"] == 1
 
     with app.app_context():
@@ -311,7 +313,7 @@ def test_tot_hs_import_period_merge_and_overwrite(auth_client, app):
         assert rows[0].total_horas == 200
         assert rows[0].periodo_desde == date(2025, 12, 21)
 
-    # Período distinto: se agrega sin borrar el anterior
+    # Período contiguo sin solape: se agrega sin borrar el anterior
     buf3 = _xlsx_tot_hs_period(
         "01/01/2025 al 20/12/2025",
         [
@@ -345,6 +347,68 @@ def test_tot_hs_import_period_merge_and_overwrite(auth_client, app):
     assert resumen["registros"] == 2
     assert resumen["total_horas"] == 250
     assert resumen["personas"] == 2
+
+
+def test_tot_hs_import_overlap_removes_older(auth_client, app):
+    """Si el nuevo período se pisa con uno viejo, el antiguo se borra y no se muestra."""
+    from datetime import date
+
+    from gos.modulos.vacaciones.models import TotHs
+
+    buf_old = _xlsx_tot_hs_period(
+        "01/01/2026 al 30/06/2026",
+        [
+            ["VIEJO EMPLEADO", "SRV-A", "C1", "CLIENTE A", "TIPO",
+             100, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 100],
+        ],
+    )
+    r = auth_client.post(
+        "/gos/vacaciones/api/importar/total",
+        data={"file": (buf_old, "viejo.xlsx")},
+        content_type="multipart/form-data",
+    )
+    assert r.status_code == 200
+
+    # Solapa en junio: el nuevo gana y saca al anterior
+    buf_new = _xlsx_tot_hs_period(
+        "01/06/2026 al 31/12/2026",
+        [
+            ["NUEVO EMPLEADO", "SRV-B", "C2", "CLIENTE B", "TIPO",
+             250, 0, 0, 0, 0, 0, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 250],
+        ],
+    )
+    r = auth_client.post(
+        "/gos/vacaciones/api/importar/total",
+        data={"file": (buf_new, "nuevo.xlsx")},
+        content_type="multipart/form-data",
+    )
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data["detalle"]["periodo_reemplazado"] is True
+    assert len(data["detalle"]["periodos_pisados"]) == 1
+    assert data["detalle"]["periodos_pisados"][0]["desde"] == "2026-01-01"
+    assert data["detalle"]["periodos_pisados"][0]["hasta"] == "2026-06-30"
+
+    with app.app_context():
+        from gos.extensions import db
+
+        rows = db.session.query(TotHs).all()
+        assert len(rows) == 1
+        assert rows[0].empleado == "NUEVO EMPLEADO"
+        assert rows[0].periodo_desde == date(2026, 6, 1)
+        assert rows[0].periodo_hasta == date(2026, 12, 31)
+
+    r = auth_client.get("/gos/vacaciones/api/tot-hs/meta")
+    meta = r.get_json()
+    assert len(meta["periodos"]) == 1
+    assert meta["periodos"][0]["desde"] == "2026-06-01"
+    assert meta["total_registros"] == 1
+
+    r = auth_client.get("/gos/vacaciones/api/tot-hs/resumen")
+    resumen = r.get_json()
+    assert resumen["registros"] == 1
+    assert resumen["total_horas"] == 250
+    assert resumen["personas"] == 1
 
 
 def test_tot_hs_import_real_file_if_present(auth_client, app):

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Optional
 
-from sqlalchemy import extract, func, select, union
+from sqlalchemy import delete, extract, func, select, tuple_, union
 from sqlalchemy.orm import Session
 
 from gos.modulos.vacaciones.models import Registro, TotHs, Vacacion
@@ -207,7 +207,71 @@ def _parse_period_key(periodo: Optional[str]) -> Optional[tuple[str, str]]:
     return None
 
 
+def _tot_hs_periods_overlap(a_desde: date, a_hasta: date, b_desde: date, b_hasta: date) -> bool:
+    """True si los rangos coinciden o se pisan en al menos un día."""
+    return a_desde <= b_hasta and a_hasta >= b_desde
+
+
+def _tot_hs_periodos_con_recencia(db: Session) -> list[tuple[date, date, int]]:
+    """Períodos distintos con max(id) como proxy de carga más reciente."""
+    rows = db.execute(
+        select(
+            TotHs.periodo_desde,
+            TotHs.periodo_hasta,
+            func.max(TotHs.id),
+        ).group_by(TotHs.periodo_desde, TotHs.periodo_hasta)
+    ).all()
+    return sorted(
+        [(d, h, int(mid or 0)) for d, h, mid in rows],
+        key=lambda r: r[2],
+        reverse=True,
+    )
+
+
+def _active_tot_hs_period_pairs(db: Session) -> list[tuple[date, date]]:
+    """Períodos visibles: si se solapan, gana el cargado más recientemente."""
+    active: list[tuple[date, date]] = []
+    for d, h, _mid in _tot_hs_periodos_con_recencia(db):
+        if any(_tot_hs_periods_overlap(d, h, ad, ah) for ad, ah in active):
+            continue
+        active.append((d, h))
+    return active
+
+
+def purge_overlapping_tot_hs_periods(db: Session) -> list[dict]:
+    """Borra períodos solapados más antiguos; deja solo el más reciente de cada choque."""
+    ranked = _tot_hs_periodos_con_recencia(db)
+    if len(ranked) < 2:
+        return []
+    keep: list[tuple[date, date]] = []
+    drop: list[tuple[date, date]] = []
+    for d, h, _mid in ranked:
+        if any(_tot_hs_periods_overlap(d, h, kd, kh) for kd, kh in keep):
+            drop.append((d, h))
+        else:
+            keep.append((d, h))
+    if not drop:
+        return []
+    for d, h in drop:
+        db.execute(
+            delete(TotHs).where(
+                TotHs.periodo_desde == d,
+                TotHs.periodo_hasta == h,
+            )
+        )
+    db.commit()
+    return [
+        {
+            "desde": d.isoformat(),
+            "hasta": h.isoformat(),
+            "label": f"{d.strftime('%d/%m/%Y')} al {h.strftime('%d/%m/%Y')}",
+        }
+        for d, h in drop
+    ]
+
+
 def _tot_hs_filters(
+    db: Session,
     periodo: Optional[str] = None,
     cliente: Optional[str] = None,
     tipo_servicio: Optional[str] = None,
@@ -216,6 +280,11 @@ def _tot_hs_filters(
     hasta: Optional[str] = None,
 ):
     clauses = []
+    active = _active_tot_hs_period_pairs(db)
+    if active:
+        clauses.append(tuple_(TotHs.periodo_desde, TotHs.periodo_hasta).in_(active))
+    else:
+        clauses.append(TotHs.id == -1)
     d_desde = _parse_iso_date(desde)
     d_hasta = _parse_iso_date(hasta)
     key = _parse_period_key(periodo)
@@ -240,13 +309,12 @@ def _tot_hs_filters(
 
 def get_tot_hs_meta(db: Session) -> dict:
     """Períodos cargados y totales globales."""
-    periodos_rows = db.execute(
-        select(TotHs.periodo_desde, TotHs.periodo_hasta)
-        .distinct()
-        .order_by(TotHs.periodo_desde.desc(), TotHs.periodo_hasta.desc())
-    ).all()
+    # Limpia solapes viejos ya cargados para que no aparezcan en la UI.
+    purge_overlapping_tot_hs_periods(db)
+
+    active = _active_tot_hs_period_pairs(db)
     periodos = []
-    for d, h in periodos_rows:
+    for d, h in sorted(active, key=lambda p: (p[0], p[1]), reverse=True):
         periodos.append(
             {
                 "desde": d.isoformat(),
@@ -256,14 +324,21 @@ def get_tot_hs_meta(db: Session) -> dict:
             }
         )
 
-    row = db.execute(
-        select(
+    if active:
+        q_tot = select(
             func.count(TotHs.id),
             func.count(func.distinct(TotHs.empleado)),
             func.min(TotHs.periodo_desde),
             func.max(TotHs.periodo_hasta),
-        )
-    ).one()
+        ).where(tuple_(TotHs.periodo_desde, TotHs.periodo_hasta).in_(active))
+    else:
+        q_tot = select(
+            func.count(TotHs.id),
+            func.count(func.distinct(TotHs.empleado)),
+            func.min(TotHs.periodo_desde),
+            func.max(TotHs.periodo_hasta),
+        ).where(TotHs.id == -1)
+    row = db.execute(q_tot).one()
     total, personas, fmin, fmax = row
 
     clientes = list(
@@ -303,7 +378,7 @@ def get_tot_hs_resumen(
     hasta: Optional[str] = None,
     **_ignored,
 ) -> dict:
-    clauses = _tot_hs_filters(periodo, cliente, tipo_servicio, desde=desde, hasta=hasta)
+    clauses = _tot_hs_filters(db, periodo, cliente, tipo_servicio, desde=desde, hasta=hasta)
     q = select(
         func.count(TotHs.id),
         func.count(func.distinct(TotHs.empleado)),
@@ -377,7 +452,7 @@ def get_tot_hs_por_periodo(
     hasta: Optional[str] = None,
     **_ignored,
 ) -> list[dict]:
-    clauses = _tot_hs_filters(periodo, cliente, tipo_servicio, desde=desde, hasta=hasta)
+    clauses = _tot_hs_filters(db, periodo, cliente, tipo_servicio, desde=desde, hasta=hasta)
     q = select(
         TotHs.periodo_desde,
         TotHs.periodo_hasta,
@@ -437,7 +512,7 @@ def get_tot_hs_por_sector(
     **_ignored,
 ) -> list[dict]:
     """Agrupa por cliente (equivalente útil al «sector» del archivo real)."""
-    clauses = _tot_hs_filters(periodo, None, tipo_servicio, desde=desde, hasta=hasta)
+    clauses = _tot_hs_filters(db, periodo, None, tipo_servicio, desde=desde, hasta=hasta)
     q = select(
         TotHs.cliente,
         func.coalesce(func.sum(TotHs.total_horas), 0),
@@ -481,7 +556,7 @@ def get_tot_hs_por_empleado(
     hasta: Optional[str] = None,
     **_ignored,
 ) -> list[dict]:
-    clauses = _tot_hs_filters(periodo, cliente, tipo_servicio, desde=desde, hasta=hasta)
+    clauses = _tot_hs_filters(db, periodo, cliente, tipo_servicio, desde=desde, hasta=hasta)
     q = select(
         TotHs.empleado,
         func.coalesce(func.sum(TotHs.total_horas), 0),
@@ -565,7 +640,7 @@ def get_tot_hs_detalle(
     **_ignored,
 ) -> list[dict]:
     clauses = _tot_hs_filters(
-        periodo, cliente, tipo_servicio, empleado, desde=desde, hasta=hasta
+        db, periodo, cliente, tipo_servicio, empleado, desde=desde, hasta=hasta
     )
     q = select(TotHs).order_by(
         TotHs.total_horas.desc(), TotHs.empleado, TotHs.servicio

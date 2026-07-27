@@ -5,7 +5,8 @@ Formato esperado (como «archivo (14).xlsx»):
   - Encabezados: Nombre, Servicio, Centro, Cliente, Tipo Servicio, Total Horas, …
   - Una fila por (nombre, servicio, centro) con totales del período.
 
-Períodos nuevos se agregan; si el mismo rango ya existe, se reemplaza completo.
+Períodos nuevos se agregan; si el mismo rango ya existe o se solapa con
+otro período cargado, se pisa el más antiguo (se borra) y queda el nuevo.
 """
 
 from __future__ import annotations
@@ -211,7 +212,7 @@ def _cell(row: tuple, idx: int):
 
 
 def import_tot_hs_excel(filepath: str, db: Session) -> dict:
-    """Importa resumen por período. Pisá el período si ya existía."""
+    """Importa resumen por período. Pisa rangos iguales o solapados."""
     try:
         wb = openpyxl.load_workbook(filepath, data_only=True)
     except Exception as exc:
@@ -275,18 +276,30 @@ def import_tot_hs_excel(filepath: str, db: Session) -> dict:
             "pero no había filas con nombre de empleado."
         )
 
-    existing_count = db.execute(
-        select(TotHs.id).where(
-            TotHs.periodo_desde == desde,
-            TotHs.periodo_hasta == hasta,
-        ).limit(1)
-    ).first()
-    was_update = existing_count is not None
+    # Cualquier período que toque el nuevo rango se considera más antiguo y se saca.
+    overlapping = db.execute(
+        select(TotHs.periodo_desde, TotHs.periodo_hasta)
+        .where(
+            TotHs.periodo_hasta >= desde,
+            TotHs.periodo_desde <= hasta,
+        )
+        .distinct()
+        .order_by(TotHs.periodo_desde, TotHs.periodo_hasta)
+    ).all()
+    periodos_pisados = [
+        {
+            "desde": d.isoformat(),
+            "hasta": h.isoformat(),
+            "label": f"{d.strftime('%d/%m/%Y')} al {h.strftime('%d/%m/%Y')}",
+        }
+        for d, h in overlapping
+    ]
+    was_update = bool(periodos_pisados)
 
     db.execute(
         delete(TotHs).where(
-            TotHs.periodo_desde == desde,
-            TotHs.periodo_hasta == hasta,
+            TotHs.periodo_hasta >= desde,
+            TotHs.periodo_desde <= hasta,
         )
     )
     db.bulk_insert_mappings(TotHs, records)
@@ -297,6 +310,7 @@ def import_tot_hs_excel(filepath: str, db: Session) -> dict:
         "registros_nuevos": 0 if was_update else len(records),
         "registros_actualizados": len(records) if was_update else 0,
         "periodo_reemplazado": was_update,
+        "periodos_pisados": periodos_pisados,
         "fecha_min": desde.isoformat(),
         "fecha_max": hasta.isoformat(),
         "periodo_label": f"{desde.strftime('%d/%m/%Y')} al {hasta.strftime('%d/%m/%Y')}",
