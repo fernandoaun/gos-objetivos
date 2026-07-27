@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request, Response
 from flask_login import current_user, login_required
 
+from gos import env
 from gos.modulos.om import services
 from gos.modulos.om.services import (
     OmConflictError,
@@ -9,6 +10,11 @@ from gos.modulos.om.services import (
 )
 
 bp = Blueprint("om_api", __name__)
+
+
+def _import_auth_ok() -> bool:
+    provided = (request.headers.get("X-Import-Secret") or request.args.get("secret") or "").strip()
+    return env.import_auth_ok(provided)
 
 
 def _ok(data=None, message: str = "", status: int = 200):
@@ -144,3 +150,31 @@ def audit():
         return _ok(services.list_audit(limit=limit, offset=offset))
     except Exception as exc:  # noqa: BLE001
         return _err(str(exc), 500)
+
+
+@bp.route("/admin/import-legacy", methods=["POST"])
+def import_legacy():
+    """Importa módulos O&M desde JSON (idempotente por code). Usa X-Import-Secret."""
+    if not _import_auth_ok():
+        return jsonify({
+            "ok": False,
+            "error": "No autorizado. Configurá GOS_IMPORT_SECRET y enviá X-Import-Secret.",
+        }), 403
+
+    payload = request.get_json(silent=True)
+    if payload is None and request.files.get("file"):
+        import json
+
+        raw = request.files["file"].read().decode("utf-8")
+        payload = json.loads(raw)
+
+    if isinstance(payload, dict) and "modules" in payload:
+        modules = payload["modules"]
+    else:
+        modules = payload
+
+    if not isinstance(modules, list):
+        return jsonify({"ok": False, "error": "Se espera un array JSON de módulos"}), 400
+
+    result = services.import_modules_payload(modules, user_id=None)
+    return jsonify({"ok": True, **result})
