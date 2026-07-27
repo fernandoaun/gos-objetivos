@@ -20,6 +20,15 @@ TABLES = [
     "dafo_tareas",
     "objetivos",
     "kpi_indicadores",
+    # Mantenimiento (plan, VTV, reporte mensual)
+    "mant_unidades",
+    "mant_plan_meta",
+    "mant_plan_celdas",
+    "mant_vtv",
+    "mant_vtv_turnos",
+    "mant_reporte_ordenes",
+    "mant_reporte_tareas",
+    "mant_reporte_solicitudes",
 ]
 
 
@@ -41,6 +50,7 @@ def _row_dict(row) -> dict:
 
 
 def _ensure_schema(target_url: str) -> None:
+    import gos.modulos.mantenimiento.models  # noqa: F401
     import gos.modulos.objetivos.models  # noqa: F401
     from gos.extensions import db
 
@@ -49,11 +59,13 @@ def _ensure_schema(target_url: str) -> None:
     engine.dispose()
 
 
-def _clear_tables(connection) -> None:
-    from sqlalchemy import inspect, text
-
+def _tables_present(connection, tables: list[str]) -> list[str]:
     existing = set(inspect(connection).get_table_names())
-    to_clear = [table for table in TABLES if table in existing]
+    return [table for table in tables if table in existing]
+
+
+def _clear_tables(connection, tables: list[str]) -> None:
+    to_clear = _tables_present(connection, tables)
     if not to_clear:
         return
 
@@ -86,6 +98,7 @@ def _reset_sequences(connection, table: str) -> None:
 
 
 def importar_sqlite(local_path: Path, target_url: str) -> dict[str, int]:
+    import gos.modulos.mantenimiento.models  # noqa: F401
     import gos.modulos.objetivos.models  # noqa: F401
     from gos.extensions import db
 
@@ -98,31 +111,43 @@ def importar_sqlite(local_path: Path, target_url: str) -> dict[str, int]:
 
     src_engine = create_engine(source_url)
     tgt_engine = create_engine(target_url)
+
+    with src_engine.connect() as src_conn:
+        tables = _tables_present(src_conn, TABLES)
+
     src_meta = MetaData()
-    src_meta.reflect(bind=src_engine, only=TABLES)
+    if tables:
+        src_meta.reflect(bind=src_engine, only=tables)
 
     _ensure_schema(target_url)
-    source_counts: dict[str, int] = {}
+    source_counts: dict[str, int] = {table: 0 for table in TABLES}
 
     with src_engine.connect() as src_conn:
         staged: dict[str, list[dict]] = {}
-        for table in TABLES:
+        for table in tables:
             rows = src_conn.execute(src_meta.tables[table].select()).mappings().all()
             source_counts[table] = len(rows)
             staged[table] = [_row_dict(row) for row in rows]
 
         with tgt_engine.begin() as tgt_conn:
-            _clear_tables(tgt_conn)
-            for table in TABLES:
+            _clear_tables(tgt_conn, tables)
+            for table in tables:
                 payload = staged[table]
                 if not payload:
                     continue
                 tgt_table = db.Model.metadata.tables[table]
-                tgt_conn.execute(insert(tgt_table), payload)
-            for table in TABLES:
+                tgt_cols = {c.name for c in tgt_table.columns}
+                filtered = [
+                    {k: v for k, v in row.items() if k in tgt_cols} for row in payload
+                ]
+                # Insertar en lotes para tablas grandes (reporte mensual).
+                batch = 1000
+                for i in range(0, len(filtered), batch):
+                    tgt_conn.execute(insert(tgt_table), filtered[i : i + batch])
+            for table in tables:
                 _reset_sequences(tgt_conn, table)
 
-    verify_counts(source_counts, target_url)
+    verify_counts({k: v for k, v in source_counts.items() if k in tables}, target_url)
     return source_counts
 
 
