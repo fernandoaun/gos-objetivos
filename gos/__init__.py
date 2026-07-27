@@ -77,6 +77,7 @@ def create_app(config_name: str | None = None) -> Flask:
             from gos.modulos.capacitacion import module_descriptor as capacitacion_descriptor
             from gos.modulos.ralenti import module_descriptor as ralenti_descriptor
             from gos.modulos.mantenimiento import module_descriptor as mantenimiento_descriptor
+            from gos.modulos.om import module_descriptor as om_descriptor
 
             modules.append(dashboard_descriptor())
             modules.append(objetivos_descriptor())
@@ -85,6 +86,7 @@ def create_app(config_name: str | None = None) -> Flask:
             modules.append(vacaciones_descriptor())
             modules.append(ralenti_descriptor())
             modules.append(mantenimiento_descriptor())
+            modules.append(om_descriptor())
 
         modules = modulos_para_usuario(current_user, modules)
 
@@ -103,6 +105,8 @@ def create_app(config_name: str | None = None) -> Flask:
             current_module = "ralenti"
         elif request.path.startswith("/gos/mantenimiento"):
             current_module = "mantenimiento"
+        elif request.path.startswith("/gos/om"):
+            current_module = "om"
 
         return {
             "gos_modules": modules,
@@ -119,6 +123,13 @@ def _ensure_schema() -> None:
     from gos.modulos.hwo.models import HwoDataset, HwoModalidad  # noqa: F401
     from gos.modulos.vacaciones.models import Registro, Vacacion  # noqa: F401
     from gos.modulos.ralenti.models import RalentiConfig, RalentiEvent, RalentiFile  # noqa: F401
+    from gos.modulos.om.models import (  # noqa: F401
+        OmAuditLog,
+        OmItem,
+        OmModule,
+        OmPersonnel,
+        OmPhone,
+    )
     from gos.schema_upgrade import ensure_core_schema
 
     ensure_core_schema()
@@ -152,6 +163,7 @@ def _register_modules(app: Flask) -> None:
     from gos.modulos.capacitacion import register as register_capacitacion
     from gos.modulos.ralenti import register as register_ralenti
     from gos.modulos.mantenimiento import register as register_mantenimiento
+    from gos.modulos.om import register as register_om
 
     register_dashboard(app)
     register_objetivos(app)
@@ -160,6 +172,7 @@ def _register_modules(app: Flask) -> None:
     register_ralenti(app)
     register_vacaciones(app)
     register_mantenimiento(app)
+    register_om(app)
 
 
 def _register_module_access_guard(app: Flask) -> None:
@@ -181,6 +194,7 @@ def _register_module_access_guard(app: Flask) -> None:
             "vacaciones_static.static",
             "ralenti_static.static",
             "mantenimiento_static.static",
+            "om_static.static",
         ):
             return
 
@@ -209,6 +223,7 @@ def _register_auto_login(app: Flask) -> None:
             "vacaciones_static.static",
             "ralenti_static.static",
             "mantenimiento_static.static",
+            "om_static.static",
         ):
             return
         if current_user.is_authenticated:

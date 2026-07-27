@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}O&M — GOS{% endblock %}
+{% block page_title %}O&M · Apertura de Módulos{% endblock %}
+{% block extra_css %}
+<style>
+  .pe-content:has(.om-shell) {
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .om-shell {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+  }
+  .om-frame {
+    flex: 1;
+    border: 0;
+    width: 100%;
+    min-height: calc(100vh - 120px);
+    background: #433F3D;
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="om-shell w-100">
+  <iframe class="om-frame" src="{{ url_for('om_main.app') }}" title="O&M Apertura de Módulos"></iframe>
+</div>
+{% endblock %}

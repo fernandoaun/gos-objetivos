@@ -1,0 +1,444 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Apertura de Módulos O&M</title>
+<style>
+  :root{--bg:#433F3D;--bg2:#3A3634;--bg3:#4E4A48;--ac:#F8C300;--ac2:#E0B400;--acd:rgba(248,195,0,.15);--r:#ff6b6b;--w:#feca57;--t1:#F5F0EB;--t2:#B4B3B2;--t3:#8A8786;--b:#6B6765;--sh:0 4px 24px rgba(0,0,0,.3);--rd:12px;--rs:8px}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Segoe UI',-apple-system,sans-serif;background:var(--bg);color:var(--t1);min-height:100vh}
+  .hd h1,.sv,.summary-value{font-weight:700;letter-spacing:.5px}
+  .mcode{font-size:.72rem;color:var(--ac);font-weight:700;letter-spacing:1px;margin-bottom:2px}
+  .hd{background:var(--bg2);border-bottom:1px solid var(--b);padding:14px 32px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+  .hd-l{display:flex;align-items:center;gap:16px}
+  .hd h1{font-size:1.3rem;font-weight:600}
+  .hd h1 span{color:var(--ac)}
+  .badge{background:var(--acd);color:var(--ac);font-size:.72rem;font-weight:600;padding:4px 10px;border-radius:20px;border:1px solid rgba(248,195,0,.3);letter-spacing:.5px}
+  .sync-badge{font-size:.68rem;padding:3px 8px;border-radius:4px;font-weight:500}
+  .sync-ok{background:rgba(248,195,0,.1);color:var(--ac);border:1px solid rgba(248,195,0,.2)}
+  .sync-stale{background:rgba(254,202,87,.1);color:var(--w);border:1px solid rgba(254,202,87,.2)}
+  .hd-r{display:flex;gap:10px;align-items:center}
+  .btn{padding:10px 20px;border:none;border-radius:var(--rs);font-size:.85rem;font-weight:600;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px}
+  .btn-p{background:var(--ac);color:var(--bg)}
+  .btn-p:hover{background:var(--ac2);transform:translateY(-1px)}
+  .btn-s{background:transparent;color:var(--t2);border:1px solid var(--b)}
+  .btn-s:hover{background:var(--bg3);color:var(--t1)}
+  .btn-d{background:transparent;color:var(--r);border:1px solid rgba(255,107,107,.3)}
+  .btn-d:hover{background:rgba(255,107,107,.1)}
+  .btn-sm{padding:6px 12px;font-size:.78rem}
+  .btn-i{width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;background:transparent;color:var(--t2);border:none;cursor:pointer;transition:all .2s}
+  .btn-i:hover{background:var(--bg3);color:var(--t1)}
+  .mn{padding:24px 32px;max-width:1400px;margin:0 auto}
+  .sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:28px}
+  .sc{background:var(--bg3);border:1px solid var(--b);border-radius:var(--rd);padding:18px;transition:all .2s}
+  .sc:hover{border-color:var(--ac)}
+  .sl{font-size:.72rem;color:var(--t2);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+  .sv{font-size:1.8rem;font-weight:700;line-height:1}
+  .sv.ac{color:var(--ac)}
+  .ss{font-size:.72rem;color:var(--t3);margin-top:4px}
+  .fl{display:flex;gap:12px;margin-bottom:24px;align-items:center;flex-wrap:wrap}
+  .sb{flex:1;min-width:200px;position:relative}
+  .sb input{width:100%;padding:10px 14px 10px 38px;background:var(--bg3);border:1px solid var(--b);border-radius:var(--rs);color:var(--t1);font-size:.85rem;outline:none;transition:border-color .2s}
+  .sb input:focus{border-color:var(--ac)}
+  .sb input::placeholder{color:var(--t3)}
+  .si{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--t3)}
+  .fc{display:flex;gap:8px}
+  .ch{padding:6px 14px;border-radius:20px;font-size:.78rem;font-weight:500;cursor:pointer;border:1px solid var(--b);background:transparent;color:var(--t2);transition:all .2s}
+  .ch.a,.ch:hover{background:var(--acd);color:var(--ac);border-color:var(--ac)}
+  .mg{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:18px}
+  .mc{background:var(--bg3);border:1px solid var(--b);border-radius:var(--rd);overflow:hidden;transition:all .3s}
+  .mc:hover{border-color:rgba(248,195,0,.4);box-shadow:0 8px 32px rgba(0,0,0,.3);transform:translateY(-2px)}
+  .mc.in{opacity:.5}
+  .mc.in:hover{opacity:.7}
+  .mh{padding:16px 18px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--b)}
+  .mi{flex:1}
+  .mcode{font-size:.72rem;color:var(--ac);font-weight:700;letter-spacing:1px;margin-bottom:2px}
+  .mname{font-size:1.05rem;font-weight:600;margin-bottom:4px;letter-spacing:.3px}
+  .mmeta{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .mt{font-size:.68rem;padding:3px 8px;border-radius:4px;font-weight:500;display:inline-flex;align-items:center;gap:4px;letter-spacing:.3px}
+  .mt-s{background:rgba(248,195,0,.1);color:var(--ac);border:1px solid rgba(248,195,0,.2)}
+  .mt-g{background:rgba(254,202,87,.1);color:var(--w);border:1px solid rgba(254,202,87,.2)}
+  .mt-u{background:rgba(136,153,166,.1);color:var(--t2);border:1px solid var(--b)}
+  .msb{padding:3px 8px;border-radius:20px;font-size:.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+  .sa{background:rgba(248,195,0,.15);color:var(--ac);border:1px solid rgba(248,195,0,.3)}
+  .si2{background:rgba(255,107,107,.15);color:var(--r);border:1px solid rgba(255,107,107,.3)}
+  .ma{display:flex;gap:4px;margin-top:6px;justify-content:flex-end}
+  .mb{padding:14px 18px}
+  .ms{margin-bottom:12px}
+  .ms:last-child{margin-bottom:0}
+  .st{font-size:.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--t3);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between}
+  .st .ct{background:var(--bg2);color:var(--t2);padding:2px 8px;border-radius:10px;font-size:.68rem}
+  .si3{display:flex;flex-wrap:wrap;gap:5px}
+  .si4{background:var(--bg2);border:1px solid var(--b);padding:4px 9px;border-radius:5px;font-size:.75rem;color:var(--t2);display:flex;align-items:center;gap:5px}
+  .si4 .rl{color:var(--ac);font-weight:500;font-size:.68rem}
+  .es{color:var(--t3);font-size:.75rem;font-style:italic}
+  .mf{padding:10px 18px;border-top:1px solid var(--b);display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,.1)}
+  .md{font-size:.7rem;color:var(--t3)}
+  .ov{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:1000;justify-content:center;align-items:flex-start;padding-top:60px;overflow-y:auto}
+  .ov.a{display:flex}
+  .mo{background:var(--bg2);border:1px solid var(--b);border-radius:var(--rd);width:100%;max-width:680px;margin-bottom:60px;box-shadow:var(--sh)}
+  .mh2{padding:18px 24px;border-bottom:1px solid var(--b);display:flex;justify-content:space-between;align-items:center}
+  .mh2 h2{font-size:1.1rem;font-weight:600}
+  .mx{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:none;background:transparent;color:var(--t2);cursor:pointer;border-radius:6px;font-size:1.2rem;transition:all .2s}
+  .mx:hover{background:var(--bg3);color:var(--t1)}
+  .mb2{padding:24px;max-height:70vh;overflow-y:auto}
+  .fg{margin-bottom:16px}
+  .fl2{display:block;font-size:.78rem;font-weight:500;color:var(--t2);margin-bottom:5px}
+  .fi,.fs,.ft{width:100%;padding:9px 12px;background:var(--bg3);border:1px solid var(--b);border-radius:var(--rs);color:var(--t1);font-size:.83rem;font-family:inherit;outline:none;transition:border-color .2s}
+  .fi:focus,.fs:focus,.ft:focus{border-color:var(--ac)}
+  .ft{resize:vertical;min-height:50px}
+  .fs option{background:var(--bg3)}
+  .fr{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .fr3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .fsc{font-size:.78rem;font-weight:600;color:var(--ac);margin:16px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--b)}
+  .tg{display:flex;gap:8px}
+  .tg .fi{flex:1}
+  .tc{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;min-height:20px}
+  .tg2{display:inline-flex;align-items:center;gap:5px;background:var(--bg2);border:1px solid var(--b);padding:3px 9px;border-radius:5px;font-size:.75rem;color:var(--t2)}
+  .tg2 .tr{cursor:pointer;color:var(--t3);font-size:.85rem;transition:color .2s}
+  .tg2 .tr:hover{color:var(--r)}
+  .pl{margin-top:6px}
+  .pr{display:grid;grid-template-columns:1fr 130px 36px;gap:6px;align-items:center;margin-bottom:5px}
+  .pr .btn-i{color:var(--r);width:28px;height:28px;font-size:.8rem}
+  .pr .btn-i:hover{background:rgba(255,107,107,.1)}
+  .mft{padding:14px 24px;border-top:1px solid var(--b);display:flex;justify-content:flex-end;gap:10px}
+  .ct{font-size:.9rem;color:var(--t2);line-height:1.6}
+  .ct strong{color:var(--t1)}
+  .ed{text-align:center;padding:80px 20px;color:var(--t3)}
+  .ed .ei{font-size:3rem;margin-bottom:16px;opacity:.5}
+  .ed h3{font-size:1.2rem;color:var(--t2);margin-bottom:8px}
+  .ed p{font-size:.85rem;max-width:400px;margin:0 auto 20px;line-height:1.5}
+  .ph{display:inline-block;background:rgba(254,202,87,.15);color:var(--w);border:1px solid rgba(254,202,87,.3);padding:1px 7px;border-radius:4px;font-size:.68rem;font-weight:600;margin-left:4px}
+  .toast{position:fixed;bottom:24px;right:24px;background:var(--ac);color:var(--bg);padding:12px 20px;border-radius:var(--rs);font-size:.85rem;font-weight:600;box-shadow:0 8px 32px rgba(248,195,0,.3);z-index:9999;transform:translateY(100px);opacity:0;transition:all .3s ease;pointer-events:none;letter-spacing:.5px}
+  .toast.show{transform:translateY(0);opacity:1}
+  .toast.w{background:var(--w);color:#333}
+  /* Sync panel */
+  .sync-panel{background:var(--bg3);border:1px solid var(--b);border-radius:var(--rd);padding:20px;margin-bottom:24px}
+  .sync-panel h3{font-size:.95rem;margin-bottom:12px;color:var(--t1);letter-spacing:.5px}
+  .sync-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .sync-info{font-size:.78rem;color:var(--t2);flex:1}
+  .sync-time{font-size:.72rem;color:var(--t3)}
+  ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--b);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--t3)}
+  @media(max-width:768px){.hd{padding:12px 16px}.mn{padding:16px}.mg{grid-template-columns:1fr}.fr,.fr3{grid-template-columns:1fr}.sg{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div id="appScreen">
+<header class="hd">
+  <div class="hd-l">
+    <h1><span>O&M</span> Apertura de Módulos</h1>
+    <span class="badge" id="badge">0 módulos</span>
+  </div>
+  <div class="hd-r">
+    <span class="sync-badge sync-ok" id="userBadge"></span>
+    <button class="btn btn-s btn-sm" id="backupBtn" style="display:none;" onclick="doBackup()">💾 Respaldo</button>
+    <button class="btn btn-s btn-sm" id="auditBtn" style="display:none;" onclick="openAudit()">🕒 Actividad</button>
+    <button class="btn btn-s btn-sm" onclick="openExport()">⬇ Exportar</button>
+    <button class="btn btn-s btn-sm" onclick="doExportPersonal()">📋 Listado Personal</button>
+    <button class="btn btn-p btn-sm" onclick="openModal()">+ Nuevo Módulo</button>
+  </div>
+</header>
+<main class="mn">
+  <div class="sg">
+    <div class="sc"><div class="sl">Módulos Activos</div><div class="sv ac" id="tM">0</div><div class="ss" id="tMS">de 0 totales</div></div>
+    <div class="sc"><div class="sl">Total Personal</div><div class="sv" id="tP">0</div><div class="ss">en módulos activos</div></div>
+    <div class="sc"><div class="sl">Total Unidades</div><div class="sv" id="tU">0</div><div class="ss">vehículos y equipos</div></div>
+    <div class="sc"><div class="sl">Herramientas</div><div class="sv" id="tT">0</div><div class="ss">tipos registrados</div></div>
+    <div class="sc"><div class="sl">Insumos</div><div class="sv" id="tS">0</div><div class="ss">tipos registrados</div></div>
+  </div>
+  <div class="fl">
+    <div class="sb"><span class="si">🔍</span><input type="text" id="sI" placeholder="Buscar módulo, personal, ubicación..." oninput="render()"></div>
+    <div class="fc">
+      <button class="ch a" onclick="setF('active',this)">Activos</button>
+      <button class="ch" onclick="setF('all',this)">Todos</button>
+      <button class="ch" onclick="setF('inactive',this)">Inactivos</button>
+    </div>
+  </div>
+  <div class="mg" id="grid"></div>
+  <div class="ed" id="empty" style="display:none;"><div class="ei">📦</div><h3>No hay módulos</h3><p>Importá el JSON o creá el primer módulo.</p><button class="btn btn-p" onclick="openModal()">+ Crear Módulo</button></div>
+</main>
+
+<!-- MODAL CREATE/EDIT -->
+<div class="ov" id="mMod">
+<div class="mo">
+  <div class="mh2"><h2 id="mTitle">Nuevo Módulo</h2><button class="mx" onclick="closeM()">&times;</button></div>
+  <div class="mb2">
+    <input type="hidden" id="eId">
+    <div class="fr"><div class="fg"><label class="fl2">Código *</label><input type="text" class="fi" id="mCode" placeholder="Ej: MT01"></div><div class="fg"><label class="fl2">Estado</label><select class="fs" id="mStatus"><option value="active">Activo</option><option value="inactive">Inactivo</option></select></div></div>
+    <div class="fg"><label class="fl2">Nombre / Descripción *</label><input type="text" class="fi" id="mName" placeholder="Ej: Supervisor de Operaciones"></div>
+    <div class="fr3"><div class="fg"><label class="fl2">Diagrama</label><select class="fs" id="mSched"><option value="L-V Diurno">L-V Diurno</option><option value="L-V Rotativo">L-V Rotativo</option><option value="L-L Rotativo">L-L Rotativo</option><option value="L-L Rotativo 12h">L-L Rotativo 12hs</option></select></div><div class="fg"><label class="fl2">Guardias</label><select class="fs" id="mGuard"><option value="Sin guardias">Sin guardias</option><option value="Guardias pasivas">Guardias pasivas</option><option value="Guardias activas">Guardias activas</option></select></div><div class="fg"><label class="fl2">Ubicación</label><input type="text" class="fi" id="mLoc" value="Planta"></div></div>
+    <div class="fg"><label class="fl2">Observaciones</label><textarea class="ft" id="mDesc" rows="2" placeholder="Notas..."></textarea></div>
+
+    <div class="fsc">👤 Personal <span class="ph" id="ppH" style="display:none;"></span></div>
+    <div class="pl" id="pList"></div>
+    <div class="tg" style="margin-top:8px;">
+      <input type="text" class="fi" id="pName" placeholder="Nombre">
+      <select class="fs" id="pRole" style="width:150px;"><option>Supervisor</option><option>Encargado de Turno</option><option>Oficial</option><option>Operador</option><option>Ayudante</option><option>Chofer Operador</option><option>Eslingador</option><option>Especialista</option><option>Amolador</option><option>Laboratorista</option></select>
+      <button class="btn btn-p btn-sm" onclick="addP()">+ Agregar</button>
+    </div>
+    <div class="tg" style="margin-top:6px;gap:6px;">
+      <select class="fs" id="pTelType" style="width:140px;"><option value="Corporativo">Tel Corporativo</option><option value="Personal">Tel Personal</option><option value="Compartido">Tel Compartido</option></select>
+      <input type="text" class="fi" id="pTelNum" placeholder="Número de teléfono" style="flex:1;">
+      <button class="btn btn-s btn-sm" onclick="addTel()">+ Tel</button>
+    </div>
+    <div class="tc" id="telC" style="margin-top:6px;"></div>
+    <div class="fsc">🚗 Unidades <span class="ph" id="puH" style="display:none;"></span></div>
+    <div class="tg"><input type="text" class="fi" id="uIn" placeholder="Ej: Pick Up DC 4x4"><button class="btn btn-p btn-sm" onclick="addT('u')">+</button></div>
+    <div class="tc" id="uC"></div>
+    <div class="fsc">🔧 Herramientas <span class="ph" id="ptH" style="display:none;"></span></div>
+    <div class="tg"><input type="text" class="fi" id="tIn" placeholder="Ej: Cámara termográfica"><button class="btn btn-p btn-sm" onclick="addT('t')">+</button></div>
+    <div class="tc" id="tC"></div>
+    <div class="fsc">📦 Insumos <span class="ph" id="psH" style="display:none;"></span></div>
+    <div class="tg"><input type="text" class="fi" id="sIn" placeholder="Ej: Aceite, Filtros"><button class="btn btn-p btn-sm" onclick="addT('s')">+</button></div>
+    <div class="tc" id="sC"></div>
+  </div>
+  <div class="mft"><button class="btn btn-s" onclick="closeM()">Cancelar</button><button class="btn btn-p" id="saveBtn" onclick="saveModule()">Guardar</button></div>
+</div>
+</div>
+
+<!-- MODAL DELETE -->
+<div class="ov" id="dMod"><div class="mo" style="max-width:420px;"><div class="mh2"><h2>Eliminar</h2><button class="mx" onclick="closeD()">&times;</button></div><div class="mb2"><p class="ct">¿Eliminar <strong id="dName"></strong>?</p></div><div class="mft"><button class="btn btn-s" onclick="closeD()">Cancelar</button><button class="btn btn-d" onclick="doDel()">Eliminar</button></div></div></div>
+
+<!-- MODAL EXPORT -->
+<div class="ov" id="eMod"><div class="mo" style="max-width:420px;"><div class="mh2"><h2>Exportar</h2><button class="mx" onclick="closeE()">&times;</button></div><div class="mb2">
+  <button class="btn btn-s" style="width:100%;margin-bottom:10px;justify-content:center;" onclick="doExportCSV()">📊 Exportar CSV</button>
+</div></div></div>
+
+<!-- MODAL AUDIT -->
+<div class="ov" id="aMod"><div class="mo" style="max-width:680px;"><div class="mh2"><h2>🕒 Actividad reciente</h2><button class="mx" onclick="closeAudit()">&times;</button></div><div class="mb2" style="max-height:70vh;overflow-y:auto;">
+  <div id="auditList" class="es">Cargando...</div>
+</div></div></div>
+
+<div class="toast" id="toast"></div>
+</div>
+<!-- /appScreen -->
+
+<script>
+var API_BASE={{ api_base|tojson }};
+var OM_USER={{ om_user|tojson }};
+var LOGOUT_URL={{ logout_url|tojson }};
+var M=[],cF='active',tP=[],tU=[],tT=[],tS=[],tTel=[],dId=null;
+
+function getUser(){return OM_USER}
+
+async function api(path,opts){
+  opts=opts||{};
+  var headers=Object.assign({'Content-Type':'application/json'},opts.headers||{});
+  var res=await fetch(API_BASE+path,Object.assign({},opts,{headers:headers,credentials:'same-origin'}));
+  var body=null;
+  try{body=await res.json()}catch(e){}
+  if(res.status===401){window.top.location.href='/auth/login';throw new Error('Sesión expirada, iniciá sesión de nuevo')}
+  if(res.status===403){throw new Error((body&&body.message)||'Sin permiso')}
+  if(!res.ok){throw new Error((body&&body.message)||'Error de red')}
+  return body;
+}
+
+async function loadModules(){
+  var body=await api('/modules');
+  M=body.data;
+  render();
+}
+
+async function boot(){
+  var user=getUser();
+  document.getElementById('userBadge').textContent=user?(user.username+' · '+user.role):'';
+  document.getElementById('backupBtn').style.display=(user&&user.role==='admin')?'':'none';
+  document.getElementById('auditBtn').style.display=(user&&user.role==='admin')?'':'none';
+  try{
+    await loadModules();
+  }catch(e){
+    toast(e.message||'No se pudieron cargar los módulos','w');
+  }
+}
+
+async function doBackup(){
+  try{
+    var res=await fetch(API_BASE+'/modules/export',{credentials:'same-origin'});
+    if(!res.ok){var b=null;try{b=await res.json()}catch(e){}throw new Error((b&&b.message)||'No se pudo generar el respaldo')}
+    var blob=await res.blob();
+    dl(blob,'modulos_backup_'+dateStamp()+'.json');
+    toast('✓ Respaldo descargado');
+  }catch(e){toast(e.message||'Error al generar respaldo','w')}
+}
+
+function openAudit(){document.getElementById('aMod').classList.add('a');loadAudit()}
+function closeAudit(){document.getElementById('aMod').classList.remove('a')}
+async function loadAudit(){
+  var el=document.getElementById('auditList');
+  el.textContent='Cargando...';
+  try{
+    var body=await api('/audit?limit=100');
+    var items=body.data.items;
+    if(!items.length){el.innerHTML='<span class="es">Sin actividad registrada</span>';return}
+    var actionLabel={login:'Inicio de sesión',create:'Creó',update:'Editó',delete:'Eliminó'};
+    var entityLabel={module:'módulo',user:'usuario'};
+    el.innerHTML=items.map(function(a){
+      var data=a.after||a.before||{};
+      var desc=(a.entity==='module'&&data.code)?(H(data.code)+(data.name?' - '+H(data.name):'')):('#'+a.entity_id);
+      return '<div style="padding:10px 0;border-bottom:1px solid var(--b);font-size:.85rem;">'+
+        '<strong>'+H(a.username||'—')+'</strong> · '+(actionLabel[a.action]||a.action)+' '+(a.entity?(entityLabel[a.entity]||a.entity):'')+
+        (a.entity?' <span style="color:var(--t2);">'+desc+'</span>':'')+
+        '<div class="md" style="margin-top:2px;">'+fdt(a.created_at)+'</div></div>';
+    }).join('');
+  }catch(e){
+    el.innerHTML='<span class="es">'+H(e.message||'No se pudo cargar la actividad')+'</span>';
+  }
+}
+function fdt(iso){if(!iso)return'-';var d=new Date(iso);return fd(iso)+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')}
+
+function toast(msg,type){var t=document.getElementById('toast');t.textContent=msg;t.className='toast'+(type==='w'?' w':'');setTimeout(function(){t.className='toast show'},10);setTimeout(function(){t.className='toast'},3000)}
+function updH(){sH('ppH',document.getElementById('pName').value.trim());sH('puH',document.getElementById('uIn').value.trim());sH('ptH',document.getElementById('tIn').value.trim());sH('psH',document.getElementById('sIn').value.trim())}
+function sH(id,v){var e=document.getElementById(id);e.textContent=v?'pendiente':'';e.style.display=v?'inline-block':'none'}
+
+function updS(){
+  var a=M.filter(function(m){return m.status==='active'});
+  document.getElementById('tM').textContent=a.length;
+  document.getElementById('tMS').textContent='de '+M.length+' totales';
+  document.getElementById('badge').textContent=a.length+' módulos activos';
+  var p=0,u=0,tt=0,s=0;
+  a.forEach(function(m){p+=(m.personnel||[]).length;u+=(m.units||[]).length;tt+=(m.tools||[]).length;s+=(m.supplies||[]).length});
+  document.getElementById('tP').textContent=p;
+  document.getElementById('tU').textContent=u;
+  document.getElementById('tT').textContent=tt;
+  document.getElementById('tS').textContent=s;
+}
+
+function render(){
+  var g=document.getElementById('grid'),e=document.getElementById('empty'),q=document.getElementById('sI').value.toLowerCase();
+  var f=M.filter(function(m){
+    if(cF==='active'&&m.status!=='active')return false;
+    if(cF==='inactive'&&m.status!=='inactive')return false;
+    if(q){var p=[m.code,m.name,m.location,m.description,m.schedule,m.guard];(m.personnel||[]).forEach(function(x){p.push(x.name,x.role)});(m.units||[]).forEach(function(x){p.push(x)});(m.tools||[]).forEach(function(x){p.push(x)});(m.supplies||[]).forEach(function(x){p.push(x)});if(p.join(' ').toLowerCase().indexOf(q)===-1)return false}
+    return true;
+  });
+  if(!f.length){g.innerHTML='';e.style.display='block';e.querySelector('h3').textContent=M.length?'Sin resultados':'No hay módulos';e.querySelector('button').style.display=M.length?'none':''}
+  else{e.style.display='none';g.innerHTML=f.map(card).join('')}
+  updS();
+}
+
+function card(m){
+  var pc=(m.personnel||[]).length,uc=(m.units||[]).length,tc=(m.tools||[]).length,sc=(m.supplies||[]).length;
+  var pr=pc?m.personnel.map(function(p){var ph='';if(p.phones&&p.phones.length){ph=' <span style="font-size:.6rem;color:var(--t3);">'+p.phones.map(function(tl){var ic=tl.type==='Corporativo'?'🏢':tl.type==='Personal'?'📱':'📞';return ic+H(tl.number)}).join(' ')+'</span>'}return'<div class="si4">'+H(p.name)+' <span class="rl">'+H(p.role)+'</span>'+ph+'</div>'}).join(''):'<span class="es">Sin personal</span>';
+  var un=uc?m.units.map(function(u){return'<div class="si4">'+H(u)+'</div>'}).join(''):'<span class="es">Sin unidades</span>';
+  var tl=tc?m.tools.map(function(t){return'<div class="si4">'+H(t)+'</div>'}).join(''):'';
+  var sl=sc?m.supplies.map(function(s){return'<div class="si4">'+H(s)+'</div>'}).join(''):'';
+  var mt='';
+  if(m.schedule)mt+='<span class="mt mt-s">📅 '+H(m.schedule)+'</span>';
+  if(m.guard&&m.guard!=='Sin guardias')mt+='<span class="mt mt-g">🛡️ '+H(m.guard)+'</span>';
+  if(uc)mt+='<span class="mt mt-u">🚗 '+uc+' unidad'+(uc>1?'es':'')+'</span>';
+  return'<div class="mc '+(m.status==='inactive'?'in':'')+'"><div class="mh"><div class="mi"><div class="mcode">'+H(m.code)+'</div><div class="mname">'+H(m.name)+'</div><div class="mmeta">'+mt+'</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;"><span class="msb '+(m.status==='active'?'sa':'si2')+'">'+(m.status==='active'?'Activo':'Inactivo')+'</span><div class="ma"><button class="btn-i" title="Editar" onclick="edit(\''+m.id+'\')">✏️</button><button class="btn-i" onclick="toggle(\''+m.id+'\')">'+(m.status==='active'?'⏸':'▶')+'</button><button class="btn-i" onclick="del(\''+m.id+'\')">🗑️</button></div></div></div><div class="mb"><div class="ms"><div class="st">Personal<span class="ct">'+pc+'</span></div><div class="si3">'+pr+'</div></div><div class="ms"><div class="st">Unidades / Equipos<span class="ct">'+uc+'</span></div><div class="si3">'+un+'</div></div>'+(tc?'<div class="ms"><div class="st">Herramientas<span class="ct">'+tc+'</span></div><div class="si3">'+tl+'</div></div>':'')+(sc?'<div class="ms"><div class="st">Insumos<span class="ct">'+sc+'</span></div><div class="si3">'+sl+'</div></div>':'')+'</div><div class="mf"><span class="md">'+H(m.schedule||'')+(m.guard&&m.guard!=='Sin guardias'?' · '+H(m.guard):'')+'</span>'+(m.updatedAt?'<span class="md">Mod: '+fd(m.updatedAt)+'</span>':'')+'</div></div>';
+}
+
+function openModal(){clearF();document.getElementById('eId').value='';document.getElementById('mTitle').textContent='Nuevo Módulo';document.getElementById('mMod').classList.add('a')}
+function closeM(){document.getElementById('mMod').classList.remove('a');clearF()}
+function clearF(){document.getElementById('mCode').value='';document.getElementById('mName').value='';document.getElementById('mStatus').value='active';document.getElementById('mSched').value='L-V Diurno';document.getElementById('mGuard').value='Sin guardias';document.getElementById('mLoc').value='Planta';document.getElementById('mDesc').value='';document.getElementById('eId').value='';document.getElementById('pName').value='';document.getElementById('pTelType').value='Corporativo';document.getElementById('pTelNum').value='';document.getElementById('uIn').value='';document.getElementById('tIn').value='';document.getElementById('sIn').value='';tP=[];tU=[];tT=[];tS=[];tTel=[];rP();rTelC();rT('uC',tU,'u');rT('tC',tT,'t');rT('sC',tS,'s');updH()}
+
+function edit(id){id=Number(id);var m=null;for(var i=0;i<M.length;i++){if(M[i].id===id){m=M[i];break}}if(!m)return;document.getElementById('eId').value=m.id;document.getElementById('mTitle').textContent='Editar '+(m.code||'');document.getElementById('mCode').value=m.code||'';document.getElementById('mName').value=m.name||'';document.getElementById('mStatus').value=m.status||'active';document.getElementById('mSched').value=m.schedule||'L-V Diurno';document.getElementById('mGuard').value=m.guard||'Sin guardias';document.getElementById('mLoc').value=m.location||'';document.getElementById('mDesc').value=m.description||'';tP=JSON.parse(JSON.stringify(m.personnel||[]));tU=(m.units||[]).slice();tT=(m.tools||[]).slice();tS=(m.supplies||[]).slice();tTel=[];rP();rTelC();rT('uC',tU,'u');rT('tC',tT,'t');rT('sC',tS,'s');updH();document.getElementById('mMod').classList.add('a')}
+
+function flush(){var n=document.getElementById('pName').value.trim();if(n){tP.push({name:n,role:document.getElementById('pRole').value,phones:tTel.slice()});tTel=[];document.getElementById('pName').value='';rP();rTelC()}fT('uIn',tU,'uC','u');fT('tIn',tT,'tC','t');fT('sIn',tS,'sC','s');updH()}
+function fT(id,l,c,t){var i=document.getElementById(id),v=i.value.trim();if(v){l.push(v);i.value='';rT(c,l,t)}}
+
+async function saveModule(){
+  flush();
+  var code=document.getElementById('mCode').value.trim(),name=document.getElementById('mName').value.trim();
+  if(!name){document.getElementById('mName').focus();document.getElementById('mName').style.borderColor='var(--r)';setTimeout(function(){document.getElementById('mName').style.borderColor=''},2000);toast('Ingresá un nombre','w');return}
+  if(!code){document.getElementById('mCode').focus();document.getElementById('mCode').style.borderColor='var(--r)';setTimeout(function(){document.getElementById('mCode').style.borderColor=''},2000);toast('Ingresá un código','w');return}
+  var eid=document.getElementById('eId').value;
+  var d={code:code,name:name,status:document.getElementById('mStatus').value,schedule:document.getElementById('mSched').value,guard:document.getElementById('mGuard').value,location:document.getElementById('mLoc').value.trim(),description:document.getElementById('mDesc').value.trim(),personnel:tP.slice(),units:tU.slice(),tools:tT.slice(),supplies:tS.slice()};
+  var btn=document.getElementById('saveBtn');btn.disabled=true;
+  try{
+    if(eid)await api('/modules/'+eid,{method:'PUT',body:JSON.stringify(d)});
+    else await api('/modules',{method:'POST',body:JSON.stringify(d)});
+    closeM();
+    await loadModules();
+    toast('✓ '+code+' '+name+(eid?' actualizado':' creado')+' — '+tP.length+' personas, '+tU.length+' unidades');
+  }catch(e){
+    toast(e.message||'No se pudo guardar','w');
+  }finally{
+    btn.disabled=false;
+  }
+}
+
+function del(id){id=Number(id);var m=null;for(var i=0;i<M.length;i++){if(M[i].id===id){m=M[i];break}}if(!m)return;dId=id;document.getElementById('dName').textContent=m.code+' - '+m.name;document.getElementById('dMod').classList.add('a')}
+function closeD(){document.getElementById('dMod').classList.remove('a');dId=null}
+async function doDel(){
+  if(dId==null){closeD();return}
+  try{
+    await api('/modules/'+dId,{method:'DELETE'});
+    await loadModules();
+    toast('Eliminado');
+  }catch(e){
+    toast(e.message||'No se pudo eliminar','w');
+  }
+  closeD();
+}
+async function toggle(id){
+  id=Number(id);
+  var m=null;for(var i=0;i<M.length;i++){if(M[i].id===id){m=M[i];break}}if(!m)return;
+  var payload=Object.assign({},m,{status:m.status==='active'?'inactive':'active'});
+  try{
+    await api('/modules/'+id,{method:'PUT',body:JSON.stringify(payload)});
+    await loadModules();
+  }catch(e){
+    toast(e.message||'No se pudo actualizar','w');
+  }
+}
+
+function addP(){var n=document.getElementById('pName').value.trim(),r=document.getElementById('pRole').value;if(!n){document.getElementById('pName').focus();return}tP.push({name:n,role:r,phones:tTel.slice()});tTel=[];document.getElementById('pName').value='';document.getElementById('pTelType').value='Corporativo';document.getElementById('pTelNum').value='';document.getElementById('pName').focus();rP();rTelC();updH();toast('✓ '+n+' ('+r+')')}
+function rmP(i){tP.splice(i,1);rP()}
+function addTel(){var t=document.getElementById('pTelType').value,n=document.getElementById('pTelNum').value.trim();if(!n){document.getElementById('pTelNum').focus();return}tTel.push({type:t,number:n});document.getElementById('pTelNum').value='';document.getElementById('pTelNum').focus();rTelC()}
+function rmTel(i){tTel.splice(i,1);rTelC()}
+function rTelC(){var c=document.getElementById('telC');if(!tTel.length){c.innerHTML='';return}var h='';for(var i=0;i<tTel.length;i++){var tl=tTel[i];h+='<span class="tg2">'+H(tl.type)+': '+H(tl.number)+' <span class="tr" onclick="rmTel('+i+')">&times;</span></span>'}c.innerHTML=h}
+function rP(){var c=document.getElementById('pList');if(!tP.length){c.innerHTML='<span class="es" style="display:block;margin-bottom:4px;">Sin personal asignado</span>';return}var h='';for(var i=0;i<tP.length;i++){var p=tP[i];var phoneStr='';if(p.phones&&p.phones.length){var ph=p.phones.map(function(tl){var icon=tl.type==='Corporativo'?'🏢':tl.type==='Personal'?'📱':'📞';return icon+' '+H(tl.type)+': '+H(tl.number)}).join('  ');phoneStr='<span style="font-size:.65rem;color:var(--t3);margin-left:4px;">'+ph+'</span>'}h+='<div class="pr"><div class="si4" style="margin:0;">'+H(p.name)+' <span class="rl">'+H(p.role)+'</span>'+phoneStr+'</div><div></div><button class="btn-i" onclick="rmP('+i+')">✕</button></div>'}c.innerHTML=h}
+
+function addT(t){var ids={u:'uIn',t:'tIn',s:'sIn'},ls={u:tU,t:tT,s:tS},cs={u:'uC',t:'tC',s:'sC'};var i=document.getElementById(ids[t]),v=i.value.trim();if(!v){i.focus();return}ls[t].push(v);i.value='';i.focus();rT(cs[t],ls[t],t);updH()}
+function rmT(t,i){var ls={u:tU,t:tT,s:tS},cs={u:'uC',t:'tC',s:'sC'};ls[t].splice(i,1);rT(cs[t],ls[t],t)}
+function rT(c,l,t){var e=document.getElementById(c),h='';for(var i=0;i<l.length;i++){h+='<span class="tg2">'+H(l[i])+' <span class="tr" onclick="rmT(\''+t+'\','+i+')">&times;</span></span>'}e.innerHTML=h}
+
+function setF(f,el){cF=f;var cs=document.querySelectorAll('.ch');for(var i=0;i<cs.length;i++)cs[i].classList.remove('a');el.classList.add('a');render()}
+
+function openExport(){document.getElementById('eMod').classList.add('a')}
+function closeE(){document.getElementById('eMod').classList.remove('a')}
+function doExportCSV(){var csv='Código,Nombre,Estado,Diagrama,Guardias,Ubicación,Personal,Rol,Unidades,Herramientas,Insumos\n';M.forEach(function(m){var p=(m.personnel||[]).map(function(x){return x.name+' ('+x.role+')'}).join('; ');csv+='"'+(m.code||'')+'","'+m.name+'","'+m.status+'","'+(m.schedule||'')+'","'+(m.guard||'')+'","'+(m.location||'')+'","'+p+'","","'+(m.units||[]).join('; ')+'","'+(m.tools||[]).join('; ')+'","'+(m.supplies||[]).join('; ')+'"\n'});var b=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});dl(b,'modulos_data.csv');closeE();toast('CSV exportado')}
+function doExportPersonal(){
+  var rows=[];
+  rows.push(['Nombre','Rol','Módulo','Diagrama','Guardias','Tel Corporativo','Tel Personal','Tel Compartido']);
+  M.forEach(function(m){
+    (m.personnel||[]).forEach(function(p){
+      var tc='',tp='',ts='';
+      (p.phones||[]).forEach(function(tl){
+        if(tl.type==='Corporativo')tc=tl.number;
+        else if(tl.type==='Personal')tp=tl.number;
+        else if(tl.type==='Compartido')ts=tl.number;
+      });
+      rows.push([
+        p.name||'',
+        p.role||'',
+        (m.code||'')+' - '+(m.name||''),
+        m.schedule||'',
+        m.guard||'',
+        tc,tp,ts
+      ]);
+    });
+  });
+  if(rows.length<=1){toast('No hay personal registrado','w');return}
+  var csv=rows.map(function(r){return r.map(function(c){return'"'+String(c).replace(/"/g,'""')+'"'}).join(',')}).join('\n');
+  var bom=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+  dl(bom,'listado_personal_'+dateStamp()+'.csv');
+  toast('✓ Listado de personal exportado — '+Math.max(0,rows.length-1)+' personas');
+}
+
+function H(s){if(!s)return'';var d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function fd(iso){if(!iso)return'-';var d=new Date(iso);var ms=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];return d.getDate()+' '+ms[d.getMonth()]+' '+d.getFullYear()}
+function dateStamp(){return new Date().toISOString().slice(0,10)}
+function dl(b,f){var u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=f;a.click();URL.revokeObjectURL(u)}
+
+document.addEventListener('keydown',function(e){if(e.key==='Enter'){var id=e.target.id;if(id==='uIn'){e.preventDefault();addT('u')}else if(id==='tIn'){e.preventDefault();addT('t')}else if(id==='sIn'){e.preventDefault();addT('s')}else if(id==='pName'){e.preventDefault();addP()}else if(id==='pTelNum'){e.preventDefault();addTel()}}});
+document.addEventListener('input',function(e){if(['pName','uIn','tIn','sIn'].indexOf(e.target.id)!==-1)updH()});
+var ovs=document.querySelectorAll('.ov');for(var i=0;i<ovs.length;i++){ovs[i].addEventListener('click',function(e){if(e.target===this)this.classList.remove('a')})}
+
+boot();
+</script>
+</body>
+</html>
