@@ -16,6 +16,8 @@ El usuario trabaja en **dos capas** que no se mezclan solas:
 
 - Cambios en `instance/gos.db` (vencimientos VTV, datasets HWO/Análisis, importaciones) **no van en git**.
 - Para que se vean en https://gos-objetivos.onrender.com hay que **subir la base** (p. ej. `SUBIR BACKUP A RENDER.bat` / `scripts/subir_backup_a_render.py` con `GOS_IMPORT_SECRET`), o actualizar Postgres de Render con `RENDER_DATABASE_URL`.
+- El importador **no borra** Capacitación / perfiles / O&M / Análisis / usuarios en Render si el SQLite local trae esas tablas vacías (las preserva).
+- Antes de cada subida se guarda una copia en `instance/backups/`.
 
 ## Al hacer cambios de datos
 
@@ -23,3 +25,4 @@ El usuario trabaja en **dos capas** que no se mezclan solas:
 2. Verificar en `http://127.0.0.1:5000`.
 3. Preguntar / ofrecer **sincronizar a Render**; no asumir que el push de git alcanza.
 4. Si el usuario dice que “no ve el cambio” y el código ya está en main, sospechar **caché del navegador** o **datos viejos en Render**, no solo el commit.
+5. Nunca subir un `gos.db` local incompleto esperando “actualizar solo una cosa” sin revisar conteos: el script pide confirmación `SI`.

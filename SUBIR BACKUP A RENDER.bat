@@ -9,13 +9,16 @@ echo ====================================================
 echo   GOS — Subir backup a Render
 echo ====================================================
 echo.
-echo Este metodo sube tu base local a la MISMA base
-echo que usa el servicio en Render.
+echo IMPORTANTE:
+echo  - Se crea un backup local en instance\backups\ antes de subir.
+echo  - Tablas protegidas vacias en local NO borran datos de Render
+echo    (Capacitacion, perfiles, O&M, Analisis, usuarios).
+echo  - El script pedira confirmar con la palabra SI.
 echo.
 echo 1. En Render: servicio "gos-objetivos" ^> Environment
 echo 2. Copia el valor de GOS_IMPORT_SECRET a tu .env local
 echo    o pegalo cuando te lo pida el script.
-echo 3. Guarda y espera que redeploye (Live)
+echo 3. Guarda y espera que redeploye (Live) si cambiaste codigo.
 echo.
 if not defined GOS_IMPORT_SECRET (
     set /p GOS_IMPORT_SECRET="GOS_IMPORT_SECRET: "
