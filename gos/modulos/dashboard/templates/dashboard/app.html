@@ -3,139 +3,283 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>GOS Command Center</title>
+  <title>GOS DashBoard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Orbitron:wght@500;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/css/tokens.css" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Syne:wght@600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="{{ url_for('dashboard_static.static', filename='css/dashboard.css') }}" />
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-    }
-  }
-  </script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
-  <div id="scene-root" aria-hidden="true"></div>
-  <div class="scanline" aria-hidden="true"></div>
-
-  <div class="hud">
-    <header class="topbar">
-      <div class="brand">
-        <div class="brand-eyebrow">Green Oil Services · Ops</div>
-        <h1 class="brand-title">COMMAND CENTER</h1>
-        <p class="brand-sub" id="generated-at">Sincronizando módulos…</p>
+  <div class="page">
+    <header class="top">
+      <div>
+        <p class="brand-kicker">Green Oil Services</p>
+        <h1 class="brand-title">DashBoard operativo</h1>
+        <p class="brand-sub" id="generated-at">Cargando telemetría…</p>
       </div>
-      <div class="health-block">
-        <div class="health-label">Health index</div>
-        <div class="health-value" id="health-value">—</div>
-        <div class="health-meta" id="health-meta">—</div>
+      <div class="top-actions">
+        <button type="button" class="btn" id="btn-refresh">Actualizar</button>
       </div>
     </header>
 
-    <div class="mid">
-      <aside class="side-panel" id="panel-left"></aside>
-      <div class="center-void">
-        <div class="hint">Arrastrá el puntero · clic en módulo</div>
-      </div>
-      <aside class="side-panel side-panel--right" id="panel-right"></aside>
-    </div>
+    <section class="hero-strip" id="hero-strip" aria-label="Resumen global"></section>
 
-    <footer class="footer">
-      <div class="footer-stat" id="footer-stat">Módulos · —</div>
-      <button type="button" class="btn-refresh" id="btn-refresh">Refresh</button>
-    </footer>
+    <div class="iso-stage">
+      <div class="iso-world">
+        <div class="iso-grid" id="iso-grid"></div>
+      </div>
+    </div>
+    <p class="legend-hint">Clic en cualquier panel para abrir el módulo</p>
   </div>
 
-  <div class="loading" id="loading">Cargando telemetría…</div>
+  <div class="loading" id="loading">Cargando gráficos…</div>
   <div class="error" id="error" hidden></div>
 
   <script type="module">
-    import { initScene, updateScene, setFocus } from "{{ url_for('dashboard_static.static', filename='js/command-center.js') }}";
+    import {
+      renderBar,
+      renderLine,
+      renderDoughnut,
+      renderHorizontal,
+      clearCharts,
+      PALETTE,
+    } from "{{ url_for('dashboard_static.static', filename='js/dash-charts.js') }}";
 
     const loading = document.getElementById("loading");
     const errorEl = document.getElementById("error");
-    const panelLeft = document.getElementById("panel-left");
-    const panelRight = document.getElementById("panel-right");
-    let current = null;
-    let focusCode = null;
+    const grid = document.getElementById("iso-grid");
+    const hero = document.getElementById("hero-strip");
+
+    function byCode(data, code) {
+      return (data.modules || []).find((m) => m.code === code) || null;
+    }
+
+    function metric(mod, label) {
+      const m = (mod?.metrics || []).find((x) => x.label === label);
+      return m ? m.value : "—";
+    }
+
+    function scoreClass(score) {
+      if (score == null) return "muted";
+      if (score >= 70) return "ok";
+      if (score >= 40) return "warn";
+      return "bad";
+    }
 
     function fmt(v) {
       if (v == null || v === "") return "—";
       if (typeof v === "number") {
-        return Number.isInteger(v) ? String(v) : v.toLocaleString("es-AR", { maximumFractionDigits: 1 });
+        return Number.isInteger(v)
+          ? v.toLocaleString("es-AR")
+          : v.toLocaleString("es-AR", { maximumFractionDigits: 1 });
       }
       return String(v);
     }
 
-    function cardHTML(mod) {
-      const score = mod.score == null ? "—" : `${Math.round(mod.score)}%`;
-      const metrics = (mod.metrics || []).slice(0, 4).map((m) =>
-        `<div class="metric"><strong>${fmt(m.value)}</strong>${m.label}</div>`
-      ).join("");
-      const active = focusCode === mod.code ? " is-active" : "";
-      return `
-        <a class="module-card glass${active}" href="${mod.url || "#"}" target="_top" data-code="${mod.code}"
-           style="--card-accent:${mod.color || "#00e5ff"}"
-           title="Abrir ${mod.label}">
-          <div class="module-card-head">
-            <span class="module-card-name">${mod.label}</span>
-            <span class="module-card-score">${score}</span>
-          </div>
-          <p class="module-card-headline">${mod.headline || (mod.ok ? "" : "Error")}</p>
-          <div class="module-metrics">${metrics}</div>
-        </a>`;
+    function pct(v) {
+      return v == null ? "—" : `${Math.round(Number(v))}%`;
     }
 
-    function syncActiveCards() {
-      document.querySelectorAll(".module-card").forEach((el) => {
-        el.classList.toggle("is-active", el.dataset.code === focusCode);
-      });
+    function barSeries(mod, max = 8) {
+      const bars = (mod?.bars || []).slice(0, max);
+      return {
+        labels: bars.map((b) => String(b.label || "").slice(0, 8)),
+        values: bars.map((b) => Number(b.value) || 0),
+      };
     }
 
-    function renderPanels(data) {
-      const mods = data.modules || [];
-      const mid = Math.ceil(mods.length / 2);
-      panelLeft.innerHTML = mods.slice(0, mid).map(cardHTML).join("");
-      panelRight.innerHTML = mods.slice(mid).map(cardHTML).join("");
+    function tile({ href, classes, title, badge, body, link = true }) {
+      const tag = link && href ? "a" : "div";
+      const hrefAttr = tag === "a" ? ` href="${href}" target="_top" title="Abrir ${title}"` : "";
+      return `<${tag} class="tile ${classes || ""}"${hrefAttr}>
+        <div class="tile-head">
+          <span class="tile-title">${title}</span>
+          ${badge != null ? `<span class="tile-badge">${badge}</span>` : ""}
+        </div>
+        ${body}
+      </${tag}>`;
     }
 
-    function onPanelInteract(ev) {
-      const card = ev.target.closest(".module-card");
-      if (!card) return;
-      if (ev.type === "mouseover") {
-        if (focusCode === card.dataset.code) return;
-        focusCode = card.dataset.code;
-        setFocus(focusCode, current);
-        syncActiveCards();
-      }
-      if (ev.type === "click" && ev.shiftKey) {
-        ev.preventDefault();
-        focusCode = card.dataset.code;
-        setFocus(focusCode, current);
-        syncActiveCards();
-      }
+    function renderHero(data) {
+      hero.innerHTML = `
+        <div class="hero-kpi">
+          <div class="label">Health index</div>
+          <div class="value">${pct(data.health)}</div>
+          <div class="hint">Promedio de cumplimiento</div>
+        </div>
+        <div class="hero-kpi">
+          <div class="label">Módulos online</div>
+          <div class="value">${data.modules_ok}/${data.modules_total}</div>
+          <div class="hint">Respondiendo telemetría</div>
+        </div>
+        <div class="hero-kpi">
+          <div class="label">Alertas</div>
+          <div class="value">${fmt(data.alerts)}</div>
+          <div class="hint">Pendientes / vencidos</div>
+        </div>
+        <div class="hero-kpi">
+          <div class="label">Actualizado</div>
+          <div class="value" style="font-size:1.1rem">${new Date(data.generated_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}</div>
+          <div class="hint">${new Date(data.generated_at).toLocaleDateString("es-AR")}</div>
+        </div>`;
     }
 
-    panelLeft.addEventListener("mouseover", onPanelInteract);
-    panelRight.addEventListener("mouseover", onPanelInteract);
-    panelLeft.addEventListener("click", onPanelInteract);
-    panelRight.addEventListener("click", onPanelInteract);
+    function renderGrid(data) {
+      const obj = byCode(data, "objetivos");
+      const cap = byCode(data, "capacitacion");
+      const hwo = byCode(data, "hwo");
+      const vac = byCode(data, "vacaciones");
+      const ral = byCode(data, "ralenti");
+      const mant = byCode(data, "mantenimiento");
+      const scores = data.series?.scores || [];
+      const alerts = data.series?.alerts || [];
 
-    function renderHUD(data) {
-      const health = data.health;
-      document.getElementById("health-value").textContent =
-        health == null ? "—" : `${Math.round(health)}%`;
-      document.getElementById("health-meta").textContent =
-        `${data.alerts || 0} alertas · ${data.modules_ok}/${data.modules_total} online`;
-      document.getElementById("footer-stat").innerHTML =
-        `Módulos online · <span>${data.modules_ok}/${data.modules_total}</span>`;
-      const ts = data.generated_at ? new Date(data.generated_at) : new Date();
-      document.getElementById("generated-at").textContent =
-        `Telemetría · ${ts.toLocaleString("es-AR")}`;
+      grid.innerHTML = [
+        tile({
+          href: obj?.url || "/gos/objetivos/dashboard/",
+          classes: "span-2 row-2",
+          title: "Objetivos · cumplimiento",
+          badge: pct(obj?.score),
+          body: `
+            <div class="tile-value ${scoreClass(obj?.score)}">${pct(obj?.score)}</div>
+            <p class="tile-desc">${obj?.headline || "KPI en meta"} · ${fmt(metric(obj, "En meta"))} en meta / ${fmt(metric(obj, "Fuera"))} fuera</p>
+            <div class="tile-chart"><canvas id="ch-obj-bars"></canvas></div>`,
+        }),
+        tile({
+          href: mant?.url || "/gos/mantenimiento/",
+          classes: "span-2 row-2",
+          title: "Mantenimiento · plan mensual",
+          badge: pct(mant?.score),
+          body: `
+            <div class="tile-value ${scoreClass(mant?.score)}">${pct(mant?.score)}</div>
+            <p class="tile-desc">Cumplimiento E/P · VTV vencidas ${fmt(metric(mant, "VTV venc."))}</p>
+            <div class="tile-chart"><canvas id="ch-mant-line"></canvas></div>`,
+        }),
+        tile({
+          link: false,
+          classes: "span-2",
+          title: "Score por módulo",
+          badge: "global",
+          body: `<div class="tile-chart" style="min-height:100px"><canvas id="ch-scores"></canvas></div>`,
+        }),
+        tile({
+          href: cap?.url || "/gos/capacitacion/",
+          classes: "span-2",
+          title: "Capacitación",
+          badge: pct(cap?.score),
+          body: `
+            <div class="tile-value ${scoreClass(cap?.score)}">${fmt(metric(cap, "Personas"))}</div>
+            <p class="tile-desc">Personas activas · ${fmt(metric(cap, "Mes"))} cursos este mes · ${fmt(metric(cap, "Alertas"))} alertas</p>
+            <div class="tile-chart"><canvas id="ch-cap-line"></canvas></div>`,
+        }),
+        tile({
+          href: vac?.url || "/gos/vacaciones/",
+          classes: "span-2",
+          title: "Vacaciones · pendientes",
+          badge: pct(vac?.score),
+          body: `
+            <div class="tile-value warn">${fmt(metric(vac, "Pendientes"))}</div>
+            <p class="tile-desc">Días pendientes · ${fmt(metric(vac, "Personas"))} personas · ${fmt(metric(vac, "Hs totales"))} hs</p>
+            <div class="tile-chart"><canvas id="ch-vac-hbar"></canvas></div>`,
+        }),
+        tile({
+          href: ral?.url || "/gos/ralenti/",
+          classes: "span-2",
+          title: "Ralentí · horas",
+          badge: pct(ral?.score),
+          body: `
+            <div class="tile-value ${scoreClass(ral?.score)}">${fmt(metric(ral, "Horas"))} h</div>
+            <p class="tile-desc">${fmt(metric(ral, "Litros"))} L · ${fmt(metric(ral, "Unidades"))} unidades</p>
+            <div class="tile-chart"><canvas id="ch-ral-bars"></canvas></div>`,
+        }),
+        tile({
+          href: hwo?.url || "/gos/hwo/",
+          title: "Análisis",
+          badge: fmt(metric(hwo, "Datasets")),
+          body: `
+            <div class="tile-value">${fmt(metric(hwo, "Datasets"))}</div>
+            <p class="tile-desc">Datasets · ${fmt(metric(hwo, "Filas"))} filas</p>
+            <div class="tile-metrics">
+              <span><strong>${fmt(metric(hwo, "Datasets"))}</strong>Activos</span>
+              <span><strong>${fmt(metric(hwo, "Filas"))}</strong>Filas</span>
+            </div>`,
+        }),
+        tile({
+          link: false,
+          title: "Alertas",
+          badge: fmt(data.alerts),
+          body: `<div class="tile-chart" style="min-height:90px"><canvas id="ch-alerts-donut"></canvas></div>`,
+        }),
+        tile({
+          href: obj?.url || "/gos/objetivos/dashboard/",
+          title: "KPI Objetivos",
+          badge: fmt(metric(obj, "KPI")),
+          body: `
+            <div class="tile-metrics">
+              <span><strong>${fmt(metric(obj, "Objetivos"))}</strong>Objetivos</span>
+              <span><strong>${fmt(metric(obj, "KPI"))}</strong>KPI</span>
+              <span><strong>${fmt(metric(obj, "En meta"))}</strong>En meta</span>
+              <span><strong>${fmt(metric(obj, "Fuera"))}</strong>Fuera</span>
+            </div>`,
+        }),
+        tile({
+          href: mant?.url || "/gos/mantenimiento/",
+          title: "VTV / flota",
+          badge: fmt(metric(mant, "Unidades")),
+          body: `
+            <div class="tile-metrics">
+              <span><strong>${fmt(metric(mant, "Unidades"))}</strong>Unidades</span>
+              <span><strong>${fmt(metric(mant, "VTV venc."))}</strong>Vencidas</span>
+              <span><strong>${fmt(metric(mant, "Por vencer"))}</strong>Por vencer</span>
+              <span><strong>${pct(mant?.score)}</strong>Plan</span>
+            </div>`,
+        }),
+        tile({
+          href: vac?.url || "/gos/vacaciones/",
+          classes: "span-2",
+          title: "Tot Hs · resumen",
+          badge: fmt(metric(vac, "Hs totales")),
+          body: `
+            <div class="tile-value" style="font-size:1.35rem">${fmt(metric(vac, "Hs totales"))}</div>
+            <p class="tile-desc">Horas totales cargadas · ${fmt(metric(vac, "Sectores"))} sectores</p>
+            <div class="tile-metrics">
+              <span><strong>${fmt(metric(vac, "Personas"))}</strong>Personas</span>
+              <span><strong>${fmt(metric(vac, "Pendientes"))}</strong>Días pend.</span>
+            </div>`,
+        }),
+      ].join("");
+
+      // Charts
+      clearCharts();
+      const objBars = barSeries(obj);
+      renderBar("ch-obj-bars", objBars.labels, objBars.values, PALETTE.gold);
+
+      const mantBars = barSeries(mant, 12);
+      renderLine("ch-mant-line", mantBars.labels, mantBars.values, PALETTE.cyan);
+
+      renderBar(
+        "ch-scores",
+        scores.map((s) => s.label.slice(0, 6)),
+        scores.map((s) => Number(s.value) || 0),
+        PALETTE.gold
+      );
+
+      const capBars = barSeries(cap, 6);
+      renderLine("ch-cap-line", capBars.labels, capBars.values, PALETTE.cyan);
+
+      const vacBars = barSeries(vac, 6);
+      renderHorizontal("ch-vac-hbar", vacBars.labels, vacBars.values, PALETTE.gold);
+
+      const ralBars = barSeries(ral, 6);
+      renderBar("ch-ral-bars", ralBars.labels, ralBars.values, PALETTE.cyan);
+
+      renderDoughnut(
+        "ch-alerts-donut",
+        alerts.map((a) => a.label),
+        alerts.map((a) => Number(a.value) || 0),
+        [PALETTE.gold, PALETTE.cyan, PALETTE.ok, "#9b7bff", PALETTE.bad, PALETTE.muted]
+      );
     }
 
     async function load() {
@@ -144,20 +288,20 @@
       try {
         const res = await fetch("/gos/dashboard/api/summary", { credentials: "same-origin" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        current = await res.json();
-        if (current.error) throw new Error(current.error);
-        renderHUD(current);
-        renderPanels(current);
-        updateScene(current, focusCode);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        document.getElementById("generated-at").textContent =
+          `Telemetría de módulos · ${new Date(data.generated_at).toLocaleString("es-AR")}`;
+        renderHero(data);
+        renderGrid(data);
       } catch (err) {
         errorEl.hidden = false;
-        errorEl.textContent = `Fallo de telemetría · ${err.message || err}`;
+        errorEl.textContent = `No se pudo cargar · ${err.message || err}`;
       } finally {
         loading.hidden = true;
       }
     }
 
-    initScene();
     document.getElementById("btn-refresh").addEventListener("click", load);
     load();
     setInterval(load, 120000);
