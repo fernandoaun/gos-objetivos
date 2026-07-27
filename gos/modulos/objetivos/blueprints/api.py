@@ -173,6 +173,38 @@ def export_tables():
         return jsonify({"ok": False, "error": str(exc)}), 500
 
 
+@bp.route("/admin/import-tables", methods=["POST"])
+def import_tables():
+    """Importa tablas puntuales desde JSON (sin subir el SQLite completo)."""
+    if not _import_auth_ok():
+        return jsonify({
+            "ok": False,
+            "error": "No autorizado. Configurá GOS_IMPORT_SECRET y enviá X-Import-Secret.",
+        }), 403
+
+    payload = request.get_json(silent=True) or {}
+    tables = payload.get("tables")
+    if not isinstance(tables, dict) or not tables:
+        return jsonify({"ok": False, "error": "tables debe ser un objeto {nombre: [filas]}"}), 400
+
+    try:
+        from gos.modulos.objetivos.services.import_service import importar_tablas_json
+
+        target_url = current_app.config["SQLALCHEMY_DATABASE_URI"]
+        counts = importar_tablas_json(tables, target_url)
+        uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
+        return jsonify({
+            "ok": True,
+            "database_backend": "postgresql" if uri.startswith("postgres") else "sqlite",
+            "imported": counts,
+        })
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+    except Exception as exc:
+        current_app.logger.exception("import-tables failed")
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
 @bp.route("/admin/import-db", methods=["POST"])
 def import_db():
     """Restaura backup SQLite en la base que usa el servicio web."""

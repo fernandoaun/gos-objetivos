@@ -233,6 +233,95 @@ def _tables_to_preserve(
     return preserve
 
 
+def importar_tablas_json(tables_data: dict[str, list], target_url: str) -> dict[str, int]:
+    """Reemplaza solo las tablas pedidas (JSON). No toca el resto de la base.
+
+    Remapea empresa_id al primer id de empresas en destino cuando hace falta.
+    """
+    import gos.modulos.objetivos.models  # noqa: F401
+    from gos.extensions import db
+
+    if not isinstance(tables_data, dict) or not tables_data:
+        raise ValueError("tables_data vacío")
+
+    ordered = [t for t in TABLES if t in tables_data]
+    unknown = sorted(set(tables_data) - set(TABLES))
+    if unknown:
+        raise ValueError(f"Tablas no permitidas: {', '.join(unknown)}")
+    if not ordered:
+        raise ValueError("Ninguna tabla válida")
+
+    target_url = fix_postgres_url(target_url)
+    _ensure_schema(target_url)
+    tgt_engine = create_engine(target_url)
+    imported: dict[str, int] = {}
+
+    with tgt_engine.begin() as tgt_conn:
+        empresa_id = tgt_conn.execute(
+            text('SELECT id FROM "empresas" ORDER BY id LIMIT 1')
+        ).scalar()
+        if empresa_id is None and "empresas" not in tables_data:
+            raise ValueError("No hay empresa en destino y no se envió tabla empresas")
+
+        for table in ordered:
+            rows = tables_data.get(table) or []
+            if not isinstance(rows, list):
+                raise ValueError(f"{table}: se esperaba una lista de filas")
+
+            # Solo vaciar esta tabla (sin CASCADE masivo).
+            if tgt_conn.dialect.name == "postgresql":
+                tgt_conn.execute(text(f'TRUNCATE TABLE "{table}" RESTART IDENTITY'))
+            else:
+                tgt_conn.execute(text(f'DELETE FROM "{table}"'))
+
+            if not rows:
+                imported[table] = 0
+                continue
+
+            physical_cols = {c["name"] for c in inspect(tgt_conn).get_columns(table)}
+            model_table = db.Model.metadata.tables.get(table)
+            model_cols = {c.name for c in model_table.columns} if model_table is not None else physical_cols
+            allowed = physical_cols & model_cols
+
+            prepared: list[dict] = []
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                item = {k: v for k, v in row.items() if k in allowed}
+                if "valores_mes" in item and isinstance(item["valores_mes"], str):
+                    try:
+                        item["valores_mes"] = json.loads(item["valores_mes"])
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                if (
+                    empresa_id is not None
+                    and "empresa_id" in allowed
+                    and table != "empresas"
+                ):
+                    item["empresa_id"] = int(empresa_id)
+                # Dejar que el destino asigne ids nuevos si vienen del SQLite local.
+                item.pop("id", None)
+                prepared.append(item)
+
+            batch = 500
+            for i in range(0, len(prepared), batch):
+                chunk = prepared[i : i + batch]
+                if not chunk:
+                    continue
+                cols = sorted({k for row in chunk for k in row})
+                col_sql = ", ".join(f'"{c}"' for c in cols)
+                placeholders = ", ".join(f":{c}" for c in cols)
+                stmt = text(
+                    f'INSERT INTO "{table}" ({col_sql}) VALUES ({placeholders})'
+                )
+                tgt_conn.execute(stmt, chunk)
+
+            _reset_sequences(tgt_conn, table)
+            imported[table] = len(prepared)
+
+    return imported
+
+
 def importar_sqlite(local_path: Path, target_url: str) -> dict[str, int]:
     import gos.modulos.capacitacion.models  # noqa: F401
     import gos.modulos.hwo.models  # noqa: F401
