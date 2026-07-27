@@ -173,6 +173,7 @@
     <div class="year-filter" style="min-width:280px;flex:1;">
       <label>Períodos</label>
       <div class="year-btns" id="ths-period-btns"></div>
+      <p class="subtitle ths-period-hint" id="ths-period-hint">Elegí uno o dos meses para filtrar o comparar</p>
     </div>
     <div><label>Cliente</label><select id="ths-f-cliente"><option value="">Todos los clientes</option></select></div>
     <div><label>Tipo servicio</label><select id="ths-f-tipo"><option value="">Todos</option></select></div>
@@ -186,6 +187,22 @@
   </div>
 
   <div id="ths-content" class="hidden">
+    <div class="card ths-compare hidden" id="ths-comparativo">
+      <div class="header-row" style="margin-bottom:10px;">
+        <div>
+          <h2 style="font-size:1.05rem;">Comparativo de períodos</h2>
+          <p class="subtitle" id="ths-compare-subtitle"></p>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="ths-compare-table" id="ths-compare-table">
+          <thead id="ths-compare-head"></thead>
+          <tbody id="ths-compare-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="ths-dashboard-block">
     <div class="kpis ths-kpis">
       <button type="button" class="card kpi blue clickable" data-ths-kpi="total_horas" title="Ver detalle por empleado">
         <div class="kpi-label">Total horas</div>
@@ -261,6 +278,7 @@
           <tbody id="ths-table-body"></tbody>
         </table>
       </div>
+    </div>
     </div>
   </div>
 </div>
@@ -1232,9 +1250,10 @@ async function runThsImport() {
 
 // ── Tot Hs. dashboard ──
 const ths = {
-  periodos: [], selectedPeriodo: null,
+  periodos: [], selectedPeriodos: [],
   clientes: [], tipos: [],
   resumen: null, porMes: [], porSector: [], porEmpleado: [],
+  comparativo: null,
   clienteSeleccionado: null,
   chartMes: null, chartSector: null,
   chartClienteComp: null, chartClienteEmp: null,
@@ -1251,9 +1270,18 @@ function fmtFecha(iso) {
   return `${d}/${m}/${y}`;
 }
 
+function fmtPct(n) {
+  if (n == null || Number.isNaN(Number(n))) return '—';
+  return `${fmtNum(n, 1)}%`;
+}
+
+function thsIsCompareMode() {
+  return ths.selectedPeriodos.length === 2;
+}
+
 function thsParams() {
   const p = {};
-  if (ths.selectedPeriodo) p.periodo = ths.selectedPeriodo;
+  if (ths.selectedPeriodos.length === 1) p.periodo = ths.selectedPeriodos[0];
   const cliente = ths.clienteSeleccionado || document.getElementById('ths-f-cliente')?.value;
   if (cliente) p.cliente = cliente;
   const tipo = document.getElementById('ths-f-tipo')?.value;
@@ -1261,26 +1289,60 @@ function thsParams() {
   return p;
 }
 
-function renderThsPeriods() {
-  const wrap = document.getElementById('ths-period-btns');
-  if (!ths.periodos.length) {
-    wrap.innerHTML = '<span class="subtitle">Sin períodos</span>';
+function thsPeriodLabel(key) {
+  return ths.periodos.find(p => p.key === key)?.label || key;
+}
+
+function toggleThsPeriod(key) {
+  if (!key) {
+    ths.selectedPeriodos = [];
     return;
   }
-  const todosActive = !ths.selectedPeriodo;
+  const idx = ths.selectedPeriodos.indexOf(key);
+  if (idx >= 0) {
+    ths.selectedPeriodos.splice(idx, 1);
+    return;
+  }
+  if (ths.selectedPeriodos.length >= 2) {
+    ths.selectedPeriodos.shift();
+  }
+  ths.selectedPeriodos.push(key);
+  // Mantener orden cronológico por fecha desde
+  ths.selectedPeriodos.sort((a, b) => a.localeCompare(b));
+}
+
+function renderThsPeriods() {
+  const wrap = document.getElementById('ths-period-btns');
+  const hint = document.getElementById('ths-period-hint');
+  if (!ths.periodos.length) {
+    wrap.innerHTML = '<span class="subtitle">Sin períodos</span>';
+    if (hint) hint.textContent = '';
+    return;
+  }
+  const todosActive = !ths.selectedPeriodos.length;
   wrap.innerHTML = [
     `<button type="button" class="year-btn ${todosActive ? 'active' : ''}" data-key="">Todos</button>`,
-    ...ths.periodos.map(p =>
-      `<button type="button" class="year-btn ${ths.selectedPeriodo === p.key ? 'active' : ''}" data-key="${escHtml(p.key)}">${escHtml(p.label)}</button>`
-    ),
+    ...ths.periodos.map(p => {
+      const on = ths.selectedPeriodos.includes(p.key);
+      return `<button type="button" class="year-btn ${on ? 'active' : ''}" data-key="${escHtml(p.key)}">${escHtml(p.label)}</button>`;
+    }),
   ].join('');
   wrap.querySelectorAll('.year-btn').forEach(btn => {
     btn.onclick = () => {
-      ths.selectedPeriodo = btn.dataset.key || null;
+      toggleThsPeriod(btn.dataset.key || '');
       renderThsPeriods();
       loadThsDashboard();
     };
   });
+  if (hint) {
+    if (ths.selectedPeriodos.length === 2) {
+      hint.textContent = `Comparando ${thsPeriodLabel(ths.selectedPeriodos[0])} vs ${thsPeriodLabel(ths.selectedPeriodos[1])}`;
+    } else if (ths.selectedPeriodos.length === 1) {
+      hint.textContent = `Filtrado: ${thsPeriodLabel(ths.selectedPeriodos[0])} · tocá otro mes para comparar`;
+    } else {
+      hint.textContent = 'Elegí uno o dos meses para filtrar o comparar';
+    }
+  }
 }
 
 function renderThsFilters() {
@@ -1295,6 +1357,66 @@ function renderThsFilters() {
   tip.innerHTML = '<option value="">Todos</option>' +
     ths.tipos.map(s => `<option value="${escHtml(s)}">${escHtml(s)}</option>`).join('');
   if (curTip && ths.tipos.includes(curTip)) tip.value = curTip;
+}
+
+function thsDiffClass(v) {
+  const n = Number(v);
+  if (!n) return '';
+  return n > 0 ? 'ths-diff-up' : 'ths-diff-down';
+}
+
+function renderThsComparativo() {
+  const box = document.getElementById('ths-comparativo');
+  const dash = document.getElementById('ths-dashboard-block');
+  const data = ths.comparativo;
+  if (!thsIsCompareMode() || !data) {
+    box.classList.add('hidden');
+    dash.classList.remove('hidden');
+    return;
+  }
+  box.classList.remove('hidden');
+  dash.classList.add('hidden');
+
+  const a = data.a || {};
+  const b = data.b || {};
+  document.getElementById('ths-compare-subtitle').textContent =
+    `${a.label || 'Período A'} → ${b.label || 'Período B'} · % sobre total de horas de cada período`;
+
+  document.getElementById('ths-compare-head').innerHTML = `
+    <tr>
+      <th>Concepto</th>
+      <th class="num">${escHtml(a.label || 'A')}</th>
+      <th class="num">% hrs</th>
+      <th class="num">${escHtml(b.label || 'B')}</th>
+      <th class="num">% hrs</th>
+      <th class="num">Dif.</th>
+      <th class="num">Var. %</th>
+      <th class="num">Δ pp</th>
+    </tr>`;
+
+  document.getElementById('ths-compare-body').innerHTML = (data.filas || []).map(f => {
+    const hours = !!f.of_hours;
+    const dig = hours || f.key === 'total_horas' ? 1 : (f.key === 'personas' ? 0 : 1);
+    const difCls = thsDiffClass(f.dif);
+    const varCls = thsDiffClass(f.var_pct);
+    const ppCls = thsDiffClass(f.dif_pp);
+    const pctA = hours ? fmtPct(f.pct_a) : '—';
+    const pctB = hours ? fmtPct(f.pct_b) : '—';
+    const difPp = hours && f.dif_pp != null ? fmtNum(f.dif_pp, 1) : '—';
+    const varPct = f.var_pct == null ? '—' : `${f.var_pct > 0 ? '+' : ''}${fmtNum(f.var_pct, 1)}%`;
+    const difTxt = `${f.dif > 0 ? '+' : ''}${fmtNum(f.dif, dig)}`;
+    const rowCls = f.key === 'total_horas' ? 'ths-compare-total' : '';
+    return `<tr class="${rowCls}">
+      <td>${escHtml(f.label)}</td>
+      <td class="num">${fmtNum(f.a, dig)}</td>
+      <td class="num ths-pct">${pctA}</td>
+      <td class="num">${fmtNum(f.b, dig)}</td>
+      <td class="num ths-pct">${pctB}</td>
+      <td class="num ${difCls}">${difTxt}</td>
+      <td class="num ${varCls}">${varPct}</td>
+      <td class="num ${ppCls}">${difPp === '—' ? '—' : ((f.dif_pp > 0 ? '+' : '') + difPp)}</td>
+    </tr>`;
+  }).join('');
 }
 
 function renderThsKpis() {
@@ -1710,6 +1832,28 @@ async function loadThsDashboard() {
   empty.classList.add('hidden');
   try {
     const params = thsParams();
+
+    if (thsIsCompareMode()) {
+      const cmpParams = {
+        periodo_a: ths.selectedPeriodos[0],
+        periodo_b: ths.selectedPeriodos[1],
+      };
+      if (params.cliente) cmpParams.cliente = params.cliente;
+      if (params.tipo_servicio) cmpParams.tipo_servicio = params.tipo_servicio;
+      ths.comparativo = await apiGet('/tot-hs/comparar', cmpParams);
+      ths.resumen = null;
+      ths.porMes = [];
+      ths.porSector = [];
+      ths.porEmpleado = [];
+      renderThsComparativo();
+      content.classList.remove('hidden');
+      document.getElementById('ths-btn-export').disabled = false;
+      return;
+    }
+
+    ths.comparativo = null;
+    renderThsComparativo();
+
     const [resumen, porMes, porSector, porEmpleado] = await Promise.all([
       apiGet('/tot-hs/resumen', params),
       apiGet('/tot-hs/por-mes', params),
@@ -1724,7 +1868,7 @@ async function loadThsDashboard() {
     ths.porSector = porSector;
     ths.porEmpleado = porEmpleado;
 
-    if (!(resumen.registros > 0) && !ths.selectedPeriodo && !params.cliente && !params.periodo) {
+    if (!(resumen.registros > 0) && !ths.selectedPeriodos.length && !params.cliente && !params.periodo) {
       empty.classList.remove('hidden');
       document.getElementById('ths-btn-export').disabled = true;
       return;
@@ -1749,9 +1893,9 @@ async function initTotHs() {
     ths.periodos = meta.periodos || [];
     ths.clientes = meta.clientes || [];
     ths.tipos = meta.tipos_servicio || [];
-    if (ths.selectedPeriodo && !ths.periodos.some(p => p.key === ths.selectedPeriodo)) {
-      ths.selectedPeriodo = null;
-    }
+    ths.selectedPeriodos = ths.selectedPeriodos.filter(k =>
+      ths.periodos.some(p => p.key === k)
+    );
     renderThsPeriods();
     renderThsFilters();
   } catch (_) { /* meta vacío ok */ }
@@ -1786,7 +1930,22 @@ document.getElementById('ths-btn-export').onclick = () => {
   document.getElementById('ths-export-drop').classList.toggle('hidden');
 };
 document.querySelector('#ths-export-drop [data-ths-export="excel"]').onclick = () => {
-  if (!window.XLSX || !ths.porEmpleado.length) return;
+  if (!window.XLSX) return;
+  if (thsIsCompareMode() && ths.comparativo) {
+    const a = ths.comparativo.a || {};
+    const b = ths.comparativo.b || {};
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['Concepto', a.label || 'A', '% hrs A', b.label || 'B', '% hrs B', 'Dif.', 'Var. %', 'Δ pp'],
+      ...(ths.comparativo.filas || []).map(f => [
+        f.label, f.a, f.pct_a, f.b, f.pct_b, f.dif, f.var_pct, f.dif_pp,
+      ]),
+    ]), 'Comparativo');
+    XLSX.writeFile(wb, `tot-hs-comparativo-${a.label || 'a'}-vs-${b.label || 'b'}.xlsx`);
+    document.getElementById('ths-export-drop').classList.add('hidden');
+    return;
+  }
+  if (!ths.porEmpleado.length) return;
   const wb = XLSX.utils.book_new();
   const r = ths.resumen || {};
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([

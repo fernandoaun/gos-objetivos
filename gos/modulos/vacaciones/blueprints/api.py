@@ -99,6 +99,27 @@ def tot_hs_resumen():
     return jsonify(services.get_tot_hs_resumen(db.session, **_tot_hs_filters()))
 
 
+@bp.route("/tot-hs/comparar")
+@login_required
+def tot_hs_comparar():
+    periodo_a = request.args.get("periodo_a") or request.args.get("a")
+    periodo_b = request.args.get("periodo_b") or request.args.get("b")
+    if not periodo_a or not periodo_b:
+        return jsonify({"error": "Indicá periodo_a y periodo_b"}), 400
+    if periodo_a == periodo_b:
+        return jsonify({"error": "Elegí dos períodos distintos"}), 400
+    filters = _tot_hs_filters()
+    return jsonify(
+        services.get_tot_hs_comparar(
+            db.session,
+            periodo_a=periodo_a,
+            periodo_b=periodo_b,
+            cliente=filters.get("cliente"),
+            tipo_servicio=filters.get("tipo_servicio"),
+        )
+    )
+
+
 @bp.route("/tot-hs/por-mes")
 @login_required
 def tot_hs_por_mes():

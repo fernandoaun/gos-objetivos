@@ -470,6 +470,114 @@ def get_tot_hs_resumen(
     }
 
 
+_THS_COMPARE_METRICS = (
+    # (key, label, of_hours) — of_hours: % sobre total_horas del período
+    ("total_horas", "Total horas", True),
+    ("hs_extras", "Hs. extras", True),
+    ("hs50", "Hs 50%", True),
+    ("hs100", "Hs 100%", True),
+    ("hs_noc", "Hs nocturnas", True),
+    ("hs_noc50", "Hs noct. 50%", True),
+    ("hs_viaje", "Hs viaje", True),
+    ("total_hs_viaje", "Total hs + viaje", True),
+    ("personas", "Personas", False),
+    ("d_normales", "Días normales", False),
+    ("ausente", "Ausentes", False),
+    ("vacaciones", "Vacaciones", False),
+    ("enfermedad", "Enfermedad", False),
+    ("licencia", "Licencias", False),
+    ("feriados", "Feriados", False),
+    ("traslado", "Traslados", False),
+    ("fr_trabajados", "Francos trabajados", False),
+    ("francos_comp", "Francos compens.", False),
+    ("viandas", "Viandas", False),
+    ("v_desayuno", "Desayunos", False),
+)
+
+
+def _tot_hs_period_meta(db: Session, periodo: str) -> dict:
+    key = _parse_period_key(periodo)
+    if not key:
+        return {"key": periodo, "label": periodo, "desde": None, "hasta": None}
+    d = _parse_iso_date(key[0])
+    h = _parse_iso_date(key[1])
+    if not d or not h:
+        return {"key": periodo, "label": periodo, "desde": key[0], "hasta": key[1]}
+    return {
+        "key": f"{d.isoformat()}|{h.isoformat()}",
+        "label": _tot_hs_period_label(d, h),
+        "desde": d.isoformat(),
+        "hasta": h.isoformat(),
+    }
+
+
+def get_tot_hs_comparar(
+    db: Session,
+    periodo_a: str,
+    periodo_b: str,
+    cliente: Optional[str] = None,
+    tipo_servicio: Optional[str] = None,
+    **_ignored,
+) -> dict:
+    """Compara dos períodos: valores, % sobre total de horas y diferencias."""
+    meta_a = _tot_hs_period_meta(db, periodo_a)
+    meta_b = _tot_hs_period_meta(db, periodo_b)
+    # Orden cronológico: A = más antiguo, B = más reciente
+    if (meta_a.get("desde") or "") > (meta_b.get("desde") or ""):
+        meta_a, meta_b = meta_b, meta_a
+        periodo_a, periodo_b = periodo_b, periodo_a
+
+    a = get_tot_hs_resumen(
+        db, periodo=periodo_a, cliente=cliente, tipo_servicio=tipo_servicio
+    )
+    b = get_tot_hs_resumen(
+        db, periodo=periodo_b, cliente=cliente, tipo_servicio=tipo_servicio
+    )
+    total_a = float(a.get("total_horas") or 0)
+    total_b = float(b.get("total_horas") or 0)
+
+    def _pct(value: float, total: float) -> Optional[float]:
+        if total <= 0:
+            return None
+        return round(float(value) * 100.0 / total, 2)
+
+    filas = []
+    for key, label, of_hours in _THS_COMPARE_METRICS:
+        va = float(a.get(key) or 0)
+        vb = float(b.get(key) or 0)
+        dif = round(vb - va, 2)
+        pct_a = _pct(va, total_a) if of_hours else None
+        pct_b = _pct(vb, total_b) if of_hours else None
+        dif_pp = None
+        if pct_a is not None and pct_b is not None:
+            dif_pp = round(pct_b - pct_a, 2)
+        var_pct = None
+        if va != 0:
+            var_pct = round((vb - va) * 100.0 / abs(va), 1)
+        elif vb != 0:
+            var_pct = 100.0
+        filas.append(
+            {
+                "key": key,
+                "label": label,
+                "of_hours": of_hours,
+                "a": round(va, 2),
+                "b": round(vb, 2),
+                "pct_a": pct_a,
+                "pct_b": pct_b,
+                "dif": dif,
+                "dif_pp": dif_pp,
+                "var_pct": var_pct,
+            }
+        )
+
+    return {
+        "a": {**meta_a, "total_horas": round(total_a, 2), "personas": a.get("personas", 0)},
+        "b": {**meta_b, "total_horas": round(total_b, 2), "personas": b.get("personas", 0)},
+        "filas": filas,
+    }
+
+
 def get_tot_hs_por_periodo(
     db: Session,
     periodo: Optional[str] = None,

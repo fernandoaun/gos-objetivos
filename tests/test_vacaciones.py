@@ -217,6 +217,7 @@ def test_tot_hs_shell_and_app(auth_client):
     assert b"Tot Hs." in r.data
     assert b"view-tot-hs" in r.data
     assert b"ths-f-desde" not in r.data
+    assert b"ths-comparativo" in r.data
     assert b"Cargar Excel" not in r.data  # la carga vive en Importar datos
     assert b"Importar datos" in r.data
 
@@ -386,6 +387,24 @@ def test_tot_hs_period_labels_use_month_name(auth_client, app):
 
     por_mes = auth_client.get("/gos/vacaciones/api/tot-hs/por-mes").get_json()
     assert [r["periodo"] for r in por_mes] == ["Febrero", "Marzo"]
+
+    key_feb = next(p["key"] for p in meta["periodos"] if p["label"] == "Febrero")
+    key_mar = next(p["key"] for p in meta["periodos"] if p["label"] == "Marzo")
+    cmp = auth_client.get(
+        "/gos/vacaciones/api/tot-hs/comparar",
+        query_string={"periodo_a": key_feb, "periodo_b": key_mar},
+    )
+    assert cmp.status_code == 200
+    data = cmp.get_json()
+    assert data["a"]["label"] == "Febrero"
+    assert data["b"]["label"] == "Marzo"
+    assert data["a"]["total_horas"] == 10
+    assert data["b"]["total_horas"] == 20
+    by_key = {f["key"]: f for f in data["filas"]}
+    assert by_key["total_horas"]["dif"] == 10
+    assert by_key["total_horas"]["var_pct"] == 100.0
+    assert by_key["hs_extras"]["of_hours"] is True
+    assert by_key["personas"]["of_hours"] is False
 
 
 def test_tot_hs_import_overlap_removes_older(auth_client, app):

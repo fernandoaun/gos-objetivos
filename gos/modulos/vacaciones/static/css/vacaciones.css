@@ -848,6 +848,41 @@ tr:hover td {
   -webkit-appearance: none;
 }
 
+.ths-period-hint {
+  margin-top: 8px;
+  margin-bottom: 0;
+  font-size: 0.75rem;
+}
+
+.ths-compare {
+  margin-bottom: 20px;
+}
+
+.ths-compare-table th,
+.ths-compare-table td {
+  white-space: nowrap;
+}
+
+.ths-compare-table .ths-pct {
+  color: var(--muted);
+  font-size: 0.9em;
+}
+
+.ths-compare-table tr.ths-compare-total td {
+  font-weight: 700;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.ths-diff-up {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.ths-diff-down {
+  color: #047857;
+  font-weight: 600;
+}
+
 .ths-novedades {
   display: flex;
   flex-wrap: wrap;
