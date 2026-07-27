@@ -204,6 +204,10 @@ def importar_excel():
         partes.append(f"{result['celdas']} celdas R/P/E")
     if result.get("vtv"):
         partes.append(f"{result['vtv']} vencimientos VTV")
+    if result.get("ordenes"):
+        partes.append(f"{result['ordenes']} órdenes")
+    if result.get("tareas"):
+        partes.append(f"{result['tareas']} tareas")
 
     return jsonify(
         {

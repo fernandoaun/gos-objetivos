@@ -385,15 +385,15 @@
 </div>
 
 <div id="view-importar" class="app {% if initial_view != 'importar' %}hidden{% endif %}" style="max-width:720px;">
-  <h1>Importar plan / VTV</h1>
+  <h1>Importar datos</h1>
   <p class="subtitle" style="margin-bottom:20px;">
-    Formato base: Excel con hojas <strong>Informe</strong> (plan R/P/E) y <strong>VTV</strong> (vencimientos).
+    Excel con hojas <strong>Informe</strong> / <strong>VTV</strong> (plan) o <strong>Ordenes</strong> / <strong>Tareas</strong> (reporte mensual).
   </p>
 
   <section class="card">
     <div class="dropzone" id="dropzone" role="button" tabindex="0" aria-label="Seleccionar Excel de mantenimiento">
       <div class="drop-icon">⬆</div>
-      <h3 id="drop-title">Excel plan mantenimiento / VTV</h3>
+      <h3 id="drop-title">Excel mantenimiento</h3>
       <p class="subtitle" id="drop-sub">Arrastrá o hacé clic · .xlsx / .xlsm</p>
     </div>
     <input type="file" id="file-input" accept=".xlsx,.xlsm" hidden>
@@ -404,7 +404,9 @@
       <strong>Informe:</strong> fila de meses (Enero…Diciembre) con subcolumnas R / P / E por unidad.
       R = tipo de mantenimiento (1–4), P = mes programado, E = mes ejecutado.<br>
       <strong>VTV:</strong> columnas Unidad y Vencimiento VTV.<br>
-      Al reimportar el mismo año se reemplazan las celdas del plan de ese año y se actualizan los vencimientos VTV.
+      <strong>Ordenes / Tareas:</strong> export del Power BI (Reporte MANT) o Excel fuente con fechas, unidad, estado y horas.
+      Al reimportar se reemplazan los años presentes en el archivo.<br>
+      Al reimportar el mismo año del plan se reemplazan las celdas R/P/E y se actualizan vencimientos VTV.
     </div>
   </section>
 </div>
