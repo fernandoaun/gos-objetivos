@@ -22,7 +22,10 @@ if __name__ == "__main__":
         except Exception:
             pass
 
-    url = "http://127.0.0.1:5000/"
+    import os
+
+    port = int(os.environ.get("GOS_PORT", "5000") or "5000")
+    url = f"http://127.0.0.1:{port}/"
     print("=" * 52)
     print("  GOS — Plataforma modular")
     print(f"  Modulo Objetivos — {APP_VERSION_LABEL}")
@@ -35,4 +38,4 @@ if __name__ == "__main__":
     print("=" * 52)
 
     webbrowser.open(url)
-    app.run(host="127.0.0.1", port=5000, debug=True, use_reloader=False)
+    app.run(host="127.0.0.1", port=port, debug=True, use_reloader=False)
