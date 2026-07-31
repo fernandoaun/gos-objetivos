@@ -542,6 +542,34 @@ table.vtv-table th {
   font-size: 0.9rem;
 }
 
+.rm-kpi-dash-subtitle {
+  margin: 16px 0 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.rm-kpi-extra-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.rm-kpi-extra-card {
+  padding: 10px 12px;
+}
+
+.rm-kpi-extra-card .rm-chart-wrap {
+  height: 220px;
+}
+
+@media (max-width: 720px) {
+  .rm-kpi-extra-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .mant-modal-header {
   display: flex;
   justify-content: space-between;

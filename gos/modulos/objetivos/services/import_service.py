@@ -40,6 +40,7 @@ TABLES = [
     "mant_reporte_ordenes",
     "mant_reporte_tareas",
     "mant_reporte_solicitudes",
+    "mant_sector_personas",
     # Capacitación (padres → hijos)
     "cap_config",
     "cap_centros",

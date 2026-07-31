@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import calendar
 from datetime import date, timedelta
 
 from sqlalchemy import select
@@ -13,6 +14,7 @@ from gos.modulos.mantenimiento.models import (
     MantReporteOrden,
     MantReporteSolicitud,
     MantReporteTarea,
+    MantSectorPersona,
     MantUnidad,
     MantVtv,
     MantVtvTurno,
@@ -38,6 +40,38 @@ VTV_ALERTA_DIAS = 30
 VTV_DIAS_HABILES = {1, 3}  # martes=1, jueves=3 (Monday=0)
 VTV_RESULTADOS = ("apto", "condicional", "rechazada")
 VTV_BAJA_DIAS_ANTES = 2
+
+
+def _fin_de_mes(anio: int, mes: int) -> date:
+    return date(anio, mes, calendar.monthrange(anio, mes)[1])
+
+
+def _persona_activa_al(persona: MantSectorPersona, al: date) -> bool:
+    """Activo al cierre del período: alta <= al y (sin baja o baja después de al)."""
+    if persona.fecha_alta is None or persona.fecha_alta > al:
+        return False
+    if persona.fecha_baja is None:
+        return True
+    return persona.fecha_baja > al
+
+
+def _personal_sector_al(personas: list[MantSectorPersona], al: date) -> int:
+    return sum(1 for p in personas if _persona_activa_al(p, al))
+
+
+_ROLES_NO_OPERATIVOS = frozenset({"GERENTE", "COORDINADOR"})
+
+
+def _es_operativo(persona: MantSectorPersona) -> bool:
+    """Operativo = todo el personal activo salvo gerente y coordinador."""
+    rol = (persona.funcion_general or persona.funcion or "").strip().upper()
+    return rol not in _ROLES_NO_OPERATIVOS
+
+
+def _personal_operativo_al(personas: list[MantSectorPersona], al: date) -> int:
+    return sum(
+        1 for p in personas if _persona_activa_al(p, al) and _es_operativo(p)
+    )
 
 
 def _add_years(d: date, years: int) -> date:
@@ -589,6 +623,7 @@ def get_reporte_mensual(
     ordenes = list(session.execute(ordenes_q).scalars())
     tareas = list(session.execute(tareas_q).scalars())
     solicitudes = list(session.execute(solicitudes_q).scalars())
+    sector_personas = list(session.execute(select(MantSectorPersona)).scalars())
 
     estados = sorted({(o.estado or "Sin estado").strip() or "Sin estado" for o in ordenes})
     meses_rango = list(range((trimestre - 1) * 3 + 1, trimestre * 3 + 1)) if trimestre else list(range(1, 13))
@@ -608,11 +643,57 @@ def get_reporte_mensual(
     horas_totales = round(sum(float(t.total_horas or 0) for t in tareas), 2)
     solicitudes_por_estado = _agg_count(solicitudes, lambda s: s.estado)
     solicitudes_por_mes = []
+    gente_ordenes_por_mes = []
     for mes in meses_rango:
         total = sum(1 for s in solicitudes if s.mes == mes)
         solicitudes_por_mes.append(
             {"mes": mes, "label": MESES_LABEL[mes], "total": total}
         )
+        corte = _fin_de_mes(anio, mes)
+        personal = _personal_sector_al(sector_personas, corte)
+        personal_operativo = _personal_operativo_al(sector_personas, corte)
+        ordenes_mes = sum(1 for o in ordenes if o.mes == mes)
+        # Ratio: solo operativos (sin gerente ni coordinador)
+        personas_por_orden = (
+            round(personal_operativo / ordenes_mes, 2) if ordenes_mes else None
+        )
+        gente_ordenes_por_mes.append(
+            {
+                "mes": mes,
+                "label": MESES_LABEL[mes],
+                "personal": personal,
+                "ordenes": ordenes_mes,
+                "personas_por_orden": personas_por_orden,
+            }
+        )
+
+    personal_kpi = (
+        gente_ordenes_por_mes[-1]["personal"] if gente_ordenes_por_mes else 0
+    )
+    corte_personal = _fin_de_mes(anio, meses_rango[-1]) if meses_rango else date.today()
+    personal_activos = sorted(
+        [
+            {
+                "legajo": p.legajo,
+                "nombre": p.nombre,
+                "fecha_alta": p.fecha_alta.isoformat() if p.fecha_alta else None,
+                "fecha_baja": p.fecha_baja.isoformat() if p.fecha_baja else None,
+                "localidad_real": p.localidad_real,
+                "funcion_general": p.funcion_general,
+                "funcion": p.funcion,
+                "grupo": p.grupo,
+                "turno": p.turno,
+            }
+            for p in sector_personas
+            if _persona_activa_al(p, corte_personal)
+        ],
+        key=lambda x: (x.get("nombre") or "").lower(),
+    )
+    activos_objs = [p for p in sector_personas if _persona_activa_al(p, corte_personal)]
+    personal_por_funcion = _agg_count(
+        activos_objs, lambda p: p.funcion or p.funcion_general
+    )
+    personal_por_localidad = _agg_count(activos_objs, lambda p: p.localidad_real)
 
     return {
         "anio": anio,
@@ -622,16 +703,24 @@ def get_reporte_mensual(
         "kpis": {
             "ordenes": len(ordenes),
             "horas": horas_totales,
+            "personal": personal_kpi,
             "unidades_con_orden": len({(o.unidad or "").strip() for o in ordenes if (o.unidad or "").strip()}),
             "tareas": len(tareas),
             "solicitudes": len(solicitudes),
         },
         "horas_por_clase": _agg_sum(tareas, lambda t: t.clase, lambda t: t.total_horas),
         "horas_por_lugar": _agg_sum(tareas, lambda t: t.lugar, lambda t: t.total_horas),
+        "tareas_por_clase": _agg_count(tareas, lambda t: t.clase),
+        "tareas_por_tipo": _agg_count(tareas, lambda t: t.tipo),
         "ordenes_por_mes": ordenes_por_mes,
+        "ordenes_por_estado": _agg_count(ordenes, lambda o: o.estado),
+        "gente_ordenes_por_mes": gente_ordenes_por_mes,
+        "personal_activos": personal_activos,
+        "personal_por_funcion": personal_por_funcion,
+        "personal_por_localidad": personal_por_localidad,
         "estados": estados,
-        "equipos_demanda": _agg_count(ordenes, lambda o: o.unidad)[:15],
-        "horas_por_unidad": _agg_sum(tareas, lambda t: t.unidad, lambda t: t.total_horas)[:15],
+        "equipos_demanda": _agg_count(ordenes, lambda o: o.unidad)[:20],
+        "horas_por_unidad": _agg_sum(tareas, lambda t: t.unidad, lambda t: t.total_horas)[:20],
         "solicitudes_por_estado": solicitudes_por_estado,
         "solicitudes_por_mes": solicitudes_por_mes,
     }

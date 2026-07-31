@@ -341,29 +341,43 @@
     </div>
 
     <div class="kpis">
-      <div class="card kpi">
+      <button type="button" class="card kpi clickable" data-rm-kpi="ordenes" aria-label="Ver dashboard de órdenes">
         <div class="kpi-label">Órdenes</div>
         <div class="kpi-value" id="rm-kpi-ordenes">0</div>
-      </div>
-      <div class="card kpi info">
+        <span class="kpi-hint">Ver detalle</span>
+      </button>
+      <button type="button" class="card kpi info clickable" data-rm-kpi="horas" aria-label="Ver dashboard de horas hombre">
         <div class="kpi-label">Horas hombre</div>
         <div class="kpi-value" id="rm-kpi-horas">0</div>
-      </div>
-      <div class="card kpi">
+        <span class="kpi-hint">Ver detalle</span>
+      </button>
+      <button type="button" class="card kpi clickable" data-rm-kpi="personal" aria-label="Ver dashboard de personal del sector">
+        <div class="kpi-label">Personal del sector</div>
+        <div class="kpi-value" id="rm-kpi-personal">0</div>
+        <span class="kpi-hint">Ver detalle</span>
+      </button>
+      <button type="button" class="card kpi clickable" data-rm-kpi="equipos" aria-label="Ver dashboard de equipos">
         <div class="kpi-label">Equipos con órdenes</div>
         <div class="kpi-value" id="rm-kpi-unidades">0</div>
-      </div>
-      <div class="card kpi">
+        <span class="kpi-hint">Ver detalle</span>
+      </button>
+      <button type="button" class="card kpi clickable" data-rm-kpi="tareas" aria-label="Ver dashboard de tareas">
         <div class="kpi-label">Tareas</div>
         <div class="kpi-value" id="rm-kpi-tareas">0</div>
-      </div>
-      <div class="card kpi">
+        <span class="kpi-hint">Ver detalle</span>
+      </button>
+      <button type="button" class="card kpi clickable" data-rm-kpi="solicitudes" aria-label="Ver dashboard de solicitudes">
         <div class="kpi-label">Solicitudes</div>
         <div class="kpi-value" id="rm-kpi-solicitudes">0</div>
-      </div>
+        <span class="kpi-hint">Ver detalle</span>
+      </button>
     </div>
 
     <div class="rm-grid">
+      <div class="card rm-chart-card rm-chart-wide">
+        <h2 class="rm-chart-title">Órdenes, personal del sector y relación por período</h2>
+        <div class="rm-chart-wrap rm-chart-tall"><canvas id="rm-chart-gente-ordenes"></canvas></div>
+      </div>
       <div class="card rm-chart-card">
         <h2 class="rm-chart-title">Tipo de mantenimiento por horas</h2>
         <div class="rm-chart-wrap"><canvas id="rm-chart-clase"></canvas></div>
@@ -396,6 +410,23 @@
   </div>
 </div>
 
+<div id="rm-kpi-modal" class="mant-modal hidden" role="dialog" aria-modal="true" aria-labelledby="rm-kpi-modal-title">
+  <div class="mant-modal-backdrop" data-close-modal></div>
+  <div class="mant-modal-panel mant-modal-panel--wide">
+    <div class="mant-modal-header">
+      <h2 id="rm-kpi-modal-title">Dashboard KPI</h2>
+      <button type="button" class="btn-outline btn" data-close-modal style="padding:4px 10px;">✕</button>
+    </div>
+    <div class="mant-modal-body">
+      <p class="kpi-detail-meta" id="rm-kpi-modal-meta"></p>
+      <div class="rm-kpi-dash-chart card" style="margin-bottom:14px;padding:12px;">
+        <div class="rm-chart-wrap rm-chart-tall"><canvas id="rm-kpi-modal-chart"></canvas></div>
+      </div>
+      <div id="rm-kpi-modal-body"></div>
+    </div>
+  </div>
+</div>
+
 <div id="view-importar" class="app {% if initial_view != 'importar' %}hidden{% endif %}" style="max-width:720px;">
   <h1>Importar datos</h1>
   <p class="subtitle" style="margin-bottom:20px;">
@@ -417,7 +448,8 @@
       <strong>Informe:</strong> fila de meses (Enero…Diciembre) con subcolumnas R / P / E por unidad.
       R = tipo de mantenimiento (1–4), P = mes programado, E = mes ejecutado.<br>
       <strong>VTV:</strong> columnas Unidad y Vencimiento VTV.<br>
-      <strong>OTs / TAREAS / SOLICITUDES:</strong> Excel fuente del Power BI (Reporte MANT) con fechas, unidad, estado y horas.
+      <strong>OTs / TAREAS / SOLICITUDES / SECTOR:</strong> Excel fuente del Power BI (Reporte MANT) con fechas, unidad, estado y horas.
+      La hoja <strong>SECTOR</strong> carga el personal (Alta/Baja) para el KPI y el gráfico combinado.
       Al subir se reemplazan por completo los años que vienen en el archivo (p. ej. todo 2022).
       No subir un parcial del mismo año: se perdería lo que no esté en el archivo.
       Los años que no aparecen en el Excel no se tocan.<br>
@@ -436,6 +468,8 @@ const state = {
   reporte: null,
   chart: null,
   rmCharts: {},
+  rmKpiChart: null,
+  rmKpiExtraCharts: [],
   file: null,
   calYear: null,
   calMonth: null,
@@ -880,6 +914,18 @@ function openModal(id) {
 }
 function closeModals() {
   document.querySelectorAll('.mant-modal').forEach(el => el.classList.add('hidden'));
+  destroyRmKpiModalCharts();
+}
+
+function destroyRmKpiModalCharts() {
+  if (state.rmKpiChart) {
+    try { state.rmKpiChart.destroy(); } catch (_) {}
+    state.rmKpiChart = null;
+  }
+  (state.rmKpiExtraCharts || []).forEach((c) => {
+    try { c.destroy(); } catch (_) {}
+  });
+  state.rmKpiExtraCharts = [];
 }
 
 function filteredVtv() {
@@ -1327,6 +1373,80 @@ function renderRmCharts(data) {
   const horasUnidad = data.horas_por_unidad || [];
   const porMes = data.ordenes_por_mes || [];
   const estados = data.estados || [];
+  const genteOrdenes = data.gente_ordenes_por_mes || [];
+
+  rmChart('rm-chart-gente-ordenes', {
+    type: 'bar',
+    data: {
+      labels: genteOrdenes.map(m => m.label),
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Órdenes',
+          data: genteOrdenes.map(m => m.ordenes || 0),
+          backgroundColor: 'rgba(47, 111, 143, 0.85)',
+          yAxisID: 'y',
+          order: 2,
+        },
+        {
+          type: 'bar',
+          label: 'Personal del sector',
+          data: genteOrdenes.map(m => m.personal || 0),
+          backgroundColor: 'rgba(13, 148, 136, 0.85)',
+          yAxisID: 'y',
+          order: 2,
+        },
+        {
+          type: 'line',
+          label: 'Operativos / órdenes',
+          data: genteOrdenes.map(m => m.personas_por_orden == null ? null : m.personas_por_orden),
+          borderColor: 'rgba(217, 119, 6, 0.95)',
+          backgroundColor: 'rgba(217, 119, 6, 0.12)',
+          pointBackgroundColor: 'rgba(217, 119, 6, 1)',
+          pointRadius: 4,
+          tension: 0.25,
+          fill: false,
+          spanGaps: false,
+          yAxisID: 'y1',
+          order: 1,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const v = ctx.raw;
+              if (v == null) return `${ctx.dataset.label}: —`;
+              return `${ctx.dataset.label}: ${fmtNum(v)}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: { grid: { display: false } },
+        y: {
+          type: 'linear',
+          position: 'left',
+          beginAtZero: true,
+          ticks: { precision: 0 },
+          title: { display: true, text: 'Cantidad' },
+        },
+        y1: {
+          type: 'linear',
+          position: 'right',
+          beginAtZero: true,
+          grid: { drawOnChartArea: false },
+          title: { display: true, text: 'Personal / órdenes' },
+        },
+      },
+    },
+  });
 
   rmChart('rm-chart-clase', {
     type: 'doughnut',
@@ -1512,6 +1632,8 @@ async function loadReporteMensual(anio, trimestre) {
     }
     document.getElementById('rm-kpi-ordenes').textContent = fmtNum(data.kpis?.ordenes);
     document.getElementById('rm-kpi-horas').textContent = fmtNum(data.kpis?.horas);
+    const kpiPersonal = document.getElementById('rm-kpi-personal');
+    if (kpiPersonal) kpiPersonal.textContent = fmtNum(data.kpis?.personal);
     document.getElementById('rm-kpi-unidades').textContent = fmtNum(data.kpis?.unidades_con_orden);
     document.getElementById('rm-kpi-tareas').textContent = fmtNum(data.kpis?.tareas);
     const kpiSol = document.getElementById('rm-kpi-solicitudes');
@@ -1537,6 +1659,372 @@ function bindReporteMensualUi() {
     const anio = state.reporte?.anio;
     const trim = ev.target.value;
     loadReporteMensual(anio, trim ? Number(trim) : null);
+  });
+  document.getElementById('view-reporte-mensual')?.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-rm-kpi]');
+    if (!btn) return;
+    openRmKpiDashboard(btn.dataset.rmKpi);
+  });
+}
+
+function rmPeriodoTxt(data) {
+  const trim = data.trimestre;
+  return trim ? `T${trim} ${data.anio}` : `Año ${data.anio}`;
+}
+
+function renderRmModalChart(config) {
+  destroyRmKpiModalCharts();
+  const ctx = document.getElementById('rm-kpi-modal-chart');
+  if (!ctx) return;
+  const wrap = ctx.closest('.rm-kpi-dash-chart');
+  if (wrap) wrap.classList.toggle('hidden', !config);
+  if (!config) return;
+  state.rmKpiChart = new Chart(ctx, config);
+}
+
+function rmAggCount(items, keyFn) {
+  const counts = {};
+  (items || []).forEach((item) => {
+    const key = String(keyFn(item) || 'Sin dato').trim() || 'Sin dato';
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  return Object.entries(counts)
+    .map(([label, valor]) => ({ label, valor }))
+    .sort((a, b) => b.valor - a.valor || a.label.localeCompare(b.label, 'es'));
+}
+
+function rmDonutConfig(items, valueSuffix) {
+  const rows = items || [];
+  if (!rows.length) return null;
+  return {
+    type: 'doughnut',
+    data: {
+      labels: rows.map(x => x.label),
+      datasets: [{
+        data: rows.map(x => x.valor),
+        backgroundColor: rows.map((_, i) => RM_COLORS[i % RM_COLORS.length]),
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.label}: ${fmtNum(ctx.raw)}${valueSuffix || ''}`,
+          },
+        },
+      },
+    },
+  };
+}
+
+function renderRmExtraChart(canvasId, config, emptyMsg) {
+  const ctx = document.getElementById(canvasId);
+  if (!ctx) return;
+  const wrap = ctx.closest('.rm-kpi-extra-card');
+  if (!config) {
+    if (wrap) {
+      const slot = wrap.querySelector('.rm-chart-wrap');
+      if (slot) {
+        slot.innerHTML = `<p class="kpi-detail-empty">${esc(emptyMsg || 'Sin datos de la hoja SECTOR.')}</p>`;
+      }
+    }
+    return;
+  }
+  const chart = new Chart(ctx, config);
+  state.rmKpiExtraCharts.push(chart);
+}
+
+function openRmKpiDashboard(key) {
+  const data = state.reporte;
+  if (!data) return;
+  const titleEl = document.getElementById('rm-kpi-modal-title');
+  const metaEl = document.getElementById('rm-kpi-modal-meta');
+  const bodyEl = document.getElementById('rm-kpi-modal-body');
+  const periodo = rmPeriodoTxt(data);
+  const kpis = data.kpis || {};
+  let title = 'Dashboard';
+  let meta = periodo;
+  let html = '';
+  let chartCfg = null;
+
+  if (key === 'ordenes') {
+    title = 'Dashboard · Órdenes';
+    meta = `${fmtNum(kpis.ordenes)} órdenes · ${periodo}`;
+    const porMes = data.ordenes_por_mes || [];
+    const porEstado = data.ordenes_por_estado || [];
+    chartCfg = {
+      type: 'bar',
+      data: {
+        labels: porMes.map(m => m.label),
+        datasets: [{
+          label: 'Órdenes',
+          data: porMes.map(m => m.total || 0),
+          backgroundColor: 'rgba(47, 111, 143, 0.85)',
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: true, ticks: { precision: 0 } },
+        },
+      },
+    };
+    html = `
+      <h3 class="rm-kpi-dash-subtitle">Por estado</h3>
+      ${kpiDetailTable(
+        ['Estado', 'Órdenes'],
+        porEstado.map(x => [esc(x.label), fmtNum(x.valor)])
+      )}
+      <h3 class="rm-kpi-dash-subtitle">Top equipos</h3>
+      ${kpiDetailTable(
+        ['Unidad', 'Órdenes'],
+        (data.equipos_demanda || []).map(x => [esc(x.label), fmtNum(x.valor)])
+      )}
+    `;
+  } else if (key === 'horas') {
+    title = 'Dashboard · Horas hombre';
+    meta = `${fmtNum(kpis.horas)} h · ${periodo}`;
+    const porClase = data.horas_por_clase || [];
+    chartCfg = {
+      type: 'doughnut',
+      data: {
+        labels: porClase.map(x => x.label),
+        datasets: [{
+          data: porClase.map(x => x.valor),
+          backgroundColor: porClase.map((_, i) => RM_COLORS[i % RM_COLORS.length]),
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom' },
+          tooltip: { callbacks: { label: (ctx) => `${ctx.label}: ${fmtNum(ctx.raw)} h` } },
+        },
+      },
+    };
+    html = `
+      <h3 class="rm-kpi-dash-subtitle">Por clase</h3>
+      ${kpiDetailTable(
+        ['Clase', 'Horas'],
+        porClase.map(x => [esc(x.label), fmtNum(x.valor)])
+      )}
+      <h3 class="rm-kpi-dash-subtitle">Por lugar</h3>
+      ${kpiDetailTable(
+        ['Lugar', 'Horas'],
+        (data.horas_por_lugar || []).map(x => [esc(x.label), fmtNum(x.valor)])
+      )}
+      <h3 class="rm-kpi-dash-subtitle">Top unidades</h3>
+      ${kpiDetailTable(
+        ['Unidad', 'Horas'],
+        (data.horas_por_unidad || []).map(x => [esc(x.label), fmtNum(x.valor)])
+      )}
+    `;
+  } else if (key === 'personal') {
+    title = 'Dashboard · Personal del sector';
+    meta = `${fmtNum(kpis.personal)} activos al cierre · ${periodo} · fuente hoja SECTOR`;
+    const serie = data.gente_ordenes_por_mes || [];
+    const activos = data.personal_activos || [];
+    // Datos de la pestaña SECTOR del Excel (función + localidad real)
+    const porFuncion = (data.personal_por_funcion && data.personal_por_funcion.length)
+      ? data.personal_por_funcion
+      : rmAggCount(activos, (p) => p.funcion || p.funcion_general);
+    const porLocalidad = (data.personal_por_localidad && data.personal_por_localidad.length)
+      ? data.personal_por_localidad
+      : rmAggCount(activos, (p) => p.localidad_real);
+    chartCfg = {
+      type: 'line',
+      data: {
+        labels: serie.map(m => m.label),
+        datasets: [{
+          label: 'Personal activo',
+          data: serie.map(m => m.personal || 0),
+          borderColor: 'rgba(13, 148, 136, 0.95)',
+          backgroundColor: 'rgba(13, 148, 136, 0.15)',
+          pointRadius: 4,
+          tension: 0.25,
+          fill: true,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: true, ticks: { precision: 0 } },
+        },
+      },
+    };
+    html = `
+      <div class="rm-kpi-extra-grid">
+        <div class="card rm-kpi-extra-card">
+          <h3 class="rm-kpi-dash-subtitle">Personas por función (SECTOR)</h3>
+          <div class="rm-chart-wrap"><canvas id="rm-kpi-chart-funcion"></canvas></div>
+        </div>
+        <div class="card rm-kpi-extra-card">
+          <h3 class="rm-kpi-dash-subtitle">Personas por localidad real (SECTOR)</h3>
+          <div class="rm-chart-wrap"><canvas id="rm-kpi-chart-localidad"></canvas></div>
+        </div>
+      </div>
+      <h3 class="rm-kpi-dash-subtitle">Por función</h3>
+      ${kpiDetailTable(
+        ['Función', 'Personas'],
+        porFuncion.map(x => [esc(x.label), fmtNum(x.valor)])
+      )}
+      <h3 class="rm-kpi-dash-subtitle">Por localidad real</h3>
+      ${kpiDetailTable(
+        ['Localidad', 'Personas'],
+        porLocalidad.map(x => [esc(x.label), fmtNum(x.valor)])
+      )}
+      <h3 class="rm-kpi-dash-subtitle">Nómina activa (SECTOR)</h3>
+      ${kpiDetailTable(
+        ['Legajo', 'Nombre', 'Alta', 'Función', 'Localidad'],
+        activos.map(p => [
+          esc(p.legajo),
+          `<strong>${esc(p.nombre)}</strong>`,
+          esc(p.fecha_alta || '—'),
+          esc(p.funcion || p.funcion_general || '—'),
+          esc(p.localidad_real || '—'),
+        ])
+      )}
+    `;
+  } else if (key === 'equipos') {
+    title = 'Dashboard · Equipos con órdenes';
+    meta = `${fmtNum(kpis.unidades_con_orden)} equipos · ${periodo}`;
+    const demanda = data.equipos_demanda || [];
+    chartCfg = {
+      type: 'bar',
+      data: {
+        labels: demanda.map(x => x.label),
+        datasets: [{
+          label: 'Órdenes',
+          data: demanda.map(x => x.valor),
+          backgroundColor: 'rgba(47, 111, 143, 0.8)',
+        }],
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { beginAtZero: true, ticks: { precision: 0 } },
+          y: { grid: { display: false } },
+        },
+      },
+    };
+    html = `
+      <h3 class="rm-kpi-dash-subtitle">Demanda por unidad</h3>
+      ${kpiDetailTable(
+        ['Unidad', 'Órdenes'],
+        demanda.map(x => [esc(x.label), fmtNum(x.valor)])
+      )}
+    `;
+  } else if (key === 'tareas') {
+    title = 'Dashboard · Tareas';
+    meta = `${fmtNum(kpis.tareas)} tareas · ${periodo}`;
+    const porClase = data.tareas_por_clase || [];
+    chartCfg = {
+      type: 'doughnut',
+      data: {
+        labels: porClase.map(x => x.label),
+        datasets: [{
+          data: porClase.map(x => x.valor),
+          backgroundColor: porClase.map((_, i) => RM_COLORS[i % RM_COLORS.length]),
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom' } },
+      },
+    };
+    html = `
+      <h3 class="rm-kpi-dash-subtitle">Por clase</h3>
+      ${kpiDetailTable(
+        ['Clase', 'Tareas'],
+        porClase.map(x => [esc(x.label), fmtNum(x.valor)])
+      )}
+      <h3 class="rm-kpi-dash-subtitle">Por tipo</h3>
+      ${kpiDetailTable(
+        ['Tipo', 'Tareas'],
+        (data.tareas_por_tipo || []).map(x => [esc(x.label), fmtNum(x.valor)])
+      )}
+      <h3 class="rm-kpi-dash-subtitle">Horas por unidad</h3>
+      ${kpiDetailTable(
+        ['Unidad', 'Horas'],
+        (data.horas_por_unidad || []).map(x => [esc(x.label), fmtNum(x.valor)])
+      )}
+    `;
+  } else if (key === 'solicitudes') {
+    title = 'Dashboard · Solicitudes';
+    meta = `${fmtNum(kpis.solicitudes)} solicitudes · ${periodo}`;
+    const porMes = data.solicitudes_por_mes || [];
+    const porEstado = data.solicitudes_por_estado || [];
+    chartCfg = {
+      type: 'bar',
+      data: {
+        labels: porMes.map(m => m.label),
+        datasets: [{
+          label: 'Solicitudes',
+          data: porMes.map(m => m.total || 0),
+          backgroundColor: 'rgba(217, 119, 6, 0.8)',
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: true, ticks: { precision: 0 } },
+        },
+      },
+    };
+    html = `
+      <h3 class="rm-kpi-dash-subtitle">Por estado</h3>
+      ${kpiDetailTable(
+        ['Estado', 'Solicitudes'],
+        porEstado.map(x => [esc(x.label), fmtNum(x.valor)])
+      )}
+    `;
+  } else {
+    return;
+  }
+
+  titleEl.textContent = title;
+  metaEl.textContent = meta;
+  bodyEl.innerHTML = html;
+  openModal('rm-kpi-modal');
+  // Chart needs visible canvas
+  requestAnimationFrame(() => {
+    renderRmModalChart(chartCfg);
+    if (key === 'personal') {
+      const activos = data.personal_activos || [];
+      const porFuncion = (data.personal_por_funcion && data.personal_por_funcion.length)
+        ? data.personal_por_funcion
+        : rmAggCount(activos, (p) => p.funcion || p.funcion_general);
+      const porLocalidad = (data.personal_por_localidad && data.personal_por_localidad.length)
+        ? data.personal_por_localidad
+        : rmAggCount(activos, (p) => p.localidad_real);
+      renderRmExtraChart(
+        'rm-kpi-chart-funcion',
+        rmDonutConfig(porFuncion),
+        'Sin funciones en la hoja SECTOR. Reimportá el Excel con pestaña SECTOR.'
+      );
+      renderRmExtraChart(
+        'rm-kpi-chart-localidad',
+        rmDonutConfig(porLocalidad),
+        'Sin localidad real en la hoja SECTOR. Reimportá el Excel con pestaña SECTOR.'
+      );
+    }
   });
 }
 

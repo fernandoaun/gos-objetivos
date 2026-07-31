@@ -20,6 +20,7 @@ _COLUMN_UPGRADES = [
     ("mant_reporte_tareas", "descripcion", "VARCHAR(500)"),
     ("mant_reporte_tareas", "cant_personal", "FLOAT"),
     ("mant_reporte_tareas", "tercerizado", "VARCHAR(64)"),
+    ("mant_sector_personas", "localidad_real", "VARCHAR(128)"),
 ]
 
 _INDEX_UPGRADES = [
@@ -37,6 +38,7 @@ def ensure_mantenimiento_schema() -> None:
         MantReporteOrden,
         MantReporteSolicitud,
         MantReporteTarea,
+        MantSectorPersona,
         MantUnidad,
         MantVtv,
         MantVtvTurno,
