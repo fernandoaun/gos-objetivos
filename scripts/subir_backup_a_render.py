@@ -78,14 +78,17 @@ def main() -> None:
 
     print(f"Origen: {local_db} ({local_db.stat().st_size // 1024} KB)")
     print(f"Destino: {base_url}{API_PATH}")
+    print(
+        "Protección: si Render tiene MÁS filas que local en cualquier módulo "
+        "(VTV, vacaciones, cap, O&M, HWO, etc.), esas tablas se CONSERVAN."
+    )
     print("Tablas con datos en el SQLite local:")
     for table, n in sorted(nonempty.items(), key=lambda x: (-x[1], x[0])):
         print(f"  {table}: {n}")
     if empty_protected:
         print()
         print(
-            "AVISO: tablas protegidas VACÍAS o menores en local."
-            " Si Render tiene MÁS filas, se CONSERVAN (no se borran):"
+            "AVISO: tablas VACÍAS en local. Si Render tiene datos, NO se borran:"
         )
         for table in empty_protected:
             print(f"  - {table}")
