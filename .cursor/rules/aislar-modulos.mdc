@@ -1,0 +1,13 @@
+---
+description: Avisar si un cambio toca un módulo distinto al foco; pedir OK antes de editarlo
+alwaysApply: true
+---
+
+# Aislamiento entre módulos
+
+Al trabajar en GOS Objetivos, **un módulo no se toca de rebote**.
+
+1. Detectá el **módulo foco** del pedido (Capacitación, Dashboard, Análisis/HWO, Mantenimiento/VTV, Objetivos, O&M, Ralentí, Vacaciones).
+2. Antes de editar archivos de **otro** módulo o de capas **compartidas** sensibles (`import_service`, scripts de backup/import a Render, shell/nav global, `gos/env.py` / extensions de app), **avisá y esperá** que el usuario decida: modificar / evitar / dejar para otra tarea.
+3. Seguí el skill del proyecto `.cursor/skills/aislar-modulos/SKILL.md` (mapa de rutas y formato del aviso).
+4. Excepción: si el usuario pidió explícitamente un cambio cross-módulo o “en toda la app”, no hace falta re-preguntar por cada archivo del alcance que él ya autorizó.
