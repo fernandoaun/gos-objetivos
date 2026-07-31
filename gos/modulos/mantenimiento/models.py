@@ -178,3 +178,24 @@ class MantReporteSolicitud(db.Model):
     mes = db.Column(db.Integer, nullable=False)  # 1-12
     trimestre = db.Column(db.Integer, nullable=False)  # 1-4
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class MantSectorPersona(db.Model):
+    """Personal del sector mantenimiento (hoja SECTOR del Excel)."""
+
+    __tablename__ = "mant_sector_personas"
+    __table_args__ = (
+        db.UniqueConstraint("legajo", name="uq_mant_sector_legajo"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    legajo = db.Column(db.String(64), nullable=False)
+    nombre = db.Column(db.String(255), nullable=False)
+    fecha_alta = db.Column(db.Date, nullable=False)
+    fecha_baja = db.Column(db.Date)  # None = sigue activo
+    localidad_real = db.Column(db.String(128))
+    funcion_general = db.Column(db.String(128))
+    funcion = db.Column(db.String(128))
+    grupo = db.Column(db.String(64))
+    turno = db.Column(db.String(64))
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)

@@ -1,4 +1,4 @@
-"""Tests de importación segura (no wipe de tablas protegidas)."""
+"""Tests de importación segura (no wipe entre módulos)."""
 from __future__ import annotations
 
 import sqlite3
@@ -7,7 +7,15 @@ from pathlib import Path
 from sqlalchemy import create_engine, text
 
 
-def _make_sqlite(path: Path, *, perfiles: int = 0, participantes: int = 0) -> None:
+def _make_sqlite(
+    path: Path,
+    *,
+    perfiles: int = 0,
+    participantes: int = 0,
+    mant_unidades: int = 1,
+    vacaciones: int = 0,
+    ralenti_files: int = 0,
+) -> None:
     conn = sqlite3.connect(path)
     conn.executescript(
         """
@@ -54,6 +62,17 @@ def _make_sqlite(path: Path, *, perfiles: int = 0, participantes: int = 0) -> No
             nombre TEXT NOT NULL,
             activo INTEGER DEFAULT 1
         );
+        CREATE TABLE vacaciones (
+            id INTEGER PRIMARY KEY,
+            registro_id INTEGER,
+            anio INTEGER,
+            dias REAL
+        );
+        CREATE TABLE ralenti_files (
+            id INTEGER PRIMARY KEY,
+            nombre TEXT NOT NULL,
+            imported_at TEXT
+        );
         """
     )
     conn.execute(
@@ -74,9 +93,21 @@ def _make_sqlite(path: Path, *, perfiles: int = 0, participantes: int = 0) -> No
             "VALUES (?, 1, ?, ?, 1)",
             (i + 1, f"Persona {i+1}", f"L{i+1}"),
         )
-    conn.execute(
-        "INSERT INTO mant_unidades (id, codigo, nombre, activo) VALUES (1, 'U1', 'Unidad 1', 1)"
-    )
+    for i in range(mant_unidades):
+        conn.execute(
+            "INSERT INTO mant_unidades (id, codigo, nombre, activo) VALUES (?, ?, ?, 1)",
+            (i + 1, f"U{i+1}", f"Unidad {i+1}"),
+        )
+    for i in range(vacaciones):
+        conn.execute(
+            "INSERT INTO vacaciones (id, registro_id, anio, dias) VALUES (?, 1, ?, 10)",
+            (i + 1, 2024 + i),
+        )
+    for i in range(ralenti_files):
+        conn.execute(
+            "INSERT INTO ralenti_files (id, nombre) VALUES (?, ?)",
+            (i + 1, f"file{i+1}.csv"),
+        )
     conn.commit()
     conn.close()
 
@@ -101,13 +132,72 @@ def test_import_preserves_protected_when_source_empty(tmp_path: Path):
     assert result["mant_unidades"] == 1
 
 
-def test_import_tables_incluye_cap_y_perfiles():
+def test_import_preserves_other_modules_when_only_mant_updated(tmp_path: Path):
+    """Subir solo mant (VTV) no debe borrar vacaciones ni ralentí del destino."""
+    from gos.modulos.objetivos.services.import_service import importar_sqlite
+
+    source = tmp_path / "source.db"
+    target = tmp_path / "target.db"
+    _make_sqlite(source, mant_unidades=2, vacaciones=0, ralenti_files=0)
+    _make_sqlite(target, mant_unidades=1, vacaciones=4, ralenti_files=3)
+
+    importar_sqlite(source, f"sqlite:///{target.as_posix()}")
+
+    eng = create_engine(f"sqlite:///{target.as_posix()}")
+    with eng.connect() as conn:
+        assert conn.execute(text("SELECT COUNT(*) FROM mant_unidades")).scalar() == 2
+        assert conn.execute(text("SELECT COUNT(*) FROM vacaciones")).scalar() == 4
+        assert conn.execute(text("SELECT COUNT(*) FROM ralenti_files")).scalar() == 3
+
+
+def test_import_preserves_mant_when_source_has_fewer_rows(tmp_path: Path):
+    from gos.modulos.objetivos.services.import_service import importar_sqlite
+
+    source = tmp_path / "source.db"
+    target = tmp_path / "target.db"
+    _make_sqlite(source, mant_unidades=1)
+    _make_sqlite(target, mant_unidades=5)
+
+    importar_sqlite(source, f"sqlite:///{target.as_posix()}")
+
+    eng = create_engine(f"sqlite:///{target.as_posix()}")
+    with eng.connect() as conn:
+        assert conn.execute(text("SELECT COUNT(*) FROM mant_unidades")).scalar() == 5
+
+
+def test_import_tables_json_preserves_empty_payload(tmp_path: Path):
+    from gos.modulos.objetivos.services.import_service import importar_tablas_json
+
+    target = tmp_path / "target.db"
+    _make_sqlite(target, vacaciones=3)
+
+    result = importar_tablas_json(
+        {"vacaciones": []},
+        f"sqlite:///{target.as_posix()}",
+    )
+
+    eng = create_engine(f"sqlite:///{target.as_posix()}")
+    with eng.connect() as conn:
+        assert conn.execute(text("SELECT COUNT(*) FROM vacaciones")).scalar() == 3
+    assert result["vacaciones"] == 3
+
+
+def test_import_tables_incluye_todos_los_modulos():
     from gos.modulos.objetivos.services.import_service import PROTECTED_TABLES, TABLES
 
-    assert "perfiles" in TABLES
-    assert "cap_participantes" in TABLES
-    assert "om_modules" in TABLES
-    assert "perfiles" in PROTECTED_TABLES
-    assert "cap_participantes" in PROTECTED_TABLES
-    assert "objetivos" in PROTECTED_TABLES
-    assert "foda_items" in PROTECTED_TABLES
+    assert PROTECTED_TABLES == frozenset(TABLES)
+    for table in (
+        "perfiles",
+        "cap_participantes",
+        "om_modules",
+        "objetivos",
+        "foda_items",
+        "mant_vtv",
+        "mant_unidades",
+        "hwo_datasets",
+        "vacaciones",
+        "tot_hs",
+        "ralenti_files",
+        "ralenti_events",
+    ):
+        assert table in PROTECTED_TABLES

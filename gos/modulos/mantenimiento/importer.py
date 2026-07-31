@@ -10,6 +10,7 @@ Hojas esperadas:
 
 Al reimportar se reemplazan por completo los años presentes en cada hoja del archivo.
 Los años que no aparecen en el archivo no se tocan.
+La hoja SECTOR reemplaza el padrón completo de personal (Alta/Baja).
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ from gos.modulos.mantenimiento.models import (
     MantReporteOrden,
     MantReporteSolicitud,
     MantReporteTarea,
+    MantSectorPersona,
     MantUnidad,
     MantVtv,
 )
@@ -532,8 +534,28 @@ def _parse_reporte_tareas(ws, session: Session) -> dict:
             solicitante=_str_opt(_row_get(row, cmap, "solicitante"), 128),
             urgencia=_str_opt(_row_get(row, cmap, "urgencia"), 64),
             descripcion=desc,
-            cant_personal=_cell_num(_row_get(row, cmap, "cant personal", "personal", default=None))
-            if _row_get(row, cmap, "cant personal", "personal") is not None
+            cant_personal=_cell_num(
+                _row_get(
+                    row,
+                    cmap,
+                    "cant personal",
+                    "cantidad personal",
+                    "cant. personal",
+                    "cantpersonal",
+                    "personal",
+                    default=None,
+                )
+            )
+            if _row_get(
+                row,
+                cmap,
+                "cant personal",
+                "cantidad personal",
+                "cant. personal",
+                "cantpersonal",
+                "personal",
+            )
+            is not None
             else None,
             tercerizado=_str_opt(_row_get(row, cmap, "tercerizado"), 64),
             total_horas=horas,
@@ -618,6 +640,57 @@ def _parse_reporte_solicitudes(ws, session: Session) -> dict:
     return {"solicitudes": len(parsed), "anios_solicitudes": sorted(anios)}
 
 
+def _parse_sector_personas(ws, session: Session) -> dict:
+    """Importa personal del sector (Alta / Baja). Sin baja = sigue activo."""
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows:
+        return {"sector_personas": 0}
+    header_idx = _find_header_row(rows, ("legajo", "nombre"), ("alta",))
+    cmap = _col_map(list(rows[header_idx]))
+    if "legajo" not in cmap and "nombre" not in cmap:
+        raise ValueError("Hoja SECTOR: no se encontró Legajo/Nombre.")
+
+    by_legajo: dict[str, MantSectorPersona] = {}
+    for row in rows[header_idx + 1 :]:
+        if not row or all(c is None or str(c).strip() == "" for c in row):
+            continue
+        legajo = _nro_str(_row_get(row, cmap, "legajo"))
+        nombre = str(_row_get(row, cmap, "nombre", "apellido y nombre") or "").strip()
+        alta = _parse_date(_row_get(row, cmap, "alta", "fecha alta", "f alta"))
+        if not alta or not (legajo or nombre):
+            continue
+        if not legajo:
+            legajo = nombre[:64]
+        baja = _parse_date(_row_get(row, cmap, "baja", "fecha baja", "f baja"))
+        by_legajo[legajo[:64]] = MantSectorPersona(
+            legajo=legajo[:64],
+            nombre=(nombre or legajo)[:255],
+            fecha_alta=alta,
+            fecha_baja=baja,
+            localidad_real=_str_opt(
+                _row_get(
+                    row,
+                    cmap,
+                    "localidad real",
+                    "localidad",
+                    "domicilio",
+                ),
+                128,
+            ),
+            funcion_general=_str_opt(
+                _row_get(row, cmap, "funcion general", "función general"), 128
+            ),
+            funcion=_str_opt(_row_get(row, cmap, "funcion", "función"), 128),
+            grupo=_str_opt(_row_get(row, cmap, "grupo"), 64),
+            turno=_str_opt(_row_get(row, cmap, "turno"), 64),
+        )
+
+    parsed = list(by_legajo.values())
+    session.execute(delete(MantSectorPersona))
+    session.add_all(parsed)
+    return {"sector_personas": len(parsed)}
+
+
 def _find_ordenes_sheet(wb):
     """Prioriza OTs / Ordenes; evita coincidir con SOLICITUDES."""
     lower = {name.lower().strip(): name for name in wb.sheetnames}
@@ -655,6 +728,7 @@ def import_vtv_excel(path: str | Path, session: Session) -> dict:
     ordenes_sheet = _find_ordenes_sheet(wb)
     tareas_sheet = _find_sheet(wb, "TAREAS", "Tareas", "Tarea")
     solicitudes_sheet = _find_sheet(wb, "SOLICITUDES", "Solicitudes", "Solicitud")
+    sector_sheet = _find_sheet(wb, "SECTOR", "Sector", "Personal")
 
     result = {
         "anio": None,
@@ -666,6 +740,7 @@ def import_vtv_excel(path: str | Path, session: Session) -> dict:
         "ordenes": 0,
         "tareas": 0,
         "solicitudes": 0,
+        "sector_personas": 0,
         "anios_ordenes": [],
         "anios_tareas": [],
         "anios_solicitudes": [],
@@ -678,10 +753,12 @@ def import_vtv_excel(path: str | Path, session: Session) -> dict:
         and ordenes_sheet is None
         and tareas_sheet is None
         and solicitudes_sheet is None
+        and sector_sheet is None
     ):
         wb.close()
         raise ValueError(
-            "El Excel no tiene hojas 'Informe', 'VTV', 'OTs'/'Ordenes', 'Tareas' ni 'Solicitudes'. "
+            "El Excel no tiene hojas 'Informe', 'VTV', 'OTs'/'Ordenes', 'Tareas', "
+            "'Solicitudes' ni 'SECTOR'. "
             f"Hojas encontradas: {', '.join(sheetnames)}"
         )
 
@@ -701,6 +778,9 @@ def import_vtv_excel(path: str | Path, session: Session) -> dict:
 
     if solicitudes_sheet is not None:
         result.update(_parse_reporte_solicitudes(solicitudes_sheet, session))
+
+    if sector_sheet is not None:
+        result.update(_parse_sector_personas(sector_sheet, session))
 
     session.commit()
     wb.close()
