@@ -328,16 +328,6 @@
         <label>Año</label>
         <div class="year-btns" id="rm-year-btns"></div>
       </div>
-      <div>
-        <label>Trimestre</label>
-        <select id="rm-trimestre">
-          <option value="">Todo el año</option>
-          <option value="1">T1</option>
-          <option value="2">T2</option>
-          <option value="3">T3</option>
-          <option value="4">T4</option>
-        </select>
-      </div>
     </div>
 
     <div class="kpis">
@@ -375,7 +365,7 @@
 
     <div class="rm-grid">
       <div class="card rm-chart-card rm-chart-wide">
-        <h2 class="rm-chart-title">Órdenes, personal del sector y relación por período</h2>
+        <h2 class="rm-chart-title" id="rm-title-gente">Órdenes, personal del sector y relación por período</h2>
         <div class="rm-chart-wrap rm-chart-tall"><canvas id="rm-chart-gente-ordenes"></canvas></div>
       </div>
       <div class="card rm-chart-card">
@@ -386,8 +376,12 @@
         <h2 class="rm-chart-title">Horas por lugar</h2>
         <div class="rm-chart-wrap"><canvas id="rm-chart-lugar"></canvas></div>
       </div>
+      <div class="card rm-chart-card rm-chart-wide rm-tipo-kpis-card">
+        <h2 class="rm-chart-title">Órdenes por tipo</h2>
+        <div class="kpis rm-tipo-kpis" id="rm-kpi-tipos-orden"></div>
+      </div>
       <div class="card rm-chart-card rm-chart-wide">
-        <h2 class="rm-chart-title">Órdenes según estado</h2>
+        <h2 class="rm-chart-title" id="rm-title-estado">Órdenes según estado</h2>
         <div class="rm-chart-wrap rm-chart-tall"><canvas id="rm-chart-estado"></canvas></div>
       </div>
       <div class="card rm-chart-card">
@@ -403,7 +397,7 @@
         <div class="rm-chart-wrap"><canvas id="rm-chart-solicitudes"></canvas></div>
       </div>
       <div class="card rm-chart-card">
-        <h2 class="rm-chart-title">Solicitudes por mes</h2>
+        <h2 class="rm-chart-title" id="rm-title-sol-mes">Solicitudes por mes</h2>
         <div class="rm-chart-wrap rm-chart-tall"><canvas id="rm-chart-solicitudes-mes"></canvas></div>
       </div>
     </div>
@@ -1354,20 +1348,61 @@ function rmChart(canvasId, config) {
   state.rmCharts[canvasId] = new Chart(ctx, config);
 }
 
-function renderRmYears(anios, selected) {
+function renderRmYears(anios, selected, todos) {
   const el = document.getElementById('rm-year-btns');
-  if (!anios.length) {
-    el.innerHTML = `<button type="button" class="year-btn active" data-anio="${selected}">${selected}</button>`;
+  if (!anios.length && !todos) {
+    el.innerHTML = `<button type="button" class="year-btn active" data-anio="${selected || ''}">${selected || '—'}</button>`;
     return;
   }
-  el.innerHTML = anios.map(y =>
-    `<button type="button" class="year-btn ${y === selected ? 'active' : ''}" data-anio="${y}">${y}</button>`
+  const yearBtns = anios.map(y =>
+    `<button type="button" class="year-btn ${!todos && y === selected ? 'active' : ''}" data-anio="${y}">${y}</button>`
   ).join('');
+  const todoBtn = `<button type="button" class="year-btn ${todos ? 'active' : ''}" data-anio="todo">Todo</button>`;
+  el.innerHTML = yearBtns + todoBtn;
+}
+
+function updateRmChartTitles(anual) {
+  const gente = document.getElementById('rm-title-gente');
+  const estado = document.getElementById('rm-title-estado');
+  const sol = document.getElementById('rm-title-sol-mes');
+  if (gente) {
+    gente.textContent = anual
+      ? 'Órdenes, personal del sector y relación año a año'
+      : 'Órdenes, personal del sector y relación por período';
+  }
+  if (estado) {
+    estado.textContent = anual ? 'Órdenes según estado (por año)' : 'Órdenes según estado';
+  }
+  if (sol) {
+    sol.textContent = anual ? 'Solicitudes por año' : 'Solicitudes por mes';
+  }
+}
+
+function renderRmTipoKpis(data) {
+  const el = document.getElementById('rm-kpi-tipos-orden');
+  if (!el) return;
+  const tipos = data.ordenes_por_tipo || [];
+  if (!tipos.length) {
+    el.innerHTML = '<p class="subtitle" style="margin:0;">Sin tipos de orden en el período.</p>';
+    return;
+  }
+  el.innerHTML = tipos.map((t, i) => {
+    const color = RM_COLORS[i % RM_COLORS.length];
+    const pct = t.pct == null ? '—' : `${Math.round(Number(t.pct) * 1000) / 10}%`;
+    return `
+      <div class="card kpi rm-tipo-kpi" style="border-left-color:${color};">
+        <div class="kpi-label">${esc(t.label)}</div>
+        <div class="kpi-value" style="color:${color};">${fmtNum(t.cantidad)}</div>
+        <div class="rm-tipo-kpi-pct">${pct}</div>
+      </div>`;
+  }).join('');
 }
 
 function renderRmCharts(data) {
   destroyRmCharts();
-  const clase = data.horas_por_clase || [];
+  renderRmTipoKpis(data);
+  updateRmChartTitles(!!data.todos);
+  const horasTipo = data.horas_por_tipo || [];
   const lugar = data.horas_por_lugar || [];
   const demanda = data.equipos_demanda || [];
   const horasUnidad = data.horas_por_unidad || [];
@@ -1422,6 +1457,10 @@ function renderRmCharts(data) {
           callbacks: {
             label: (ctx) => {
               const v = ctx.raw;
+              if (ctx.dataset.label === 'Operativos / órdenes') {
+                if (v == null) return 'Operativos / órdenes: —';
+                return `Operativos / órdenes: ${Number(v).toFixed(2)}`;
+              }
               if (v == null) return `${ctx.dataset.label}: —`;
               return `${ctx.dataset.label}: ${fmtNum(v)}`;
             },
@@ -1451,10 +1490,10 @@ function renderRmCharts(data) {
   rmChart('rm-chart-clase', {
     type: 'doughnut',
     data: {
-      labels: clase.map(x => x.label),
+      labels: horasTipo.map(x => x.label),
       datasets: [{
-        data: clase.map(x => x.valor),
-        backgroundColor: clase.map((_, i) => RM_COLORS[i % RM_COLORS.length]),
+        data: horasTipo.map(x => x.valor),
+        backgroundColor: horasTipo.map((_, i) => RM_COLORS[i % RM_COLORS.length]),
       }],
     },
     options: {
@@ -1606,7 +1645,7 @@ function renderRmCharts(data) {
   });
 }
 
-async function loadReporteMensual(anio, trimestre) {
+async function loadReporteMensual(anio) {
   const loading = document.getElementById('rm-loading');
   const empty = document.getElementById('rm-empty');
   const content = document.getElementById('rm-content');
@@ -1615,15 +1654,14 @@ async function loadReporteMensual(anio, trimestre) {
   content.classList.add('hidden');
   try {
     const params = {};
-    if (anio) params.anio = anio;
-    if (trimestre) params.trimestre = trimestre;
+    if (anio === 'todo' || anio === 'todos') {
+      params.anio = 'todo';
+    } else if (anio) {
+      params.anio = anio;
+    }
     const data = await apiGet('/reporte-mensual', params);
     state.reporte = data;
-    renderRmYears(data.anios || [], data.anio);
-    const sel = document.getElementById('rm-trimestre');
-    if (sel && document.activeElement !== sel) {
-      sel.value = data.trimestre ? String(data.trimestre) : '';
-    }
+    renderRmYears(data.anios || [], data.anio, !!data.todos);
     loading.classList.add('hidden');
     if (!data.tiene_datos) {
       empty.classList.remove('hidden');
@@ -1652,13 +1690,9 @@ function bindReporteMensualUi() {
   document.getElementById('rm-year-btns')?.addEventListener('click', (ev) => {
     const btn = ev.target.closest('[data-anio]');
     if (!btn) return;
-    const trim = document.getElementById('rm-trimestre')?.value || '';
-    loadReporteMensual(Number(btn.dataset.anio), trim ? Number(trim) : null);
-  });
-  document.getElementById('rm-trimestre')?.addEventListener('change', (ev) => {
-    const anio = state.reporte?.anio;
-    const trim = ev.target.value;
-    loadReporteMensual(anio, trim ? Number(trim) : null);
+    const val = btn.dataset.anio;
+    if (val === 'todo') loadReporteMensual('todo');
+    else loadReporteMensual(Number(val));
   });
   document.getElementById('view-reporte-mensual')?.addEventListener('click', (ev) => {
     const btn = ev.target.closest('[data-rm-kpi]');
@@ -1668,8 +1702,8 @@ function bindReporteMensualUi() {
 }
 
 function rmPeriodoTxt(data) {
-  const trim = data.trimestre;
-  return trim ? `T${trim} ${data.anio}` : `Año ${data.anio}`;
+  if (data.todos) return 'Todos los años';
+  return `Año ${data.anio}`;
 }
 
 function renderRmModalChart(config) {

@@ -831,6 +831,27 @@ table.vtv-table th {
   height: 320px;
 }
 
+.rm-tipo-kpis-card {
+  padding-bottom: 8px;
+}
+
+.rm-tipo-kpis {
+  margin-bottom: 0;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.rm-tipo-kpi .kpi-value {
+  font-size: 1.35rem;
+  margin-top: 2px;
+}
+
+.rm-tipo-kpi-pct {
+  margin-top: 2px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
 @media (max-width: 900px) {
   .rm-grid {
     grid-template-columns: 1fr;

@@ -583,12 +583,39 @@ def _agg_sum(items: list, key_fn, value_fn) -> list[dict]:
     ]
 
 
+def _ordenes_por_tipo(tareas: list, total_ordenes: int) -> list[dict]:
+    """Órdenes distintas por tipo + % sobre el total de órdenes del período."""
+    por_tipo: dict[str, set[str]] = {}
+    for t in tareas:
+        tipo = (t.tipo or "Sin dato").strip() or "Sin dato"
+        nro = (t.nro_orden or "").strip()
+        if not nro:
+            continue
+        por_tipo.setdefault(tipo, set()).add(nro)
+    total = total_ordenes or 0
+    filas = []
+    for label, nros in por_tipo.items():
+        cantidad = len(nros)
+        filas.append(
+            {
+                "label": label,
+                "cantidad": cantidad,
+                "pct": round(cantidad / total, 4) if total else 0.0,
+            }
+        )
+    return sorted(filas, key=lambda x: (-x["cantidad"], x["label"]))
+
+
 def get_reporte_mensual(
     session: Session,
     anio: int | None = None,
     trimestre: int | None = None,
+    todos: bool = False,
 ) -> dict:
-    """Dashboard tipo Power BI «Reporte Mensual»: órdenes + horas + solicitudes."""
+    """Dashboard tipo Power BI «Reporte Mensual»: órdenes + horas + solicitudes.
+
+    Con todos=True compara año a año (sin filtro de año). Con un año, serie mes a mes.
+    """
     anios = sorted(
         {
             row[0]
@@ -607,14 +634,21 @@ def get_reporte_mensual(
         },
         reverse=True,
     )
-    if anio is None:
+    if todos:
+        anio = None
+        trimestre = None
+    elif anio is None:
         anio = anios[0] if anios else date.today().year
     if trimestre is not None and trimestre not in (1, 2, 3, 4):
         trimestre = None
 
-    ordenes_q = select(MantReporteOrden).where(MantReporteOrden.anio == anio)
-    tareas_q = select(MantReporteTarea).where(MantReporteTarea.anio == anio)
-    solicitudes_q = select(MantReporteSolicitud).where(MantReporteSolicitud.anio == anio)
+    ordenes_q = select(MantReporteOrden)
+    tareas_q = select(MantReporteTarea)
+    solicitudes_q = select(MantReporteSolicitud)
+    if anio is not None:
+        ordenes_q = ordenes_q.where(MantReporteOrden.anio == anio)
+        tareas_q = tareas_q.where(MantReporteTarea.anio == anio)
+        solicitudes_q = solicitudes_q.where(MantReporteSolicitud.anio == anio)
     if trimestre:
         ordenes_q = ordenes_q.where(MantReporteOrden.trimestre == trimestre)
         tareas_q = tareas_q.where(MantReporteTarea.trimestre == trimestre)
@@ -626,51 +660,107 @@ def get_reporte_mensual(
     sector_personas = list(session.execute(select(MantSectorPersona)).scalars())
 
     estados = sorted({(o.estado or "Sin estado").strip() or "Sin estado" for o in ordenes})
-    meses_rango = list(range((trimestre - 1) * 3 + 1, trimestre * 3 + 1)) if trimestre else list(range(1, 13))
-    ordenes_por_mes = []
-    for mes in meses_rango:
-        fila = {"mes": mes, "label": MESES_LABEL[mes], "total": 0, "por_estado": {}}
-        for estado in estados:
-            fila["por_estado"][estado] = 0
-        for o in ordenes:
-            if o.mes != mes:
-                continue
-            estado = (o.estado or "Sin estado").strip() or "Sin estado"
-            fila["total"] += 1
-            fila["por_estado"][estado] = fila["por_estado"].get(estado, 0) + 1
-        ordenes_por_mes.append(fila)
+    vista = "anual" if todos else "mensual"
+
+    if todos:
+        anios_asc = sorted(anios)
+        ordenes_por_mes = []
+        solicitudes_por_mes = []
+        gente_ordenes_por_mes = []
+        for y in anios_asc:
+            fila = {"mes": None, "anio": y, "label": str(y), "total": 0, "por_estado": {}}
+            for estado in estados:
+                fila["por_estado"][estado] = 0
+            for o in ordenes:
+                if o.anio != y:
+                    continue
+                estado = (o.estado or "Sin estado").strip() or "Sin estado"
+                fila["total"] += 1
+                fila["por_estado"][estado] = fila["por_estado"].get(estado, 0) + 1
+            ordenes_por_mes.append(fila)
+
+            solicitudes_por_mes.append(
+                {
+                    "mes": None,
+                    "anio": y,
+                    "label": str(y),
+                    "total": sum(1 for s in solicitudes if s.anio == y),
+                }
+            )
+            corte = _fin_de_mes(y, 12)
+            personal = _personal_sector_al(sector_personas, corte)
+            personal_operativo = _personal_operativo_al(sector_personas, corte)
+            ordenes_y = sum(1 for o in ordenes if o.anio == y)
+            personas_por_orden = (
+                round(personal_operativo / ordenes_y, 2) if ordenes_y else None
+            )
+            gente_ordenes_por_mes.append(
+                {
+                    "mes": None,
+                    "anio": y,
+                    "label": str(y),
+                    "personal": personal,
+                    "personal_operativo": personal_operativo,
+                    "ordenes": ordenes_y,
+                    "personas_por_orden": personas_por_orden,
+                }
+            )
+        corte_personal = (
+            _fin_de_mes(anios_asc[-1], 12) if anios_asc else date.today()
+        )
+    else:
+        meses_rango = (
+            list(range((trimestre - 1) * 3 + 1, trimestre * 3 + 1))
+            if trimestre
+            else list(range(1, 13))
+        )
+        ordenes_por_mes = []
+        for mes in meses_rango:
+            fila = {"mes": mes, "label": MESES_LABEL[mes], "total": 0, "por_estado": {}}
+            for estado in estados:
+                fila["por_estado"][estado] = 0
+            for o in ordenes:
+                if o.mes != mes:
+                    continue
+                estado = (o.estado or "Sin estado").strip() or "Sin estado"
+                fila["total"] += 1
+                fila["por_estado"][estado] = fila["por_estado"].get(estado, 0) + 1
+            ordenes_por_mes.append(fila)
+
+        solicitudes_por_mes = []
+        gente_ordenes_por_mes = []
+        for mes in meses_rango:
+            total = sum(1 for s in solicitudes if s.mes == mes)
+            solicitudes_por_mes.append(
+                {"mes": mes, "label": MESES_LABEL[mes], "total": total}
+            )
+            corte = _fin_de_mes(anio, mes)
+            personal = _personal_sector_al(sector_personas, corte)
+            personal_operativo = _personal_operativo_al(sector_personas, corte)
+            ordenes_mes = sum(1 for o in ordenes if o.mes == mes)
+            personas_por_orden = (
+                round(personal_operativo / ordenes_mes, 2) if ordenes_mes else None
+            )
+            gente_ordenes_por_mes.append(
+                {
+                    "mes": mes,
+                    "label": MESES_LABEL[mes],
+                    "personal": personal,
+                    "personal_operativo": personal_operativo,
+                    "ordenes": ordenes_mes,
+                    "personas_por_orden": personas_por_orden,
+                }
+            )
+        corte_personal = (
+            _fin_de_mes(anio, meses_rango[-1]) if meses_rango else date.today()
+        )
 
     horas_totales = round(sum(float(t.total_horas or 0) for t in tareas), 2)
     solicitudes_por_estado = _agg_count(solicitudes, lambda s: s.estado)
-    solicitudes_por_mes = []
-    gente_ordenes_por_mes = []
-    for mes in meses_rango:
-        total = sum(1 for s in solicitudes if s.mes == mes)
-        solicitudes_por_mes.append(
-            {"mes": mes, "label": MESES_LABEL[mes], "total": total}
-        )
-        corte = _fin_de_mes(anio, mes)
-        personal = _personal_sector_al(sector_personas, corte)
-        personal_operativo = _personal_operativo_al(sector_personas, corte)
-        ordenes_mes = sum(1 for o in ordenes if o.mes == mes)
-        # Ratio: solo operativos (sin gerente ni coordinador)
-        personas_por_orden = (
-            round(personal_operativo / ordenes_mes, 2) if ordenes_mes else None
-        )
-        gente_ordenes_por_mes.append(
-            {
-                "mes": mes,
-                "label": MESES_LABEL[mes],
-                "personal": personal,
-                "ordenes": ordenes_mes,
-                "personas_por_orden": personas_por_orden,
-            }
-        )
 
     personal_kpi = (
         gente_ordenes_por_mes[-1]["personal"] if gente_ordenes_por_mes else 0
     )
-    corte_personal = _fin_de_mes(anio, meses_rango[-1]) if meses_rango else date.today()
     personal_activos = sorted(
         [
             {
@@ -698,6 +788,8 @@ def get_reporte_mensual(
     return {
         "anio": anio,
         "anios": anios,
+        "todos": todos,
+        "vista": vista,
         "trimestre": trimestre,
         "tiene_datos": bool(anios),
         "kpis": {
@@ -709,9 +801,11 @@ def get_reporte_mensual(
             "solicitudes": len(solicitudes),
         },
         "horas_por_clase": _agg_sum(tareas, lambda t: t.clase, lambda t: t.total_horas),
+        "horas_por_tipo": _agg_sum(tareas, lambda t: t.tipo, lambda t: t.total_horas),
         "horas_por_lugar": _agg_sum(tareas, lambda t: t.lugar, lambda t: t.total_horas),
         "tareas_por_clase": _agg_count(tareas, lambda t: t.clase),
         "tareas_por_tipo": _agg_count(tareas, lambda t: t.tipo),
+        "ordenes_por_tipo": _ordenes_por_tipo(tareas, len(ordenes)),
         "ordenes_por_mes": ordenes_por_mes,
         "ordenes_por_estado": _agg_count(ordenes, lambda o: o.estado),
         "gente_ordenes_por_mes": gente_ordenes_por_mes,
