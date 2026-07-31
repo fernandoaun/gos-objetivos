@@ -1,10 +1,12 @@
 """Importa datos desde SQLite (local o archivo subido) hacia la base activa.
 
-Protecciones anti-wipe:
-- Antes de TRUNCATE CASCADE, snapshot de tablas protegidas en el destino.
-- Si el origen trae 0 filas (o no trae la tabla) y el destino tiene datos,
-  se restauran después del import. Así un SQLite local vacío no borra
-  Capacitación / perfiles / O&M / etc. que solo vivían en Render.
+Protecciones anti-wipe (aislamiento entre módulos):
+- TODAS las tablas conocidas están protegidas por defecto.
+- Antes de TRUNCATE, snapshot de tablas donde el destino tiene MÁS filas que el origen.
+- Tras el import se restauran esos snapshots: un SQLite local incompleto
+  (p. ej. solo VTV) no borra Capacitación, vacaciones, ralentí, O&M, etc. en Render.
+- `importar_tablas_json` solo toca las tablas pedidas; si el payload de una
+  tabla viene vacío y el destino tiene filas, también las conserva.
 """
 from __future__ import annotations
 
@@ -80,26 +82,8 @@ TABLES = [
     "ralenti_config",
 ]
 
-# Nunca reemplazar con un origen vacío: si Render tiene filas y el SQLite no, se conservan.
-PROTECTED_TABLES = frozenset(
-    {
-        "perfiles",
-        "usuarios",
-        *[t for t in TABLES if t.startswith("cap_")],
-        *[t for t in TABLES if t.startswith("om_")],
-        "hwo_datasets",
-        "hwo_modalidad",
-        # Objetivos / FODA / catálogos (no pisar con SQLite vacío)
-        "sectores",
-        "areas",
-        "responsables",
-        "objetivos",
-        "kpi_indicadores",
-        "foda_documentos",
-        "foda_items",
-        "dafo_tareas",
-    }
-)
+# Aislamiento entre módulos: nunca reducir una tabla si el origen trae menos filas.
+PROTECTED_TABLES = frozenset(TABLES)
 
 
 def fix_postgres_url(url: str) -> str:
@@ -236,7 +220,8 @@ def _tables_to_preserve(
 def importar_tablas_json(tables_data: dict[str, list], target_url: str) -> dict[str, int]:
     """Reemplaza solo las tablas pedidas (JSON). No toca el resto de la base.
 
-    Remapea empresa_id al primer id de empresas en destino cuando hace falta.
+    Si una tabla pedida llega con 0 filas y el destino tiene datos, se conserva
+    (no se vacía). Remapea empresa_id al primer id de empresas en destino.
     """
     import gos.modulos.objetivos.models  # noqa: F401
     from gos.extensions import db
@@ -267,6 +252,17 @@ def importar_tablas_json(tables_data: dict[str, list], target_url: str) -> dict[
             rows = tables_data.get(table) or []
             if not isinstance(rows, list):
                 raise ValueError(f"{table}: se esperaba una lista de filas")
+
+            present = table in set(inspect(tgt_conn).get_table_names())
+            tgt_n = _count_table(tgt_conn, table) if present else 0
+            # Payload vacío no debe borrar datos de otro contexto / módulo.
+            if not rows and tgt_n > 0:
+                imported[table] = tgt_n
+                print(
+                    f"Preservada {table}: JSON vacío y destino tiene {tgt_n} filas",
+                    file=sys.stderr,
+                )
+                continue
 
             # Solo vaciar esta tabla (sin CASCADE masivo).
             if tgt_conn.dialect.name == "postgresql":
