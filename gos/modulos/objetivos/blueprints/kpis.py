@@ -22,16 +22,48 @@ def _puede_editar_kpi() -> bool:
     return current_user.rol in ("admin", "gerente", "responsable")
 
 
-def _format_valor_mes(valor):
+def _es_porcentaje_ratio(kpi) -> bool:
+    """True si la meta está guardada como proporción 0–1 (p.ej. 0.1 = 10%)."""
+    meta = getattr(kpi, "meta_2026_num", None)
+    return meta is not None and 0 < meta < 1
+
+
+def _format_as_pct(num: float) -> str:
+    pct = num * 100
+    if abs(pct - round(pct)) < 1e-6:
+        return f"{int(round(pct))}%"
+    return f"{pct:.1f}%"
+
+
+def _format_valor_mes(valor, as_pct: bool = False):
     if valor is None or valor == "":
         return ""
     try:
         num = float(valor)
     except (TypeError, ValueError):
         return str(valor)
+    if as_pct:
+        return _format_as_pct(num)
     if num == int(num):
         return str(int(num))
     return f"{num:g}"
+
+
+def _format_meta_display(kpi) -> str:
+    texto = getattr(kpi, "meta_2026", None) or ""
+    if not texto:
+        return "—"
+    if _es_porcentaje_ratio(kpi) and kpi.meta_2026_num is not None:
+        return _format_as_pct(kpi.meta_2026_num)
+    return texto
+
+
+def _format_agregado_display(agregado, kpi) -> str:
+    if agregado is None:
+        return "—"
+    if _es_porcentaje_ratio(kpi):
+        return _format_as_pct(float(agregado))
+    return f"{float(agregado):.2f}"
 
 
 def _valores_mes_form():
@@ -55,6 +87,9 @@ def _render_index(
         siguiente_numero=kpi_service.siguiente_numero_kpi(empresa_id),
         excel_path=kpi_service.excel_path(),
         kpi_valor_mes=_format_valor_mes,
+        kpi_es_porcentaje=_es_porcentaje_ratio,
+        kpi_meta_display=_format_meta_display,
+        kpi_agregado_display=_format_agregado_display,
         kpi_editable=_puede_editar_kpi(),
         edit_id=edit_id,
         ver_id=ver_id,

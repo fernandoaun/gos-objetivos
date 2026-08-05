@@ -97,6 +97,7 @@
         {% set k = fila.kpi %}
         {% set editing = edit_id == k.id %}
         {% set tipo_actual = k.tipo_agregacion if k.tipo_agregacion in ['suma', 'cumplimiento', 'promedio', 'ultimo'] else 'promedio' %}
+        {% set es_pct = kpi_es_porcentaje(k) if kpi_es_porcentaje is defined else false %}
 
         {% if editing %}
         <form method="post" action="{{ url_for('objetivos_kpis.actualizar', id=k.id) }}" class="kpi-row-form">
@@ -142,9 +143,10 @@
           <td class="kpi-col-meta">
             {% if editing %}
             <input type="text" name="meta_2026" class="form-control form-control-sm kpi-input"
-                   value="{{ k.meta_2026 or '' }}" placeholder="Meta">
+                   value="{{ k.meta_2026 or '' }}" placeholder="Meta"
+                   title="{% if es_pct %}Guardado como proporción (0.1 = 10%). Editá el decimal.{% endif %}">
             {% else %}
-            <span class="kpi-cell-text">{{ k.meta_2026 or '—' }}</span>
+            <span class="kpi-cell-text"{% if es_pct %} title="Meta {{ k.meta_2026 }}"{% endif %}>{{ kpi_meta_display(k) if kpi_meta_display is defined else (k.meta_2026 or '—') }}</span>
             {% endif %}
           </td>
           <td class="kpi-col-tipo">
@@ -174,15 +176,16 @@
             {% if editing %}
             <input type="text" name="mes_{{ mes }}" inputmode="decimal"
                    class="form-control form-control-sm kpi-input kpi-input-mes"
-                   value="{{ kpi_valor_mes(k.valores_mes.get(mes|string)) if k.valores_mes and k.valores_mes.get(mes|string) is not none else '' }}">
+                   value="{{ kpi_valor_mes(k.valores_mes.get(mes|string)) if k.valores_mes and k.valores_mes.get(mes|string) is not none else '' }}"
+                   title="{% if es_pct %}Proporción 0–1 (ej. 0.07 = 7%). Editá el decimal.{% endif %}">
             {% else %}
             {% set val = k.valores_mes.get(mes|string) if k.valores_mes else none %}
-            {% if val is not none %}<span class="kpi-cell-num">{{ kpi_valor_mes(val) }}</span>{% else %}<span class="kpi-empty-cell">—</span>{% endif %}
+            {% if val is not none %}<span class="kpi-cell-num"{% if es_pct %} title="{{ val }}"{% endif %}>{{ kpi_valor_mes(val, es_pct) }}</span>{% else %}<span class="kpi-empty-cell">—</span>{% endif %}
             {% endif %}
           </td>
           {% endfor %}
           <td class="kpi-col-calc kpi-readonly">
-            {% if fila.agregado is not none %}{{ '%.2f'|format(fila.agregado) }}{% else %}—{% endif %}
+            {{ kpi_agregado_display(fila.agregado, k) if kpi_agregado_display is defined else (('%.2f'|format(fila.agregado)) if fila.agregado is not none else '—') }}
           </td>
           <td class="kpi-col-calc kpi-readonly">
             {% if fila.avance is not none %}{{ '%.1f'|format(fila.avance * 100) }}%{% else %}—{% endif %}
