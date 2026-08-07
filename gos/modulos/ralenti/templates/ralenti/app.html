@@ -43,7 +43,7 @@
     </div>
     <div class="kpi" id="kpi-bars" style="cursor:pointer;border-top-width:5px" onclick="document.querySelector('[data-page=politica]').click()" title="Ver política completa">
       <div class="kv" id="k11" style="font-size:1.5rem">-%</div>
-      <div class="kl" style="font-size:.8rem;font-weight:700">% Ralent&iacute; Global <span style="font-weight:400;color:#aaa">(meta &#8804;20%)</span></div>
+      <div class="kl" style="font-size:.8rem;font-weight:700">% Ralent&iacute; Global <span style="font-weight:400;color:#aaa">(vs umbral por unidad)</span></div>
     </div>
     <div class="kpi" id="kpi-exc" style="cursor:pointer;border-top-width:5px" onclick="document.querySelector('[data-page=politica]').click()" title="Exceso sobre el objetivo">
       <div class="kv" id="k12" style="font-size:1.5rem">-</div>
@@ -278,16 +278,32 @@ async function loadFromAPI(){
 
 // â”€â”€â”€ Cambiar contrasena â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const CL=['#FFD200','#5CB85C','#3a7bd5','#e67e22','#9b59b6','#1abc9c','#e74c3c','#16a085','#f39c12','#2980b9'];
-var RALENTI_ACEPTABLE={'CL 10':0.2,'CL 203':0.2,'CR 138':0.4,'CR 139':0.4,'CR 204':0.5,'CR 222':0.5,'CR 29':0.5,'GV 19':0.6,'GVH 31':0.6,'GVH 35':0.6,'H 101':0.8,'H 104':0.8,'H 105':0.8,'H 15':0.98,'H 16':0.98,'H 17':0.98,'H 18':0.98,'H 20':0.75,'H 21':0.75,'H 23':0.98,'H 24':0.98,'H 27':0.98,'HG 01':0.5,'OW 22':0.75,'PC 11':0.5,'PC 137':0.4,'PH 136':0.6,'PH 141':0.6,'SW 30':0.85,'TR 09':0.25,'TR 11':0.25,'TR 121':0.25,'TR 122':0.25,'TR 123':0.25,'TR 124':0.25,'TR 125':0.25,'TR 126':0.25,'TR 127':0.25,'TR 128':0.25,'TR 129':0.25,'TR 13':0.25,'TR 130':0.25,'TR 131':0.25,'TR 132':0.25,'TR 133':0.25,'TR 202':0.25,'TR 207':0.25,'TR 227':0.25,'TR 228':0.25,'TR 242':0.25,'TR 243':0.25,'TR 47':0.25,'TR 48':0.25,'TR 52':0.25,'UL 102':0.15,'UL 104':0.15,'UL 107':0.15,'UL 108':0.15,'UL 109':0.15,'UL 112':0.15,'UL 142':0.15,'UL 146':0.15,'UL 149':0.15,'UL 151':0.15,'UL 152':0.15,'UL 153':0.15,'UL 154':0.15,'UL 156':0.15,'UL 157':0.15,'UL 158':0.15,'UL 159':0.15,'UL 160':0.15,'UL 161':0.15,'UL 162':0.15,'UL 168':0.15,'UL 169':0.15,'UL 170':0.15,'UL 171':0.15,'UL 172':0.15,'UL 173':0.15,'UL 178':0.15,'UL 182':0.15,'UL 183':0.15,'UL 184':0.15,'UL 185':0.15,'UL 192':0.15,'UL 195':0.15,'UL 210':0.15,'UL 220':0.15,'UL 221':0.15,'UL 225':0.15,'UL 233':0.15,'UL 234':0.15,'UL 235':0.15,'UL 237':0.15,'UL 238':0.15,'UL 239':0.15,'UL 245':0.15,'UL 246':0.15,'UL 425':0.15,'ULC 147':0.15,'ULC 148':0.15,'UM 211':0.15};
-function getRalentiAceptable(v){return RALENTI_ACEPTABLE[v]||0.2;}
+var RALENTI_ACEPTABLE={'CL 10':0.2,'CL 203':0.2,'CR 138':0.4,'CR 139':0.4,'CR 204':0.5,'CR 222':0.5,'CR 29':0.5,'GV 19':0.6,'GVH 31':0.6,'GVH 35':0.6,'H 101':0.8,'H 104':0.8,'H 105':0.8,'H 15':0.98,'H 16':0.98,'H 17':0.98,'H 18':0.98,'H 20':0.75,'H 21':0.75,'H 23':0.98,'H 24':0.98,'H 27':0.98,'HG 01':0.5,'OW 22':0.75,'PC 11':0.5,'PC 137':0.4,'PH 136':0.6,'PH 141':0.6,'SW 30':0.85,'TR 09':0.25,'TR 11':0.25,'TR 121':0.25,'TR 122':0.25,'TR 123':0.25,'TR 124':0.25,'TR 125':0.25,'TR 126':0.25,'TR 127':0.25,'TR 128':0.25,'TR 129':0.25,'TR 13':0.25,'TR 130':0.25,'TR 131':0.25,'TR 132':0.25,'TR 133':0.25,'TR 202':0.25,'TR 207':0.25,'TR 227':0.25,'TR 228':0.25,'TR 242':0.25,'TR 243':0.25,'TR 248':0.25,'TR 256':0.25,'TR 257':0.25,'TR 258':0.25,'TR 260':0.25,'TR 261':0.25,'TR 262':0.25,'TR 286':0.25,'TR 292':0.25,'TR 294':0.25,'TR 47':0.25,'TR 48':0.25,'TR 52':0.25,'UL 102':0.15,'UL 104':0.15,'UL 107':0.15,'UL 108':0.15,'UL 109':0.15,'UL 112':0.15,'UL 142':0.15,'UL 146':0.15,'UL 149':0.15,'UL 150':0.15,'UL 151':0.15,'UL 152':0.15,'UL 153':0.15,'UL 154':0.15,'UL 155':0.15,'UL 156':0.15,'UL 157':0.15,'UL 158':0.15,'UL 159':0.15,'UL 160':0.15,'UL 161':0.15,'UL 162':0.15,'UL 168':0.15,'UL 169':0.15,'UL 170':0.15,'UL 171':0.15,'UL 172':0.15,'UL 173':0.15,'UL 178':0.15,'UL 182':0.15,'UL 183':0.15,'UL 184':0.15,'UL 185':0.15,'UL 192':0.15,'UL 195':0.15,'UL 210':0.15,'UL 220':0.15,'UL 221':0.15,'UL 225':0.15,'UL 233':0.15,'UL 234':0.15,'UL 235':0.15,'UL 237':0.15,'UL 238':0.15,'UL 239':0.15,'UL 245':0.15,'UL 246':0.15,'UL 249':0.15,'UL 251':0.15,'UL 264':0.15,'UL 268':0.15,'UL 269':0.15,'UL 270':0.15,'UL 271':0.15,'UL 272':0.15,'UL 273':0.15,'UL 278':0.15,'UL 279':0.15,'UL 280':0.15,'UL 281':0.15,'UL 282':0.15,'UL 283':0.15,'UL 284':0.15,'UL 285':0.15,'UL 291':0.15,'UL 293':0.15,'UL 295':0.15,'UL 298':0.15,'UL 299':0.15,'UL 300':0.15,'UL 425':0.15,'ULC 147':0.15,'ULC 148':0.15,'UM 211':0.15};
+var ACEPTABLE_TIPO={'UL':0.15,'ULC':0.15,'UM':0.15,'TR':0.25,'CL':0.2};
+/** Extrae interno "TR 09" desde nombres GPS completos ("TR 09 NWB-497 - VW...") o "TR-286". */
+function normInterno(v){
+  if(!v)return '';
+  var s=String(v).trim();
+  var m=s.match(/^([A-Za-z]+)[\s\-]+(\d+)/);
+  if(m)return m[1].toUpperCase()+' '+m[2];
+  return s;
+}
+function getRalentiAceptable(v){
+  var k=normInterno(v);
+  if(Object.prototype.hasOwnProperty.call(RALENTI_ACEPTABLE,k))return RALENTI_ACEPTABLE[k];
+  if(Object.prototype.hasOwnProperty.call(RALENTI_ACEPTABLE,v))return RALENTI_ACEPTABLE[v];
+  var tipo=(k.match(/^([A-Za-z]+)/)||[])[1];
+  if(tipo&&Object.prototype.hasOwnProperty.call(ACEPTABLE_TIPO,tipo))return ACEPTABLE_TIPO[tipo];
+  return 0.2;
+}
 function getTU(vehiculo){
   if(!vehiculo)return '';
-  var m=vehiculo.trim().match(/^([A-Za-z]+\s+\d+)/);
-  if(m&&TIPO_UNIDAD[m[1]])return TIPO_UNIDAD[m[1]];
-  var m2=vehiculo.trim().match(/^([A-Za-z]+)/);
+  var k=normInterno(vehiculo);
+  if(TIPO_UNIDAD[k])return TIPO_UNIDAD[k];
+  var m2=k.match(/^([A-Za-z]+)/);
   return m2?m2[1].toUpperCase():'';
 }
-var TIPO_UNIDAD={'CL 10':'CL','CL 203':'CL','CR 138':'CR','CR 139':'CR','CR 204':'CR','CR 222':'CR','CR 29':'CR','GV 19':'HW','GVH 31':'HW','GVH 35':'HW','H 101':'HW','H 104':'HW','H 105':'HW','H 15':'HW','H 16':'HW','H 17':'HW','H 18':'HW','H 20':'HW','H 21':'HW','H 23':'HW','H 24':'HW','H 27':'HW','HG 01':'HIDRO','OW 22':'HW','PC 11':'PORTA','PC 137':'PORTA','PH 136':'PH','PH 141':'PH','SW 30':'SW','TR 09':'TR','TR 11':'TR','TR 121':'TR','TR 122':'TR','TR 123':'TR','TR 124':'TR','TR 125':'TR','TR 126':'TR','TR 127':'TR','TR 128':'TR','TR 129':'TR','TR 13':'TR','TR 130':'TR','TR 131':'TR','TR 132':'TR','TR 133':'TR','TR 202':'TR','TR 207':'TR','TR 227':'TR','TR 228':'TR','TR 242':'TR','TR 243':'TR','TR 47':'TR','TR 48':'TR','TR 52':'TR','UL 102':'UL','UL 104':'UL','UL 107':'UL','UL 108':'UL','UL 109':'UL','UL 112':'UL','UL 142':'UL','UL 146':'UL','UL 149':'UL','UL 151':'UL','UL 152':'UL','UL 153':'UL','UL 154':'UL','UL 156':'UL','UL 157':'UL','UL 158':'UL','UL 159':'UL','UL 160':'UL','UL 161':'UL','UL 162':'UL','UL 168':'UL','UL 169':'UL','UL 170':'UL','UL 171':'UL','UL 172':'UL','UL 173':'UL','UL 178':'UL','UL 182':'UL','UL 183':'UL','UL 184':'UL','UL 185':'UL','UL 192':'UL','UL 195':'UL','UL 210':'UL','UL 220':'UL','UL 221':'UL','UL 225':'UL','UL 233':'UL','UL 234':'UL','UL 235':'UL','UL 237':'UL','UL 238':'UL','UL 239':'UL','UL 245':'UL','UL 246':'UL','UL 425':'UL','ULC 147':'ULC','ULC 148':'ULC','UM 211':'UM'};
+var TIPO_UNIDAD={'CL 10':'CL','CL 203':'CL','CR 138':'CR','CR 139':'CR','CR 204':'CR','CR 222':'CR','CR 29':'CR','GV 19':'HW','GVH 31':'HW','GVH 35':'HW','H 101':'HW','H 104':'HW','H 105':'HW','H 15':'HW','H 16':'HW','H 17':'HW','H 18':'HW','H 20':'HW','H 21':'HW','H 23':'HW','H 24':'HW','H 27':'HW','HG 01':'HIDRO','OW 22':'HW','PC 11':'PORTA','PC 137':'PORTA','PH 136':'PH','PH 141':'PH','SW 30':'SW','TR 09':'TR','TR 11':'TR','TR 121':'TR','TR 122':'TR','TR 123':'TR','TR 124':'TR','TR 125':'TR','TR 126':'TR','TR 127':'TR','TR 128':'TR','TR 129':'TR','TR 13':'TR','TR 130':'TR','TR 131':'TR','TR 132':'TR','TR 133':'TR','TR 202':'TR','TR 207':'TR','TR 227':'TR','TR 228':'TR','TR 242':'TR','TR 243':'TR','TR 248':'TR','TR 256':'TR','TR 257':'TR','TR 258':'TR','TR 260':'TR','TR 261':'TR','TR 262':'TR','TR 286':'TR','TR 292':'TR','TR 294':'TR','TR 47':'TR','TR 48':'TR','TR 52':'TR','UL 102':'UL','UL 104':'UL','UL 107':'UL','UL 108':'UL','UL 109':'UL','UL 112':'UL','UL 142':'UL','UL 146':'UL','UL 149':'UL','UL 150':'UL','UL 151':'UL','UL 152':'UL','UL 153':'UL','UL 154':'UL','UL 155':'UL','UL 156':'UL','UL 157':'UL','UL 158':'UL','UL 159':'UL','UL 160':'UL','UL 161':'UL','UL 162':'UL','UL 168':'UL','UL 169':'UL','UL 170':'UL','UL 171':'UL','UL 172':'UL','UL 173':'UL','UL 178':'UL','UL 182':'UL','UL 183':'UL','UL 184':'UL','UL 185':'UL','UL 192':'UL','UL 195':'UL','UL 210':'UL','UL 220':'UL','UL 221':'UL','UL 225':'UL','UL 233':'UL','UL 234':'UL','UL 235':'UL','UL 237':'UL','UL 238':'UL','UL 239':'UL','UL 245':'UL','UL 246':'UL','UL 249':'UL','UL 251':'UL','UL 264':'UL','UL 268':'UL','UL 269':'UL','UL 270':'UL','UL 271':'UL','UL 272':'UL','UL 273':'UL','UL 278':'UL','UL 279':'UL','UL 280':'UL','UL 281':'UL','UL 282':'UL','UL 283':'UL','UL 284':'UL','UL 285':'UL','UL 291':'UL','UL 293':'UL','UL 295':'UL','UL 298':'UL','UL 299':'UL','UL 300':'UL','UL 425':'UL','ULC 147':'ULC','ULC 148':'ULC','UM 211':'UM'};
 let tPg=1,tSC=1,tSD=-1;const PG=50;
 
 function toast(msg,dur){dur=dur||2800;const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(function(){el.classList.remove('show');},dur);}
@@ -456,7 +472,7 @@ function rD(){
   // Horas permitidas: marcha filtrada × threshold ponderado por vehículo según RALENTI_ACEPTABLE
   var totalDurFilt=data.reduce(function(s,e){return s+e.durMin;},0);
   var wt=0.2;
-  if(totalDurFilt>0){var byVD={};data.forEach(function(e){byVD[e.vehiculo]=(byVD[e.vehiculo]||0)+e.durMin;});wt=0;Object.entries(byVD).forEach(function(kv){wt+=(kv[1]/totalDurFilt)*(RALENTI_ACEPTABLE[kv[0]]||0.2);});}
+  if(totalDurFilt>0){var byVD={};data.forEach(function(e){byVD[e.vehiculo]=(byVD[e.vehiculo]||0)+e.durMin;});wt=0;Object.entries(byVD).forEach(function(kv){wt+=(kv[1]/totalDurFilt)*getRalentiAceptable(kv[0]);});}
   document.getElementById('kperm').textContent=marchaFiltrable?fH(tmm0v*wt):'N/D';
   document.getElementById('ktotal').textContent=marchaFiltrable?fH(tm+tmm0v):'N/D';
   var tkm0=0;DB.files.forEach(function(f){
@@ -614,14 +630,22 @@ function showMd(vName){
 function cMd(){document.getElementById('mdbg').classList.remove('open');}
 function rU(){
   var byV={};
-  DB.events.forEach(function(e){if(!e.vehiculo)return;if(!byV[e.vehiculo])byV[e.vehiculo]={m:0,mm:0};byV[e.vehiculo].m+=e.durMin;byV[e.vehiculo].mm+=(e.marchaMin||0);});
+  DB.events.forEach(function(e){
+    if(!e.vehiculo)return;
+    var k=normInterno(e.vehiculo);
+    if(!byV[k])byV[k]={m:0,mm:0};
+    byV[k].m+=e.durMin;byV[k].mm+=(e.marchaMin||0);
+  });
   var q=(document.getElementById('u-search')||{value:''}).value.toLowerCase();
   var qt=(document.getElementById('u-tipo')||{value:''}).value;
-  var rows=Object.entries(RALENTI_ACEPTABLE)
-    .filter(function(kv){return(!q||kv[0].toLowerCase().includes(q))&&(!qt||TIPO_UNIDAD[kv[0]]===qt);})
-    .sort(function(a,b){return a[0].localeCompare(b[0]);})
-    .map(function(kv){
-      var v=kv[0],thresh=kv[1],tipo=TIPO_UNIDAD[v]||'&mdash;';
+  var keys={};
+  Object.keys(RALENTI_ACEPTABLE).forEach(function(k){keys[k]=1;});
+  Object.keys(byV).forEach(function(k){if(/^[A-Z]+\s+\d+$/.test(k))keys[k]=1;});
+  var rows=Object.keys(keys)
+    .filter(function(v){return(!q||v.toLowerCase().includes(q))&&(!qt||(TIPO_UNIDAD[v]||getTU(v))===qt);})
+    .sort(function(a,b){return a.localeCompare(b);})
+    .map(function(v){
+      var thresh=getRalentiAceptable(v),tipo=TIPO_UNIDAD[v]||getTU(v)||'&mdash;';
       var vd=byV[v];
       var hasData=vd&&vd.mm>0;
       var pctActual=hasData?(vd.m/vd.mm*100).toFixed(1):'&mdash;';
