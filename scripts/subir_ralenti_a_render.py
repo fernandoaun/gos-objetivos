@@ -30,23 +30,9 @@ def _local_rows(db_path: Path, table: str) -> list[dict]:
         conn.close()
 
 
-def main() -> None:
-    secret = env.import_secret()
-    base = env.render_service_url().rstrip("/")
-    local_db = env.local_backup_db_path()
-    if not secret:
-        raise SystemExit("ERROR: definí GOS_IMPORT_SECRET en .env")
-    if not local_db.is_file():
-        raise SystemExit(f"ERROR: no existe {local_db}")
-
-    tables: dict[str, list] = {}
-    for table in TABLES:
-        rows = _local_rows(local_db, table)
-        tables[table] = rows
-        print(f"  {table}: {len(rows)} filas")
-
+def _post(base: str, secret: str, tables: dict[str, list]) -> dict:
     body = json.dumps({"tables": tables}, ensure_ascii=False).encode("utf-8")
-    print(f"Payload: {len(body) // 1024} KB -> {base}{API_PATH}")
+    print(f"  payload {len(body) // 1024} KB, tablas: {', '.join(tables)}")
     req = urllib.request.Request(
         f"{base}{API_PATH}",
         data=body,
@@ -58,17 +44,51 @@ def main() -> None:
     )
     try:
         with urllib.request.urlopen(req, timeout=300) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
+            return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         raise SystemExit(
             f"HTTP {exc.code}: {exc.read().decode('utf-8', errors='replace')[:2000]}"
         ) from exc
     except urllib.error.URLError as exc:
-        raise SystemExit(f"ERROR de conexión: {exc.reason}") from exc
+        raise SystemExit(f"ERROR de conexion: {exc.reason}") from exc
 
-    if not payload.get("ok"):
-        raise SystemExit(f"ERROR: {payload}")
-    print("OK imported:", payload.get("imported"))
+
+def main() -> None:
+    secret = env.import_secret()
+    base = env.render_service_url().rstrip("/")
+    local_db = env.local_backup_db_path()
+    if not secret:
+        raise SystemExit("ERROR: defini GOS_IMPORT_SECRET en .env")
+    if not local_db.is_file():
+        raise SystemExit(f"ERROR: no existe {local_db}")
+
+    tables: dict[str, list] = {}
+    for table in TABLES:
+        rows = _local_rows(local_db, table)
+        tables[table] = rows
+        print(f"  {table}: {len(rows)} filas")
+
+    print(f"Destino: {base}{API_PATH}")
+    # Dos pasos: files+config (CASCADE limpia events) y luego events (payload mas chico).
+    print("Paso 1/2: ralenti_files + ralenti_config")
+    p1 = _post(
+        base,
+        secret,
+        {
+            "ralenti_files": tables["ralenti_files"],
+            "ralenti_config": tables["ralenti_config"],
+        },
+    )
+    if not p1.get("ok"):
+        raise SystemExit(f"ERROR paso 1: {p1}")
+    print("OK paso 1:", p1.get("imported"))
+
+    print("Paso 2/2: ralenti_events")
+    p2 = _post(base, secret, {"ralenti_events": tables["ralenti_events"]})
+    if not p2.get("ok"):
+        raise SystemExit(f"ERROR paso 2: {p2}")
+    print("OK paso 2:", p2.get("imported"))
+    print("Listo.")
 
 
 if __name__ == "__main__":
