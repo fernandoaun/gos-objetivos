@@ -189,6 +189,9 @@ def _clear_tables(connection, tables: list[str]) -> None:
 def _reset_sequences(connection, table: str) -> None:
     if connection.dialect.name != "postgresql":
         return
+    cols = {c["name"] for c in inspect(connection).get_columns(table)}
+    if "id" not in cols:
+        return
     seq = connection.execute(
         text("SELECT pg_get_serial_sequence(:table, 'id')"),
         {"table": f"public.{table}"},
