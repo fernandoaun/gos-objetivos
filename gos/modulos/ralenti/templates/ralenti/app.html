@@ -33,19 +33,19 @@
 </nav>
 <div class="page active" id="page-dashboard">
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px;align-items:stretch">
-    <div class="kpi" id="kpi-pol" style="cursor:pointer;border-top-width:5px" onclick="document.querySelector('[data-page=unidades]').click()" title="Ver límites aceptables por unidad">
+    <div class="kpi" id="kpi-pol" style="cursor:pointer;border-top-width:5px" onclick="openKpiUnidades('ok','Dentro del límite — unidades que cumplen su límite aceptable')" title="Ver solo unidades dentro del límite">
       <div class="kv" id="k9" style="font-size:1.5rem">-</div>
       <div class="kl" style="font-size:.8rem;font-weight:700">Dentro del L&iacute;mite <span style="font-weight:400;color:#aaa">(tabla Unidades)</span></div>
     </div>
-    <div class="kpi" id="kpi-pct" style="cursor:pointer;border-top-width:5px" onclick="document.querySelector('[data-page=unidades]').click()" title="Ver límites aceptables por unidad">
+    <div class="kpi" id="kpi-pct" style="cursor:pointer;border-top-width:5px" onclick="openKpiUnidades('excede','Unidades que exceden — por encima de su límite aceptable')" title="Ver solo unidades que exceden">
       <div class="kv" id="k10" style="font-size:1.5rem">-%</div>
       <div class="kl" style="font-size:.8rem;font-weight:700">Unidades Exceden <span style="font-weight:400;color:#aaa">(su l&iacute;mite aceptable)</span></div>
     </div>
-    <div class="kpi" id="kpi-bars" style="cursor:pointer;border-top-width:5px" onclick="document.querySelector('[data-page=unidades]').click()" title="Ver límites aceptables por unidad">
+    <div class="kpi" id="kpi-bars" style="cursor:pointer;border-top-width:5px" onclick="openKpiUnidades('con_datos','% Ralentí global — unidades con datos (ordenadas por % actual)')" title="Ver unidades que componen el % global">
       <div class="kv" id="k11" style="font-size:1.5rem">-%</div>
       <div class="kl" style="font-size:.8rem;font-weight:700">% Ralent&iacute; Global <span style="font-weight:400;color:#aaa">(vs l&iacute;mite Unidades)</span></div>
     </div>
-    <div class="kpi" id="kpi-exc" style="cursor:pointer;border-top-width:5px" onclick="document.querySelector('[data-page=unidades]').click()" title="Exceso sobre el límite aceptable de cada unidad">
+    <div class="kpi" id="kpi-exc" style="cursor:pointer;border-top-width:5px" onclick="openKpiUnidades('excede','Exceso vs límite — unidades que generan el exceso')" title="Ver unidades que generan el exceso">
       <div class="kv" id="k12" style="font-size:1.5rem">-</div>
       <div class="kl" style="font-size:.8rem;font-weight:700">Exceso vs L&iacute;mite <span style="font-weight:400;color:#aaa">(l&iacute;mite aceptable Unidades)</span></div>
     </div>
@@ -181,6 +181,17 @@
         <option value="SW">SW</option><option value="TR">TR</option><option value="UL">UL</option>
         <option value="ULC">ULC</option><option value="UM">UM</option>
       </select>
+      <select id="u-estado" onchange="uEstado=this.value;uKpiCtx='';rU()" style="border:1px solid #ddd;border-radius:7px;padding:5px 9px;font-size:.81rem;outline:none;background:white">
+        <option value="">Todos los estados</option>
+        <option value="ok">Solo OK</option>
+        <option value="excede">Solo Excede</option>
+        <option value="con_datos">Con datos</option>
+        <option value="sin">Sin datos</option>
+      </select>
+    </div>
+    <div id="u-kpi-banner" hidden style="display:none;align-items:center;gap:10px;background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:.8rem;color:#6d5a00">
+      <span id="u-kpi-banner-txt" style="flex:1"></span>
+      <button type="button" class="btn" style="background:#f0f0f0;color:#333;padding:4px 10px;font-size:.74rem" onclick="clrUKpiFilter()">Ver todas</button>
     </div>
     <p style="font-size:.78rem;color:#888;margin-bottom:13px;border-left:3px solid var(--gos-yellow);padding-left:8px">Estos l&iacute;mites aceptables son la referencia del Dashboard (Cumplen / Exceden / Exceso vs L&iacute;mite) y de Por Unidad. La meta &#8722;80% de Pol&iacute;tica es un objetivo estrat&eacute;gico aparte. Criterios del archivo <em>Seguimiento hs ralenti consumo gas oil</em>.</p>
     <table id="u-table">
@@ -308,7 +319,7 @@ function getTU(vehiculo){
 }
 var TIPO_UNIDAD={'CL 10':'CL','CL 203':'CL','CR 138':'CR','CR 139':'CR','CR 204':'CR','CR 222':'CR','CR 29':'CR','GV 19':'HW','GVH 31':'HW','GVH 35':'HW','H 101':'HW','H 104':'HW','H 105':'HW','H 15':'HW','H 16':'HW','H 17':'HW','H 18':'HW','H 20':'HW','H 21':'HW','H 23':'HW','H 24':'HW','H 27':'HW','HG 01':'HIDRO','OW 22':'HW','PC 11':'PORTA','PC 137':'PORTA','PH 136':'PH','PH 141':'PH','SW 30':'SW','TR 09':'TR','TR 11':'TR','TR 121':'TR','TR 122':'TR','TR 123':'TR','TR 124':'TR','TR 125':'TR','TR 126':'TR','TR 127':'TR','TR 128':'TR','TR 129':'TR','TR 13':'TR','TR 130':'TR','TR 131':'TR','TR 132':'TR','TR 133':'TR','TR 202':'TR','TR 207':'TR','TR 227':'TR','TR 228':'TR','TR 242':'TR','TR 243':'TR','TR 248':'TR','TR 256':'TR','TR 257':'TR','TR 258':'TR','TR 260':'TR','TR 261':'TR','TR 262':'TR','TR 286':'TR','TR 292':'TR','TR 294':'TR','TR 47':'TR','TR 48':'TR','TR 52':'TR','UL 102':'UL','UL 104':'UL','UL 107':'UL','UL 108':'UL','UL 109':'UL','UL 112':'UL','UL 142':'UL','UL 146':'UL','UL 149':'UL','UL 150':'UL','UL 151':'UL','UL 152':'UL','UL 153':'UL','UL 154':'UL','UL 155':'UL','UL 156':'UL','UL 157':'UL','UL 158':'UL','UL 159':'UL','UL 160':'UL','UL 161':'UL','UL 162':'UL','UL 168':'UL','UL 169':'UL','UL 170':'UL','UL 171':'UL','UL 172':'UL','UL 173':'UL','UL 178':'UL','UL 182':'UL','UL 183':'UL','UL 184':'UL','UL 185':'UL','UL 192':'UL','UL 195':'UL','UL 210':'UL','UL 220':'UL','UL 221':'UL','UL 225':'UL','UL 233':'UL','UL 234':'UL','UL 235':'UL','UL 237':'UL','UL 238':'UL','UL 239':'UL','UL 245':'UL','UL 246':'UL','UL 249':'UL','UL 251':'UL','UL 264':'UL','UL 268':'UL','UL 269':'UL','UL 270':'UL','UL 271':'UL','UL 272':'UL','UL 273':'UL','UL 278':'UL','UL 279':'UL','UL 280':'UL','UL 281':'UL','UL 282':'UL','UL 283':'UL','UL 284':'UL','UL 285':'UL','UL 291':'UL','UL 293':'UL','UL 295':'UL','UL 298':'UL','UL 299':'UL','UL 300':'UL','UL 425':'UL','ULC 147':'ULC','ULC 148':'ULC','UM 211':'UM'};
 let tPg=1,tSC=1,tSD=-1;const PG=50;
-let uSC=0,uSD=1;
+let uSC=0,uSD=1,uEstado='',uKpiCtx='';
 
 function toast(msg,dur){dur=dur||2800;const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(function(){el.classList.remove('show');},dur);}
 
@@ -764,7 +775,77 @@ function showMd(vName){
   document.getElementById('mdc').innerHTML='<button class="mc" onclick="cMd()">&#10005;</button><h3 style="margin-bottom:14px;font-size:1rem">'+vName+threshBadge+'</h3><table><thead><tr><th>Chofer</th><th>Ralenti</th><th>Marcha</th><th>%</th><th>Litros</th><th>Eventos</th></tr></thead><tbody>'+rows+'</tbody></table>';
   document.getElementById('mdbg').classList.add('open');
 }
-function cMd(){document.getElementById('mdbg').classList.remove('open');}
+function cMd(){
+  var mo=document.getElementById('mdc');
+  document.getElementById('mdbg').classList.remove('open');
+  if(mo)mo.style.maxWidth='';
+}
+/** Misma base que los KPI del dashboard (filtros actuales + marcha atribuida). */
+function getDashVehStats(){
+  var data=gF();
+  var fv=document.getElementById('fv').value,fm=document.getElementById('fm').value,fz=document.getElementById('fz').value;
+  var hasFilter=!!(fv||fpSelected.size||fm||fz||document.getElementById('ftu').value);
+  var tpSet=new Set(data.map(function(e){return e.persona;}));
+  if(!hasFilter){DB.files.forEach(function(f){(f.persons||[]).forEach(function(p){if(p)tpSet.add(p);});});}
+  var marchaFiltrable=!(fv||fz)||fpSelected.size>0;
+  var tmm0={};
+  DB.files.forEach(function(f){
+    if(fm){var fileHasMonth=DB.events.some(function(e){return e.file===f.name&&e.mes===fm;});if(!fileHasMonth)return;}
+    if(f.marchaTotals)Object.entries(f.marchaTotals).forEach(function(kv){if(!hasFilter||tpSet.has(kv[0]))tmm0[kv[0]]=(tmm0[kv[0]]||0)+kv[1];});
+  });
+  return{data:data,byV:statsPorVehiculo(data,tmm0),marchaFiltrable:marchaFiltrable};
+}
+function openKpiUnidades(mode,title){
+  var snap=getDashVehStats();
+  var mo=document.getElementById('mdc');
+  mo.style.maxWidth='720px';
+  if(!snap.marchaFiltrable){
+    mo.innerHTML='<button class="mc" onclick="cMd()">&#10005;</button><h3 style="margin-bottom:8px;font-size:1rem">'+(title||'KPI')+'</h3><p style="color:#888;font-size:.85rem;margin:12px 0">No aplicable con el filtro actual (unidad/zona sin chofer). El dashboard muestra N/D.</p>';
+    document.getElementById('mdbg').classList.add('open');
+    return;
+  }
+  var items=Object.entries(snap.byV).map(function(kv){
+    var name=kv[0], st=kv[1], thresh=getRalentiAceptable(name);
+    var hasMm=st.mm>0;
+    var pct=hasMm?(st.m/st.mm*100):null;
+    var ok=hasMm&&pct<=thresh*100;
+    return{name:name,m:st.m,mm:st.mm,thresh:thresh,pct:pct,ok:ok,hasMm:hasMm};
+  });
+  var filtered;
+  if(mode==='ok')filtered=items.filter(function(it){return it.ok;});
+  else if(mode==='excede')filtered=items.filter(function(it){return !it.ok;});
+  else if(mode==='con_datos')filtered=items.filter(function(it){return it.hasMm||it.m>0;});
+  else filtered=items.slice();
+  filtered.sort(function(a,b){
+    if(a.pct==null&&b.pct==null)return a.name.localeCompare(b.name);
+    if(a.pct==null)return 1; if(b.pct==null)return -1;
+    return b.pct-a.pct;
+  });
+  var html='<button class="mc" onclick="cMd()">&#10005;</button>';
+  html+='<h3 style="margin-bottom:4px;font-size:1rem">'+(title||'Detalle KPI')+'</h3>';
+  html+='<p style="font-size:.78rem;color:#888;margin-bottom:12px">Seg&uacute;n los filtros del Dashboard &mdash; '+filtered.length+' unidad'+(filtered.length===1?'':'es')+'</p>';
+  if(!filtered.length){
+    html+='<div style="text-align:center;padding:28px 12px;color:#aaa;font-size:.9rem">Sin unidades para este KPI con los filtros actuales.</div>';
+  }else{
+    html+='<table><thead><tr><th>Unidad</th><th style="text-align:center">L&iacute;mite</th><th style="text-align:center">% actual</th><th>Ralent&iacute;</th><th>Actividad</th><th style="text-align:center">Estado</th></tr></thead><tbody>';
+    html+=filtered.map(function(it){
+      var pctTxt=it.pct!=null?it.pct.toFixed(1)+'%':'s/d';
+      var pctColor=it.ok?'#27ae60':(it.hasMm?'#e74c3c':'#aaa');
+      var badge=it.ok?'<span class="tag tagg">&#10003; OK</span>':(it.hasMm?'<span class="tag" style="background:#fde8e8;color:#c0392b">&#9888; Excede</span>':'<span style="color:#bbb;font-size:.74rem">sin marcha</span>');
+      var short=it.name.length>36?it.name.substring(0,35)+'…':it.name;
+      return'<tr><td title="'+it.name.replace(/"/g,'&quot;')+'"><strong>'+short+'</strong></td><td style="text-align:center">'+(it.thresh*100).toFixed(0)+'%</td><td style="text-align:center;color:'+pctColor+';font-weight:700">'+pctTxt+'</td><td>'+fHM(it.m)+'</td><td>'+fHM(it.mm)+'</td><td style="text-align:center">'+badge+'</td></tr>';
+    }).join('');
+    html+='</tbody></table>';
+  }
+  mo.innerHTML=html;
+  document.getElementById('mdbg').classList.add('open');
+}
+function clrUKpiFilter(){
+  uEstado='';uKpiCtx='';
+  var sel=document.getElementById('u-estado');
+  if(sel)sel.value='';
+  rU();
+}
 function uS(col,dir){
   uSC=col;uSD=dir;
   rU();
@@ -787,6 +868,8 @@ function rU(){
   });
   var q=(document.getElementById('u-search')||{value:''}).value.toLowerCase();
   var qt=(document.getElementById('u-tipo')||{value:''}).value;
+  var estEl=document.getElementById('u-estado');
+  if(estEl)uEstado=estEl.value;
   var keys={};
   Object.keys(RALENTI_ACEPTABLE).forEach(function(k){keys[k]=1;});
   Object.keys(byInterno).forEach(function(k){if(/^[A-Z]+\s+\d+$/.test(k))keys[k]=1;});
@@ -800,6 +883,13 @@ function rU(){
       var ok=hasData&&pct<=thresh*100;
       var estado=hasData?(ok?1:2):0; // 0 sin datos, 1 OK, 2 Excede
       return{v:v,tipo:tipo,thresh:thresh,pct:pct,hasData:hasData,ok:ok,estado:estado};
+    })
+    .filter(function(it){
+      if(uEstado==='ok')return it.estado===1;
+      if(uEstado==='excede')return it.estado===2;
+      if(uEstado==='con_datos')return it.hasData;
+      if(uEstado==='sin')return !it.hasData;
+      return true;
     });
   items.sort(function(a,b){
     var va,vb;
@@ -812,10 +902,19 @@ function rU(){
       if(va==null)return 1; if(vb==null)return -1;
       return (va-vb)*uSD||a.v.localeCompare(b.v);
     }
-    // estado
     va=a.estado;vb=b.estado;
     return (va-vb)*uSD||a.v.localeCompare(b.v);
   });
+  var banner=document.getElementById('u-kpi-banner');
+  var bannerTxt=document.getElementById('u-kpi-banner-txt');
+  if(banner&&bannerTxt){
+    if(uKpiCtx||uEstado){
+      banner.hidden=false;banner.style.display='flex';
+      bannerTxt.textContent=(uKpiCtx||'Filtro activo')+' — '+items.length+' unidad'+(items.length===1?'':'es');
+    }else{
+      banner.hidden=true;banner.style.display='none';bannerTxt.textContent='';
+    }
+  }
   document.getElementById('u-thead').innerHTML='<tr>'+
     uTh('Interno',0,'')+
     uTh('Tipo',1,'')+
@@ -829,7 +928,7 @@ function rU(){
     var pctTxt=it.hasData?it.pct.toFixed(1)+'%':'&mdash;';
     return'<tr><td><strong>'+it.v+'</strong></td><td><span style="background:#f0f0f0;border-radius:6px;padding:1px 7px;font-size:.75rem;font-weight:700">'+(it.tipo||'&mdash;')+'</span></td><td style="text-align:center"><strong style="color:#333">'+(it.thresh*100).toFixed(0)+'%</strong></td><td style="text-align:center;color:'+pctColor+';font-weight:700">'+pctTxt+'</td><td style="text-align:center">'+badge+'</td></tr>';
   }).join('');
-  document.getElementById('u-tbody').innerHTML=rows||'<tr><td colspan="5" style="color:#aaa;text-align:center;padding:16px">Sin resultados</td></tr>';
+  document.getElementById('u-tbody').innerHTML=rows||'<tr><td colspan="5" style="color:#aaa;text-align:center;padding:16px">Sin resultados para este KPI / filtro</td></tr>';
 }
 function gTD(){var s=document.getElementById('ts').value.toLowerCase();var p=document.getElementById('ftp').value,m=document.getElementById('ftm').value;return DB.events.filter(function(e){return(!p||e.persona===p)&&(!m||e.mes===m)&&(!s||e.persona.toLowerCase().includes(s)||e.referencia.toLowerCase().includes(s));});}
 function rT(){
