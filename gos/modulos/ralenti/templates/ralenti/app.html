@@ -183,8 +183,10 @@
       </select>
     </div>
     <p style="font-size:.78rem;color:#888;margin-bottom:13px;border-left:3px solid var(--gos-yellow);padding-left:8px">Estos l&iacute;mites aceptables son la referencia del Dashboard (Cumplen / Exceden / Exceso vs L&iacute;mite) y de Por Unidad. La meta &#8722;80% de Pol&iacute;tica es un objetivo estrat&eacute;gico aparte. Criterios del archivo <em>Seguimiento hs ralenti consumo gas oil</em>.</p>
-    <table>
-      <thead><tr><th>Interno</th><th>Tipo</th><th style="text-align:center">L&iacute;mite aceptable</th><th style="text-align:center">% actual</th><th style="text-align:center">Estado</th></tr></thead>
+    <table id="u-table">
+      <thead id="u-thead"><tr>
+        <th>Interno</th><th>Tipo</th><th style="text-align:center">L&iacute;mite aceptable</th><th style="text-align:center">% actual</th><th style="text-align:center">Estado</th>
+      </tr></thead>
       <tbody id="u-tbody"><tr><td colspan="5" style="color:#aaa;text-align:center;padding:20px">Cargando...</td></tr></tbody>
     </table>
   </div>
@@ -306,6 +308,7 @@ function getTU(vehiculo){
 }
 var TIPO_UNIDAD={'CL 10':'CL','CL 203':'CL','CR 138':'CR','CR 139':'CR','CR 204':'CR','CR 222':'CR','CR 29':'CR','GV 19':'HW','GVH 31':'HW','GVH 35':'HW','H 101':'HW','H 104':'HW','H 105':'HW','H 15':'HW','H 16':'HW','H 17':'HW','H 18':'HW','H 20':'HW','H 21':'HW','H 23':'HW','H 24':'HW','H 27':'HW','HG 01':'HIDRO','OW 22':'HW','PC 11':'PORTA','PC 137':'PORTA','PH 136':'PH','PH 141':'PH','SW 30':'SW','TR 09':'TR','TR 11':'TR','TR 121':'TR','TR 122':'TR','TR 123':'TR','TR 124':'TR','TR 125':'TR','TR 126':'TR','TR 127':'TR','TR 128':'TR','TR 129':'TR','TR 13':'TR','TR 130':'TR','TR 131':'TR','TR 132':'TR','TR 133':'TR','TR 202':'TR','TR 207':'TR','TR 227':'TR','TR 228':'TR','TR 242':'TR','TR 243':'TR','TR 248':'TR','TR 256':'TR','TR 257':'TR','TR 258':'TR','TR 260':'TR','TR 261':'TR','TR 262':'TR','TR 286':'TR','TR 292':'TR','TR 294':'TR','TR 47':'TR','TR 48':'TR','TR 52':'TR','UL 102':'UL','UL 104':'UL','UL 107':'UL','UL 108':'UL','UL 109':'UL','UL 112':'UL','UL 142':'UL','UL 146':'UL','UL 149':'UL','UL 150':'UL','UL 151':'UL','UL 152':'UL','UL 153':'UL','UL 154':'UL','UL 155':'UL','UL 156':'UL','UL 157':'UL','UL 158':'UL','UL 159':'UL','UL 160':'UL','UL 161':'UL','UL 162':'UL','UL 168':'UL','UL 169':'UL','UL 170':'UL','UL 171':'UL','UL 172':'UL','UL 173':'UL','UL 178':'UL','UL 182':'UL','UL 183':'UL','UL 184':'UL','UL 185':'UL','UL 192':'UL','UL 195':'UL','UL 210':'UL','UL 220':'UL','UL 221':'UL','UL 225':'UL','UL 233':'UL','UL 234':'UL','UL 235':'UL','UL 237':'UL','UL 238':'UL','UL 239':'UL','UL 245':'UL','UL 246':'UL','UL 249':'UL','UL 251':'UL','UL 264':'UL','UL 268':'UL','UL 269':'UL','UL 270':'UL','UL 271':'UL','UL 272':'UL','UL 273':'UL','UL 278':'UL','UL 279':'UL','UL 280':'UL','UL 281':'UL','UL 282':'UL','UL 283':'UL','UL 284':'UL','UL 285':'UL','UL 291':'UL','UL 293':'UL','UL 295':'UL','UL 298':'UL','UL 299':'UL','UL 300':'UL','UL 425':'UL','ULC 147':'ULC','ULC 148':'ULC','UM 211':'UM'};
 let tPg=1,tSC=1,tSD=-1;const PG=50;
+let uSC=0,uSD=1;
 
 function toast(msg,dur){dur=dur||2800;const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(function(){el.classList.remove('show');},dur);}
 
@@ -659,10 +662,19 @@ function showMd(vName){
   document.getElementById('mdbg').classList.add('open');
 }
 function cMd(){document.getElementById('mdbg').classList.remove('open');}
+function uS(col,dir){
+  uSC=col;uSD=dir;
+  rU();
+}
+function uTh(label,col,align){
+  var ascActive=uSC===col&&uSD===1?'active':'';
+  var descActive=uSC===col&&uSD===-1?'active':'';
+  return'<th style="'+(align||'')+'"><span class="th-sort">'+label+
+    '<span class="sort-btns"><button type="button" class="'+ascActive+'" title="Ascendente" onclick="uS('+col+',1)">▲</button><button type="button" class="'+descActive+'" title="Descendente" onclick="uS('+col+',-1)">▼</button></span></span></th>';
+}
 function rU(){
   var mt=getMarchaTotals();
   var byV=statsPorVehiculo(DB.events, mt);
-  // Agrupar por interno normalizado (mismo criterio que Unidades / límites)
   var byInterno={};
   Object.entries(byV).forEach(function(kv){
     var k=normInterno(kv[0]);
@@ -675,19 +687,45 @@ function rU(){
   var keys={};
   Object.keys(RALENTI_ACEPTABLE).forEach(function(k){keys[k]=1;});
   Object.keys(byInterno).forEach(function(k){if(/^[A-Z]+\s+\d+$/.test(k))keys[k]=1;});
-  var rows=Object.keys(keys)
+  var items=Object.keys(keys)
     .filter(function(v){return(!q||v.toLowerCase().includes(q))&&(!qt||(TIPO_UNIDAD[v]||getTU(v))===qt);})
-    .sort(function(a,b){return a.localeCompare(b);})
     .map(function(v){
-      var thresh=getRalentiAceptable(v),tipo=TIPO_UNIDAD[v]||getTU(v)||'&mdash;';
+      var thresh=getRalentiAceptable(v),tipo=TIPO_UNIDAD[v]||getTU(v)||'';
       var vd=byInterno[v];
-      var hasData=vd&&vd.mm>0;
-      var pctActual=hasData?(vd.m/vd.mm*100).toFixed(1):'&mdash;';
-      var ok=hasData&&(vd.m/vd.mm)<=thresh;
-      var badge=hasData?(ok?'<span class="tag tagg">&#10003; OK</span>':'<span class="tag" style="background:#fde8e8;color:#c0392b">&#9888; Excede</span>'):'<span style="color:#bbb;font-size:.74rem">sin datos</span>';
-      var pctColor=hasData?(ok?'#27ae60':'#e74c3c'):'#aaa';
-      return'<tr><td><strong>'+v+'</strong></td><td><span style="background:#f0f0f0;border-radius:6px;padding:1px 7px;font-size:.75rem;font-weight:700">'+tipo+'</span></td><td style="text-align:center"><strong style="color:#333">'+(thresh*100).toFixed(0)+'%</strong></td><td style="text-align:center;color:'+pctColor+';font-weight:700">'+(hasData?pctActual+'%':'&mdash;')+'</td><td style="text-align:center">'+badge+'</td></tr>';
-    }).join('');
+      var hasData=!!(vd&&vd.mm>0);
+      var pct=hasData?(vd.m/vd.mm*100):null;
+      var ok=hasData&&pct<=thresh*100;
+      var estado=hasData?(ok?1:2):0; // 0 sin datos, 1 OK, 2 Excede
+      return{v:v,tipo:tipo,thresh:thresh,pct:pct,hasData:hasData,ok:ok,estado:estado};
+    });
+  items.sort(function(a,b){
+    var va,vb;
+    if(uSC===0){va=a.v;vb=b.v;return va.localeCompare(vb,undefined,{numeric:true})*uSD;}
+    if(uSC===1){va=a.tipo;vb=b.tipo;return va.localeCompare(vb)*uSD||a.v.localeCompare(b.v);}
+    if(uSC===2){va=a.thresh;vb=b.thresh;return (va-vb)*uSD||a.v.localeCompare(b.v);}
+    if(uSC===3){
+      va=a.pct;vb=b.pct;
+      if(va==null&&vb==null)return a.v.localeCompare(b.v);
+      if(va==null)return 1; if(vb==null)return -1;
+      return (va-vb)*uSD||a.v.localeCompare(b.v);
+    }
+    // estado
+    va=a.estado;vb=b.estado;
+    return (va-vb)*uSD||a.v.localeCompare(b.v);
+  });
+  document.getElementById('u-thead').innerHTML='<tr>'+
+    uTh('Interno',0,'')+
+    uTh('Tipo',1,'')+
+    uTh('L&iacute;mite aceptable',2,'text-align:center')+
+    uTh('% actual',3,'text-align:center')+
+    uTh('Estado',4,'text-align:center')+
+  '</tr>';
+  var rows=items.map(function(it){
+    var badge=it.hasData?(it.ok?'<span class="tag tagg">&#10003; OK</span>':'<span class="tag" style="background:#fde8e8;color:#c0392b">&#9888; Excede</span>'):'<span style="color:#bbb;font-size:.74rem">sin datos</span>';
+    var pctColor=it.hasData?(it.ok?'#27ae60':'#e74c3c'):'#aaa';
+    var pctTxt=it.hasData?it.pct.toFixed(1)+'%':'&mdash;';
+    return'<tr><td><strong>'+it.v+'</strong></td><td><span style="background:#f0f0f0;border-radius:6px;padding:1px 7px;font-size:.75rem;font-weight:700">'+(it.tipo||'&mdash;')+'</span></td><td style="text-align:center"><strong style="color:#333">'+(it.thresh*100).toFixed(0)+'%</strong></td><td style="text-align:center;color:'+pctColor+';font-weight:700">'+pctTxt+'</td><td style="text-align:center">'+badge+'</td></tr>';
+  }).join('');
   document.getElementById('u-tbody').innerHTML=rows||'<tr><td colspan="5" style="color:#aaa;text-align:center;padding:16px">Sin resultados</td></tr>';
 }
 function gTD(){var s=document.getElementById('ts').value.toLowerCase();var p=document.getElementById('ftp').value,m=document.getElementById('ftm').value;return DB.events.filter(function(e){return(!p||e.persona===p)&&(!m||e.mes===m)&&(!s||e.persona.toLowerCase().includes(s)||e.referencia.toLowerCase().includes(s));});}

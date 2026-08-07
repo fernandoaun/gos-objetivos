@@ -48,6 +48,11 @@ canvas{max-width:100%}
 .pv .pa{color:#5CB85C;margin-left:7px}
 table{width:100%;border-collapse:collapse;font-size:.8rem;background:white;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.07)}
 th{background:#f8f8f8;padding:9px 12px;text-align:left;font-weight:700;color:#555;border-bottom:2px solid #eee;cursor:pointer;user-select:none}
+.th-sort{display:inline-flex;align-items:center;gap:6px}
+.th-sort .sort-btns{display:inline-flex;flex-direction:column;line-height:0.85;gap:0}
+.th-sort .sort-btns button{border:0;background:transparent;padding:0 2px;margin:0;font-size:.55rem;line-height:1;color:#bbb;cursor:pointer}
+.th-sort .sort-btns button:hover{color:#555}
+.th-sort .sort-btns button.active{color:var(--gos-yellow,#c9a000);font-weight:900}
 th:hover{background:#eef0f3}td{padding:8px 12px;border-bottom:1px solid #f5f5f5}tr:hover td{background:#fffdf0}
 .tag{display:inline-block;padding:2px 7px;border-radius:9px;font-size:.71rem;font-weight:700;background:#fff3cd;color:#856404}
 .tagg{background:#d4edda;color:#155724}
