@@ -1,2 +1,2 @@
-APP_VERSION = "0.2.20"
-APP_VERSION_LABEL = "v0.2.20 — Bool cast en import-tables"
+APP_VERSION = "0.2.21"
+APP_VERSION_LABEL = "v0.2.21 — import-tables TRUNCATE CASCADE por lote"

@@ -249,28 +249,34 @@ def importar_tablas_json(tables_data: dict[str, list], target_url: str) -> dict[
         if empresa_id is None and "empresas" not in tables_data:
             raise ValueError("No hay empresa en destino y no se envió tabla empresas")
 
+        present_names = set(inspect(tgt_conn).get_table_names())
+        to_replace: list[str] = []
+        preserve_empty: dict[str, int] = {}
         for table in ordered:
             rows = tables_data.get(table) or []
             if not isinstance(rows, list):
                 raise ValueError(f"{table}: se esperaba una lista de filas")
-
-            present = table in set(inspect(tgt_conn).get_table_names())
+            present = table in present_names
             tgt_n = _count_table(tgt_conn, table) if present else 0
             # Payload vacío no debe borrar datos de otro contexto / módulo.
             if not rows and tgt_n > 0:
-                imported[table] = tgt_n
+                preserve_empty[table] = tgt_n
+                continue
+            to_replace.append(table)
+
+        if to_replace:
+            _clear_tables(tgt_conn, to_replace)
+
+        for table in ordered:
+            if table in preserve_empty:
+                imported[table] = preserve_empty[table]
                 print(
-                    f"Preservada {table}: JSON vacío y destino tiene {tgt_n} filas",
+                    f"Preservada {table}: JSON vacío y destino tiene {preserve_empty[table]} filas",
                     file=sys.stderr,
                 )
                 continue
 
-            # Solo vaciar esta tabla (sin CASCADE masivo).
-            if tgt_conn.dialect.name == "postgresql":
-                tgt_conn.execute(text(f'TRUNCATE TABLE "{table}" RESTART IDENTITY'))
-            else:
-                tgt_conn.execute(text(f'DELETE FROM "{table}"'))
-
+            rows = tables_data.get(table) or []
             if not rows:
                 imported[table] = 0
                 continue
