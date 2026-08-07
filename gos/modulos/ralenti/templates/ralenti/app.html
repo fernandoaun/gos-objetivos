@@ -541,45 +541,104 @@ function lineChart(id,labels,datasets,u){
 }
 function getMarchaTotals(){
   var t={};
-  DB.files.forEach(function(f){if(f.marchaTotals)Object.entries(f.marchaTotals).forEach(function(kv){t[kv[0]]=(t[kv[0]]||0)+kv[1];});});
+  DB.files.forEach(function(f){
+    if(!f.marchaTotals)return;
+    Object.entries(f.marchaTotals).forEach(function(kv){
+      if(kv[0]==='__by_vehiculo__'||typeof kv[1]!=='number')return;
+      t[kv[0]]=(t[kv[0]]||0)+kv[1];
+    });
+  });
   return t;
 }
-/** Ralentí (m) y marcha (mm) por vehículo. La marcha de archivo (por chofer) se reparte a cada unidad según los minutos de ralentí del chofer. */
-function statsPorVehiculo(data, marchaByPersona){
-  var byV={}, byPV={};
+/** Actividad (min) por chofer→unidad, si el Excel la traía en filas Estado=Actividad. opts: {mes, personas:Set}. */
+function getMarchaByVehiculo(opts){
+  var t={}, mes=opts&&opts.mes, personas=opts&&opts.personas;
+  DB.files.forEach(function(f){
+    if(mes){var fileHasMonth=DB.events.some(function(e){return e.file===f.name&&e.mes===mes;});if(!fileHasMonth)return;}
+    var byV=(f.marchaTotals&&f.marchaTotals.__by_vehiculo__)||{};
+    Object.entries(byV).forEach(function(kv){
+      var persona=kv[0];
+      if(personas&&!personas.has(persona))return;
+      if(!t[persona])t[persona]={};
+      Object.entries(kv[1]||{}).forEach(function(kv2){
+        if(!kv2[0]||!(kv2[1]>0))return;
+        t[persona][kv2[0]]=(t[persona][kv2[0]]||0)+kv2[1];
+      });
+    });
+  });
+  return t;
+}
+function hasMarchaByVehiculo(){
+  return DB.files.some(function(f){return !!(f.marchaTotals&&f.marchaTotals.__by_vehiculo__);});
+}
+function addMarchaTotalsFromFile(into, f, personaOk){
+  if(!f.marchaTotals)return;
+  Object.entries(f.marchaTotals).forEach(function(kv){
+    if(kv[0]==='__by_vehiculo__'||typeof kv[1]!=='number')return;
+    if(personaOk&&!personaOk(kv[0]))return;
+    into[kv[0]]=(into[kv[0]]||0)+kv[1];
+  });
+}
+/** Pesos para repartir marcha de archivo (por chofer) a unidades: días distintos con eventos; si no hay fecha, 1 por unidad usada. */
+function pesosMarchaPorVehiculo(persona, data){
+  var daysByV={}, used={};
+  (data||[]).forEach(function(e){
+    if(e.persona!==persona||!e.vehiculo)return;
+    used[e.vehiculo]=true;
+    if(!e.fecha)return;
+    if(!daysByV[e.vehiculo])daysByV[e.vehiculo]={};
+    daysByV[e.vehiculo][e.fecha]=true;
+  });
+  var weights={}, tot=0;
+  Object.keys(daysByV).forEach(function(v){
+    var n=Object.keys(daysByV[v]).length;
+    if(n>0){weights[v]=n;tot+=n;}
+  });
+  if(!tot){
+    Object.keys(used).forEach(function(v){weights[v]=1;tot+=1;});
+  }
+  return{weights:weights,tot:tot};
+}
+/** Ralentí (m) y actividad/marcha (mm) por vehículo. Preferencia: minutos reales Estado=Actividad por unidad; si el archivo es viejo, reparto por días. */
+function statsPorVehiculo(data, marchaByPersona, marchaByVehiculo){
+  var byV={}, covered={};
   (data||[]).forEach(function(e){
     if(!e.vehiculo)return;
     if(!byV[e.vehiculo])byV[e.vehiculo]={m:0,mm:0};
     byV[e.vehiculo].m+=e.durMin;
     byV[e.vehiculo].mm+=(e.marchaMin||0);
-    if(!e.persona)return;
-    if(!byPV[e.persona])byPV[e.persona]={};
-    byPV[e.persona][e.vehiculo]=(byPV[e.persona][e.vehiculo]||0)+e.durMin;
+  });
+  Object.entries(marchaByVehiculo||{}).forEach(function(kv){
+    var persona=kv[0], vehs=kv[1]||{}, used=false;
+    Object.entries(vehs).forEach(function(kv2){
+      if(!kv2[0]||!(kv2[1]>0)||!byV[kv2[0]])return;
+      byV[kv2[0]].mm+=kv2[1];
+      used=true;
+    });
+    if(used)covered[persona]=true;
   });
   Object.entries(marchaByPersona||{}).forEach(function(kv){
-    var persona=kv[0], marchaChofer=kv[1], vehs=byPV[persona];
-    if(!vehs)return;
-    var totR=Object.values(vehs).reduce(function(s,v){return s+v;},0);
-    if(!totR)return;
-    Object.entries(vehs).forEach(function(kv2){
+    var persona=kv[0], marchaChofer=kv[1];
+    if(covered[persona])return;
+    var pw=pesosMarchaPorVehiculo(persona, data);
+    if(!pw.tot)return;
+    Object.entries(pw.weights).forEach(function(kv2){
       byV[kv2[0]]=byV[kv2[0]]||{m:0,mm:0};
-      byV[kv2[0]].mm+=marchaChofer*(kv2[1]/totR);
+      byV[kv2[0]].mm+=marchaChofer*(kv2[1]/pw.tot);
     });
   });
   return byV;
 }
 /** Marcha atribuible a un chofer en un vehículo (misma proporción que statsPorVehiculo). */
-function marchaChoferEnVehiculo(persona, vehiculo, data, marchaByPersona){
-  var marcha=(marchaByPersona&&marchaByPersona[persona])||0;
-  var enV=0, tot=0;
-  (data||[]).forEach(function(e){
-    if(e.persona!==persona)return;
-    tot+=e.durMin;
-    if(e.vehiculo===vehiculo)enV+=e.durMin;
-  });
+function marchaChoferEnVehiculo(persona, vehiculo, data, marchaByPersona, marchaByVehiculo){
   var mmEv=0;
   (data||[]).forEach(function(e){if(e.persona===persona&&e.vehiculo===vehiculo)mmEv+=(e.marchaMin||0);});
-  return mmEv+(tot>0?marcha*(enV/tot):0);
+  var byV=marchaByVehiculo&&marchaByVehiculo[persona];
+  if(byV&&Object.keys(byV).length)return mmEv+(byV[vehiculo]||0);
+  var marcha=(marchaByPersona&&marchaByPersona[persona])||0;
+  var pw=pesosMarchaPorVehiculo(persona, data);
+  var w=pw.weights[vehiculo]||0;
+  return mmEv+(pw.tot>0&&w?marcha*(w/pw.tot):0);
 }
 function rD(){
   var data=gF();
@@ -603,13 +662,14 @@ function rD(){
   document.getElementById('k1').textContent=fL(tl);
   document.getElementById('k3').textContent=tp||'-';
   document.getElementById('k8').textContent=Math.round(tco2)+' kg';
-  // N/D solo cuando filtrás por unidad o zona sin persona (no se puede atribuir marcha a vehículo/zona)
-  var marchaFiltrable=!(fv||fz)||fpSelected.size>0;
+  // N/D solo cuando filtrás por unidad/zona sin poder atribuir marcha (sin breakdown por unidad ni chofer)
+  var marchaFiltrable=!(fv||fz)||fpSelected.size>0||(!!fv&&hasMarchaByVehiculo());
   // Marcha y KM: filtrar por mes cruzando eventos con archivos (cada Excel cubre un mes)
   var tmm0={};DB.files.forEach(function(f){
     if(fm){var fileHasMonth=DB.events.some(function(e){return e.file===f.name&&e.mes===fm;});if(!fileHasMonth)return;}
-    if(f.marchaTotals)Object.entries(f.marchaTotals).forEach(function(kv){if(!hasFilter||tpSet.has(kv[0]))tmm0[kv[0]]=(tmm0[kv[0]]||0)+kv[1];});
+    addMarchaTotalsFromFile(tmm0,f,function(p){return !hasFilter||tpSet.has(p);});
   });
+  var mv0=getMarchaByVehiculo({mes:fm||null,personas:hasFilter?tpSet:null});
   var tmm0v=0;Object.values(tmm0).forEach(function(v){tmm0v+=v;});
   document.getElementById('k6').textContent=marchaFiltrable?fH(tmm0v):'N/D';
   // Horas permitidas: marcha filtrada × threshold ponderado por vehículo según RALENTI_ACEPTABLE
@@ -636,8 +696,8 @@ function rD(){
     else{DB.files.forEach(function(f){(f.persons||[]).forEach(function(p){if(p)byP0[p]={m:0,mm:0};});});}
     data.forEach(function(e){byP0[e.persona]=byP0[e.persona]||{m:0,mm:0};byP0[e.persona].m+=e.durMin;byP0[e.persona].mm+=(e.marchaMin||0);});
     Object.entries(tmm0).forEach(function(kv){if(byP0[kv[0]])byP0[kv[0]].mm+=kv[1];});
-    // Compliance por unidad: misma marcha atribuida que Exceso / Por Unidad
-    var byV0=statsPorVehiculo(data, tmm0);
+    // Compliance por unidad: preferencia actividad real por vehículo del Excel
+    var byV0=statsPorVehiculo(data, tmm0, mv0);
     var totalV=Object.keys(byV0).length;
     var cumpleV=Object.entries(byV0).filter(function(kv){var thresh=getRalentiAceptable(kv[0]);return kv[1].mm>0&&(kv[1].m/kv[1].mm)<=thresh;}).length;
     document.getElementById('k9').textContent=cumpleV+' / '+totalV;
@@ -720,14 +780,15 @@ function rP(){
     d.ev++;d.m+=e.durMin;d.l+=e.litros;d.mm+=(e.marchaMin||0);if(e.fecha)d.fechas.add(e.fecha);
   });
   var mt2=getMarchaTotals();
+  var personasMes=mes?new Set(data.map(function(e){return e.persona;})):null;
   // Si hay filtro de mes, limitar marcha de archivo a choferes con eventos en ese mes
   if(mes){
-    var personasMes=new Set(data.map(function(e){return e.persona;}));
     var mtFilt={};
     Object.entries(mt2).forEach(function(kv){if(personasMes.has(kv[0]))mtFilt[kv[0]]=kv[1];});
     mt2=mtFilt;
   }
-  var vehStats=statsPorVehiculo(data, mt2);
+  var mv2=getMarchaByVehiculo(mes?{mes:mes,personas:personasMes}:null);
+  var vehStats=statsPorVehiculo(data, mt2, mv2);
   var sortedV=Object.entries(byV).sort(function(a,b){
     var sa=Object.values(a[1]).reduce(function(s,d){return s+d.m;},0);
     var sb=Object.values(b[1]).reduce(function(s,d){return s+d.m;},0);
@@ -748,7 +809,7 @@ function rP(){
     var head='<div class="ps" style="font-size:.68rem;color:#aaa;border-bottom:1px solid #eee;padding-bottom:5px;margin-bottom:2px"><span>Chofer</span><span style="text-align:right"><span style="color:var(--gos-yellow)">Ralent&iacute;</span> <span style="color:#5CB85C;margin-left:6px">Actividad</span></span></div>';
     var rows=personas.map(function(pe){
       var label=pe[0];var d=pe[1];
-      var mm=marchaChoferEnVehiculo(label, vName, data, mt2);
+      var mm=marchaChoferEnVehiculo(label, vName, data, mt2, mv2);
       var ok=mm>0&&(d.m/mm)<=thresh;
       var nm=label.length>16?label.substring(0,15)+'...':label;
       var pctCh=mm>0?(d.m/mm*100).toFixed(0)+'%':'s/d';
@@ -763,9 +824,10 @@ function showMd(vName){
   var data=dataAll.filter(function(e){return(e.vehiculo||'Sin unidad')===vName;});
   if(!data.length)return;
   var mt3=getMarchaTotals();
+  var mv3=getMarchaByVehiculo(null);
   var vThresh=getRalentiAceptable(vName);
   var byP2={};data.forEach(function(e){byP2[e.persona]=byP2[e.persona]||{m:0,l:0,mm:0,ev:0};byP2[e.persona].m+=e.durMin;byP2[e.persona].l+=e.litros;byP2[e.persona].ev++;});
-  Object.keys(byP2).forEach(function(p){byP2[p].mm=marchaChoferEnVehiculo(p, vName, dataAll, mt3);});
+  Object.keys(byP2).forEach(function(p){byP2[p].mm=marchaChoferEnVehiculo(p, vName, dataAll, mt3, mv3);});
   var rows=Object.entries(byP2).sort(function(a,b){return b[1].m-a[1].m;}).map(function(pe){
     var d=pe[1];var pct=d.mm>0?(d.m/d.mm*100).toFixed(1)+'%':'s/d';
     var ok=d.mm>0&&(d.m/d.mm)<=vThresh;
@@ -787,13 +849,14 @@ function getDashVehStats(){
   var hasFilter=!!(fv||fpSelected.size||fm||fz||document.getElementById('ftu').value);
   var tpSet=new Set(data.map(function(e){return e.persona;}));
   if(!hasFilter){DB.files.forEach(function(f){(f.persons||[]).forEach(function(p){if(p)tpSet.add(p);});});}
-  var marchaFiltrable=!(fv||fz)||fpSelected.size>0;
+  var marchaFiltrable=!(fv||fz)||fpSelected.size>0||(!!fv&&hasMarchaByVehiculo());
   var tmm0={};
   DB.files.forEach(function(f){
     if(fm){var fileHasMonth=DB.events.some(function(e){return e.file===f.name&&e.mes===fm;});if(!fileHasMonth)return;}
-    if(f.marchaTotals)Object.entries(f.marchaTotals).forEach(function(kv){if(!hasFilter||tpSet.has(kv[0]))tmm0[kv[0]]=(tmm0[kv[0]]||0)+kv[1];});
+    addMarchaTotalsFromFile(tmm0,f,function(p){return !hasFilter||tpSet.has(p);});
   });
-  return{data:data,byV:statsPorVehiculo(data,tmm0),marchaFiltrable:marchaFiltrable};
+  var mv0=getMarchaByVehiculo({mes:fm||null,personas:hasFilter?tpSet:null});
+  return{data:data,byV:statsPorVehiculo(data,tmm0,mv0),marchaFiltrable:marchaFiltrable};
 }
 function openKpiUnidades(mode,title){
   var snap=getDashVehStats();
@@ -858,7 +921,7 @@ function uTh(label,col,align){
 }
 function rU(){
   var mt=getMarchaTotals();
-  var byV=statsPorVehiculo(DB.events, mt);
+  var byV=statsPorVehiculo(DB.events, mt, getMarchaByVehiculo(null));
   var byInterno={};
   Object.entries(byV).forEach(function(kv){
     var k=normInterno(kv[0]);
@@ -996,7 +1059,14 @@ function isGOSFormat(wb){
   try{var ws=wb.Sheets[wb.SheetNames[0]];var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',range:'A1:L1'});return rows[0]&&rows[0].some(function(v){return String(v||'').includes('Resumen de actividad');});}catch(e){return false;}
 }
 function parseGOSWorkbook(fname,wb){
-  var allEvents=[];var marchaTotals={};var kmTotals={};var ralentiTotals={};
+  var allEvents=[];var marchaTotals={};var kmTotals={};var ralentiTotals={};var marchaByVehiculo={};
+  function parseDurMin(dv){
+    var dm=0;
+    if(dv instanceof Date)dm=dv.getHours()*60+dv.getMinutes()+dv.getSeconds()/60;
+    else if(typeof dv==='number')dm=dv*24*60;
+    else if(typeof dv==='string'){var dm2=dv.match(/(\d+):(\d+):(\d+)/);if(dm2)dm=parseInt(dm2[1])*60+parseInt(dm2[2])+parseInt(dm2[3])/60;}
+    return dm;
+  }
   wb.SheetNames.forEach(function(sheetName){
     var ws=wb.Sheets[sheetName];var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
     var persona=sheetName.trim();var totalMarchaMin=0,totalActividadMin=0,totalKm=0,totalRalentiMin=0;
@@ -1007,24 +1077,32 @@ function parseGOSWorkbook(fname,wb){
     var hdr=rows[7].map(function(h){return String(h||'').trim().toLowerCase();});
     function ci(keys){for(var k=0;k<keys.length;k++){for(var i=0;i<hdr.length;i++){if(hdr[i].includes(keys[k]))return i;}}return -1;}
     var iDate=ci(['fecha']),iVeh=ci(['veh']),iDur=ci(['dur']),iEst=ci(['estado']),iRef=ci(['ref']),iZona=ci(['zona']);
+    if(!marchaByVehiculo[persona])marchaByVehiculo[persona]={};
     for(var i=8;i<rows.length;i++){
       var row=rows[i];var estado=String(row[iEst]||'');
-      if(estado.toLowerCase().indexOf('alen')<0)continue;
+      var estL=estado.toLowerCase();
+      var isRal=estL.indexOf('alen')>=0;
+      var isAct=estL.indexOf('activ')>=0;
+      if(!isRal&&!isAct)continue;
+      var veh=String(row[iVeh]||'');
+      var dm=parseDurMin(row[iDur]);
+      if(isAct){
+        if(dm>0&&veh)marchaByVehiculo[persona][veh]=(marchaByVehiculo[persona][veh]||0)+dm;
+        continue;
+      }
       var fv=row[iDate];var fecha='',hora=0;
       if(fv instanceof Date){fecha=fv.getFullYear()+'-'+String(fv.getMonth()+1).padStart(2,'0')+'-'+String(fv.getDate()).padStart(2,'0');hora=fv.getHours();}
       else if(typeof fv==='string'){fecha=fv.split(' ')[0]||fv.split('T')[0];var hm=fv.match(/[ T](\d{2}):/);if(hm)hora=parseInt(hm[1]);}
-      var dv=row[iDur];var dm=0;
-      if(dv instanceof Date){dm=dv.getHours()*60+dv.getMinutes()+dv.getSeconds()/60;}
-      else if(typeof dv==='number'){dm=dv*24*60;}
-      else if(typeof dv==='string'){var dm2=dv.match(/(\d+):(\d+):(\d+)/);if(dm2)dm=parseInt(dm2[1])*60+parseInt(dm2[2])+parseInt(dm2[3])/60;}
       if(dm<DB.config.tolerancia)continue;
       dm=dm-DB.config.tolerancia;
       var ref=String(row[iRef]||row[iZona]||'Sin referencia');
-      allEvents.push({persona:persona,vehiculo:String(row[iVeh]||''),fecha:fecha,mes:calcMes(fecha),hora:hora,dur_min:parseFloat(dm.toFixed(2)),marcha_min:0,referencia:ref,litros:parseFloat((dm/60*DB.config.consumoLh).toFixed(2))});
+      allEvents.push({persona:persona,vehiculo:veh,fecha:fecha,mes:calcMes(fecha),hora:hora,dur_min:parseFloat(dm.toFixed(2)),marcha_min:0,referencia:ref,litros:parseFloat((dm/60*DB.config.consumoLh).toFixed(2))});
     }
     var actMin=totalActividadMin>0?totalActividadMin:(totalMarchaMin>0?totalMarchaMin:0);
     if(actMin>0)marchaTotals[persona]=(marchaTotals[persona]||0)+actMin;
   });
+  var hasByV=Object.keys(marchaByVehiculo).some(function(p){return Object.keys(marchaByVehiculo[p]||{}).length>0;});
+  if(hasByV)marchaTotals.__by_vehiculo__=marchaByVehiculo;
   var persons=wb.SheetNames.map(function(s){return s.trim();});
   return{events:allEvents,persons:persons,marcha_totals:marchaTotals,km_totals:kmTotals,ralenti_totals:ralentiTotals};
 }
