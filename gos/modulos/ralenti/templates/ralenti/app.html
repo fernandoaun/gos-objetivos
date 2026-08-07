@@ -33,27 +33,27 @@
 </nav>
 <div class="page active" id="page-dashboard">
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px;align-items:stretch">
-    <div class="kpi" id="kpi-pol" style="cursor:pointer;border-top-width:5px" onclick="document.querySelector('[data-page=politica]').click()" title="Ver política completa">
+    <div class="kpi" id="kpi-pol" style="cursor:pointer;border-top-width:5px" onclick="document.querySelector('[data-page=unidades]').click()" title="Ver límites aceptables por unidad">
       <div class="kv" id="k9" style="font-size:1.5rem">-</div>
-      <div class="kl" style="font-size:.8rem;font-weight:700">Cumplen Pol&iacute;tica <span style="font-weight:400;color:#aaa">(umbral por unidad)</span></div>
+      <div class="kl" style="font-size:.8rem;font-weight:700">Dentro del L&iacute;mite <span style="font-weight:400;color:#aaa">(tabla Unidades)</span></div>
     </div>
-    <div class="kpi" id="kpi-pct" style="cursor:pointer;border-top-width:5px" onclick="document.querySelector('[data-page=politica]').click()" title="Ver política completa">
+    <div class="kpi" id="kpi-pct" style="cursor:pointer;border-top-width:5px" onclick="document.querySelector('[data-page=unidades]').click()" title="Ver límites aceptables por unidad">
       <div class="kv" id="k10" style="font-size:1.5rem">-%</div>
-      <div class="kl" style="font-size:.8rem;font-weight:700">Unidades Exceden <span style="font-weight:400;color:#aaa">(su umbral)</span></div>
+      <div class="kl" style="font-size:.8rem;font-weight:700">Unidades Exceden <span style="font-weight:400;color:#aaa">(su l&iacute;mite aceptable)</span></div>
     </div>
-    <div class="kpi" id="kpi-bars" style="cursor:pointer;border-top-width:5px" onclick="document.querySelector('[data-page=politica]').click()" title="Ver política completa">
+    <div class="kpi" id="kpi-bars" style="cursor:pointer;border-top-width:5px" onclick="document.querySelector('[data-page=unidades]').click()" title="Ver límites aceptables por unidad">
       <div class="kv" id="k11" style="font-size:1.5rem">-%</div>
-      <div class="kl" style="font-size:.8rem;font-weight:700">% Ralent&iacute; Global <span style="font-weight:400;color:#aaa">(vs umbral por unidad)</span></div>
+      <div class="kl" style="font-size:.8rem;font-weight:700">% Ralent&iacute; Global <span style="font-weight:400;color:#aaa">(vs l&iacute;mite Unidades)</span></div>
     </div>
-    <div class="kpi" id="kpi-exc" style="cursor:pointer;border-top-width:5px" onclick="document.querySelector('[data-page=politica]').click()" title="Exceso sobre el objetivo">
+    <div class="kpi" id="kpi-exc" style="cursor:pointer;border-top-width:5px" onclick="document.querySelector('[data-page=unidades]').click()" title="Exceso sobre el límite aceptable de cada unidad">
       <div class="kv" id="k12" style="font-size:1.5rem">-</div>
-      <div class="kl" style="font-size:.8rem;font-weight:700">Exceso vs Objetivo <span style="font-weight:400;color:#aaa">(sobre umbral unidad)</span></div>
+      <div class="kl" style="font-size:.8rem;font-weight:700">Exceso vs L&iacute;mite <span style="font-weight:400;color:#aaa">(l&iacute;mite aceptable Unidades)</span></div>
     </div>
   </div>
   <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr))">
     <div class="kpi"><div class="kv" id="k0">-</div><div class="kl">Total Horas Ralenti</div></div>
     <div class="kpi"><div class="kv" id="k6">-</div><div class="kl">Total Horas Actividad</div></div>
-    <div class="kpi" style="border-top-color:#27ae60"><div class="kv" id="kperm">-</div><div class="kl">Horas Permitidas Ralent&iacute;</div></div>
+    <div class="kpi" style="border-top-color:#27ae60"><div class="kv" id="kperm">-</div><div class="kl">Horas Permitidas <span style="font-weight:400;color:#aaa">(l&iacute;mite Unidades)</span></div></div>
     <div class="kpi" style="border-top-color:#1abc9c"><div class="kv" id="ktotal">-</div><div class="kl">Total Horas</div></div>
     <div class="kpi"><div class="kv" id="k1">-</div><div class="kl">Litros en Ralenti</div></div>
     <div class="kpi"><div class="kv" id="k3">-</div><div class="kl">Choferes</div></div>
@@ -80,12 +80,12 @@
     <div class="card"><h3>Top Unidades con mas Ralenti</h3><canvas id="c2" height="200"></canvas></div>
     <div class="card"><h3>Distribucion por Hora del Dia</h3><canvas id="c3" height="200"></canvas></div>
   </div>
-  <div class="card" style="margin-bottom:15px"><h3>% Ralenti vs Actividad por Chofer &nbsp;<span style="font-size:.7rem;font-weight:400;color:#aaa">(ordenado por mayor % ralent&iacute; &mdash; meta pol&iacute;tica: reducir 80%)</span></h3><canvas id="c4" height="260"></canvas></div>
+  <div class="card" style="margin-bottom:15px"><h3>% Ralenti vs Actividad por Chofer &nbsp;<span style="font-size:.7rem;font-weight:400;color:#aaa">(ordenado por mayor % ralent&iacute; &mdash; l&iacute;mite por unidad en solapa Unidades)</span></h3><canvas id="c4" height="260"></canvas></div>
   <div style="background:linear-gradient(90deg,#1a3a1a,#2d5a2d);border-radius:10px;padding:12px 20px;margin-bottom:15px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
     <span style="font-size:1.3rem">&#127807;</span>
     <span style="color:var(--gos-yellow);font-weight:800;font-size:.85rem">POL&Iacute;TICA GOS &mdash; META 2026:</span>
-    <span style="color:white;font-size:.84rem">Reducir horas ralent&iacute; excedentes en un <strong style="color:var(--gos-yellow)">80%</strong>. Evaluaci&oacute;n mensual por PCL.</span>
-    <button class="btn" style="margin-left:auto;background:var(--gos-yellow);color:#222;font-size:.77rem" onclick="document.querySelector('[data-page=politica]').click()">Ver pol&iacute;tica completa &#8594;</button>
+    <span style="color:white;font-size:.84rem">Reducir horas ralent&iacute; <em>excedentes</em> un <strong style="color:var(--gos-yellow)">80%</strong> (meta estrat&eacute;gica). El control operativo del dashboard usa el <strong style="color:var(--gos-yellow)">l&iacute;mite aceptable</strong> de cada unidad.</span>
+    <button class="btn" style="margin-left:auto;background:var(--gos-yellow);color:#222;font-size:.77rem" onclick="document.querySelector('[data-page=unidades]').click()">Ver l&iacute;mites por unidad &#8594;</button>
   </div>
 </div>
 <div class="page" id="page-personas">
@@ -121,6 +121,7 @@
     <div class="card" style="margin-bottom:13px;border-left:5px solid var(--gos-yellow)">
       <h3>&#127919; Objetivo</h3>
       <p style="font-size:.87rem;line-height:1.7;color:#444">En GOS estamos comprometidos con la reducci&oacute;n del impacto ambiental, la optimizaci&oacute;n del consumo de combustible y el cumplimiento de est&aacute;ndares operativos responsables. Esta pol&iacute;tica establece las directrices para disminuir las horas de ralent&iacute; en nuestra flota vehicular, promoviendo la concientizaci&oacute;n entre los colaboradores y asegurando el cumplimiento a trav&eacute;s de un monitoreo riguroso.</p>
+      <p style="font-size:.82rem;line-height:1.6;color:#666;margin-top:10px;background:#f7f7f7;border-radius:8px;padding:10px 12px"><strong>Nota operativa:</strong> el panel mide OK / Excede y el exceso de horas frente al <strong>l&iacute;mite aceptable por unidad</strong> (solapa Unidades). La meta &#8722;80% es el compromiso estrat&eacute;gico de reducir esas horas excedentes hacia 2026; no reemplaza el l&iacute;mite por unidad.</p>
     </div>
     <div class="card" style="margin-bottom:13px;border-left:5px solid #3a7bd5">
       <h3>&#127758; Alcance</h3>
@@ -181,7 +182,7 @@
         <option value="ULC">ULC</option><option value="UM">UM</option>
       </select>
     </div>
-    <p style="font-size:.78rem;color:#888;margin-bottom:13px;border-left:3px solid var(--gos-yellow);padding-left:8px">Criterios extra&iacute;dos del archivo <em>Seguimiento hs ralenti consumo gas oil</em>. El % actual se calcula con los datos cargados en el sistema.</p>
+    <p style="font-size:.78rem;color:#888;margin-bottom:13px;border-left:3px solid var(--gos-yellow);padding-left:8px">Estos l&iacute;mites aceptables son la referencia del Dashboard (Cumplen / Exceden / Exceso vs L&iacute;mite) y de Por Unidad. La meta &#8722;80% de Pol&iacute;tica es un objetivo estrat&eacute;gico aparte. Criterios del archivo <em>Seguimiento hs ralenti consumo gas oil</em>.</p>
     <table>
       <thead><tr><th>Interno</th><th>Tipo</th><th style="text-align:center">L&iacute;mite aceptable</th><th style="text-align:center">% actual</th><th style="text-align:center">Estado</th></tr></thead>
       <tbody id="u-tbody"><tr><td colspan="5" style="color:#aaa;text-align:center;padding:20px">Cargando...</td></tr></tbody>
@@ -438,6 +439,43 @@ function getMarchaTotals(){
   DB.files.forEach(function(f){if(f.marchaTotals)Object.entries(f.marchaTotals).forEach(function(kv){t[kv[0]]=(t[kv[0]]||0)+kv[1];});});
   return t;
 }
+/** Ralentí (m) y marcha (mm) por vehículo. La marcha de archivo (por chofer) se reparte a cada unidad según los minutos de ralentí del chofer. */
+function statsPorVehiculo(data, marchaByPersona){
+  var byV={}, byPV={};
+  (data||[]).forEach(function(e){
+    if(!e.vehiculo)return;
+    if(!byV[e.vehiculo])byV[e.vehiculo]={m:0,mm:0};
+    byV[e.vehiculo].m+=e.durMin;
+    byV[e.vehiculo].mm+=(e.marchaMin||0);
+    if(!e.persona)return;
+    if(!byPV[e.persona])byPV[e.persona]={};
+    byPV[e.persona][e.vehiculo]=(byPV[e.persona][e.vehiculo]||0)+e.durMin;
+  });
+  Object.entries(marchaByPersona||{}).forEach(function(kv){
+    var persona=kv[0], marchaChofer=kv[1], vehs=byPV[persona];
+    if(!vehs)return;
+    var totR=Object.values(vehs).reduce(function(s,v){return s+v;},0);
+    if(!totR)return;
+    Object.entries(vehs).forEach(function(kv2){
+      byV[kv2[0]]=byV[kv2[0]]||{m:0,mm:0};
+      byV[kv2[0]].mm+=marchaChofer*(kv2[1]/totR);
+    });
+  });
+  return byV;
+}
+/** Marcha atribuible a un chofer en un vehículo (misma proporción que statsPorVehiculo). */
+function marchaChoferEnVehiculo(persona, vehiculo, data, marchaByPersona){
+  var marcha=(marchaByPersona&&marchaByPersona[persona])||0;
+  var enV=0, tot=0;
+  (data||[]).forEach(function(e){
+    if(e.persona!==persona)return;
+    tot+=e.durMin;
+    if(e.vehiculo===vehiculo)enV+=e.durMin;
+  });
+  var mmEv=0;
+  (data||[]).forEach(function(e){if(e.persona===persona&&e.vehiculo===vehiculo)mmEv+=(e.marchaMin||0);});
+  return mmEv+(tot>0?marcha*(enV/tot):0);
+}
 function rD(){
   var data=gF();
   var fv=document.getElementById('fv').value,fm=document.getElementById('fm').value,fz=document.getElementById('fz').value,ftu=document.getElementById('ftu').value;
@@ -493,9 +531,8 @@ function rD(){
     else{DB.files.forEach(function(f){(f.persons||[]).forEach(function(p){if(p)byP0[p]={m:0,mm:0};});});}
     data.forEach(function(e){byP0[e.persona]=byP0[e.persona]||{m:0,mm:0};byP0[e.persona].m+=e.durMin;byP0[e.persona].mm+=(e.marchaMin||0);});
     Object.entries(tmm0).forEach(function(kv){if(byP0[kv[0]])byP0[kv[0]].mm+=kv[1];});
-    // Compliance por unidad usando umbral específico de cada interno
-    var byV0={};
-    data.forEach(function(e){if(!e.vehiculo)return;if(!byV0[e.vehiculo])byV0[e.vehiculo]={m:0,mm:0};byV0[e.vehiculo].m+=e.durMin;byV0[e.vehiculo].mm+=(e.marchaMin||0);});
+    // Compliance por unidad: misma marcha atribuida que Exceso / Por Unidad
+    var byV0=statsPorVehiculo(data, tmm0);
     var totalV=Object.keys(byV0).length;
     var cumpleV=Object.entries(byV0).filter(function(kv){var thresh=getRalentiAceptable(kv[0]);return kv[1].mm>0&&(kv[1].m/kv[1].mm)<=thresh;}).length;
     document.getElementById('k9').textContent=cumpleV+' / '+totalV;
@@ -506,29 +543,14 @@ function rD(){
     var tmm=data.reduce(function(s,e){return s+(e.marchaMin||0);},0);
     Object.values(tmm0).forEach(function(v){tmm+=v;});
     var pctGlobal=tmm>0?parseFloat((tm/tmm*100).toFixed(1)):0;
-    // Distribuir marcha de cada chofer a sus vehículos proporcionalmente a los minutos de ralentí
-    var byPV={};
-    data.forEach(function(e){if(!e.vehiculo||!e.persona)return;if(!byPV[e.persona])byPV[e.persona]={};byPV[e.persona][e.vehiculo]=(byPV[e.persona][e.vehiculo]||0)+e.durMin;});
-    var marchaPorVeh={};
-    // Sumar marchaMin de eventos (si los hay)
-    Object.entries(byV0).forEach(function(kv){marchaPorVeh[kv[0]]=(marchaPorVeh[kv[0]]||0)+kv[1].mm;});
-    // Distribuir marchaTotals por chofer a sus vehículos según proporción de ralentí
-    Object.entries(tmm0).forEach(function(kv){
-      var persona=kv[0],marchaChofer=kv[1],vehs=byPV[persona];
-      if(!vehs)return;
-      var totRalentiChofer=Object.values(vehs).reduce(function(s,v){return s+v;},0);
-      if(!totRalentiChofer)return;
-      Object.entries(vehs).forEach(function(kv2){marchaPorVeh[kv2[0]]=(marchaPorVeh[kv2[0]]||0)+marchaChofer*(kv2[1]/totRalentiChofer);});
-    });
-    // wtThresh = Σ(umbral_v × marcha_v) / Σ(marcha_v)
-    var totMV=Object.values(marchaPorVeh).reduce(function(s,v){return s+v;},0);
-    var wtThresh=totMV>0?Object.entries(marchaPorVeh).reduce(function(s,kv){return s+getRalentiAceptable(kv[0])*kv[1];},0)/totMV*100:20;
+    var totMV=Object.values(byV0).reduce(function(s,v){return s+v.mm;},0);
+    var wtThresh=totMV>0?Object.entries(byV0).reduce(function(s,kv){return s+getRalentiAceptable(kv[0])*kv[1].mm;},0)/totMV*100:20;
     var colorGlobal=pctGlobal<=wtThresh?'#27ae60':(pctGlobal<=wtThresh*1.5?'#f0a500':'#e74c3c');
     document.getElementById('k11').textContent=pctGlobal+'%';
     document.getElementById('k11').style.color=colorGlobal;
     document.getElementById('kpi-bars').style.borderTopColor=colorGlobal;
     // Ralentí permitido = Σ(marcha_v × umbral_v) para cada unidad
-    var ralentiPermitido=Object.entries(marchaPorVeh).reduce(function(s,kv){return s+kv[1]*getRalentiAceptable(kv[0]);},0);
+    var ralentiPermitido=Object.entries(byV0).reduce(function(s,kv){return s+kv[1].mm*getRalentiAceptable(kv[0]);},0);
     var excesoPct=ralentiPermitido>0?((tm-ralentiPermitido)/ralentiPermitido*100):0;
     var excesoColor=excesoPct<=0?'#27ae60':'#e74c3c';
     document.getElementById('k12').textContent=(excesoPct>0?'+':'')+excesoPct.toFixed(1)+'%';
@@ -584,7 +606,14 @@ function rP(){
     d.ev++;d.m+=e.durMin;d.l+=e.litros;d.mm+=(e.marchaMin||0);if(e.fecha)d.fechas.add(e.fecha);
   });
   var mt2=getMarchaTotals();
-  Object.entries(mt2).forEach(function(kv){Object.values(byV).forEach(function(vd){if(vd[kv[0]])vd[kv[0]].mm+=kv[1];});});
+  // Si hay filtro de mes, limitar marcha de archivo a choferes con eventos en ese mes
+  if(mes){
+    var personasMes=new Set(data.map(function(e){return e.persona;}));
+    var mtFilt={};
+    Object.entries(mt2).forEach(function(kv){if(personasMes.has(kv[0]))mtFilt[kv[0]]=kv[1];});
+    mt2=mtFilt;
+  }
+  var vehStats=statsPorVehiculo(data, mt2);
   var sortedV=Object.entries(byV).sort(function(a,b){
     var sa=Object.values(a[1]).reduce(function(s,d){return s+d.m;},0);
     var sb=Object.values(b[1]).reduce(function(s,d){return s+d.m;},0);
@@ -600,8 +629,8 @@ function rP(){
       var nm=label.length>18?label.substring(0,17)+'...':label;
       return'<div class="ps"><span>'+nm+'</span><span class="pv">'+fHM(d.m)+'</span></div>';
     }).join('');
-    var totR=Object.values(ve[1]).reduce(function(s,d){return s+d.m;},0);
-    var totM=Object.values(ve[1]).reduce(function(s,d){return s+(d.mm||0);},0);
+    var st=vehStats[vName]||{m:0,mm:0};
+    var totR=st.m, totM=st.mm;
     var thresh=getRalentiAceptable(vName);
     var vOk=totM>0&&(totR/totM)<=thresh;
     var borderColor=totM>0?(vOk?'#27ae60':'#e74c3c'):'var(--gos-yellow)';
@@ -611,42 +640,45 @@ function rP(){
   }).join('');
 }
 function showMd(vName){
-  var data=DB.events.filter(function(e){return(e.vehiculo||'Sin unidad')===vName;});
+  var dataAll=DB.events;
+  var data=dataAll.filter(function(e){return(e.vehiculo||'Sin unidad')===vName;});
   if(!data.length)return;
-  var byP2={};data.forEach(function(e){byP2[e.persona]=byP2[e.persona]||{m:0,l:0,mm:0,ev:0};byP2[e.persona].m+=e.durMin;byP2[e.persona].l+=e.litros;byP2[e.persona].mm+=(e.marchaMin||0);byP2[e.persona].ev++;});
-  var mt3=getMarchaTotals();Object.entries(mt3).forEach(function(kv){if(byP2[kv[0]])byP2[kv[0]].mm+=kv[1];});
+  var mt3=getMarchaTotals();
   var vThresh=getRalentiAceptable(vName);
+  var byP2={};data.forEach(function(e){byP2[e.persona]=byP2[e.persona]||{m:0,l:0,mm:0,ev:0};byP2[e.persona].m+=e.durMin;byP2[e.persona].l+=e.litros;byP2[e.persona].ev++;});
+  Object.keys(byP2).forEach(function(p){byP2[p].mm=marchaChoferEnVehiculo(p, vName, dataAll, mt3);});
   var rows=Object.entries(byP2).sort(function(a,b){return b[1].m-a[1].m;}).map(function(pe){
     var d=pe[1];var pct=d.mm>0?(d.m/d.mm*100).toFixed(1)+'%':'s/d';
     var ok=d.mm>0&&(d.m/d.mm)<=vThresh;
     return'<tr><td>'+pe[0]+'</td><td>'+fHM(d.m)+'</td><td>'+fHM(d.mm)+'</td><td><span class="tag '+(ok?'tagg':'')+'">'+pct+'</span></td><td>'+fL(d.l)+'</td><td>'+d.ev+'</td></tr>';
   }).join('');
-  var byZ2={};data.forEach(function(e){byZ2[e.referencia]=(byZ2[e.referencia]||0)+e.durMin;});
-  var topZ2=Object.entries(byZ2).sort(function(a,b){return b[1]-a[1];}).slice(0,8);
   var threshBadge='<span style="background:#f0f0f0;border-radius:8px;padding:2px 9px;font-size:.72rem;color:#666;margin-left:8px;font-weight:400">L&iacute;mite aceptable: '+(vThresh*100).toFixed(0)+'%</span>';
   document.getElementById('mdc').innerHTML='<button class="mc" onclick="cMd()">&#10005;</button><h3 style="margin-bottom:14px;font-size:1rem">'+vName+threshBadge+'</h3><table><thead><tr><th>Chofer</th><th>Ralenti</th><th>Marcha</th><th>%</th><th>Litros</th><th>Eventos</th></tr></thead><tbody>'+rows+'</tbody></table>';
   document.getElementById('mdbg').classList.add('open');
 }
 function cMd(){document.getElementById('mdbg').classList.remove('open');}
 function rU(){
-  var byV={};
-  DB.events.forEach(function(e){
-    if(!e.vehiculo)return;
-    var k=normInterno(e.vehiculo);
-    if(!byV[k])byV[k]={m:0,mm:0};
-    byV[k].m+=e.durMin;byV[k].mm+=(e.marchaMin||0);
+  var mt=getMarchaTotals();
+  var byV=statsPorVehiculo(DB.events, mt);
+  // Agrupar por interno normalizado (mismo criterio que Unidades / límites)
+  var byInterno={};
+  Object.entries(byV).forEach(function(kv){
+    var k=normInterno(kv[0]);
+    if(!byInterno[k])byInterno[k]={m:0,mm:0};
+    byInterno[k].m+=kv[1].m;
+    byInterno[k].mm+=kv[1].mm;
   });
   var q=(document.getElementById('u-search')||{value:''}).value.toLowerCase();
   var qt=(document.getElementById('u-tipo')||{value:''}).value;
   var keys={};
   Object.keys(RALENTI_ACEPTABLE).forEach(function(k){keys[k]=1;});
-  Object.keys(byV).forEach(function(k){if(/^[A-Z]+\s+\d+$/.test(k))keys[k]=1;});
+  Object.keys(byInterno).forEach(function(k){if(/^[A-Z]+\s+\d+$/.test(k))keys[k]=1;});
   var rows=Object.keys(keys)
     .filter(function(v){return(!q||v.toLowerCase().includes(q))&&(!qt||(TIPO_UNIDAD[v]||getTU(v))===qt);})
     .sort(function(a,b){return a.localeCompare(b);})
     .map(function(v){
       var thresh=getRalentiAceptable(v),tipo=TIPO_UNIDAD[v]||getTU(v)||'&mdash;';
-      var vd=byV[v];
+      var vd=byInterno[v];
       var hasData=vd&&vd.mm>0;
       var pctActual=hasData?(vd.m/vd.mm*100).toFixed(1):'&mdash;';
       var ok=hasData&&(vd.m/vd.mm)<=thresh;
