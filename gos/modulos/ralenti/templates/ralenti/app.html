@@ -73,7 +73,7 @@
     <button id="pdf-btn" class="btn" style="margin-left:auto;background:#c0392b;color:white;padding:5px 13px;font-size:.77rem" onclick="exPDF()">&#128438; Descargar PDF</button>
   </div>
   <div class="g2">
-    <div class="card"><h3>Actividad / Ralenti / Litros por Chofer</h3><canvas id="c0" height="220"></canvas></div>
+    <div class="card"><h3>Top 15 Ralent&iacute; / Actividad por Chofer</h3><canvas id="c0" height="280"></canvas></div>
     <div class="card"><h3>Top 10 Zonas (horas)</h3><canvas id="c1" height="220"></canvas></div>
   </div>
   <div class="g2b">
@@ -376,6 +376,97 @@ function barChart(id,labels,datasets,u){
   labels.forEach(function(l,i){var x=p.left+(i+0.5)*grpW;ctx.fillText(String(l).length>11?String(l).substring(0,10)+'...':String(l),x,h-7);});
   if(nd>1){var lx=p.left;datasets.forEach(function(ds){ctx.fillStyle=ds.color||CL[0];ctx.fillRect(lx,6,11,11);ctx.fillStyle='#555';ctx.textAlign='left';ctx.font='11px system-ui';ctx.fillText(ds.label||'',lx+15,15);lx+=ctx.measureText(ds.label||'').width+34;});}
 }
+/** Barras + líneas (mismo eje en horas). lines: [{label,data,color,dashed?}] */
+function comboBarLineChart(id,labels,datasets,lines,u){
+  var ref=clrC(id);var ctx=ref.ctx,w=ref.w,h=ref.h;
+  var p={top:34,right:14,bottom:78,left:52};
+  var cw=w-p.left-p.right;var ch=h-p.top-p.bottom;
+  var n=labels.length;if(!n)return;
+  var allV=datasets.reduce(function(a,d){return a.concat(d.data);},[]);
+  (lines||[]).forEach(function(ln){allV=allV.concat(ln.data||[]);});
+  var maxV=Math.max.apply(null,allV.concat([1]));
+  var axMax=Math.ceil(maxV/niceStep(maxV))*niceStep(maxV);
+  ctx.font='11px system-ui';ctx.fillStyle='#aaa';ctx.textAlign='right';
+  for(var i=0;i<=5;i++){
+    var v=axMax*i/5;var y=p.top+ch-ch*i/5;
+    ctx.strokeStyle='#f0f0f0';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(p.left,y);ctx.lineTo(p.left+cw,y);ctx.stroke();
+    ctx.fillText(fmtV(v,u||''),p.left-4,y+4);
+  }
+  var grpW=cw/n;var nd=datasets.length;var bw=Math.max(6,grpW*0.62/nd);
+  datasets.forEach(function(ds,di){
+    ds.data.forEach(function(v,i){
+      var bh=ch*(v/axMax);var x=p.left+i*grpW+(grpW-bw*nd)/2+di*bw;
+      ctx.fillStyle=ds.color||CL[i%CL.length];
+      rr(ctx,x,p.top+ch-bh,bw-2,bh,3);
+      if(!hitAreas[id])hitAreas[id]=[];
+      hitAreas[id].push({x:x,y:p.top+ch-bh,w:bw-2,h:bh,label:String(labels[i])+': '+fmtV(v,u||'')+' ('+(ds.label||'')+')'});
+    });
+  });
+  (lines||[]).forEach(function(ln){
+    ctx.beginPath();
+    ln.data.forEach(function(v,i){
+      var x=p.left+(i+0.5)*grpW;
+      var y=p.top+ch-ch*(Math.max(0,v)/axMax);
+      if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+    });
+    ctx.strokeStyle=ln.color||'#e74c3c';
+    ctx.lineWidth=2.4;
+    ctx.lineJoin='round';
+    if(ln.dashed)ctx.setLineDash([7,5]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ln.data.forEach(function(v,i){
+      var x=p.left+(i+0.5)*grpW;
+      var y=p.top+ch-ch*(Math.max(0,v)/axMax);
+      ctx.beginPath();ctx.arc(x,y,3.5,0,Math.PI*2);
+      ctx.fillStyle=ln.color||'#e74c3c';ctx.fill();
+      ctx.strokeStyle='#fff';ctx.lineWidth=1.2;ctx.stroke();
+      if(!hitAreas[id])hitAreas[id]=[];
+      hitAreas[id].push({x:x-6,y:y-6,w:12,h:12,label:String(labels[i])+' — '+(ln.label||'Línea')+': '+fmtV(v,u||'')});
+    });
+  });
+  // Etiquetas del eje X: dos líneas, apellido completo visible
+  ctx.fillStyle='#555';ctx.textAlign='center';ctx.font='10px system-ui';
+  labels.forEach(function(l,i){
+    var x=p.left+(i+0.5)*grpW;
+    var txt=String(l||'');
+    var a=txt,b='';
+    if(txt.length>9){a=txt.substring(0,8);b=txt.substring(8,16)+(txt.length>16?'…':'');}
+    ctx.fillText(a,x,p.top+ch+14);
+    if(b)ctx.fillText(b,x,p.top+ch+26);
+  });
+  // Leyenda
+  var lx=p.left;
+  ctx.font='11px system-ui';ctx.textAlign='left';
+  datasets.forEach(function(ds){
+    ctx.fillStyle=ds.color||CL[0];ctx.fillRect(lx,8,11,11);
+    ctx.fillStyle='#555';ctx.fillText(ds.label||'',lx+15,17);
+    lx+=ctx.measureText(ds.label||'').width+34;
+  });
+  (lines||[]).forEach(function(ln){
+    ctx.strokeStyle=ln.color||'#e74c3c';ctx.lineWidth=2;
+    if(ln.dashed)ctx.setLineDash([5,4]);
+    ctx.beginPath();ctx.moveTo(lx,13);ctx.lineTo(lx+18,13);ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();ctx.arc(lx+9,13,2.5,0,Math.PI*2);ctx.fillStyle=ln.color||'#e74c3c';ctx.fill();
+    ctx.fillStyle='#555';ctx.fillText(ln.label||'',lx+24,17);
+    lx+=ctx.measureText(ln.label||'').width+48;
+  });
+}
+/** Minutos de ralentí aceptables del chofer según marcha × umbral de las unidades que usó. */
+function ralentiAceptableMinChofer(persona, data, marchaMin){
+  if(!marchaMin||marchaMin<=0)return 0;
+  var byV={}, tot=0;
+  (data||[]).forEach(function(e){
+    if(e.persona!==persona||!e.vehiculo)return;
+    byV[e.vehiculo]=(byV[e.vehiculo]||0)+e.durMin;
+    tot+=e.durMin;
+  });
+  if(!tot)return marchaMin*0.2;
+  var acc=0;
+  Object.entries(byV).forEach(function(kv){acc+=marchaMin*(kv[1]/tot)*getRalentiAceptable(kv[0]);});
+  return acc;
+}
 function hBarChart(id,labels,values,colors){
   var ref=clrC(id);var ctx=ref.ctx,w=ref.w,h=ref.h;var p=PADH;var n=Math.min(labels.length,10);if(!n)return;
   var cw=w-p.left-p.right;var ch=h-p.top-p.bottom;var maxV=Math.max.apply(null,values.slice(0,n).concat([1]));
@@ -569,9 +660,18 @@ function rD(){
   Object.entries(tmm0).forEach(function(kv){if(byP[kv[0]])byP[kv[0]].mm+=kv[1];});
   var pA=Object.entries(byP).sort(function(a,b){return b[1].m-a[1].m;});
   setTimeout(function(){
-    // c0: Actividad / Ralenti / Litros por Chofer
-    barChart('c0',pA.map(function(x){return x[0].split(' ')[0];}),
-      [{label:'Ralenti',data:pA.map(function(x){return x[1].m/60;}),color:'#FFD200'},{label:'Marcha',data:pA.map(function(x){return x[1].mm/60;}),color:'#5CB85C'}],'h');
+    // c0: Top 15 — barras + líneas real vs aceptable
+    var pA0=pA.slice(0,15);
+    var labels0=pA0.map(function(x){
+      var n=x[0]||'';
+      return (n.split(',')[0]||n).trim();
+    });
+    var realH=pA0.map(function(x){return x[1].m/60;});
+    var aceptH=pA0.map(function(x){return ralentiAceptableMinChofer(x[0], data, x[1].mm)/60;});
+    comboBarLineChart('c0',labels0,
+      [{label:'Ralenti',data:realH,color:'#FFD200'},{label:'Marcha',data:pA0.map(function(x){return x[1].mm/60;}),color:'#5CB85C'}],
+      [{label:'Real',data:realH,color:'#e74c3c'},{label:'Aceptable',data:aceptH,color:'#2980b9',dashed:true}],
+      'h');
     // c1: Top 10 Zonas
     var byZ={};data.forEach(function(e){var z=e.referencia.length>28?e.referencia.substring(0,28)+'...':e.referencia;byZ[z]=(byZ[z]||0)+e.durMin;});
     var topZ=Object.entries(byZ).sort(function(a,b){return b[1]-a[1];}).slice(0,10);
