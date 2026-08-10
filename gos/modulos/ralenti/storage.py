@@ -5,6 +5,8 @@ import json
 import sqlite3
 from datetime import datetime
 
+from sqlalchemy import func, tuple_
+
 from gos.extensions import db
 from gos.modulos.ralenti.database import DATA_DIR, DB_PATH, LEGACY_DB_PATH
 from gos.modulos.ralenti.models import RalentiConfig, RalentiEvent, RalentiFile
@@ -138,6 +140,47 @@ def list_files() -> list[dict]:
     return result
 
 
+def _event_pair(fecha: str, vehiculo: str) -> tuple[str, str] | None:
+    """Clave de solape: fecha exacta + unidad. Sin ambos, no se usa para pisar."""
+    f = (fecha or "").strip()
+    v = (vehiculo or "").strip()
+    if not f or not v:
+        return None
+    return (f, v)
+
+
+def _refresh_file_after_overlap(file_row: RalentiFile, wiped_pairs: bool) -> bool:
+    """Actualiza conteos tras borrar solapes. True si el archivo quedó vacío y se eliminó."""
+    remaining = (
+        db.session.query(func.count(RalentiEvent.id))
+        .filter_by(file_name=file_row.name)
+        .scalar()
+        or 0
+    )
+    if remaining == 0:
+        db.session.delete(file_row)
+        return True
+    file_row.event_count = int(remaining)
+    if wiped_pairs:
+        # Los totales del Excel ya no coinciden con el recorte parcial.
+        file_row.marcha_totals = "{}"
+        file_row.km_totals = "{}"
+        file_row.ralenti_totals = "{}"
+        personas = [
+            r[0]
+            for r in (
+                db.session.query(RalentiEvent.persona)
+                .filter_by(file_name=file_row.name)
+                .filter(RalentiEvent.persona != "")
+                .distinct()
+                .order_by(RalentiEvent.persona)
+                .all()
+            )
+        ]
+        file_row.persons = json.dumps(personas, ensure_ascii=False)
+    return False
+
+
 def import_file(
     name: str,
     events: list[dict],
@@ -146,25 +189,81 @@ def import_file(
     km_totals: dict | None = None,
     ralenti_totals: dict | None = None,
 ) -> dict:
+    """Importa eventos. Pisa solo registros existentes con la misma fecha+unidad."""
     name = (name or "").strip()
     if not name:
         raise ValueError("Nombre de archivo vacío")
 
-    existing = RalentiFile.query.filter_by(name=name).first()
-    if existing:
-        RalentiEvent.query.filter_by(file_name=name).delete()
-        db.session.delete(existing)
+    pairs: set[tuple[str, str]] = set()
+    for e in events:
+        pair = _event_pair(str(e.get("fecha") or ""), str(e.get("vehiculo") or ""))
+        if pair:
+            pairs.add(pair)
+
+    replaced = 0
+    files_touched: set[str] = set()
+    if pairs:
+        pair_list = list(pairs)
+        files_touched = {
+            row[0]
+            for row in (
+                db.session.query(RalentiEvent.file_name)
+                .filter(tuple_(RalentiEvent.fecha, RalentiEvent.vehiculo).in_(pair_list))
+                .distinct()
+                .all()
+            )
+            if row[0]
+        }
+        replaced = (
+            RalentiEvent.query.filter(
+                tuple_(RalentiEvent.fecha, RalentiEvent.vehiculo).in_(pair_list)
+            ).delete(synchronize_session=False)
+            or 0
+        )
         db.session.flush()
 
-    file_row = RalentiFile(
-        name=name,
-        event_count=len(events),
-        persons=json.dumps(persons or [], ensure_ascii=False),
-        marcha_totals=json.dumps(marcha_totals or {}, ensure_ascii=False),
-        km_totals=json.dumps(km_totals or {}, ensure_ascii=False),
-        ralenti_totals=json.dumps(ralenti_totals or {}, ensure_ascii=False),
-    )
-    db.session.add(file_row)
+        for fname in files_touched:
+            if fname == name:
+                continue
+            other = RalentiFile.query.filter_by(name=fname).first()
+            if other:
+                _refresh_file_after_overlap(other, wiped_pairs=True)
+        db.session.flush()
+
+    existing = RalentiFile.query.filter_by(name=name).first()
+    if existing:
+        leftover = (
+            db.session.query(func.count(RalentiEvent.id))
+            .filter_by(file_name=name)
+            .scalar()
+            or 0
+        )
+        if leftover == 0:
+            existing.persons = json.dumps(persons or [], ensure_ascii=False)
+            existing.marcha_totals = json.dumps(marcha_totals or {}, ensure_ascii=False)
+            existing.km_totals = json.dumps(km_totals or {}, ensure_ascii=False)
+            existing.ralenti_totals = json.dumps(ralenti_totals or {}, ensure_ascii=False)
+        else:
+            prev_persons = _loads(existing.persons, [])
+            merged = list(dict.fromkeys([*(prev_persons or []), *(persons or [])]))
+            existing.persons = json.dumps(merged, ensure_ascii=False)
+            # Tras un recorte por solape, los totales Excel del archivo ya no cierran.
+            if name in files_touched:
+                existing.marcha_totals = "{}"
+                existing.km_totals = "{}"
+                existing.ralenti_totals = "{}"
+        existing.imported_at = datetime.utcnow()
+        file_row = existing
+    else:
+        file_row = RalentiFile(
+            name=name,
+            event_count=0,
+            persons=json.dumps(persons or [], ensure_ascii=False),
+            marcha_totals=json.dumps(marcha_totals or {}, ensure_ascii=False),
+            km_totals=json.dumps(km_totals or {}, ensure_ascii=False),
+            ralenti_totals=json.dumps(ralenti_totals or {}, ensure_ascii=False),
+        )
+        db.session.add(file_row)
     db.session.flush()
 
     for e in events:
@@ -172,9 +271,9 @@ def import_file(
             RalentiEvent(
                 file_name=name,
                 persona=str(e.get("persona") or ""),
-                vehiculo=str(e.get("vehiculo") or ""),
+                vehiculo=str(e.get("vehiculo") or "").strip(),
                 referencia=str(e.get("referencia") or "Sin referencia"),
-                fecha=str(e.get("fecha") or ""),
+                fecha=str(e.get("fecha") or "").strip(),
                 mes=str(e.get("mes") or ""),
                 hora=int(e.get("hora") or 0),
                 dur_min=float(e.get("dur_min") or 0),
@@ -182,8 +281,18 @@ def import_file(
                 litros=float(e.get("litros") or 0),
             )
         )
+    db.session.flush()
+    file_row.event_count = (
+        db.session.query(func.count(RalentiEvent.id)).filter_by(file_name=name).scalar() or 0
+    )
     db.session.commit()
-    return {"ok": True, "name": name, "events": len(events)}
+    return {
+        "ok": True,
+        "name": name,
+        "events": len(events),
+        "replaced": int(replaced or 0),
+        "overlap_keys": len(pairs),
+    }
 
 
 def delete_file(filename: str) -> None:

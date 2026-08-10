@@ -209,7 +209,7 @@
         <h3>Mis archivos cargados</h3>
         <span class="files-count" id="files-count">0 archivos</span>
       </div>
-      <p class="files-hint">Ac&aacute; ves todo lo que importaste. Si subiste uno por error, eliminalo con el bot&oacute;n rojo.</p>
+      <p class="files-hint">Ac&aacute; ves todo lo que importaste. Al subir, solo se reemplazan eventos con la misma <strong>fecha</strong> y <strong>unidad</strong>; el resto se mantiene. Si subiste uno por error, eliminalo con el bot&oacute;n rojo.</p>
       <div id="flist"><div class="loading" style="padding:20px">Sin archivos cargados.</div></div>
     </div>
     <div class="card" style="margin-bottom:15px">
@@ -1119,9 +1119,10 @@ async function doFiles(files){
             var wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
             var parsed=isGOSFormat(wb)?parseGOSWorkbook(f.name,wb):rowsToEvents(f.name,XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,defval:''}).map(function(row){return row.map(function(v){if(v instanceof Date){return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0');}return v;});}));
             if(parsed.events&&parsed.events.length>0){
-              await apiPost('/files/import',{name:f.name,events:parsed.events,persons:parsed.persons,marcha_totals:parsed.marcha_totals,km_totals:parsed.km_totals,ralenti_totals:parsed.ralenti_totals||{}});
+              var resX=await apiPost('/files/import',{name:f.name,events:parsed.events,persons:parsed.persons,marcha_totals:parsed.marcha_totals,km_totals:parsed.km_totals,ralenti_totals:parsed.ralenti_totals||{}});
               await loadFromAPI();
-              toast('OK: '+f.name+' ('+parsed.events.length+' eventos)');
+              var extraX=(resX&&resX.replaced)?(' · reemplazó '+resX.replaced):'';
+              toast('OK: '+f.name+' ('+parsed.events.length+' eventos'+extraX+')');
             }else toast('Sin datos validos en '+f.name);
           }catch(err){toast('Error: '+err.message);}
           resolve();
@@ -1136,9 +1137,10 @@ async function doFiles(files){
           var parsed=rowsToEvents(f.name,rows);
           if(parsed.events&&parsed.events.length>0){
             try{
-              await apiPost('/files/import',{name:f.name,events:parsed.events,persons:parsed.persons,marcha_totals:parsed.marcha_totals,km_totals:parsed.km_totals,ralenti_totals:parsed.ralenti_totals||{}});
+              var resC=await apiPost('/files/import',{name:f.name,events:parsed.events,persons:parsed.persons,marcha_totals:parsed.marcha_totals,km_totals:parsed.km_totals,ralenti_totals:parsed.ralenti_totals||{}});
               await loadFromAPI();
-              toast('OK: '+f.name+' ('+parsed.events.length+' eventos)');
+              var extraC=(resC&&resC.replaced)?(' · reemplazó '+resC.replaced):'';
+              toast('OK: '+f.name+' ('+parsed.events.length+' eventos'+extraC+')');
             }catch(err){toast('Error guardando: '+err.message);}
           }else toast('Sin datos validos en '+f.name);
           resolve();
