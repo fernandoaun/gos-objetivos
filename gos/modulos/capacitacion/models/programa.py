@@ -140,6 +140,8 @@ class EncuentroCapacitacion(db.Model, TimestampMixin):
     material_adjunto_url = db.Column(db.String(500), nullable=True)
     resultados_adjunto_url = db.Column(db.String(500), nullable=True)
     observaciones = db.Column(db.Text, nullable=True)
+    # Charlas fuera del flujo Programa→Plan (p. ej. Buenas Prácticas Compartidas).
+    es_buenas_practicas = db.Column(db.Boolean, default=False, nullable=False)
 
     empresa = db.relationship("Empresa")
     programa = db.relationship("ProgramaCapacitacion", back_populates="encuentros")
@@ -161,6 +163,28 @@ class EncuentroCapacitacion(db.Model, TimestampMixin):
     )
     asistencias = db.relationship("AsistenciaEncuentro", back_populates="encuentro", lazy="dynamic")
     planes = db.relationship("PlanCapacitacion", back_populates="encuentro", lazy="dynamic")
+    adjuntos = db.relationship(
+        "EncuentroAdjunto",
+        back_populates="encuentro",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
+        order_by="EncuentroAdjunto.id",
+    )
+
+
+class EncuentroAdjunto(db.Model, TimestampMixin):
+    """Evidencias (PDF/fotos) de asistencia o temas de un encuentro/charla."""
+
+    __tablename__ = "cap_encuentro_adjuntos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    encuentro_id = db.Column(db.Integer, db.ForeignKey("cap_encuentros.id"), nullable=False, index=True)
+    archivo_path = db.Column(db.String(500), nullable=False)
+    nombre_original = db.Column(db.String(255), nullable=True)
+    content_type = db.Column(db.String(100), nullable=True)
+    tipo = db.Column(db.String(40), default="evidencia", nullable=False)
+
+    encuentro = db.relationship("EncuentroCapacitacion", back_populates="adjuntos")
 
 
 class EncuentroTema(db.Model, TimestampMixin):

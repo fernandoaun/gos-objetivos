@@ -940,6 +940,32 @@
   min-height: 1rem;
 }
 
+.cap-enc-hint-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.cap-enc-bpc-toggle {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+.cap-bpc-file-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  font-size: 0.82rem;
+  color: var(--cap-muted);
+}
+
+.cap-bpc-file-list li {
+  padding: 0.15rem 0;
+}
+
 .cap-form-hint--error {
   color: var(--cap-red);
 }

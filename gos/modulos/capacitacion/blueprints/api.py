@@ -25,6 +25,7 @@ from gos.modulos.capacitacion.services import (
     crear_curso,
     crear_empresa_capacitadora,
     crear_encuentro,
+    crear_charla_buenas_practicas,
     crear_instructor,
     crear_participante,
     crear_programa,
@@ -34,6 +35,7 @@ from gos.modulos.capacitacion.services import (
     crear_sector,
     cursos_de_puestos,
     cursos_del_plan,
+    descargar_adjunto_encuentro,
     descargar_certificado_registro,
     descargar_documento_certificacion,
     descargar_foto_participante,
@@ -52,6 +54,7 @@ from gos.modulos.capacitacion.services import (
     importar_cursos_excel,
     importar_participantes_excel,
     inscribir_participantes,
+    listar_adjuntos_encuentro,
     listar_alertas,
     listar_cursos,
     listar_empresas_capacitadoras,
@@ -81,6 +84,7 @@ from gos.modulos.capacitacion.services import (
     subir_certificado_registro,
     subir_documento_certificacion,
     subir_foto_participante,
+    subir_adjunto_encuentro,
     subir_material_encuentro,
     subir_resultados_encuentro,
     listar_planes,
@@ -850,6 +854,18 @@ def crear_encuentro_route():
     return jsonify({"encuentro": item}), 201
 
 
+@bp.route("/encuentros/buenas-practicas", methods=["POST"])
+@login_required
+def crear_buenas_practicas_route():
+    if not _puede_editar():
+        return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    try:
+        item = crear_charla_buenas_practicas(current_user.empresa_id, _json_body())
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"encuentro": item}), 201
+
+
 @bp.route("/encuentros/<int:encuentro_id>/participantes")
 @login_required
 def encuentro_participantes(encuentro_id: int):
@@ -1056,6 +1072,35 @@ def encuentro_resultados(encuentro_id: int):
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify(item)
+
+
+@bp.route("/encuentros/<int:encuentro_id>/adjuntos", methods=["GET", "POST"])
+@login_required
+def encuentro_adjuntos(encuentro_id: int):
+    if request.method == "GET":
+        try:
+            items = listar_adjuntos_encuentro(current_user.empresa_id, encuentro_id)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 404
+        return jsonify({"adjuntos": items})
+    if not _puede_editar():
+        return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    archivo = request.files.get("archivo")
+    try:
+        item = subir_adjunto_encuentro(current_user.empresa_id, encuentro_id, archivo)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(item), 201
+
+
+@bp.route("/encuentros/<int:encuentro_id>/adjuntos/<int:adjunto_id>/download")
+@login_required
+def encuentro_adjunto_download(encuentro_id: int, adjunto_id: int):
+    try:
+        path, name = descargar_adjunto_encuentro(current_user.empresa_id, encuentro_id, adjunto_id)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
+    return send_file(path, as_attachment=True, download_name=name)
 
 
 @bp.route("/encuentros/<int:encuentro_id>/cierre", methods=["PUT"])

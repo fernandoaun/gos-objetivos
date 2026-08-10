@@ -13,6 +13,7 @@ from gos.modulos.capacitacion.models.instructor import Instructor
 from gos.modulos.capacitacion.models.participante import Participante
 from gos.modulos.capacitacion.models.programa import (
     CronogramaPuesto,
+    EncuentroAdjunto,
     EncuentroCapacitacion,
     EncuentroTema,
     InscripcionPrograma,
@@ -48,6 +49,7 @@ __all__ = [
     "ProgramaPuesto",
     "CronogramaPuesto",
     "EncuentroCapacitacion",
+    "EncuentroAdjunto",
     "EncuentroTema",
     "InscripcionPrograma",
     "RequisitoFormacion",

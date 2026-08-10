@@ -167,8 +167,15 @@
     </div>
     <div class="cap-form-panel cap-hidden cap-mt" id="cap-encuentro-form-panel">
       <form id="cap-encuentro-form" class="cap-form">
-        <p class="cap-form-hint cap-mb" id="cap-encuentro-form-hint">Etapa A — Planificación del cronograma.</p>
+        <div class="cap-enc-hint-row cap-mb">
+          <p class="cap-form-hint" id="cap-encuentro-form-hint">Etapa A — Planificación del cronograma.</p>
+          <label class="cap-check-item cap-enc-bpc-toggle">
+            <input type="checkbox" id="cap-enc-bpc-check">
+            Buenas Prácticas Compartidas
+          </label>
+        </div>
 
+        <div id="cap-enc-modo-programa">
         <div class="cap-form-row cap-form-row--2">
           <div>
             <label class="cap-label" for="cap-enc-programa">1. Programa *</label>
@@ -269,6 +276,67 @@
           <div>
             <label class="cap-label" for="cap-enc-link">Link virtual</label>
             <input class="cap-input" id="cap-enc-link" name="link_virtual">
+          </div>
+        </div>
+        </div>
+
+        <div id="cap-enc-modo-bpc" class="cap-hidden">
+          <p class="cap-form-hint cap-mb">Charla de buenas prácticas: elegí participantes, capacitador, nombre y fecha. Se acredita como capacitación complementaria en la matriz de cada persona.</p>
+
+          <h3 class="cap-subtitle">Personas que toman la charla</h3>
+          <div class="cap-enc-personas-toolbar">
+            <button type="button" class="cap-btn cap-btn--sm cap-btn--ghost" id="cap-bpc-sel-todos">Seleccionar todas</button>
+            <button type="button" class="cap-btn cap-btn--sm cap-btn--ghost" id="cap-bpc-sel-ninguno">Quitar todas</button>
+            <span class="cap-muted" id="cap-bpc-personas-count"></span>
+          </div>
+          <div id="cap-bpc-personas" class="cap-check-grid cap-check-grid--scroll">
+            <p class="cap-empty">Cargando personas...</p>
+          </div>
+
+          <div class="cap-form-row cap-form-row--2 cap-mt">
+            <div>
+              <label class="cap-label" for="cap-bpc-nombre">Nombre del curso / charla *</label>
+              <input class="cap-input" id="cap-bpc-nombre" type="text" maxlength="200" placeholder="Ej. Uso correcto de EPP">
+            </div>
+            <div>
+              <label class="cap-label" for="cap-bpc-fecha">Fecha *</label>
+              <input class="cap-input" id="cap-bpc-fecha" type="date">
+            </div>
+          </div>
+
+          <div class="cap-form-row cap-form-row--2">
+            <div>
+              <label class="cap-label" for="cap-bpc-instructor">Capacitador</label>
+              <div class="cap-input-group">
+                <select class="cap-input" id="cap-bpc-instructor">
+                  <option value="">— Seleccionar capacitador —</option>
+                </select>
+                <button type="button" class="cap-btn cap-btn--icon" id="cap-bpc-instructor-add" title="Agregar capacitador">
+                  <i class="bi bi-plus-lg"></i>
+                </button>
+              </div>
+              <div class="cap-quick-form cap-hidden" id="cap-bpc-instructor-quick">
+                <p class="cap-quick-form-title">Nuevo capacitador</p>
+                <input class="cap-input" id="cap-bpc-instructor-quick-nombre" placeholder="Nombre del capacitador" maxlength="150">
+                <div class="cap-form-actions">
+                  <button type="button" class="cap-btn cap-btn--ghost" id="cap-bpc-instructor-quick-cancel">Cancelar</button>
+                  <button type="button" class="cap-btn cap-btn--primary" id="cap-bpc-instructor-quick-save">Guardar</button>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label class="cap-label" for="cap-bpc-lugar">Lugar (opcional)</label>
+              <input class="cap-input" id="cap-bpc-lugar" type="text" maxlength="200">
+            </div>
+          </div>
+
+          <div class="cap-form-row">
+            <div>
+              <label class="cap-label" for="cap-bpc-archivos">Asistencia y temas (PDF o foto)</label>
+              <input class="cap-input" id="cap-bpc-archivos" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,image/*,application/pdf" multiple>
+              <p class="cap-muted">Podés cargar más de un archivo con la lista de asistencia y los temas dados.</p>
+              <ul class="cap-bpc-file-list" id="cap-bpc-file-list"></ul>
+            </div>
           </div>
         </div>
 

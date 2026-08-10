@@ -43,7 +43,12 @@ def listar_programas(
     participante_id: int | None = None,
     tipo: str | None = None,
     detalle: bool = False,
+    incluir_sistema: bool = False,
 ) -> list[dict]:
+    from gos.modulos.capacitacion.services.buenas_practicas_service import (
+        PROGRAMA_BPC_CODIGO,
+    )
+
     q = ProgramaCapacitacion.query.filter_by(empresa_id=empresa_id, activo=True)
 
     if tipo:
@@ -77,6 +82,8 @@ def listar_programas(
         q = q.filter(db.or_(*condiciones))
 
     items = q.order_by(ProgramaCapacitacion.nombre).all()
+    if not incluir_sistema:
+        items = [p for p in items if (p.codigo or "").strip().upper() != PROGRAMA_BPC_CODIGO]
     return [_programa_dict(p, detalle=detalle) for p in items]
 
 
@@ -1073,6 +1080,16 @@ def _encuentro_dict(e: EncuentroCapacitacion) -> dict:
         "material_adjunto_url": e.material_adjunto_url,
         "resultados_adjunto_url": e.resultados_adjunto_url,
         "observaciones": e.observaciones,
+        "es_buenas_practicas": bool(getattr(e, "es_buenas_practicas", False)),
+        "adjuntos": [
+            {
+                "id": a.id,
+                "nombre_original": a.nombre_original,
+                "content_type": a.content_type,
+                "tipo": a.tipo,
+            }
+            for a in (e.adjuntos.all() if e.adjuntos else [])
+        ],
     }
 
 

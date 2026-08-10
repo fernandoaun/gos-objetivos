@@ -2297,13 +2297,21 @@
         <div class="cap-ma-progreso"><div class="cap-ma-progreso-bar cap-ma-progreso-bar--${(prog.progreso?.porcentaje || 0) >= 100 ? "verde" : (prog.progreso?.porcentaje || 0) >= 50 ? "ambar" : "rojo"}" style="width:${Math.min(prog.progreso?.porcentaje || 0, 100)}%"></div></div>
         <table class="cap-data-table cap-mt"><thead><tr><th>Curso</th><th>Hs</th><th>Nota</th><th>Estado</th><th>Empresa</th></tr></thead><tbody>${cursos}</tbody></table></div>`;
     }).join("");
+    const bpcItems = data.buenas_practicas || [];
+    const bpcCard = bpcItems.length
+      ? `<div class="cap-ma-programa-card"><h4>Buenas Prácticas Compartidas</h4>
+        <p class="cap-muted">Capacitaciones complementarias (charlas)</p>
+        <table class="cap-data-table cap-mt"><thead><tr><th>Charla</th><th>Hs</th><th>Estado</th><th>Fecha</th></tr></thead><tbody>
+        ${bpcItems.map((c) => `<tr><td>${escapeHtml(c.curso)}</td><td>${c.hs || "—"}</td><td>${estadoLabel(c.estado)}</td><td>${c.fecha_aprobacion ? escapeHtml(c.fecha_aprobacion) : "—"}</td></tr>`).join("")}
+        </tbody></table></div>`
+      : "";
     wrap.innerHTML = `
       <div class="cap-ma-persona-header"><div class="cap-ma-avatar">${iniciales}</div><div><h3>${escapeHtml(p.nombre || "")}</h3><p class="cap-muted">${escapeHtml(p.puesto || "Sin puesto")}</p></div></div>
       <div class="cap-ma-metricas">
         <div class="cap-ma-metrica"><div class="cap-ma-metrica-val">${m.horas_completadas || 0}/${m.horas_requeridas || 0}</div><div class="cap-ma-metrica-lbl">Horas</div></div>
         <div class="cap-ma-metrica"><div class="cap-ma-metrica-val">${m.porcentaje || 0}%</div><div class="cap-ma-metrica-lbl">Cumplimiento</div></div>
         <div class="cap-ma-metrica"><div class="cap-ma-metrica-val">${m.materias_aprobadas || 0}/${m.materias_totales || 0}</div><div class="cap-ma-metrica-lbl">Materias</div></div>
-      </div>${cards || '<p class="cap-empty">Sin programas asignados al puesto actual</p>'}`;
+      </div>${cards || '<p class="cap-empty">Sin programas asignados al puesto actual</p>'}${bpcCard}`;
   }
 
   async function loadMatrizAnalitica() {
@@ -3458,38 +3466,118 @@
 
     ]);
 
-    fillSelect(
+    const instructores = (instData.instructores || []).map((i) => ({ id: i.id, nombre: i.nombre }));
 
-      "cap-enc-instructor",
+    fillSelect("cap-enc-instructor", instructores, "— Seleccionar capacitador —");
 
-      (instData.instructores || []).map((i) => ({ id: i.id, nombre: i.nombre })),
-
-      "— Seleccionar capacitador —"
-
-    );
+    fillSelect("cap-bpc-instructor", instructores, "— Seleccionar capacitador —");
 
   }
 
 
 
+  function isEncBpcMode() {
+    return Boolean(document.getElementById("cap-enc-bpc-check")?.checked);
+  }
+
+  function setEncRequiredAttrs(enabled) {
+    ["cap-enc-programa", "cap-enc-tipo", "cap-enc-plan", "cap-enc-curso"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (enabled) el.setAttribute("required", "");
+      else el.removeAttribute("required");
+    });
+  }
+
+  function updateBpcFileList() {
+    const input = document.getElementById("cap-bpc-archivos");
+    const list = document.getElementById("cap-bpc-file-list");
+    if (!list) return;
+    const files = input?.files ? Array.from(input.files) : [];
+    list.innerHTML = files.length
+      ? files.map((f) => `<li>${escapeHtml(f.name)} <span class="cap-muted">(${Math.round(f.size / 1024)} KB)</span></li>`).join("")
+      : "";
+  }
+
+  function updateBpcPersonasCount() {
+    const n = document.querySelectorAll("#cap-bpc-personas [data-bpc-persona]:checked").length;
+    const el = document.getElementById("cap-bpc-personas-count");
+    if (el) el.textContent = n ? `${n} seleccionada${n === 1 ? "" : "s"}` : "0 personas";
+  }
+
+  function getBpcPersonasSeleccionadas() {
+    return Array.from(document.querySelectorAll("#cap-bpc-personas [data-bpc-persona]:checked")).map((cb) => Number(cb.value));
+  }
+
+  async function loadBpcPersonas(selectedIds = null) {
+    const el = document.getElementById("cap-bpc-personas");
+    if (!el) return;
+    el.innerHTML = '<p class="cap-loading">Cargando personas...</p>';
+    const data = await fetchJson(`${API}/participantes?`);
+    const personas = data.participantes || [];
+    if (!personas.length) {
+      el.innerHTML = '<p class="cap-empty">No hay personas activas</p>';
+      updateBpcPersonasCount();
+      return;
+    }
+    const selected = selectedIds instanceof Set ? selectedIds : null;
+    el.innerHTML = personas.map((p) => `
+      <label class="cap-check-item">
+        <input type="checkbox" value="${p.id}" data-bpc-persona ${selected ? (selected.has(p.id) ? "checked" : "") : ""}>
+        <span>${escapeHtml(p.nombre_completo || p.nombre || "")}${p.puesto_nombre ? ` <span class="cap-muted">· ${escapeHtml(p.puesto_nombre)}</span>` : ""}</span>
+      </label>`).join("");
+    el.querySelectorAll("[data-bpc-persona]").forEach((cb) => {
+      cb.addEventListener("change", updateBpcPersonasCount);
+    });
+    updateBpcPersonasCount();
+  }
+
+  async function setEncBpcMode(on) {
+    const check = document.getElementById("cap-enc-bpc-check");
+    if (check) check.checked = Boolean(on);
+    const prog = document.getElementById("cap-enc-modo-programa");
+    const bpc = document.getElementById("cap-enc-modo-bpc");
+    prog?.classList.toggle("cap-hidden", Boolean(on));
+    bpc?.classList.toggle("cap-hidden", !on);
+    setEncRequiredAttrs(!on);
+    updateEncuentroFormMode(Boolean(encuentroEditId));
+    if (on) {
+      const hoy = new Date();
+      const fechaEl = document.getElementById("cap-bpc-fecha");
+      if (fechaEl && !fechaEl.value) {
+        fechaEl.value = `${hoy.getFullYear()}-${pad(hoy.getMonth() + 1)}-${pad(hoy.getDate())}`;
+      }
+      const bpcInst = document.getElementById("cap-bpc-instructor");
+      const encInst = document.getElementById("cap-enc-instructor");
+      if (bpcInst && encInst && bpcInst.options.length <= 1) {
+        bpcInst.innerHTML = encInst.innerHTML;
+      }
+      await loadBpcPersonas();
+    }
+  }
+
   function updateEncuentroFormMode(editing) {
-
     const hint = document.getElementById("cap-encuentro-form-hint");
-
     const submit = document.getElementById("cap-encuentro-submit");
-
     const delBtn = document.getElementById("cap-encuentro-eliminar");
+    const bpc = isEncBpcMode();
 
     if (hint) {
-      hint.textContent = editing
-        ? "Etapa A — Modificá la planificación. Programa → Tipo → Empresa (si externo) → Plan → Participantes."
-        : "Etapa A — Programa → Tipo → Empresa (si externo) → Plan → Participantes. Cada paso habilita el siguiente.";
+      if (bpc) {
+        hint.textContent = "Buenas Prácticas Compartidas — Charla con acreditación en la matriz analítica.";
+      } else {
+        hint.textContent = editing
+          ? "Etapa A — Modificá la planificación. Programa → Tipo → Empresa (si externo) → Plan → Participantes."
+          : "Etapa A — Programa → Tipo → Empresa (si externo) → Plan → Participantes. Cada paso habilita el siguiente.";
+      }
     }
 
-    if (submit) submit.textContent = editing ? "Guardar cambios" : "Guardar cronograma";
+    if (submit) {
+      if (bpc) submit.textContent = "Registrar charla";
+      else submit.textContent = editing ? "Guardar cambios" : "Guardar cronograma";
+    }
 
-    if (delBtn) delBtn.classList.toggle("cap-hidden", !editing);
-
+    if (delBtn) delBtn.classList.toggle("cap-hidden", !editing || bpc);
   }
 
 
@@ -3570,6 +3658,7 @@
 
   function closeEncQuickForms() {
     togglePanel("cap-enc-instructor-quick", false);
+    togglePanel("cap-bpc-instructor-quick", false);
   }
 
 
@@ -3587,6 +3676,11 @@
     setFormError("cap-encuentro-form-error", "");
 
     closeEncQuickForms();
+    togglePanel("cap-bpc-instructor-quick", false);
+    const fileList = document.getElementById("cap-bpc-file-list");
+    if (fileList) fileList.innerHTML = "";
+
+    await setEncBpcMode(false);
 
     updateEncuentroFormMode(false);
 
@@ -3617,6 +3711,8 @@
     try { await loadEncCatalogos(); } catch (e) { console.error(e); }
 
     await resetEncuentroForm();
+    document.getElementById("cap-enc-bpc-check")?.removeAttribute("disabled");
+    document.getElementById("cap-encuentro-submit")?.classList.remove("cap-hidden");
 
     togglePanel("cap-encuentro-form-panel", true);
 
@@ -3654,6 +3750,29 @@
 
     const data = await fetchJson(`${API}/encuentros/${encuentroId}`);
 
+    if (data.es_buenas_practicas) {
+      await setEncBpcMode(true);
+      const check = document.getElementById("cap-enc-bpc-check");
+      if (check) check.disabled = true;
+      document.getElementById("cap-bpc-nombre").value = data.curso_nombre || data.titulo || "";
+      document.getElementById("cap-bpc-fecha").value = data.fecha_realizacion || data.fecha || "";
+      setEncFormVal("cap-bpc-instructor", data.instructor_id || "");
+      setEncFormVal("cap-bpc-lugar", data.lugar || "");
+      const selected = new Set((data.participantes || []).map((p) => p.participante_id));
+      await loadBpcPersonas(selected);
+      const submit = document.getElementById("cap-encuentro-submit");
+      if (submit) submit.classList.add("cap-hidden");
+      const hint = document.getElementById("cap-encuentro-form-hint");
+      if (hint) hint.textContent = "Charla ya registrada. Podés eliminarla y cargarla de nuevo si necesitás corregirla.";
+      const delBtn = document.getElementById("cap-encuentro-eliminar");
+      if (delBtn) delBtn.classList.remove("cap-hidden");
+      togglePanel("cap-encuentro-form-panel", true);
+      return;
+    }
+
+    document.getElementById("cap-enc-bpc-check")?.removeAttribute("disabled");
+    document.getElementById("cap-encuentro-submit")?.classList.remove("cap-hidden");
+    await setEncBpcMode(false);
     await loadEncProgramas();
 
     let programa = encProgramasCache.find((p) => p.id === data.programa_id);
@@ -3996,11 +4115,106 @@
 
     });
 
+    document.getElementById("cap-enc-bpc-check")?.addEventListener("change", (e) => {
+      setEncBpcMode(e.target.checked).catch(console.error);
+    });
+
+    document.getElementById("cap-bpc-sel-todos")?.addEventListener("click", () => {
+      document.querySelectorAll("#cap-bpc-personas [data-bpc-persona]").forEach((cb) => { cb.checked = true; });
+      updateBpcPersonasCount();
+    });
+
+    document.getElementById("cap-bpc-sel-ninguno")?.addEventListener("click", () => {
+      document.querySelectorAll("#cap-bpc-personas [data-bpc-persona]").forEach((cb) => { cb.checked = false; });
+      updateBpcPersonasCount();
+    });
+
+    document.getElementById("cap-bpc-archivos")?.addEventListener("change", updateBpcFileList);
+
+    document.getElementById("cap-bpc-instructor-add")?.addEventListener("click", () => {
+      togglePanel("cap-bpc-instructor-quick", true);
+      document.getElementById("cap-bpc-instructor-quick-nombre")?.focus();
+    });
+
+    document.getElementById("cap-bpc-instructor-quick-cancel")?.addEventListener("click", () => {
+      togglePanel("cap-bpc-instructor-quick", false);
+    });
+
+    document.getElementById("cap-bpc-instructor-quick-save")?.addEventListener("click", async () => {
+      const nombre = document.getElementById("cap-bpc-instructor-quick-nombre")?.value.trim();
+      if (!nombre) {
+        setFormError("cap-encuentro-form-error", "Indicá el nombre del capacitador");
+        return;
+      }
+      try {
+        const resolution = await resolveSimilarBeforeCreate({ tipo: "instructor", nombre });
+        if (resolution.action === "cancel") return;
+        if (resolution.action === "use") {
+          appendEncSelectOption("cap-bpc-instructor", resolution.item);
+          appendEncSelectOption("cap-enc-instructor", resolution.item);
+          document.getElementById("cap-bpc-instructor-quick-nombre").value = "";
+          togglePanel("cap-bpc-instructor-quick", false);
+          setFormError("cap-encuentro-form-error", "");
+          return;
+        }
+        const data = await postJson(`${API}/instructores`, { nombre });
+        appendEncSelectOption("cap-bpc-instructor", data.instructor);
+        appendEncSelectOption("cap-enc-instructor", data.instructor);
+        document.getElementById("cap-bpc-instructor-quick-nombre").value = "";
+        togglePanel("cap-bpc-instructor-quick", false);
+        setFormError("cap-encuentro-form-error", "");
+      } catch (err) {
+        setFormError("cap-encuentro-form-error", err.message);
+      }
+    });
+
     document.getElementById("cap-encuentro-form")?.addEventListener("submit", async (e) => {
 
       e.preventDefault();
 
       setFormError("cap-encuentro-form-error", "");
+
+      if (isEncBpcMode()) {
+        const participanteIds = getBpcPersonasSeleccionadas();
+        const nombreCurso = document.getElementById("cap-bpc-nombre")?.value.trim();
+        const fecha = document.getElementById("cap-bpc-fecha")?.value;
+        if (!participanteIds.length) {
+          setFormError("cap-encuentro-form-error", "Seleccioná al menos una persona");
+          return;
+        }
+        if (!nombreCurso) {
+          setFormError("cap-encuentro-form-error", "Indicá el nombre del curso / charla");
+          return;
+        }
+        if (!fecha) {
+          setFormError("cap-encuentro-form-error", "Indicá la fecha");
+          return;
+        }
+        const body = {
+          nombre_curso: nombreCurso,
+          fecha,
+          participante_ids: participanteIds,
+          instructor_id: document.getElementById("cap-bpc-instructor")?.value || null,
+          lugar: document.getElementById("cap-bpc-lugar")?.value || null,
+        };
+        try {
+          const data = await postJson(`${API}/encuentros/buenas-practicas`, body);
+          const encuentroId = data.encuentro?.id;
+          const files = document.getElementById("cap-bpc-archivos")?.files;
+          if (encuentroId && files?.length) {
+            for (const file of Array.from(files)) {
+              await uploadFile(`${API}/encuentros/${encuentroId}/adjuntos`, file);
+            }
+          }
+          togglePanel("cap-encuentro-form-panel", false);
+          encuentroEditId = null;
+          await resetEncuentroForm();
+          await loadEncuentros();
+        } catch (err) {
+          setFormError("cap-encuentro-form-error", err.message);
+        }
+        return;
+      }
 
       const participanteIds = getEncPersonasSeleccionadas();
 

@@ -865,7 +865,14 @@ def matriz_persona(
     materias_tot = 0
     cards = []
 
+    from gos.modulos.capacitacion.services.buenas_practicas_service import (
+        es_programa_bpc,
+        listar_acreditaciones_bpc_persona,
+    )
+
     for programa in programas:
+        if es_programa_bpc(programa):
+            continue
         cursos_card = []
         pendientes = []
         p_ok = 0.0
@@ -929,6 +936,8 @@ def matriz_persona(
                 }
             )
 
+    buenas_practicas = listar_acreditaciones_bpc_persona(empresa_id, persona.id)
+
     return {
         "persona": {
             "id": persona.id,
@@ -944,6 +953,7 @@ def matriz_persona(
             "materias_totales": materias_tot,
         },
         "programas": cards,
+        "buenas_practicas": buenas_practicas,
         "hoy": hoy.isoformat(),
     }
 
