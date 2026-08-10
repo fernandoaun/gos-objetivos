@@ -795,9 +795,22 @@ function renderNotasPanel() {
   card.classList.remove('hidden');
 }
 
+/** Años con al menos un registro con días pendientes > 0. */
+function aniosConPendientes(rows) {
+  return [...new Set(
+    (rows || [])
+      .filter(r => diasPendientes(r) > 0)
+      .map(r => r.anio)
+      .filter(Boolean)
+  )].sort((a, b) => a - b);
+}
+
 function aniosParaTabla(rows) {
-  if (state.selectedAnios.length) return [...state.selectedAnios].sort((a, b) => a - b);
-  return [...new Set(rows.map(r => r.anio).filter(Boolean))].sort((a, b) => a - b);
+  const conPend = aniosConPendientes(rows);
+  if (state.selectedAnios.length) {
+    return state.selectedAnios.filter(y => conPend.includes(y)).sort((a, b) => a - b);
+  }
+  return conPend;
 }
 
 function agruparPorEmpleado(rows) {

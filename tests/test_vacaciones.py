@@ -63,11 +63,25 @@ def test_vacaciones_dashboard_lists(auth_client, app):
                 dias_pendientes=9,
             )
         )
+        # Año ya completado: no debe aparecer en el filtro de años.
+        db.session.add(
+            Vacacion(
+                legajo=1,
+                empleado="Ana Test",
+                sector="IT",
+                anio=2024,
+                dias_disponibles=14,
+                dias_tomados=14,
+                dias_pendientes=0,
+            )
+        )
         db.session.commit()
 
     r = auth_client.get("/gos/vacaciones/api/dashboard/años")
     assert r.status_code == 200
-    assert 2025 in r.get_json()
+    anios = r.get_json()
+    assert 2025 in anios
+    assert 2024 not in anios
 
     r = auth_client.get("/gos/vacaciones/api/dashboard/sectores")
     assert r.status_code == 200

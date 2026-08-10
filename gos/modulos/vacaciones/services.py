@@ -22,12 +22,19 @@ def _parse_iso_date(value: Optional[str]) -> Optional[date]:
 
 
 def get_anios(db: Session) -> list[int]:
-    q_reg = select(extract("year", Registro.fecha).label("anio")).where(
-        Registro.fecha.isnot(None)
+    """Años con al menos un empleado con días pendientes (disponibles − tomados > 0).
+
+    Si todos completaron un año, ese año deja de aparecer en filtros.
+    """
+    pendientes = func.coalesce(Vacacion.dias_disponibles, 0) - func.coalesce(
+        Vacacion.dias_tomados, 0
     )
-    q_vac = select(Vacacion.anio.label("anio")).where(Vacacion.anio.isnot(None))
-    subq = union(q_reg, q_vac).subquery()
-    rows = db.execute(select(subq.c.anio).order_by(subq.c.anio)).scalars().all()
+    rows = db.execute(
+        select(Vacacion.anio)
+        .where(Vacacion.anio.isnot(None), pendientes > 0)
+        .distinct()
+        .order_by(Vacacion.anio)
+    ).scalars().all()
     return [int(r) for r in rows if r is not None]
 
 
