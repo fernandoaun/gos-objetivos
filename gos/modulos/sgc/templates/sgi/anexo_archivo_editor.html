@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% set standalone = standalone|default(false) %}
+{% block title %}{{ anexo.codigo }} · Editor{% endblock %}
+{% block extra_head %}
+<link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{% endblock %}
+{% block content %}
+<h1 class="app-page-title h5 sgi-proc-no-print">Editor — {{ anexo.codigo }}</h1>
+<div id="sgiAnexoFlash" class="alert d-none sgi-proc-no-print" role="status"></div>
+
+{% include "sgi/_anexo_especial_workflow.html" %}
+
+<div class="app-page-actions sgi-proc-no-print d-flex flex-wrap gap-2 mb-2">
+  <a class="btn btn-outline-secondary btn-sm"
+     href="{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=doc.id, rev_id=rev.id) }}">Vista lectura</a>
+</div>
+
+{% if anexo.archivo_path %}
+<div class="app-card mb-3">
+  <div class="app-card-header py-2 d-flex justify-content-between align-items-center sgi-proc-no-print">
+    <span class="fw-semibold">Documento adjunto</span>
+    <a class="btn btn-outline-secondary btn-sm"
+       href="{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id) }}">
+      <i class="bi bi-download me-1"></i>{{ archivo_nombre or 'Descargar' }}
+    </a>
+  </div>
+  <div class="app-card-body sgi-anexo-view-body">
+    {% if vista_tipo == 'image' %}
+    <img src="{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id, inline=1) }}"
+         alt="{{ anexo.nombre }}" class="sgi-anexo-view-img">
+    {% elif vista_tipo == 'pdf' %}
+    <iframe class="sgi-anexo-view-pdf"
+            src="{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id, inline=1) }}"
+            title="{{ anexo.nombre }}"></iframe>
+    {% elif vista_tipo == 'office' %}
+    <div class="text-center py-5">
+      <i class="bi bi-file-earmark-text display-4 text-muted d-block mb-3" aria-hidden="true"></i>
+      <p class="mb-2"><strong>{{ archivo_nombre }}</strong></p>
+      <p class="text-muted mb-3">Este documento es de Office. Descargalo para abrirlo en Word o PowerPoint.</p>
+      <a class="btn btn-primary"
+         href="{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id) }}">Descargar archivo</a>
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+      <p class="text-muted mb-3">Descargá el archivo para consultarlo.</p>
+      <a class="btn btn-primary"
+         href="{{ url_for('sgi.procedimiento_archivo', slug=slug, doc_id=doc.id) }}">Descargar</a>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{% if not solo_lectura|default(false) %}
+<div class="sgi-proc-no-print mb-3">
+  <label class="btn btn-outline-primary btn-sm mb-0">
+    <i class="bi bi-paperclip me-1"></i>Reemplazar archivo
+    <input type="file" id="anexoArchivoInput" class="d-none" accept=".png,.jpg,.jpeg,.pdf,.doc,.docx,.ppt,.pptx">
+  </label>
+</div>
+{% endif %}
+
+{% include "sgi/_anexo_firmas_vista.html" %}
+
+{% else %}
+<div class="alert alert-warning sgi-proc-no-print">Sin archivo adjunto. Usá «Adjuntar archivo» para cargar uno.</div>
+<div class="sgi-proc-no-print mb-3">
+  <label class="btn btn-outline-primary btn-sm mb-0">
+    <i class="bi bi-paperclip me-1"></i>Adjuntar archivo
+    <input type="file" id="anexoArchivoInput" class="d-none" accept=".png,.jpg,.jpeg,.pdf,.doc,.docx,.ppt,.pptx">
+  </label>
+</div>
+{% include "sgi/_anexo_firmas_vista.html" %}
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+  window.SGI_ANEXO_WORKFLOW = {
+    soloLectura: {{ 'true' if solo_lectura else 'false' }},
+    revEstado: {{ rev.estado|tojson }},
+    csrf: {{ csrf_token()|tojson }},
+    urls: {
+      guardar: {{ url_for('sgi.procedimiento_guardar', slug=slug, doc_id=doc.id, rev_id=rev.id)|tojson }},
+      workflow: {{ url_for('sgi.procedimiento_workflow', slug=slug, doc_id=doc.id, rev_id=rev.id)|tojson }},
+      {% if doc.tipo == 'MSGC' %}
+      firmaGerente: {{ url_for('sgi.firma_gerente', slug=slug, doc_id=doc.id)|tojson }},
+      {% endif %}
+    },
+  };
+</script>
+<script src="{{ url_for('static', filename='js/sgi_anexo_workflow.js') }}"></script>
+{% if not solo_lectura|default(false) %}
+<script>
+  (function () {
+    const input = document.getElementById("anexoArchivoInput");
+    if (!input) return;
+    input.addEventListener("change", () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const fd = new FormData();
+      fd.append("archivo", file);
+      const token = document.querySelector('meta[name="csrf-token"]')?.content || "";
+      fetch({{ url_for('sgi.procedimiento_upload_archivo', slug=slug, doc_id=doc.id)|tojson }}, {
+        method: "POST",
+        headers: { "X-CSRFToken": token, "X-Requested-With": "XMLHttpRequest" },
+        credentials: "same-origin",
+        body: fd,
+      })
+        .then((r) => r.json())
+        .then((res) => {
+          const el = document.getElementById("sgiAnexoFlash");
+          if (el) {
+            el.className = `alert alert-${res.ok ? "success" : "danger"} sgi-proc-no-print`;
+            el.textContent = res.message || (res.ok ? "Archivo cargado." : "Error.");
+            el.classList.remove("d-none");
+          }
+          if (res.ok) window.location.reload();
+        })
+        .catch(() => {
+          const el = document.getElementById("sgiAnexoFlash");
+          if (el) {
+            el.className = "alert alert-danger sgi-proc-no-print";
+            el.textContent = "No se pudo adjuntar el archivo.";
+            el.classList.remove("d-none");
+          }
+        });
+    });
+  })();
+</script>
+{% endif %}
+{% endblock %}

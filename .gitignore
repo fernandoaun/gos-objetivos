@@ -7,4 +7,5 @@ htmlcov/
 .venv/
 venv/
 storage/
+exports/
 *.db

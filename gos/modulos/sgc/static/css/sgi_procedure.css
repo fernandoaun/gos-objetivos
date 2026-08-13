@@ -1,0 +1,669 @@
+/* Procedimientos SGI — formato GOS-PG-01 (Información documentada Rev.00) */
+.sgi-proc-workspace {
+  background: #e8eaed;
+  min-height: calc(100vh - 120px);
+  padding: 1.5rem 1rem 6.5rem;
+}
+
+.sgi-proc-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--app-surface, #fff);
+  border: 1px solid var(--app-border, #dee2e6);
+  border-radius: 0.5rem;
+  padding: 0.65rem 1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.sgi-proc-sheet {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 11pt;
+  line-height: 1.45;
+  color: #000;
+  background: #fff;
+  width: 210mm;
+  max-width: 100%;
+  min-height: 297mm;
+  margin: 0 auto 2rem;
+  padding: 18mm 20mm 22mm;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+  box-sizing: border-box;
+  position: relative;
+}
+
+/* Firma del gerente general (MSGI) — esquina inferior derecha */
+.sgi-proc-firma-gerente {
+  position: absolute;
+  right: 12mm;
+  bottom: 10mm;
+  z-index: 5;
+  pointer-events: none;
+  max-width: 45%;
+  text-align: right;
+}
+
+.sgi-proc-firma-gerente-img {
+  display: block;
+  max-width: 52mm;
+  max-height: 28mm;
+  width: auto;
+  height: auto;
+  margin-left: auto;
+  object-fit: contain;
+}
+
+.sgi-msgi-pdf-wrap {
+  position: relative;
+  min-height: 480px;
+}
+
+.sgi-msgi-pdf-wrap .sgi-proc-firma-gerente {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 2;
+}
+
+/* Firmas + imagen gerente en vistas de anexos MSGI (tras aprobar) */
+.sgi-anexo-firmas-vista {
+  position: relative;
+  margin-top: 1.5rem;
+}
+
+.sgi-anexo-firmas-vista .sgi-proc-firma-gerente {
+  position: static;
+  margin-top: 0.75rem;
+  max-width: 100%;
+  text-align: right;
+}
+
+/* —— Logo (extraído de GOS-PG-01) —— */
+.sgi-proc-logo-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.sgi-proc-cover-logo-wrap {
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.sgi-proc-cover-logo-wrap .sgi-proc-logo-img {
+  max-width: 320px;
+  max-height: 90px;
+  margin: 0 auto;
+}
+
+.sgi-proc-cover-empresa {
+  text-align: center;
+  font-size: 11pt;
+  font-weight: 700;
+  color: #000;
+  margin-bottom: 1.25rem;
+}
+
+.sgi-proc-cover-titulo {
+  text-align: center;
+  font-size: 16pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  border: none;
+  color: #000;
+}
+
+.sgi-proc-cover-codigo {
+  text-align: center;
+  font-size: 13pt;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.sgi-proc-cover-revision {
+  text-align: center;
+  font-size: 11pt;
+  font-weight: 700;
+  margin-bottom: 1.25rem;
+}
+
+.sgi-proc-section-label {
+  font-weight: 700;
+  font-size: 10pt;
+  margin: 1.25rem 0 0.35rem;
+}
+
+/* —— Tablas —— */
+.sgi-proc-table {
+  width: 100%;
+  max-width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0 1rem;
+  font-size: 10pt;
+  table-layout: fixed;
+}
+
+.sgi-proc-table th,
+.sgi-proc-table td {
+  border: 1px solid #000;
+  padding: 6px 8px;
+  vertical-align: middle;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.sgi-proc-table thead th {
+  background: #fff;
+  font-weight: 700;
+  text-align: center;
+}
+
+.sgi-proc-firmas-table {
+  max-width: 100%;
+  margin: 1rem auto 1.5rem;
+}
+
+.sgi-proc-table input,
+.sgi-proc-table textarea {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: inherit;
+  padding: 2px;
+  resize: vertical;
+  min-height: 1.4em;
+  text-align: center;
+}
+
+.sgi-proc-table select.form-select {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  font-size: inherit;
+  padding: 0.15rem 0.35rem;
+  min-height: 0;
+}
+
+.sgi-proc-table input:focus,
+.sgi-proc-table textarea:focus {
+  outline: 2px solid #2980b9;
+  background: #f8fbff;
+}
+
+/* Control de registros: muchas columnas → tipografía/padding compactos */
+.sgi-proc-table-registros {
+  font-size: 7.5pt;
+  line-height: 1.25;
+}
+
+.sgi-proc-table-registros th,
+.sgi-proc-table-registros td {
+  padding: 3px 4px;
+  vertical-align: top;
+  min-width: 0;
+}
+
+.sgi-proc-table-registros thead th {
+  font-size: 7pt;
+  line-height: 1.2;
+  padding: 4px 3px;
+}
+
+.sgi-proc-table-registros input,
+.sgi-proc-table-registros select.form-select {
+  min-width: 0;
+}
+
+.sgi-proc-table-registros col.sgi-rg-col-nombre { width: 18%; }
+.sgi-proc-table-registros col.sgi-rg-col-quien { width: 8%; }
+.sgi-proc-table-registros col.sgi-rg-col-como { width: 7%; }
+.sgi-proc-table-registros col.sgi-rg-col-donde { width: 10%; }
+.sgi-proc-table-registros col.sgi-rg-col-tiempo { width: 10%; }
+.sgi-proc-table-registros col.sgi-rg-col-usuarios { width: 12%; }
+.sgi-proc-table-registros col.sgi-rg-col-disp { width: 10%; }
+.sgi-proc-table-registros col.sgi-rg-col-modulo { width: 10%; }
+.sgi-proc-table-registros col.sgi-rg-col-acciones { width: 12%; }
+.sgi-proc-table-registros col.sgi-rg-col-del { width: 3%; }
+
+.sgi-proc-table-registros .sgi-proc-no-print .btn {
+  display: block;
+  width: 100%;
+  white-space: normal;
+  margin: 0 0 0.2rem;
+  padding: 0.15rem 0.25rem;
+  font-size: 7pt;
+  line-height: 1.2;
+}
+
+.sgi-proc-table-registros .badge {
+  white-space: normal;
+  font-size: 7pt;
+}
+
+.sgi-proc-table tr.sgi-cc-auto td {
+  background: #f9fafb;
+}
+
+.sgi-proc-table tr.sgi-cc-auto .cc-rev,
+.sgi-proc-table tr.sgi-cc-auto .cc-desc {
+  cursor: default;
+  color: #212529;
+}
+
+/* —— Encabezado interiores (3 columnas como Word header1) —— */
+.sgi-proc-header-block {
+  margin: 1.5rem 0 1.25rem;
+}
+
+.sgi-proc-page-break {
+  page-break-before: always;
+  break-before: page;
+}
+
+.sgi-proc-header-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10pt;
+  border: 1px solid #000;
+}
+
+.sgi-proc-header-table td {
+  border: 1px solid #000;
+  padding: 4px 8px;
+  vertical-align: middle;
+}
+
+.sgi-proc-header-logo-cell {
+  width: 28%;
+  text-align: center;
+  background: #fff;
+}
+
+.sgi-proc-header-logo-cell .sgi-proc-logo-img {
+  max-width: 140px;
+  max-height: 52px;
+  margin: 4px auto;
+}
+
+.sgi-proc-header-titulo-cell {
+  width: 42%;
+  font-size: 11pt;
+  font-weight: 700;
+  text-align: left;
+  vertical-align: bottom;
+}
+
+.sgi-proc-header-codigo-cell {
+  width: 30%;
+  font-size: 11pt;
+  font-weight: 700;
+  text-align: center;
+}
+
+.sgi-proc-header-rev-cell {
+  font-size: 10pt;
+  font-weight: 700;
+  text-align: center;
+}
+
+.sgi-proc-header-pag-cell {
+  font-size: 10pt;
+  text-align: center;
+}
+
+/* —— Cuerpo —— */
+.sgi-proc-seccion {
+  margin-top: 1rem;
+  page-break-inside: avoid;
+  clear: both;
+  width: 100%;
+}
+
+.sgi-proc-cuerpo {
+  clear: both;
+}
+
+.sgi-proc-seccion-titulo {
+  font-size: 11pt;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.sgi-proc-seccion-heading {
+  margin-bottom: 0.25rem;
+}
+
+.sgi-proc-subapartado {
+  margin: 0.75rem 0 0.35rem;
+  text-align: justify;
+}
+
+.sgi-proc-subapartado .sgi-proc-sub-num {
+  font-weight: 700;
+}
+
+.sgi-proc-subapartado[data-sub-level="2"] {
+  margin-left: 1.25rem;
+}
+
+.sgi-proc-subapartado[data-sub-level="3"] {
+  margin-left: 2.5rem;
+}
+
+.sgi-proc-seccion-cuerpo {
+  min-height: 2.5em;
+  padding: 4px 2px 8px;
+  text-align: justify;
+  font-family: Arial, Helvetica, sans-serif;
+  display: flow-root;
+  width: 100%;
+  clear: both;
+}
+
+/* Tablas e imágenes incrustadas en secciones (pegadas o insertadas) */
+.sgi-proc-seccion-cuerpo table,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table {
+  width: 100% !important;
+  max-width: 100%;
+  border-collapse: collapse;
+  margin: 0.5rem 0 1rem;
+  font-size: 10pt;
+  float: none !important;
+  display: table !important;
+  table-layout: fixed;
+}
+
+.sgi-proc-seccion-cuerpo table th,
+.sgi-proc-seccion-cuerpo table td,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table th,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table td {
+  border: 1px solid #000;
+  padding: 6px 8px;
+  vertical-align: middle;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+}
+
+.sgi-proc-seccion-cuerpo table th,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table th {
+  font-weight: 700;
+  text-align: center;
+}
+
+.sgi-proc-seccion-cuerpo img,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0.5rem auto;
+  float: none !important;
+}
+
+.sgi-proc-seccion-cuerpo p,
+.sgi-proc-seccion-cuerpo div {
+  float: none !important;
+}
+
+.sgi-proc-seccion-cuerpo p {
+  display: block;
+  margin: 0.35rem 0;
+  line-height: 1.45;
+}
+
+.sgi-proc-seccion-cuerpo ul,
+.sgi-proc-seccion-cuerpo ol {
+  display: block;
+  margin: 0.35rem 0 0.65rem;
+  padding-left: 1.6rem;
+  list-style-position: outside;
+}
+
+.sgi-proc-seccion-cuerpo li {
+  display: list-item;
+  margin: 0.2rem 0;
+  line-height: 1.45;
+}
+
+.sgi-proc-seccion-cuerpo ul ul,
+.sgi-proc-seccion-cuerpo ol ol,
+.sgi-proc-seccion-cuerpo ul ol,
+.sgi-proc-seccion-cuerpo ol ul {
+  margin-top: 0.15rem;
+  margin-bottom: 0.15rem;
+}
+
+.sgi-proc-seccion-cuerpo table td,
+.sgi-proc-seccion-cuerpo table th,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table td,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table th {
+  vertical-align: top;
+}
+
+.sgi-proc-seccion-cuerpo table td ul,
+.sgi-proc-seccion-cuerpo table td ol,
+.sgi-proc-seccion-cuerpo table th ul,
+.sgi-proc-seccion-cuerpo table th ol,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table td ul,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table td ol,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table th ul,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table th ol {
+  margin: 0.2rem 0 0.35rem;
+  padding-left: 1.4rem;
+}
+
+.sgi-proc-seccion-cuerpo table td p,
+.sgi-proc-seccion-cuerpo table th p,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table td p,
+.sgi-proc-seccion-cuerpo .sgi-proc-content-table th p {
+  margin: 0.2rem 0;
+  line-height: 1.45;
+}
+
+/* Tipografía uniforme: ignora fuentes incrustadas al pegar desde Word u otros orígenes */
+.sgi-proc-sheet .sgi-proc-seccion-cuerpo,
+.sgi-proc-sheet .sgi-proc-seccion-cuerpo * {
+  font-family: Arial, Helvetica, sans-serif !important;
+}
+
+.sgi-proc-seccion-cuerpo:focus,
+.sgi-proc-seccion-cuerpo.sgi-proc-section-active {
+  outline: none;
+  background: #fafcff;
+  box-shadow: inset 0 0 0 1px #2980b9;
+}
+
+.sgi-proc-seccion-cuerpo strong,
+.sgi-proc-seccion-cuerpo b {
+  font-weight: 700 !important;
+}
+
+.sgi-proc-seccion-cuerpo em,
+.sgi-proc-seccion-cuerpo i {
+  font-style: italic !important;
+}
+
+.sgi-proc-seccion-cuerpo u {
+  text-decoration: underline !important;
+}
+
+/* Barra de formato fija (abajo), fuera del recuadro de cada sección */
+.sgi-proc-format-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1040;
+  background: var(--app-surface, #fff);
+  border-top: 1px solid var(--app-border, #dee2e6);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+  padding: 0.45rem 0.75rem;
+}
+
+.sgi-proc-format-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.sgi-proc-format-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.sgi-proc-format-sep {
+  width: 1px;
+  align-self: stretch;
+  min-height: 1.75rem;
+  background: var(--app-border, #dee2e6);
+}
+
+.sgi-proc-format-label {
+  font-size: 0.75rem;
+  color: #6c757d;
+  white-space: nowrap;
+}
+
+.sgi-proc-fmt-btn[aria-pressed="true"] {
+  background: #2980b9;
+  color: #fff;
+  border-color: #2980b9;
+}
+
+.sgi-proc-fmt-col-select {
+  width: auto;
+  min-width: 3.5rem;
+}
+
+.sgi-proc-fmt-fontsize-select {
+  width: auto;
+  min-width: 5.5rem;
+}
+
+.sgi-proc-fmt-col-range {
+  width: 7rem;
+  margin: 0;
+}
+
+.sgi-proc-format-col-pct {
+  font-size: 0.75rem;
+  min-width: 2.5rem;
+  color: #495057;
+}
+
+.sgi-proc-format-hint {
+  flex: 1 1 12rem;
+  font-size: 0.75rem;
+  color: #6c757d;
+  text-align: right;
+}
+
+.sgi-proc-content-table.sgi-proc-table-editable th {
+  position: relative;
+}
+
+.sgi-proc-col-resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 2;
+}
+
+.sgi-proc-col-resizer:hover {
+  background: rgba(41, 128, 185, 0.35);
+}
+
+.sgi-proc-seccion-cuerpo[contenteditable="false"] {
+  cursor: default;
+}
+
+.sgi-proc-anexo-card {
+  border: 1px solid #000;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.sgi-anexo-preview-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #dee2e6;
+  background: #fff;
+}
+
+.sgi-anexo-view-body {
+  padding: 1rem;
+}
+
+.sgi-anexo-view-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.sgi-anexo-view-pdf {
+  width: 100%;
+  min-height: 75vh;
+  border: 1px solid #dee2e6;
+}
+
+@media print {
+  .sgi-proc-no-print,
+  .sgi-proc-format-bar {
+    display: none !important;
+  }
+  .sgi-proc-workspace {
+    background: #fff;
+    padding: 0;
+  }
+  .sgi-proc-sheet {
+    box-shadow: none;
+    margin: 0;
+    width: 100%;
+    max-width: none;
+    /* @page ya aporta margen: no duplicar padding lateral */
+    padding: 0;
+  }
+  .sgi-proc-firma-gerente {
+    position: fixed;
+    right: 12mm;
+    bottom: 10mm;
+  }
+  .sgi-proc-table-registros {
+    font-size: 7pt;
+  }
+  .sgi-proc-table-registros thead th {
+    font-size: 6.5pt;
+  }
+  /* Sin columna Acciones en impresión: redistribuir anchos de datos */
+  .sgi-proc-table-registros col.sgi-rg-col-nombre { width: 20%; }
+  .sgi-proc-table-registros col.sgi-rg-col-quien { width: 9%; }
+  .sgi-proc-table-registros col.sgi-rg-col-como { width: 8%; }
+  .sgi-proc-table-registros col.sgi-rg-col-donde { width: 11%; }
+  .sgi-proc-table-registros col.sgi-rg-col-tiempo { width: 12%; }
+  .sgi-proc-table-registros col.sgi-rg-col-usuarios { width: 14%; }
+  .sgi-proc-table-registros col.sgi-rg-col-disp { width: 13%; }
+  .sgi-proc-table-registros col.sgi-rg-col-modulo { width: 13%; }
+}
+
+.table-app tbody tr.sgi-row-revision td {
+  box-shadow: inset 3px 0 0 0 #fd7e14;
+  background: rgba(253, 126, 20, 0.08);
+}

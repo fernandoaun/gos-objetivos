@@ -1,0 +1,495 @@
+{% extends "base.html" %}
+{% block title %}{{ tipo_label }} · Procedimientos · SGC{% endblock %}
+{% block extra_head %}
+{% if puede_editar or puede_asociar_modulo %}
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{% endif %}
+{% endblock %}
+{% block content %}
+<div class="app-page-head">
+  <h1 class="app-page-title">{{ tipo_label }}</h1>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    {% if puede_editar %}
+    <a class="btn btn-primary btn-sm" href="{{ url_for('sgi.procedimiento_nuevo', slug=slug) }}">
+      <i class="bi bi-file-earmark-plus me-1"></i>Nuevo procedimiento
+    </a>
+    {% endif %}
+    {% if puede_obsoletos %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.listado_obsoletos', slug=slug) }}">Documentos obsoletos</a>
+    {% endif %}
+    {% if puede_editar %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.listado_eliminados', slug=slug) }}">Documentos eliminados</a>
+    {% endif %}
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.hub') }}">← SGC</a>
+  </div>
+</div>
+
+<div class="app-card mb-3">
+  <div class="app-card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-5">
+        <label class="form-label">Buscar</label>
+        <input type="text" class="form-control" name="q" value="{{ filtros.q or '' }}" placeholder="Código o título…">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Estado</label>
+        <select class="form-select" name="estado">
+          <option value="">Vigentes y en curso</option>
+          {% for k, lab in estados_labels.items() if k != 'obsoleto' %}
+          <option value="{{ k }}" {% if filtros.estado == k %}selected{% endif %}>{{ lab }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary mt-4">Filtrar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="app-card app-card--flush">
+  <div class="app-card-body--flush table-responsive app-table-scroll">
+    <table class="table table-app table-compact mb-0">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Título</th>
+          <th>Revisión vigente</th>
+          <th>Estado</th>
+          <th>F. aprobación</th>
+          <th>Elaboró</th>
+          <th>Revisó</th>
+          <th>Aprobó</th>
+          <th class="text-end">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for r in rows %}
+      <tr class="{{ estado_visual_row(r) }}">
+        <td><strong>{{ r.codigo }}</strong></td>
+        <td>{{ r.titulo }}{% if r.tipo_contenido == 'documento' %} <span class="badge text-bg-light border">Documento</span>{% elif r.tipo_contenido == 'organigrama' %} <span class="badge text-bg-light border">Organigrama</span>{% elif r.tipo_contenido == 'archivo' %} <span class="badge text-bg-light border">Imagen / archivo</span>{% endif %}{% if row_meta.get(r.id, {}).get('tiene_archivo') %} <i class="bi bi-paperclip text-muted" title="Adjunto: {{ row_meta[r.id].archivo_nombre }}"></i>{% endif %}</td>
+        <td>{{ r.revision or '—' }}</td>
+        <td>{{ estados_labels.get(r.estado, r.estado) }}</td>
+        <td>{{ r.fecha_aprobacion.strftime('%d/%m/%Y') if r.fecha_aprobacion else '—' }}</td>
+        <td>{{ r.responsable_elaboracion or '—' }}</td>
+        <td>{{ r.responsable_revision or '—' }}</td>
+        <td>{{ r.responsable_aprobacion or '—' }}</td>
+        <td class="text-end text-nowrap">
+          {% if r.estado in ('aprobado', 'vigente') or puede_editar %}
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=r.id) }}">Ver</a>
+          {% endif %}
+          {% if puede_editar %}
+          <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('sgi.procedimiento_editor', slug=slug, doc_id=r.id) }}">Editar</a>
+          <a class="btn btn-sm btn-outline-info" href="{{ url_for('sgi.procedimiento_historial', slug=slug, doc_id=r.id) }}" title="Historial / nueva revisión">Rev.</a>
+          {% endif %}
+          {% if row_meta.get(r.id, {}).get('rev_id') %}
+          <a class="btn btn-sm btn-outline-danger" href="{{ url_for('sgi.procedimiento_export', slug=slug, doc_id=r.id, rev_id=row_meta[r.id].rev_id, fmt='pdf') }}" target="_blank" rel="noopener" title="Exportar PDF">PDF</a>
+          {% endif %}
+          {% if puede_editar and row_meta.get(r.id, {}).get('puede_eliminar') %}
+          <form method="post" action="{{ url_for('sgi.procedimiento_eliminar', slug=slug, doc_id=r.id) }}" class="d-inline"
+                onsubmit="return confirm('¿Mover {{ r.codigo }} a documentos eliminados?');">
+            {% include "_csrf.html" %}
+            <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">Eliminar</button>
+          </form>
+          {% endif %}
+          {% if puede_editar and tipo == 'MSGC' %}
+          <button type="button"
+                  class="btn btn-sm btn-outline-success btn-msgi-adjuntar"
+                  data-doc-id="{{ r.id }}"
+                  title="{% if row_meta.get(r.id, {}).get('tiene_archivo') %}Reemplazar adjunto ({{ row_meta[r.id].archivo_nombre }}){% else %}Adjuntar documento{% endif %}">
+            Adjuntar
+          </button>
+          <input type="file"
+                 class="d-none msgi-adjunto-input"
+                 data-doc-id="{{ r.id }}"
+                 accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.bmp,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.zip,.rar,.7z">
+          {% endif %}
+        </td>
+      </tr>
+      {% for rg in row_meta.get(r.id, {}).get('registros', []) %}
+      <tr class="sgi-list-registro table-light" data-doc-id="{{ r.id }}" data-registro-id="{{ rg.id }}"
+          data-record-definition-id="{{ rg.record_definition_id or '' }}"
+          data-has-digital="{{ '1' if rg.has_digital_record else '0' }}">
+        <td class="text-muted small ps-4">↳</td>
+        <td colspan="7">
+          <span class="text-muted small me-1">Registro · 7</span>
+          <strong>{{ rg.nombre }}</strong>
+          <span class="sgi-list-registro-modulo-badge">
+            {% if rg.has_digital_record and rg.record_summary %}
+            <span class="badge text-bg-primary ms-2">{{ rg.record_summary.code or 'REG' }}</span>
+            <span class="badge text-bg-light border ms-1">{{ rg.record_summary.origin_label }}</span>
+            {% elif rg.modulo_label %}
+            <span class="badge text-bg-secondary ms-2">{{ rg.modulo_label }}</span>
+            {% elif rg.modulo %}
+            <span class="badge text-bg-light border ms-2">{{ rg.modulo }}</span>
+            {% endif %}
+          </span>
+          {% if rg.has_digital_record and rg.record_summary %}
+          <div class="small text-muted mt-1 ms-4">
+            Registro digital · {{ rg.record_summary.origin_label }}
+          </div>
+          {% endif %}
+        </td>
+        <td class="text-end text-nowrap sgi-list-registro-acciones">
+          {% if rg.has_digital_record and rg.record_url %}
+            <a class="btn btn-sm btn-primary btn-ir-registro" href="{{ rg.record_url }}">Ir al registro</a>
+            {% if puede_crear_registro_digital %}
+            <div class="dropdown d-inline-block">
+              <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Acciones</button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><button type="button" class="dropdown-item text-danger btn-desvincular-digital"
+                        data-doc-id="{{ r.id }}" data-registro-id="{{ rg.id }}">Eliminar registro digital</button></li>
+              </ul>
+            </div>
+            {% endif %}
+          {% elif rg.modulo %}
+            {% if puede_asociar_modulo %}
+            <button type="button" class="btn btn-sm btn-outline-warning btn-desasociar-modulo"
+                    data-doc-id="{{ r.id }}" data-registro-id="{{ rg.id }}">Desasociar</button>
+            {% endif %}
+            {% if rg.blank_url %}
+            <a class="btn btn-sm btn-outline-secondary btn-ver-blanco" href="{{ rg.blank_url }}" target="_blank" rel="noopener">Ver en blanco</a>
+            {% endif %}
+            {% if rg.filled_url %}
+            <a class="btn btn-sm btn-outline-primary btn-ir-modulo" href="{{ rg.filled_url }}" target="_blank" rel="noopener">Ir al módulo</a>
+            {% endif %}
+          {% elif puede_asociar_modulo or puede_crear_registro_digital %}
+            <div class="btn-group">
+              {% if puede_asociar_modulo %}
+              <div class="dropdown d-inline-block">
+                <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  Asociar registro existente
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                  {% for key, mod in (modulos_registro or {}).items() %}
+                  <li>
+                    <button type="button" class="dropdown-item btn-asociar-modulo"
+                            data-doc-id="{{ r.id }}" data-registro-id="{{ rg.id }}" data-modulo="{{ key }}">
+                      {{ mod.label }}
+                    </button>
+                  </li>
+                  {% endfor %}
+                </ul>
+              </div>
+              {% endif %}
+              {% if puede_crear_registro_digital %}
+              <button type="button" class="btn btn-sm btn-success btn-crear-registro"
+                      data-doc-id="{{ r.id }}" data-registro-id="{{ rg.id }}"
+                      data-nombre="{{ rg.nombre }}">Crear registro</button>
+              {% endif %}
+            </div>
+          {% else %}
+            <span class="text-muted small">Sin registro configurado</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      {% else %}
+      <tr><td colspan="9" class="text-center text-muted py-4">No hay procedimientos.{% if puede_editar %} Use «Nuevo procedimiento» para comenzar.{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<p class="text-muted small mt-2">En el editor definí los puestos del organigrama a los que aplica cada procedimiento. Al aprobarse, se notifica por la campanita a los titulares de esos puestos y a los usuarios activos con el perfil asociado. Los borradores solo los ven editores SGC y quienes participan en la revisión.</p>
+{% endblock %}
+{% block scripts %}
+{% if puede_asociar_modulo or puede_crear_registro_digital or (puede_editar and tipo == 'MSGC') %}
+<link href="{{ url_for('static', filename='css/sgi_record.css') }}" rel="stylesheet">
+<script src="{{ url_for('static', filename='js/sgi_record_wizard.js') }}"></script>
+<script>
+(function () {
+  "use strict";
+  const slug = {{ slug|tojson }};
+  const csrf = document.querySelector('meta[name="csrf-token"]')?.content || "";
+  const modulos = {{ (modulos_registro or {})|tojson }};
+  const puedeAsociarModulo = {{ 'true' if puede_asociar_modulo else 'false' }};
+  const puedeCrearDigital = {{ 'true' if puede_crear_registro_digital else 'false' }};
+
+  function flash(kind, msg) {
+    const el = document.createElement("div");
+    el.className = `alert alert-${kind} alert-dismissible fade show mt-2`;
+    el.setAttribute("role", "status");
+    el.innerHTML = `${msg}<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>`;
+    const head = document.querySelector(".app-page-head");
+    if (head) head.after(el);
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
+  function setRegistroModulo(docId, registroId, modulo) {
+    return fetch(`/sgi/${slug}/procedimientos/${docId}/registro/${registroId}/modulo`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+        "X-CSRFToken": csrf,
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({ modulo: modulo || "" }),
+    }).then((r) => r.json());
+  }
+
+  function renderDigitalAcciones(acciones, registro, docId, registroId) {
+    const url = registro.record_url || (registro.record_summary && registro.record_summary.record_url) || "";
+    let html = url
+      ? `<a class="btn btn-sm btn-primary btn-ir-registro" href="${escapeHtml(url)}">Ir al registro</a>`
+      : "";
+    if (puedeCrearDigital) {
+      html += ` <div class="dropdown d-inline-block">
+        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">Acciones</button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><button type="button" class="dropdown-item text-danger btn-desvincular-digital" data-doc-id="${docId}" data-registro-id="${registroId}">Eliminar registro digital</button></li>
+        </ul>
+      </div>`;
+    }
+    acciones.innerHTML = html;
+  }
+
+  function renderAsociadoAcciones(acciones, registro) {
+    const parts = [];
+    if (puedeAsociarModulo) {
+      parts.push(
+        `<button type="button" class="btn btn-sm btn-outline-warning btn-desasociar-modulo" data-doc-id="${acciones.closest("tr").dataset.docId}" data-registro-id="${acciones.closest("tr").dataset.registroId}">Desasociar</button>`
+      );
+    }
+    if (registro.blank_url) {
+      parts.push(
+        `<a class="btn btn-sm btn-outline-secondary btn-ver-blanco" href="${registro.blank_url}" target="_blank" rel="noopener">Ver en blanco</a>`
+      );
+    }
+    if (registro.filled_url) {
+      parts.push(
+        `<a class="btn btn-sm btn-outline-primary btn-ir-modulo" href="${registro.filled_url}" target="_blank" rel="noopener">Ir al módulo</a>`
+      );
+    }
+    acciones.innerHTML = parts.join(" ");
+  }
+
+  function renderSinConfigurar(acciones, docId, registroId, nombre) {
+    let html = `<div class="btn-group">`;
+    if (puedeAsociarModulo) {
+      const items = Object.keys(modulos)
+        .map(
+          (key) =>
+            `<li><button type="button" class="dropdown-item btn-asociar-modulo" data-doc-id="${docId}" data-registro-id="${registroId}" data-modulo="${key}">${escapeHtml(modulos[key].label || key)}</button></li>`
+        )
+        .join("");
+      html += `<div class="dropdown d-inline-block">
+        <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">Asociar registro existente</button>
+        <ul class="dropdown-menu dropdown-menu-end">${items}</ul>
+      </div>`;
+    }
+    if (puedeCrearDigital) {
+      html += `<button type="button" class="btn btn-sm btn-success btn-crear-registro" data-doc-id="${docId}" data-registro-id="${registroId}" data-nombre="${escapeHtml(nombre || "")}">Crear registro</button>`;
+    }
+    html += `</div>`;
+    acciones.innerHTML = html;
+  }
+
+  function updateBadge(tr, registro) {
+    const badgeHost = tr.querySelector(".sgi-list-registro-modulo-badge");
+    if (!badgeHost) return;
+    if (registro.has_digital_record && registro.record_summary) {
+      const s = registro.record_summary;
+      badgeHost.innerHTML = `<span class="badge text-bg-primary ms-2">${escapeHtml(s.code || "REG")}</span>
+        <span class="badge text-bg-light border ms-1">${escapeHtml(s.origin_label || "")}</span>`;
+    } else if (registro.modulo_label) {
+      badgeHost.innerHTML = `<span class="badge text-bg-secondary ms-2">${escapeHtml(registro.modulo_label)}</span>`;
+    } else if (registro.modulo) {
+      badgeHost.innerHTML = `<span class="badge text-bg-light border ms-2">${escapeHtml(registro.modulo)}</span>`;
+    } else {
+      badgeHost.innerHTML = "";
+    }
+  }
+
+  function applyRegistroUi(tr, registro) {
+    const docId = tr.dataset.docId;
+    const registroId = tr.dataset.registroId;
+    const acciones = tr.querySelector(".sgi-list-registro-acciones");
+    updateBadge(tr, registro);
+    if (registro.has_digital_record) {
+      tr.dataset.hasDigital = "1";
+      tr.dataset.recordDefinitionId = registro.record_definition_id || "";
+      renderDigitalAcciones(acciones, registro, docId, registroId);
+    } else if (registro.modulo) {
+      tr.dataset.hasDigital = "0";
+      renderAsociadoAcciones(acciones, registro);
+    } else {
+      tr.dataset.hasDigital = "0";
+      renderSinConfigurar(acciones, docId, registroId, registro.nombre || "");
+    }
+  }
+
+  document.addEventListener("click", (ev) => {
+    const crear = ev.target.closest(".btn-crear-registro");
+    if (crear && puedeCrearDigital && window.SgiCreateRecordWizard) {
+      ev.preventDefault();
+      const docId = crear.dataset.docId;
+      const registroId = crear.dataset.registroId;
+      window.SgiCreateRecordWizard({
+        csrf,
+        defaultName: crear.dataset.nombre || "",
+        analyzeUrl: `/sgi/${slug}/procedimientos/${docId}/registro/${registroId}/import/analyze`,
+        createUrl: `/sgi/${slug}/procedimientos/${docId}/registro/${registroId}/import/create`,
+        onCreated: (registro, message) => {
+          const tr = document.querySelector(
+            `tr.sgi-list-registro[data-doc-id="${docId}"][data-registro-id="${registroId}"]`
+          );
+          if (tr && registro) applyRegistroUi(tr, registro);
+          else window.location.reload();
+          flash("success", message || "Registro creado.");
+        },
+      });
+      return;
+    }
+
+    const unlink = ev.target.closest(".btn-desvincular-digital");
+    if (unlink && puedeCrearDigital) {
+      ev.preventDefault();
+      if (!confirm("¿Eliminar el registro digital de este procedimiento?\n\nSe quita el vínculo y no podrá usarse más (podés crear uno nuevo después).")) return;
+      const docId = unlink.dataset.docId;
+      const registroId = unlink.dataset.registroId;
+      unlink.disabled = true;
+      fetch(`/sgi/${slug}/procedimientos/${docId}/registro/${registroId}/unlink-digital`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          "X-CSRFToken": csrf,
+        },
+        credentials: "same-origin",
+        body: "{}",
+      })
+        .then((r) => r.json())
+        .then((res) => {
+          if (!res.ok) {
+            flash("danger", res.message || "No se pudo eliminar.");
+            return;
+          }
+          const tr = document.querySelector(
+            `tr.sgi-list-registro[data-doc-id="${docId}"][data-registro-id="${registroId}"]`
+          );
+          if (tr && res.registro) applyRegistroUi(tr, res.registro);
+          else window.location.reload();
+          flash("success", res.message || "Registro digital eliminado.");
+        })
+        .catch(() => flash("danger", "No se pudo eliminar."))
+        .finally(() => {
+          unlink.disabled = false;
+        });
+      return;
+    }
+
+    {% if puede_asociar_modulo %}
+    const asoc = ev.target.closest(".btn-asociar-modulo");
+    if (asoc) {
+      ev.preventDefault();
+      const docId = asoc.dataset.docId;
+      const registroId = asoc.dataset.registroId;
+      const modulo = asoc.dataset.modulo;
+      asoc.disabled = true;
+      setRegistroModulo(docId, registroId, modulo)
+        .then((res) => {
+          if (!res.ok || !res.registro) {
+            flash("danger", res.message || "No se pudo asociar el módulo.");
+            return;
+          }
+          const tr = document.querySelector(
+            `tr.sgi-list-registro[data-doc-id="${docId}"][data-registro-id="${registroId}"]`
+          );
+          if (!tr) {
+            window.location.reload();
+            return;
+          }
+          applyRegistroUi(tr, res.registro);
+          flash("success", res.message || "Módulo asociado.");
+        })
+        .catch(() => flash("danger", "No se pudo asociar el módulo."))
+        .finally(() => {
+          asoc.disabled = false;
+        });
+      return;
+    }
+
+    const des = ev.target.closest(".btn-desasociar-modulo");
+    if (des) {
+      ev.preventDefault();
+      const docId = des.dataset.docId;
+      const registroId = des.dataset.registroId;
+      des.disabled = true;
+      setRegistroModulo(docId, registroId, "")
+        .then((res) => {
+          if (!res.ok) {
+            flash("danger", res.message || "No se pudo desasociar.");
+            return;
+          }
+          const tr = document.querySelector(
+            `tr.sgi-list-registro[data-doc-id="${docId}"][data-registro-id="${registroId}"]`
+          );
+          if (!tr) {
+            window.location.reload();
+            return;
+          }
+          applyRegistroUi(tr, res.registro || { modulo: "", modulo_label: "", has_digital_record: false });
+          flash("success", res.message || "Módulo desasociado.");
+        })
+        .catch(() => flash("danger", "No se pudo desasociar."))
+        .finally(() => {
+          des.disabled = false;
+        });
+    }
+    {% endif %}
+  });
+
+  {% if puede_editar and tipo == 'MSGC' %}
+  document.querySelectorAll(".btn-msgi-adjuntar").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const docId = btn.dataset.docId;
+      document.querySelector(`.msgi-adjunto-input[data-doc-id="${docId}"]`)?.click();
+    });
+  });
+
+  document.querySelectorAll(".msgi-adjunto-input").forEach((input) => {
+    input.addEventListener("change", () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const docId = input.dataset.docId;
+      const btn = document.querySelector(`.btn-msgi-adjuntar[data-doc-id="${docId}"]`);
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "Subiendo…";
+      }
+      const fd = new FormData();
+      fd.append("archivo", file);
+      fetch(`/sgi/${slug}/procedimientos/${docId}/archivo`, {
+        method: "POST",
+        body: fd,
+        headers: {
+          "X-Requested-With": "XMLHttpRequest",
+          "X-CSRFToken": csrf,
+        },
+        credentials: "same-origin",
+      })
+        .then((r) => r.json())
+        .then((res) => {
+          flash(res.ok ? "success" : "danger", res.message || (res.ok ? "Archivo guardado." : "No se pudo adjuntar."));
+          if (res.ok) window.setTimeout(() => window.location.reload(), 700);
+        })
+        .catch(() => flash("danger", "No se pudo adjuntar el archivo."))
+        .finally(() => {
+          input.value = "";
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = "Adjuntar";
+          }
+        });
+    });
+  });
+  {% endif %}
+})();
+</script>
+{% endif %}
+{% endblock %}

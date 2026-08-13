@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% set standalone = standalone|default(false) %}
+{% block title %}{{ anexo.codigo }} · Editor organigrama{% endblock %}
+{% block extra_head %}
+<link href="{{ url_for('static', filename='css/sgi_organigrama.css', v='10') }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{% endblock %}
+{% block content %}
+<h1 class="app-page-title h5">Editor organigrama — {{ anexo.codigo }}</h1>
+<div id="sgiOrgFlash" class="alert d-none" role="status"></div>
+
+{% include "sgi/_anexo_especial_workflow.html" %}
+
+<div class="app-page-actions d-flex flex-wrap gap-2 mb-2">
+  <a class="btn btn-outline-secondary btn-sm"
+     href="{% if standalone %}{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=doc.id, rev_id=rev.id) }}{% else %}{{ url_for('sgi.procedimiento_anexo_ver', slug=slug, anexo_id=anexo.id) }}{% endif %}">Vista</a>
+  <button type="button" class="btn btn-primary btn-sm" id="btnGuardarOrganigrama" {% if solo_lectura|default(false) %}hidden{% endif %}><i class="bi bi-save me-1"></i>Guardar organigrama</button>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-9">
+    <div class="app-card mb-0">
+      <div class="app-card-body pb-2">
+        <div class="sgi-org-editor-toolbar sgi-proc-no-print">
+          <div class="d-flex flex-wrap gap-2 align-items-center">
+            <button type="button" class="btn btn-outline-primary btn-sm active" id="btnOrgToolSelect" title="Seleccionar y mover">
+              <i class="bi bi-cursor me-1"></i>Seleccionar
+            </button>
+            <button type="button" class="btn btn-outline-primary btn-sm" id="btnOrgToolConnect" title="Crear vínculo entre dos puestos">
+              <i class="bi bi-bezier2 me-1"></i>Conectar
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="btnOrgAddNode">
+              <i class="bi bi-plus-square me-1"></i>Agregar puesto
+            </button>
+          </div>
+          <div class="sgi-org-zoom-controls">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="sgiOrgZoomOut" title="Alejar">−</button>
+            <span class="sgi-org-zoom-label" id="sgiOrgZoomLabel">100%</span>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="sgiOrgZoomIn" title="Acercar">+</button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="sgiOrgZoomReset" title="Restablecer">Ajustar</button>
+          </div>
+        </div>
+        <p class="text-muted small mb-2" id="sgiOrgToolHint">
+          Arrastrá los <strong>recuadros</strong> o el <strong>punto azul</strong> de cada línea para moverlos. Doble clic en el punto restaura la línea automática.
+        </p>
+        <div class="sgi-org-chart-viewport sgi-org-chart-viewport--editor" id="sgiOrgViewport">
+          <div class="sgi-org-chart-stage" id="sgiOrgStage">
+            <div class="sgi-org-chart-wrap" id="sgiOrgChart" data-mode="edit"></div>
+          </div>
+        </div>
+        <div class="sgi-org-gos-footer mt-2">
+          <div class="sgi-org-legend">
+            <span class="sgi-org-legend-swatch sgi-org-legend-swatch--external" aria-hidden="true"></span>
+            <span>Servicios Externos (línea punteada)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-3">
+    <div class="app-card sgi-org-props-card">
+      <div class="app-card-header">Puesto seleccionado</div>
+      <div class="app-card-body" id="sgiOrgPropsPanel">
+        <p class="text-muted small mb-0">Seleccioná un recuadro del lienzo para editar nombre, tipo y usuarios.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% include "sgi/_anexo_firmas_vista.html" %}
+{% endblock %}
+{% block scripts %}
+<script>
+  window.SGI_ORG_EDITOR = {
+    nodes: {{ nodes_json|safe }},
+    links: {{ links_json|safe }},
+    layout: {{ org_layout|tojson }},
+    usuarios: {{ usuarios_json|safe }},
+    csrf: {{ csrf_token()|tojson }},
+    guardarUrl: {% if standalone %}{{ url_for('sgi.procedimiento_guardar_contenido', slug=slug, doc_id=doc.id, rev_id=rev.id)|tojson }}{% else %}{{ url_for('sgi.procedimiento_anexo_guardar_contenido', slug=slug, anexo_id=anexo.id)|tojson }}{% endif %},
+  };
+  window.SGI_ANEXO_WORKFLOW = {
+    soloLectura: {{ 'true' if solo_lectura else 'false' }},
+    revEstado: {{ rev.estado|tojson }},
+    csrf: {{ csrf_token()|tojson }},
+    urls: {
+      guardar: {{ url_for('sgi.procedimiento_guardar', slug=slug, doc_id=doc.id, rev_id=rev.id)|tojson }},
+      workflow: {{ url_for('sgi.procedimiento_workflow', slug=slug, doc_id=doc.id, rev_id=rev.id)|tojson }},
+      {% if doc.tipo == 'MSGC' %}
+      firmaGerente: {{ url_for('sgi.firma_gerente', slug=slug, doc_id=doc.id)|tojson }},
+      {% endif %}
+    },
+    onGuardarContenido: function () {
+      if (typeof window.sgiOrgCollectPayload !== "function") return Promise.resolve({ ok: true });
+      const data = window.sgiOrgCollectPayload();
+      return fetch(window.SGI_ORG_EDITOR.guardarUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRFToken": window.SGI_ORG_EDITOR.csrf,
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        credentials: "same-origin",
+        body: JSON.stringify(data),
+      }).then((r) => r.json());
+    },
+  };
+</script>
+<script src="{{ url_for('static', filename='js/sgi_organigrama.js', v='10') }}"></script>
+<script src="{{ url_for('static', filename='js/sgi_anexo_workflow.js') }}"></script>
+{% endblock %}

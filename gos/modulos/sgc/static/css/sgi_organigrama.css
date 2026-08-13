@@ -1,0 +1,500 @@
+/* Organigrama GOS — réplica visual del PPT (naranja interno / verde externo) */
+
+.sgi-org-workspace {
+  background: #e8eaed;
+  min-height: calc(100vh - 120px);
+  padding: 1rem 0.75rem 2rem;
+}
+
+.sgi-org-sheet {
+  font-family: Arial, Helvetica, sans-serif;
+  background: #fff;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 1.5rem;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+.sgi-org-sheet-header {
+  margin-bottom: 1rem;
+}
+
+.sgi-org-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.sgi-org-toolbar-hint {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.sgi-org-zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.sgi-org-zoom-controls .btn {
+  min-width: 2rem;
+  padding: 0.15rem 0.45rem;
+}
+
+.sgi-org-zoom-label {
+  font-size: 0.78rem;
+  color: #555;
+  min-width: 3rem;
+  text-align: center;
+}
+
+.sgi-org-chart-viewport {
+  overflow: auto;
+  border: 1px solid #d5d8dc;
+  border-radius: 6px;
+  background: #fff;
+  min-height: 480px;
+  max-height: 72vh;
+  cursor: grab;
+}
+
+.sgi-org-chart-viewport.is-panning {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.sgi-org-chart-stage {
+  display: inline-block;
+  min-width: 100%;
+  width: max-content;
+  padding: 1.25rem 0.75rem 1rem;
+  transform-origin: top center;
+  transition: transform 0.12s ease-out;
+}
+
+.sgi-org-chart-viewport.is-panning .sgi-org-chart-stage,
+.sgi-org-chart-viewport.is-dragging-item .sgi-org-chart-stage {
+  transition: none;
+}
+
+.sgi-org-chart-wrap {
+  position: relative;
+  display: inline-block;
+  min-width: max-content;
+  width: max-content;
+  padding: 0 0.5rem;
+}
+
+.sgi-org-connectors {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  overflow: visible;
+}
+
+/* —— Organigrama dinámico por niveles —— */
+.sgi-org-tree-chart {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.75rem;
+  padding: 0.75rem 0.5rem 1.75rem;
+  min-width: max-content;
+  width: max-content;
+}
+
+.sgi-org-tree-level {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 1.1rem;
+  width: max-content;
+  min-width: 100%;
+  margin: 0 auto;
+}
+
+.sgi-org-tree-slot {
+  flex: 0 0 auto;
+  display: block;
+}
+
+.sgi-org-tree-chart .sgi-org-node {
+  width: 132px;
+  max-width: 132px;
+  min-width: 132px;
+  box-sizing: border-box;
+}
+
+.sgi-org-node-users {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.12rem;
+  font-size: 0.55rem;
+  font-weight: 500;
+  line-height: 1.15;
+  margin-top: 0.28rem;
+  color: #444;
+  text-transform: none;
+}
+
+.sgi-org-node-user {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sgi-org-user-checklist {
+  max-height: 14rem;
+  overflow: auto;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  padding: 0.35rem 0.5rem;
+  background: #fff;
+}
+
+.sgi-org-user-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  margin: 0;
+  padding: 0.28rem 0;
+  cursor: pointer;
+}
+
+.sgi-org-user-check + .sgi-org-user-check {
+  border-top: 1px solid #f1f1f1;
+}
+
+.sgi-org-user-check input {
+  margin-top: 0.15rem;
+  flex: 0 0 auto;
+}
+
+/* —— Grilla fija GOS (legacy) —— */
+.sgi-org-gos-grid {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(13, 92px);
+  grid-template-rows: repeat(5, auto);
+  gap: 0.5rem 0.25rem;
+  justify-content: center;
+  padding: 0.5rem 0 1.75rem;
+  min-width: 1180px;
+  min-height: 360px;
+}
+
+.sgi-org-grid-cell {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.sgi-org-gos-footer {
+  display: flex;
+  justify-content: flex-start;
+  padding: 0 0.5rem;
+  margin-top: -0.5rem;
+}
+
+.sgi-org-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+  color: #222;
+}
+
+.sgi-org-legend-swatch {
+  display: inline-block;
+  width: 2.6rem;
+  height: 1.1rem;
+  border-radius: 4px;
+  border: 2px solid #4caf50;
+  background: #f1f8e9;
+  box-shadow: 2px 2px 0 rgba(76, 175, 80, 0.35);
+}
+
+/* —— Cajas de puesto —— */
+.sgi-org-node {
+  display: block;
+  width: 100%;
+  max-width: 118px;
+  min-height: 2.4rem;
+  border: 2px solid #e97132;
+  border-radius: 4px;
+  background: #fffaf5;
+  color: #1a1a1a;
+  padding: 0.45rem 0.4rem;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
+  box-shadow: 3px 3px 0 rgba(233, 113, 50, 0.28);
+}
+
+.sgi-org-node--root {
+  max-width: 132px;
+  min-height: 2.6rem;
+  padding: 0.55rem 0.45rem;
+}
+
+.sgi-org-node--external {
+  border-color: #4caf50;
+  background: #f1f8e9;
+  box-shadow: 3px 3px 0 rgba(76, 175, 80, 0.3);
+}
+
+.sgi-org-node:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.02);
+}
+
+.sgi-org-node.is-active {
+  border-color: #156082;
+  box-shadow: 0 0 0 2px rgba(21, 96, 130, 0.35), 3px 3px 0 rgba(233, 113, 50, 0.25);
+}
+
+.sgi-org-node.is-connect-source {
+  border-color: #156082;
+  box-shadow: 0 0 0 3px rgba(21, 96, 130, 0.4), 3px 3px 0 rgba(233, 113, 50, 0.25);
+}
+
+.sgi-org-node.is-path {
+  border-color: #156082;
+}
+
+.sgi-org-chart-viewport--editor {
+  min-height: 420px;
+  max-height: 68vh;
+  cursor: grab;
+}
+
+.sgi-org-chart-viewport--editor.is-panning {
+  cursor: grabbing;
+}
+
+.sgi-org-chart-viewport--editor .sgi-org-node {
+  cursor: grab;
+}
+
+.sgi-org-chart-viewport--editor .sgi-org-node:active {
+  cursor: grabbing;
+}
+
+.sgi-org-editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.sgi-org-editor-toolbar .btn.active {
+  background: var(--bs-primary);
+  border-color: var(--bs-primary);
+  color: #fff;
+}
+
+.sgi-org-canvas {
+  position: relative;
+  min-width: 640px;
+  min-height: 360px;
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+    linear-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-color: #fafbfc;
+  border-radius: 4px;
+}
+
+.sgi-org-canvas .sgi-org-connectors {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.sgi-org-chart-viewport--editor .sgi-org-canvas .sgi-org-connectors {
+  pointer-events: auto;
+}
+
+.sgi-org-link-seg {
+  pointer-events: none;
+}
+
+.sgi-org-link-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 16;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  cursor: grab;
+  pointer-events: stroke;
+}
+
+.sgi-org-link-hit:active,
+.sgi-org-link-handle:active {
+  cursor: grabbing;
+}
+
+.sgi-org-link-handle {
+  fill: #156082;
+  stroke: #fff;
+  stroke-width: 2;
+  cursor: grab;
+  pointer-events: all;
+  opacity: 0.92;
+}
+
+.sgi-org-link-handle:hover {
+  fill: #0f4a63;
+}
+
+.sgi-org-canvas-nodes {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+}
+
+.sgi-org-canvas-node {
+  position: absolute;
+  width: 132px;
+  z-index: 2;
+  cursor: grab;
+  touch-action: none;
+}
+
+.sgi-org-canvas-node.is-dragging {
+  z-index: 5;
+  cursor: grabbing;
+}
+
+.sgi-org-canvas-node.is-dragging .sgi-org-node {
+  cursor: grabbing;
+  box-shadow: 0 0 0 2px rgba(21, 96, 130, 0.45), 4px 6px 0 rgba(233, 113, 50, 0.28);
+}
+
+.sgi-org-canvas-node.is-selected .sgi-org-node {
+  border-color: #156082;
+  box-shadow: 0 0 0 2px rgba(21, 96, 130, 0.35), 3px 3px 0 rgba(233, 113, 50, 0.25);
+}
+
+.sgi-org-canvas-node .sgi-org-node {
+  width: 132px;
+  max-width: 132px;
+  min-width: 132px;
+  user-select: none;
+}
+
+.sgi-org-canvas-node .sgi-org-node-title[contenteditable="true"] {
+  cursor: text;
+  outline: none;
+}
+
+.sgi-org-canvas-node .sgi-org-node-title[contenteditable="true"]:focus {
+  outline: 1px dashed #156082;
+  outline-offset: 2px;
+}
+
+.sgi-org-props-card {
+  position: sticky;
+  top: 1rem;
+}
+
+.sgi-org-props-card .app-card-body {
+  min-height: 200px;
+}
+
+.sgi-org-node-title {
+  display: block;
+  font-weight: 700;
+  font-size: 0.58rem;
+  line-height: 1.2;
+  text-transform: none;
+}
+
+.sgi-org-node--root .sgi-org-node-title {
+  font-size: 0.64rem;
+}
+
+/* Panel detalle */
+.sgi-org-detail-card {
+  position: sticky;
+  top: 1rem;
+}
+
+.sgi-org-detail-card .app-card-body {
+  min-height: 200px;
+}
+
+.sgi-org-detail-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #e97132;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.sgi-org-empty {
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+@media (max-width: 991px) {
+  .sgi-org-chart-viewport {
+    max-height: 55vh;
+  }
+
+  .sgi-org-gos-grid {
+    grid-template-columns: repeat(13, minmax(64px, 78px));
+  }
+
+  .sgi-org-node {
+    max-width: 100px;
+  }
+}
+
+@media print {
+  .sgi-org-toolbar,
+  .sgi-org-detail-col,
+  .sgi-proc-no-print {
+    display: none !important;
+  }
+
+  .sgi-org-chart-viewport {
+    overflow: visible;
+    max-height: none;
+    border: none;
+  }
+
+  .sgi-org-chart-stage {
+    transform: none !important;
+  }
+}

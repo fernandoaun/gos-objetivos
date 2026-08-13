@@ -85,3 +85,16 @@ class Usuario(UserMixin, db.Model, TimestampMixin):
             "consulta": ROL_LABELS["cliente"],
         }
         return legacy.get(self.rol, self.rol)
+
+    # Compatibilidad con módulo SGC (API QDV: is_admin / username / nombre_completo)
+    @property
+    def is_admin(self) -> bool:
+        return self.es_administrador()
+
+    @property
+    def username(self) -> str:
+        return self.email or ""
+
+    @property
+    def nombre_completo(self) -> str:
+        return self.nombre or ""

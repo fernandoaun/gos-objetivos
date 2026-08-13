@@ -1,0 +1,26 @@
+{# Encabezado páginas interiores — GOS-PG-01: logo y título en celdas fusionadas (rowspan 3) #}
+<table class="sgi-proc-header-table" role="presentation">
+  <tbody>
+    <tr>
+      <td class="sgi-proc-header-logo-cell" rowspan="3">
+        {% include "sgi/_procedure_logo.html" %}
+      </td>
+      <td class="sgi-proc-header-titulo-cell" rowspan="3">
+        <strong id="procHeaderTitulo">{{ header_titulo|default(doc.titulo) }}</strong>
+      </td>
+      <td class="sgi-proc-header-codigo-cell">
+        <strong>{{ doc.codigo }}</strong>
+      </td>
+    </tr>
+    <tr>
+      <td class="sgi-proc-header-rev-cell">
+        <strong id="procHeaderRev">{{ rev.revision_label }}</strong>
+      </td>
+    </tr>
+    <tr>
+      <td class="sgi-proc-header-pag-cell">
+        Página <span class="proc-pagina">1</span> de <span class="proc-total-pag">1</span>
+      </td>
+    </tr>
+  </tbody>
+</table>

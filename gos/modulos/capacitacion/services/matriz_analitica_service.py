@@ -587,11 +587,11 @@ def matriz_resumen(
 ) -> dict:
     """Resumen mensual con drill-down: programas → planes → personas → detalle."""
     anio = anio or date.today().year
-    plan_ids = plan_ids or []
-    tipos = tipos or []
-    empresas = empresas or []
-    persona_ids = persona_ids or []
-    puesto_ids = puesto_ids or []
+    plan_ids = _parse_ids(plan_ids)
+    tipos = [t.lower() for t in (tipos or []) if t]
+    empresas = _parse_ids(empresas)
+    persona_ids = _parse_ids(persona_ids)
+    puesto_ids = _parse_ids(puesto_ids)
     nivel = (nivel or "programas").lower()
 
     datos = _colectar_datos_anuales(

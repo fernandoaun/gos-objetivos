@@ -37,6 +37,8 @@ def resumen_dashboard(empresa_id: int, *, sector_id: int | None = None) -> dict:
     horas_mes = 0.0
     aprobados = 0
     evaluados = 0
+    requisitos_ok = 0
+    requisitos_total = 0
 
     cumplimiento_por_sector: dict[int, dict] = {}
     cumplimiento_por_curso: dict[int, dict] = defaultdict(lambda: {"ok": 0, "total": 0, "nombre": ""})
@@ -47,6 +49,7 @@ def resumen_dashboard(empresa_id: int, *, sector_id: int | None = None) -> dict:
     for p in participantes:
         data = analitico_participante(p.id, empresa_id=empresa_id)
         pend = data["resumen"]["total_pendientes"]
+        realizados = data["resumen"]["total_cursos_realizados"]
         pendientes_total += pend
         for item in data["pendientes"]:
             if item.get("obligatorio"):
@@ -84,15 +87,17 @@ def resumen_dashboard(empresa_id: int, *, sector_id: int | None = None) -> dict:
                     proximas_vencer += 1
 
         if pend == 0:
-            if data["resumen"]["total_cursos_realizados"] or data["resumen"]["total_certificaciones"]:
+            if realizados or data["resumen"]["total_certificaciones"]:
                 verde += 1
             else:
                 gris += 1
         else:
             rojo += 1
 
-        total_req = data["resumen"]["total_cursos_realizados"] + pend
-        pct_persona = round((data["resumen"]["total_cursos_realizados"] / total_req) * 100) if total_req else 100
+        total_req = realizados + pend
+        requisitos_ok += realizados
+        requisitos_total += total_req
+        pct_persona = round((realizados / total_req) * 100) if total_req else 100
         cumplimiento_por_persona.append(
             {"id": p.id, "nombre": p.nombre_completo, "pct": pct_persona, "pendientes": pend}
         )
@@ -228,7 +233,9 @@ def resumen_dashboard(empresa_id: int, *, sector_id: int | None = None) -> dict:
         "cumplimiento_por_persona": sorted(cumplimiento_por_persona, key=lambda x: x["pct"])[:15],
         "ranking_vencimientos": ranking,
         "evolucion_mensual": evolucion,
-        "habilitados_pct": round(verde / total * 100) if participantes else 0,
+        # Habilitados = % de requisitos cumplidos (no excluye a quien tiene pendientes).
+        # Pendientes = % de personas con al menos un requisito pendiente.
+        "habilitados_pct": round(requisitos_ok / requisitos_total * 100) if requisitos_total else 0,
         "inhabilitados_pct": round(rojo / total * 100) if participantes else 0,
         "totales": {"participantes": len(participantes), "encuentros_mes": encuentros_mes},
     }

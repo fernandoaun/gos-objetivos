@@ -78,6 +78,7 @@ def create_app(config_name: str | None = None) -> Flask:
             from gos.modulos.ralenti import module_descriptor as ralenti_descriptor
             from gos.modulos.mantenimiento import module_descriptor as mantenimiento_descriptor
             from gos.modulos.om import module_descriptor as om_descriptor
+            from gos.modulos.sgc import module_descriptor as sgc_descriptor
 
             modules.append(dashboard_descriptor())
             modules.append(objetivos_descriptor())
@@ -87,6 +88,7 @@ def create_app(config_name: str | None = None) -> Flask:
             modules.append(ralenti_descriptor())
             modules.append(mantenimiento_descriptor())
             modules.append(om_descriptor())
+            modules.append(sgc_descriptor())
 
         modules = modulos_para_usuario(current_user, modules)
 
@@ -107,15 +109,28 @@ def create_app(config_name: str | None = None) -> Flask:
             current_module = "mantenimiento"
         elif request.path.startswith("/gos/om"):
             current_module = "om"
+        elif request.path.startswith("/gos/sgc"):
+            current_module = "sgc"
 
         return {
             "gos_modules": modules,
             "current_module": current_module,
             "app_version": APP_VERSION,
             "app_version_label": APP_VERSION_LABEL,
+            "presentacion_catalog": _presentacion_catalog_contexto(current_user),
         }
 
     return app
+
+
+def _presentacion_catalog_contexto(user) -> list[dict]:
+    try:
+        from gos.services.modulo_service import codigos_modulos_permitidos
+        from gos.services.presentacion_catalog import list_modules_for_user
+
+        return list_modules_for_user(codigos_modulos_permitidos(user))
+    except Exception:
+        return []
 
 
 def _ensure_schema() -> None:
@@ -133,6 +148,7 @@ def _ensure_schema() -> None:
         OmPersonnel,
         OmPhone,
     )
+    import gos.modulos.sgc.models  # noqa: F401
     from gos.schema_upgrade import ensure_core_schema
 
     ensure_core_schema()
@@ -150,12 +166,14 @@ def _register_core_blueprints(app: Flask) -> None:
     from gos.blueprints.auth import bp as auth_bp
     from gos.blueprints.main import bp as main_bp
     from gos.blueprints.perfiles import bp as perfiles_bp
+    from gos.blueprints.presentacion import bp as presentacion_bp
     from gos.blueprints.usuarios import bp as usuarios_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(perfiles_bp, url_prefix="/perfiles")
     app.register_blueprint(usuarios_bp, url_prefix="/usuarios")
+    app.register_blueprint(presentacion_bp)
 
 
 def _register_modules(app: Flask) -> None:
@@ -167,6 +185,7 @@ def _register_modules(app: Flask) -> None:
     from gos.modulos.ralenti import register as register_ralenti
     from gos.modulos.mantenimiento import register as register_mantenimiento
     from gos.modulos.om import register as register_om
+    from gos.modulos.sgc import register as register_sgc
 
     register_dashboard(app)
     register_objetivos(app)
@@ -176,6 +195,7 @@ def _register_modules(app: Flask) -> None:
     register_vacaciones(app)
     register_mantenimiento(app)
     register_om(app)
+    register_sgc(app)
 
 
 def _register_module_access_guard(app: Flask) -> None:
@@ -198,6 +218,7 @@ def _register_module_access_guard(app: Flask) -> None:
             "ralenti_static.static",
             "mantenimiento_static.static",
             "om_static.static",
+            "sgc_static.static",
         ):
             return
 
@@ -227,6 +248,7 @@ def _register_auto_login(app: Flask) -> None:
             "ralenti_static.static",
             "mantenimiento_static.static",
             "om_static.static",
+            "sgc_static.static",
         ):
             return
         if current_user.is_authenticated:

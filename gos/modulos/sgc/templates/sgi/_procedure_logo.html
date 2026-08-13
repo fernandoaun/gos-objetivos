@@ -1,0 +1,5 @@
+{% if custom_logo_url %}
+<img src="{{ custom_logo_url }}" alt="GOS" class="sgi-proc-logo-img">
+{% else %}
+<img src="{{ url_for('static', filename='img/gos-logo.png') }}" alt="GOS" class="sgi-proc-logo-img">
+{% endif %}

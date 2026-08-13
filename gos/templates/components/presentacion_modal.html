@@ -1,0 +1,35 @@
+{# Modal para armar presentación PPTX del módulo / submódulos #}
+<div class="modal fade" id="modalPresentacionGos" tabindex="-1" aria-labelledby="modalPresentacionGosLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content pe-presentacion-modal">
+      <div class="modal-header border-0 pb-0">
+        <div>
+          <div class="pe-presentacion-eyebrow">GREEN OIL SERVICES</div>
+          <h5 class="modal-title" id="modalPresentacionGosLabel">Presentación del módulo</h5>
+          <p class="text-muted small mb-0" id="presentacionSistemaLabel">Sistema de gestión</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <p class="small text-muted mb-3">
+          Genera un PowerPoint con la estética GOS (portada, statement, flujo dato→decisión y foco por área).
+          Elegí el módulo completo o solo los submódulos que quieras incluir.
+        </p>
+        <div class="d-flex gap-2 mb-3">
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="presentacionSelectAll">Todos</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="presentacionSelectNone">Ninguno</button>
+        </div>
+        <div id="presentacionSubmodulosList" class="pe-presentacion-checklist" role="group" aria-label="Submódulos"></div>
+        <div id="presentacionError" class="alert alert-danger py-2 px-3 small d-none mt-3 mb-0" role="alert"></div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn pe-btn-presentacion-go" id="presentacionGenerarBtn">
+          <i class="bi bi-download me-1"></i>
+          Descargar PPTX
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="application/json" id="presentacionCatalogData">{{ presentacion_catalog|default([])|tojson }}</script>

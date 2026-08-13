@@ -1,0 +1,86 @@
+/* Botón y modal de presentación GOS */
+.pe-btn-presentacion {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--gos-green) 55%, #fff);
+  background: linear-gradient(135deg, #fdbc0a 0%, #f9e29c 55%, #fff8df 100%);
+  color: #262b31;
+  font-weight: 650;
+  box-shadow: 0 1px 0 rgba(38, 43, 49, 0.08);
+}
+
+.pe-btn-presentacion:hover,
+.pe-btn-presentacion:focus {
+  background: linear-gradient(135deg, #f0b100 0%, #fdbc0a 50%, #f9e29c 100%);
+  color: #1a1e22;
+  border-color: #6dbb34;
+}
+
+.pe-btn-presentacion-go {
+  background: #262b31;
+  border-color: #262b31;
+  color: #fff;
+  font-weight: 650;
+}
+
+.pe-btn-presentacion-go:hover,
+.pe-btn-presentacion-go:focus {
+  background: #313640;
+  border-color: #313640;
+  color: #fdbc0a;
+}
+
+.pe-btn-presentacion-go:disabled {
+  opacity: 0.7;
+}
+
+.pe-presentacion-modal .pe-presentacion-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6dbb34;
+}
+
+.pe-presentacion-modal .modal-title {
+  font-weight: 800;
+  color: #262b31;
+}
+
+.pe-presentacion-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-height: 280px;
+  overflow: auto;
+  padding-right: 0.15rem;
+}
+
+.pe-presentacion-check {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--pe-border);
+  border-radius: var(--gos-radius-md);
+  background: var(--pe-card);
+  cursor: pointer;
+  margin: 0;
+}
+
+.pe-presentacion-check:hover {
+  border-color: #fdbc0a;
+  background: color-mix(in srgb, #f9e29c 28%, var(--pe-card));
+}
+
+.pe-presentacion-check input {
+  accent-color: #6dbb34;
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.pe-presentacion-check span {
+  font-weight: 600;
+  color: var(--pe-text);
+}

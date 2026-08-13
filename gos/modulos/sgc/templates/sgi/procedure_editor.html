@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.codigo }} · Editor · {{ tipo_label }}{% endblock %}
+{% block extra_head %}
+<link href="{{ url_for('static', filename='css/sgi_procedure.css') }}" rel="stylesheet">
+<link href="{{ url_for('static', filename='css/sgi_record.css') }}" rel="stylesheet">
+<meta name="csrf-token" content="{{ csrf_token() }}">
+{% endblock %}
+{% block content %}
+<div class="app-page-head sgi-proc-no-print">
+  <div>
+    <h1 class="app-page-title h5 mb-1">Editor de procedimiento</h1>
+    <div class="text-muted small">
+      <strong>{{ doc.codigo }}</strong> · {{ estados_labels.get(rev.estado, rev.estado) }}
+      <span class="badge text-bg-secondary ms-1">{{ rev.revision_label }}</span>
+    </div>
+  </div>
+  <div class="app-page-actions d-flex flex-wrap gap-2">
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.listado_procedimientos', slug=slug) }}">← Listado</a>
+    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('sgi.procedimiento_historial', slug=slug, doc_id=doc.id) }}">Historial</a>
+    {% if rev.estado in ('aprobado', 'vigente') %}
+    <a class="btn btn-outline-primary btn-sm" href="{{ url_for('sgi.procedimiento_vista', slug=slug, doc_id=doc.id, rev_id=rev.id) }}">Vista lectura</a>
+    {% endif %}
+  </div>
+</div>
+
+<div id="sgiProcFlash" class="alert d-none sgi-proc-no-print" role="status"></div>
+
+<div class="app-card sgi-proc-no-print mb-3">
+  <div class="app-card-header py-2">
+    <span class="fw-semibold">Puestos del organigrama a los que aplica</span>
+    <span class="text-muted small ms-2">Al aprobar se notifica a los titulares de estos puestos y a los usuarios con el perfil asociado.</span>
+  </div>
+  <div class="app-card-body py-2">
+    <div class="d-flex flex-wrap gap-3" id="procPerfilesAplica">
+      {% for key, label in perfiles_opciones.items() %}
+      <label class="form-check mb-0">
+        <input class="form-check-input proc-perfil-check" type="checkbox" value="{{ key }}"
+               {% if key in perfiles_aplica %}checked{% endif %}
+               {% if solo_lectura or not puede_editar %}disabled{% endif %}>
+        <span class="form-check-label">{{ label }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    {% if not perfiles_aplica and puede_editar and rev.estado == 'borrador' %}
+    <p class="text-warning small mb-0 mt-2">Seleccioná al menos un puesto antes de enviar a revisión.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% set mostrar_toolbar_workflow = (rev.estado == 'en_revision' and puede_marcar_revisado) or (rev.estado == 'revisado' and puede_aprobar) or (rev.estado in ('en_revision', 'revisado') and puede_reenviar_aviso) %}
+{% if not solo_lectura %}
+<div class="sgi-proc-toolbar sgi-proc-no-print d-flex flex-wrap align-items-center gap-2">
+  <div class="flex-grow-1" style="min-width:200px">
+    <label class="form-label small mb-0 fw-semibold">Título del procedimiento</label>
+    <input type="text" class="form-control form-control-sm" id="procTituloInput" value="{{ doc.titulo }}">
+  </div>
+  <div class="d-flex flex-wrap gap-1 align-items-end">
+    <button type="button" class="btn btn-primary btn-sm" id="btnGuardarBorrador"><i class="bi bi-save me-1"></i>Guardar borrador</button>
+    {% if rev.estado == 'borrador' and puede_editar %}
+    <button type="button" class="btn btn-warning btn-sm" id="btnEnviarRevision"><i class="bi bi-send me-1"></i>Enviar a revisión</button>
+    {% endif %}
+    {% if rev.estado == 'en_revision' and puede_marcar_revisado %}
+    <button type="button" class="btn btn-info btn-sm" id="btnMarcarRevisado"><i class="bi bi-check2-square me-1"></i>Marcar como revisado</button>
+    {% endif %}
+    {% if rev.estado in ('en_revision', 'revisado') and puede_reenviar_aviso %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="btnReenviarAviso" title="Reenviar correo al revisor o aprobador">
+      <i class="bi bi-envelope-arrow-up me-1"></i>Reenviar aviso por correo
+    </button>
+    {% endif %}
+    {% if rev.estado == 'revisado' and puede_aprobar %}
+    <button type="button" class="btn btn-success btn-sm" id="btnAprobar"><i class="bi bi-check-circle me-1"></i>Aprobar documento</button>
+    {% endif %}
+    {% if rev.estado in ('aprobado', 'vigente') and puede_editar %}
+    <button type="button" class="btn btn-outline-primary btn-sm" id="btnNuevaRevision"><i class="bi bi-files me-1"></i>Crear nueva revisión</button>
+    {% endif %}
+    <button type="button" class="btn btn-outline-danger btn-sm" id="btnExportPdf"><i class="bi bi-file-pdf me-1"></i>Exportar PDF</button>
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="btnExportWord"><i class="bi bi-file-word me-1"></i>Exportar Word</button>
+  </div>
+</div>
+{% elif mostrar_toolbar_workflow %}
+<div class="sgi-proc-toolbar sgi-proc-no-print mb-2">
+  <div class="alert alert-light border py-2 mb-2">
+  {% if rev.estado == 'en_revision' and puede_marcar_revisado %}
+    <strong>Revisión pendiente.</strong> Leé el procedimiento, completá «Aprobó» y «Correo del aprobador» en la carátula si faltan, y confirmá con el botón de abajo.
+  {% elif rev.estado == 'revisado' and puede_aprobar %}
+    <strong>Pendiente de tu aprobación.</strong> Revisá el documento y confirmá con el botón de abajo.
+  {% else %}
+    <strong>Flujo de aprobación.</strong> Podés reenviar el aviso por correo si hace falta.
+  {% endif %}
+  </div>
+  <div class="d-flex flex-wrap gap-1">
+    {% if rev.estado == 'en_revision' and puede_marcar_revisado %}
+    <button type="button" class="btn btn-info btn-sm" id="btnMarcarRevisado"><i class="bi bi-check2-square me-1"></i>Marcar como revisado</button>
+    {% endif %}
+    {% if rev.estado in ('en_revision', 'revisado') and puede_reenviar_aviso %}
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="btnReenviarAviso" title="Reenviar correo al revisor o aprobador">
+      <i class="bi bi-envelope-arrow-up me-1"></i>Reenviar aviso por correo
+    </button>
+    {% endif %}
+    {% if rev.estado == 'revisado' and puede_aprobar %}
+    <button type="button" class="btn btn-success btn-sm" id="btnAprobar"><i class="bi bi-check-circle me-1"></i>Aprobar documento</button>
+    {% endif %}
+    <button type="button" class="btn btn-outline-danger btn-sm" id="btnExportPdf"><i class="bi bi-file-pdf me-1"></i>Exportar PDF</button>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-info sgi-proc-no-print py-2">Modo solo lectura. Solo se muestra el contenido sin edición.</div>
+{% endif %}
+
+{% if not solo_lectura|default(false) %}
+<input type="file" id="procImageInput" class="d-none" accept="image/*">
+{% endif %}
+
+<div class="sgi-proc-workspace">
+  <div class="sgi-proc-scroll">
+    {% include "sgi/_procedure_document.html" %}
+  </div>
+</div>
+
+{% if not solo_lectura %}
+<aside class="sgi-proc-format-bar sgi-proc-no-print" id="procFormatBar" role="toolbar" aria-label="Herramientas de edición">
+  <div class="sgi-proc-format-inner">
+    <div class="sgi-proc-format-group" aria-label="Formato de texto">
+      <button type="button" class="btn btn-sm btn-light sgi-proc-fmt-btn" id="fmtBold" title="Negrita (Ctrl+B)" aria-pressed="false">
+        <i class="bi bi-type-bold"></i>
+      </button>
+      <button type="button" class="btn btn-sm btn-light sgi-proc-fmt-btn" id="fmtItalic" title="Cursiva (Ctrl+I)" aria-pressed="false">
+        <i class="bi bi-type-italic"></i>
+      </button>
+      <button type="button" class="btn btn-sm btn-light sgi-proc-fmt-btn" id="fmtUnderline" title="Subrayado (Ctrl+U)" aria-pressed="false">
+        <i class="bi bi-type-underline"></i>
+      </button>
+      <button type="button" class="btn btn-sm btn-light sgi-proc-fmt-btn" id="fmtBullets" title="Viñetas" aria-pressed="false">
+        <i class="bi bi-list-ul"></i><span class="ms-1">Viñetas</span>
+      </button>
+      <button type="button" class="btn btn-sm btn-light sgi-proc-fmt-btn" id="fmtNumbered" title="Lista numerada" aria-pressed="false">
+        <i class="bi bi-list-ol"></i><span class="ms-1">Números</span>
+      </button>
+    </div>
+    <div class="sgi-proc-format-sep" aria-hidden="true"></div>
+    <div class="sgi-proc-format-group" aria-label="Insertar contenido">
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="fmtSubapartadoNext" title="Insertar subapartado siguiente (mismo nivel)">
+        <i class="bi bi-list-ol"></i><span class="d-none d-md-inline ms-1">Siguiente</span>
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="fmtSubapartadoChild" title="Insertar subapartado continuo (hijo del actual)">
+        <i class="bi bi-arrow-right"></i><span class="d-none d-md-inline ms-1">Subnivel</span>
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="fmtSubapartadoUp" title="Subir un nivel (ej: de 5.3.4.x a 5.4)">
+        <i class="bi bi-arrow-left"></i><span class="d-none d-md-inline ms-1">Subir nivel</span>
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="fmtTable" title="Insertar tabla">
+        <i class="bi bi-table"></i><span class="d-none d-md-inline ms-1">Tabla</span>
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="fmtImage" title="Insertar imagen">
+        <i class="bi bi-image"></i><span class="d-none d-md-inline ms-1">Imagen</span>
+      </button>
+    </div>
+    <div class="sgi-proc-format-sep" aria-hidden="true"></div>
+    <div class="sgi-proc-format-group sgi-proc-format-table-tools" id="fmtTableTools" hidden>
+      <span class="sgi-proc-format-label">Tabla · col.</span>
+      <select class="form-select form-select-sm sgi-proc-fmt-col-select" id="fmtTableCol" aria-label="Columna a ajustar"></select>
+      <input type="range" class="form-range sgi-proc-fmt-col-range" id="fmtTableColWidth" min="8" max="85" value="25" aria-label="Ancho de columna">
+      <span class="sgi-proc-format-col-pct" id="fmtTableColWidthLbl">25%</span>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="fmtTableColsEqual" title="Repartir el ancho entre todas las columnas">
+        Igualar
+      </button>
+      <span class="sgi-proc-format-label">Texto</span>
+      <div class="btn-group btn-group-sm" role="group" aria-label="Alineación en tabla">
+        <button type="button" class="btn btn-light sgi-proc-fmt-btn" id="fmtTableAlignLeft" title="Alinear texto a la izquierda" aria-pressed="false">
+          <i class="bi bi-text-left"></i>
+        </button>
+        <button type="button" class="btn btn-light sgi-proc-fmt-btn" id="fmtTableAlignCenter" title="Centrar texto" aria-pressed="false">
+          <i class="bi bi-text-center"></i>
+        </button>
+        <button type="button" class="btn btn-light sgi-proc-fmt-btn" id="fmtTableAlignRight" title="Alinear texto a la derecha" aria-pressed="false">
+          <i class="bi bi-text-right"></i>
+        </button>
+      </div>
+      <select class="form-select form-select-sm sgi-proc-fmt-fontsize-select" id="fmtTableFontSize" aria-label="Tamaño de letra en tabla">
+        <option value="8">8 pt</option>
+        <option value="9">9 pt</option>
+        <option value="10" selected>10 pt</option>
+        <option value="11">11 pt</option>
+        <option value="12">12 pt</option>
+        <option value="14">14 pt</option>
+        <option value="16">16 pt</option>
+      </select>
+    </div>
+    <p class="sgi-proc-format-hint mb-0" id="fmtContextHint">Hacé clic en una sección del documento para editar.</p>
+  </div>
+</aside>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+  window.SGI_PROC_CONFIG = {
+    payload: {{ payload_json|safe }},
+    soloLectura: {{ 'true' if solo_lectura else 'false' }},
+    revEstado: {{ rev.estado|tojson }},
+    codigo: {{ doc.codigo|tojson }},
+    tipo: {{ doc.tipo|tojson }},
+    slug: {{ slug|tojson }},
+    revisionRef: {{ '%02d'|format(rev.numero_revision)|tojson }},
+    csrf: {{ csrf_token()|tojson }},
+    modulosRegistro: {{ (modulos_registro_json or '{}')|safe }},
+    puedeAsociarModulo: {{ 'true' if puede_asociar_modulo|default(false) else 'false' }},
+    puedeCrearRegistroDigital: {{ 'true' if puede_crear_registro_digital|default(false) else 'false' }},
+    docId: {{ doc.id|tojson }},
+    urls: {
+      guardar: {{ url_for('sgi.procedimiento_guardar', slug=slug, doc_id=doc.id, rev_id=rev.id)|tojson }},
+      workflow: {{ url_for('sgi.procedimiento_workflow', slug=slug, doc_id=doc.id, rev_id=rev.id)|tojson }},
+      editorBase: {{ (url_for('sgi.procedimiento_editor', slug=slug, doc_id=doc.id) + '/')|tojson }},
+      exportPdf: {{ url_for('sgi.procedimiento_export', slug=slug, doc_id=doc.id, rev_id=rev.id, fmt='pdf')|tojson }},
+      exportWord: {{ url_for('sgi.procedimiento_export', slug=slug, doc_id=doc.id, rev_id=rev.id, fmt='word')|tojson }},
+      {% if doc.tipo == 'MSGC' %}
+      firmaGerente: {{ url_for('sgi.firma_gerente', slug=slug, doc_id=doc.id)|tojson }},
+      {% endif %}
+    }
+  };
+</script>
+<script src="{{ url_for('static', filename='js/sgi_record_wizard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/sgi_procedure.js') }}"></script>
+{% endblock %}
