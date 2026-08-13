@@ -241,6 +241,12 @@ def actualizar_programa(empresa_id: int, programa_id: int, data: dict) -> dict:
 
     if "puesto_ids" in data or "puestos" in data:
         puesto_ids = _parse_id_list(data.get("puesto_ids") or data.get("puestos"))
+        actuales = {pp.puesto_id for pp in programa.puestos_asignados.all()}
+        if not puesto_ids and actuales and not data.get("clear_puestos"):
+            raise ValueError(
+                "Para quitar todos los puestos del programa enviá clear_puestos=true "
+                "(protección anti-borrado accidental)."
+            )
         for pid in puesto_ids:
             if not Puesto.query.filter_by(id=pid, empresa_id=empresa_id, activo=True).first():
                 raise ValueError(f"Puesto {pid} no encontrado")

@@ -183,9 +183,15 @@ def test_import_tables_json_preserves_empty_payload(tmp_path: Path):
 
 
 def test_import_tables_incluye_todos_los_modulos():
-    from gos.modulos.objetivos.services.import_service import PROTECTED_TABLES, TABLES
+    from gos.modulos.objetivos.services.import_service import (
+        CAP_TABLES,
+        PROTECTED_TABLES,
+        TABLES,
+    )
 
     assert PROTECTED_TABLES == frozenset(TABLES)
+    assert "cap_plan_cursos" in CAP_TABLES
+    assert "cap_programa_puestos" in CAP_TABLES
     for table in (
         "perfiles",
         "cap_participantes",
@@ -201,3 +207,39 @@ def test_import_tables_incluye_todos_los_modulos():
         "ralenti_events",
     ):
         assert table in PROTECTED_TABLES
+
+
+def test_import_locks_cap_module_even_if_source_has_more(tmp_path: Path):
+    """Con datos cap_* en destino, un SQLite con más personas no pisa Capacitación."""
+    from gos.modulos.objetivos.services.import_service import importar_sqlite
+
+    source = tmp_path / "source.db"
+    target = tmp_path / "target.db"
+    _make_sqlite(source, participantes=8, mant_unidades=2)
+    _make_sqlite(target, participantes=3, mant_unidades=1)
+
+    importar_sqlite(source, f"sqlite:///{target.as_posix()}")
+
+    eng = create_engine(f"sqlite:///{target.as_posix()}")
+    with eng.connect() as conn:
+        assert conn.execute(text("SELECT COUNT(*) FROM cap_participantes")).scalar() == 3
+        assert conn.execute(text("SELECT COUNT(*) FROM mant_unidades")).scalar() == 2
+
+
+def test_import_allows_cap_overwrite_with_flag(tmp_path: Path):
+    from gos.modulos.objetivos.services.import_service import importar_sqlite
+
+    source = tmp_path / "source.db"
+    target = tmp_path / "target.db"
+    _make_sqlite(source, participantes=8)
+    _make_sqlite(target, participantes=3)
+
+    importar_sqlite(
+        source,
+        f"sqlite:///{target.as_posix()}",
+        allow_cap_overwrite=True,
+    )
+
+    eng = create_engine(f"sqlite:///{target.as_posix()}")
+    with eng.connect() as conn:
+        assert conn.execute(text("SELECT COUNT(*) FROM cap_participantes")).scalar() == 8

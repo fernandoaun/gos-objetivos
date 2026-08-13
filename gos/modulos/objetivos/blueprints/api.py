@@ -186,17 +186,28 @@ def import_tables():
     tables = payload.get("tables")
     if not isinstance(tables, dict) or not tables:
         return jsonify({"ok": False, "error": "tables debe ser un objeto {nombre: [filas]}"}), 400
+    allow_cap = bool(payload.get("allow_cap_overwrite"))
 
     try:
-        from gos.modulos.objetivos.services.import_service import importar_tablas_json
+        from gos.modulos.capacitacion.services.backup_service import snapshot_capacitacion
+        from gos.modulos.objetivos.services.import_service import CAP_TABLES, importar_tablas_json
+
+        if any(t in CAP_TABLES for t in tables):
+            try:
+                snapshot_capacitacion(motivo="pre-import-tables")
+            except Exception:
+                current_app.logger.exception("snapshot pre-import-tables falló")
 
         target_url = current_app.config["SQLALCHEMY_DATABASE_URI"]
-        counts = importar_tablas_json(tables, target_url)
+        counts = importar_tablas_json(
+            tables, target_url, allow_cap_overwrite=allow_cap
+        )
         uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
         return jsonify({
             "ok": True,
             "database_backend": "postgresql" if uri.startswith("postgres") else "sqlite",
             "imported": counts,
+            "cap_overwrite": allow_cap,
         })
     except ValueError as exc:
         return jsonify({"ok": False, "error": str(exc)}), 400
@@ -217,6 +228,12 @@ def import_db():
     upload = request.files.get("database")
     if not upload or not upload.filename:
         return jsonify({"ok": False, "error": "Falta archivo database"}), 400
+    allow_cap = str(request.form.get("allow_cap_overwrite") or "").strip().lower() in (
+        "1",
+        "true",
+        "si",
+        "yes",
+    )
 
     tmp_path = None
     try:
@@ -224,15 +241,24 @@ def import_db():
             upload.save(tmp.name)
             tmp_path = Path(tmp.name)
 
+        from gos.modulos.capacitacion.services.backup_service import snapshot_capacitacion
         from gos.modulos.objetivos.services.import_service import importar_sqlite
 
+        try:
+            snapshot_capacitacion(motivo="pre-import-db")
+        except Exception:
+            current_app.logger.exception("snapshot pre-import-db falló")
+
         target_url = current_app.config["SQLALCHEMY_DATABASE_URI"]
-        counts = importar_sqlite(tmp_path, target_url)
+        counts = importar_sqlite(
+            tmp_path, target_url, allow_cap_overwrite=allow_cap
+        )
         uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
         return jsonify({
             "ok": True,
             "database_backend": "postgresql" if uri.startswith("postgres") else "sqlite",
             "imported": {k: v for k, v in counts.items() if v},
+            "cap_overwrite": allow_cap,
         })
     except Exception as exc:
         current_app.logger.exception("import-db failed")

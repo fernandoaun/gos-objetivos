@@ -43,8 +43,9 @@ def listar_puestos(empresa_id: int) -> list[dict]:
 def desactivar_puestos_huerfanos(
     empresa_id: int, *, gracia_horas: float | None = None
 ) -> int:
-    """Da de baja puestos activos sin ninguna persona activa asignada.
+    """Da de baja puestos activos sin persona ni programa que los use.
 
+    Nunca borra vínculos programa↔puesto: solo marca el puesto como inactivo.
     Si `gracia_horas` está definido, no toca puestos creados dentro de esa ventana
     (así un alta rápida no desaparece antes de asignar personas).
     """
@@ -64,12 +65,6 @@ def desactivar_puestos_huerfanos(
     if not huerfanos:
         return 0
 
-    from gos.modulos.capacitacion.models import ProgramaPuesto
-
-    ids = [p.id for p in huerfanos]
-    ProgramaPuesto.query.filter(ProgramaPuesto.puesto_id.in_(ids)).delete(
-        synchronize_session=False
-    )
     for puesto in huerfanos:
         puesto.activo = False
     db.session.commit()
@@ -77,6 +72,10 @@ def desactivar_puestos_huerfanos(
 
 
 def _puestos_en_uso_ids(empresa_id: int) -> set[int]:
+    """Puestos con personas activas o asignados a algún programa."""
+    from gos.modulos.capacitacion.models import ProgramaCapacitacion, ProgramaPuesto
+
+    ids: set[int] = set()
     rows = (
         db.session.query(Participante.puesto_id)
         .filter(
@@ -87,7 +86,33 @@ def _puestos_en_uso_ids(empresa_id: int) -> set[int]:
         .distinct()
         .all()
     )
-    return {row[0] for row in rows if row[0] is not None}
+    ids.update(row[0] for row in rows if row[0] is not None)
+
+    prog_rows = (
+        db.session.query(ProgramaPuesto.puesto_id)
+        .join(ProgramaCapacitacion, ProgramaCapacitacion.id == ProgramaPuesto.programa_id)
+        .filter(
+            ProgramaCapacitacion.empresa_id == empresa_id,
+            ProgramaCapacitacion.activo.is_(True),
+            ProgramaPuesto.puesto_id.isnot(None),
+        )
+        .distinct()
+        .all()
+    )
+    ids.update(row[0] for row in prog_rows if row[0] is not None)
+
+    legacy = (
+        db.session.query(ProgramaCapacitacion.puesto_id)
+        .filter(
+            ProgramaCapacitacion.empresa_id == empresa_id,
+            ProgramaCapacitacion.activo.is_(True),
+            ProgramaCapacitacion.puesto_id.isnot(None),
+        )
+        .distinct()
+        .all()
+    )
+    ids.update(row[0] for row in legacy if row[0] is not None)
+    return ids
 
 
 def listar_centros(empresa_id: int) -> list[dict]:

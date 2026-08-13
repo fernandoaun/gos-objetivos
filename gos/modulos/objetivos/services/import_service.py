@@ -5,6 +5,8 @@ Protecciones anti-wipe (aislamiento entre módulos):
 - Antes de TRUNCATE, snapshot de tablas donde el destino tiene MÁS filas que el origen.
 - Tras el import se restauran esos snapshots: un SQLite local incompleto
   (p. ej. solo VTV) no borra Capacitación, vacaciones, ralentí, O&M, etc. en Render.
+- Capacitación (`cap_*`) está **bloqueada** por defecto: si Render ya tiene datos
+  cap_*, no se reemplaza ninguna tabla del módulo salvo `allow_cap_overwrite=True`.
 - `importar_tablas_json` solo toca las tablas pedidas; si el payload de una
   tabla viene vacío y el destino tiene filas, también las conserva.
 """
@@ -81,10 +83,29 @@ TABLES = [
     "ralenti_files",
     "ralenti_events",
     "ralenti_config",
+    # SGC (tablas propias sgi_*; padres → hijos)
+    "sgi_documentos",
+    "sgi_documento_perfiles",
+    "sgi_documentos_historial",
+    "sgi_record_files",
+    "sgi_record_definitions",
+    "sgi_record_definition_versions",
+    "sgi_procedimiento_revisiones",
+    "sgi_procedimiento_control_cambios",
+    "sgi_procedimiento_registros",
+    "sgi_procedimiento_anexos",
+    "sgi_procedimiento_aprobaciones",
+    "sgi_notificaciones",
+    "sgi_record_entries",
+    "sgi_record_audit_logs",
+    "sgi_empleados_personal",
 ]
 
 # Aislamiento entre módulos: nunca reducir una tabla si el origen trae menos filas.
 PROTECTED_TABLES = frozenset(TABLES)
+
+# Capacitación: módulo completo blindado (no se pisa con un backup parcial).
+CAP_TABLES = frozenset(t for t in TABLES if t.startswith("cap_"))
 
 
 def fix_postgres_url(url: str) -> str:
@@ -113,6 +134,7 @@ def _ensure_schema(target_url: str) -> None:
     import gos.modulos.om.models  # noqa: F401
     import gos.modulos.ralenti.models  # noqa: F401
     import gos.modulos.vacaciones.models  # noqa: F401
+    import gos.modulos.sgc.models  # noqa: F401
     from gos.extensions import db
 
     engine = create_engine(fix_postgres_url(target_url))
@@ -204,11 +226,25 @@ def _reset_sequences(connection, table: str) -> None:
     )
 
 
+def _destino_tiene_capacitacion(tgt_conn) -> bool:
+    present = set(inspect(tgt_conn).get_table_names())
+    for table in CAP_TABLES:
+        if table in present and _count_table(tgt_conn, table) > 0:
+            return True
+    return False
+
+
 def _tables_to_preserve(
     src_counts: dict[str, int],
     tgt_conn,
+    *,
+    allow_cap_overwrite: bool = False,
 ) -> list[str]:
-    """Tablas protegidas que no deben reducirse: destino tiene más filas que el origen."""
+    """Tablas protegidas que no deben reducirse: destino tiene más filas que el origen.
+
+    Además, si Capacitación ya tiene datos en destino y no se pidió overwrite,
+    se preserva el módulo `cap_*` completo (evita backups parciales).
+    """
     present = set(inspect(tgt_conn).get_table_names())
     preserve: list[str] = []
     for table in TABLES:
@@ -218,14 +254,26 @@ def _tables_to_preserve(
         tgt_n = _count_table(tgt_conn, table)
         if tgt_n > src_n:
             preserve.append(table)
+
+    if not allow_cap_overwrite and _destino_tiene_capacitacion(tgt_conn):
+        for table in CAP_TABLES:
+            if table in present and table not in preserve:
+                preserve.append(table)
     return preserve
 
 
-def importar_tablas_json(tables_data: dict[str, list], target_url: str) -> dict[str, int]:
+def importar_tablas_json(
+    tables_data: dict[str, list],
+    target_url: str,
+    *,
+    allow_cap_overwrite: bool = False,
+) -> dict[str, int]:
     """Reemplaza solo las tablas pedidas (JSON). No toca el resto de la base.
 
     Si una tabla pedida llega con 0 filas y el destino tiene datos, se conserva
     (no se vacía). Remapea empresa_id al primer id de empresas en destino.
+    Capacitación (`cap_*`) no se reemplaza si el destino ya tiene datos, salvo
+    `allow_cap_overwrite=True`.
     """
     import gos.modulos.objetivos.models  # noqa: F401
     from gos.extensions import db
@@ -253,6 +301,7 @@ def importar_tablas_json(tables_data: dict[str, list], target_url: str) -> dict[
             raise ValueError("No hay empresa en destino y no se envió tabla empresas")
 
         present_names = set(inspect(tgt_conn).get_table_names())
+        lock_cap = (not allow_cap_overwrite) and _destino_tiene_capacitacion(tgt_conn)
         to_replace: list[str] = []
         preserve_empty: dict[str, int] = {}
         for table in ordered:
@@ -265,6 +314,10 @@ def importar_tablas_json(tables_data: dict[str, list], target_url: str) -> dict[
             if not rows and tgt_n > 0:
                 preserve_empty[table] = tgt_n
                 continue
+            # Blindaje Capacitación: no pisar cap_* existentes.
+            if lock_cap and table in CAP_TABLES and tgt_n > 0:
+                preserve_empty[table] = tgt_n
+                continue
             to_replace.append(table)
 
         if to_replace:
@@ -274,7 +327,8 @@ def importar_tablas_json(tables_data: dict[str, list], target_url: str) -> dict[
             if table in preserve_empty:
                 imported[table] = preserve_empty[table]
                 print(
-                    f"Preservada {table}: JSON vacío y destino tiene {preserve_empty[table]} filas",
+                    f"Preservada {table}: destino conserva {preserve_empty[table]} filas "
+                    f"(payload vacío o módulo cap_* bloqueado)",
                     file=sys.stderr,
                 )
                 continue
@@ -351,7 +405,12 @@ def importar_tablas_json(tables_data: dict[str, list], target_url: str) -> dict[
     return imported
 
 
-def importar_sqlite(local_path: Path, target_url: str) -> dict[str, int]:
+def importar_sqlite(
+    local_path: Path,
+    target_url: str,
+    *,
+    allow_cap_overwrite: bool = False,
+) -> dict[str, int]:
     import gos.modulos.capacitacion.models  # noqa: F401
     import gos.modulos.hwo.models  # noqa: F401
     import gos.modulos.mantenimiento.models  # noqa: F401
@@ -390,7 +449,11 @@ def importar_sqlite(local_path: Path, target_url: str) -> dict[str, int]:
             staged[table] = [_row_dict(row) for row in rows]
 
         with tgt_engine.begin() as tgt_conn:
-            preserve = _tables_to_preserve(source_counts, tgt_conn)
+            preserve = _tables_to_preserve(
+                source_counts,
+                tgt_conn,
+                allow_cap_overwrite=allow_cap_overwrite,
+            )
             snaps = _snapshot_tables(tgt_conn, preserve) if preserve else {}
             preserved = [t for t, rows in snaps.items() if rows]
 

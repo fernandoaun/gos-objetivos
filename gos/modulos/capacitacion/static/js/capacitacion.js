@@ -6400,10 +6400,15 @@
         ev.stopPropagation();
         const id = Number(guardarBtn.dataset.progGuardarPuestos);
         setFormError(`cap-programa-puestos-error-${id}`, "");
+        const puestoIds = selectedPuestoIds(`cap-programa-puestos-detalle-${id}`);
+        const prev = (programasCache.find((p) => p.id === id)?.puestos || []).length;
+        if (!puestoIds.length && prev > 0) {
+          if (!confirm("Vas a quitar TODOS los puestos de este programa. ¿Continuar?")) return;
+        }
         try {
-          await putJson(`${API}/programas/${id}`, {
-            puesto_ids: selectedPuestoIds(`cap-programa-puestos-detalle-${id}`),
-          });
+          const body = { puesto_ids: puestoIds };
+          if (!puestoIds.length && prev > 0) body.clear_puestos = true;
+          await putJson(`${API}/programas/${id}`, body);
           await selectPrograma(id, { resetEditMode: false });
         } catch (err) {
           setFormError(`cap-programa-puestos-error-${id}`, err.message);

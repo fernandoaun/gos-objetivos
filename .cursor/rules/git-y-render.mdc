@@ -17,6 +17,7 @@ El usuario trabaja en **dos capas** que no se mezclan solas:
 - Cambios en `instance/gos.db` (vencimientos VTV, datasets HWO/Análisis, importaciones) **no van en git**.
 - Para que se vean en https://gos-objetivos.onrender.com hay que **subir la base** (p. ej. `SUBIR BACKUP A RENDER.bat` / `scripts/subir_backup_a_render.py` con `GOS_IMPORT_SECRET`), o actualizar Postgres de Render con `RENDER_DATABASE_URL`.
 - El importador **protege todos los módulos**: si el SQLite local trae **menos filas** que Render en una tabla (vacía o parcial), **se conserva lo de Render**. Así subir VTV no borra vacaciones/ralentí/cap/O&M/HWO/perfiles, y viceversa.
+- **Capacitación está blindada**: las tablas `cap_*` de Render **no se reemplazan** al subir un backup, salvo `--allow-cap-overwrite`. Además hay snapshots diarios en `storage/capacitacion/snapshots/`.
 - Preferir imports por módulo (Excel en la UI, `import-tables`, scripts `subir_kpis` / `subir_om`) cuando solo cambió un módulo.
 - Antes de cada subida completa se guarda una copia en `instance/backups/`.
 

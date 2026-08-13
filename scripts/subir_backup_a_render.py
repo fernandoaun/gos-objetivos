@@ -58,6 +58,7 @@ def _make_local_backup(db_path: Path) -> Path:
 
 def main() -> None:
     auto_yes = "--yes" in sys.argv or "-y" in sys.argv
+    allow_cap = "--allow-cap-overwrite" in sys.argv
     secret = env.import_secret()
     base_url = env.render_service_url().rstrip("/")
     local_db = env.local_backup_db_path()
@@ -80,8 +81,14 @@ def main() -> None:
     print(f"Destino: {base_url}{API_PATH}")
     print(
         "Protección: si Render tiene MÁS filas que local en cualquier módulo "
-        "(VTV, vacaciones, cap, O&M, HWO, etc.), esas tablas se CONSERVAN."
+        "(VTV, vacaciones, O&M, HWO, etc.), esas tablas se CONSERVAN."
     )
+    print(
+        "Blindaje Capacitación: las tablas cap_* de Render NO se reemplazan "
+        "salvo que pases --allow-cap-overwrite (y sepas lo que hacés)."
+    )
+    if allow_cap:
+        print("AVISO: --allow-cap-overwrite activo: SÍ se pisará Capacitación en Render.")
     print("Tablas con datos en el SQLite local:")
     for table, n in sorted(nonempty.items(), key=lambda x: (-x[1], x[0])):
         print(f"  {table}: {n}")
@@ -106,11 +113,24 @@ def main() -> None:
 
     boundary = "----GOSBoundary7MA4YWxkTrZu0gW"
     db_bytes = local_db.read_bytes()
-    body = (
-        f"--{boundary}\r\n"
-        f'Content-Disposition: form-data; name="database"; filename="{local_db.name}"\r\n'
-        f"Content-Type: application/octet-stream\r\n\r\n"
-    ).encode("utf-8") + db_bytes + f"\r\n--{boundary}--\r\n".encode("utf-8")
+    parts = [
+        (
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="database"; filename="{local_db.name}"\r\n'
+            f"Content-Type: application/octet-stream\r\n\r\n"
+        ).encode("utf-8")
+        + db_bytes
+        + b"\r\n"
+    ]
+    if allow_cap:
+        parts.append(
+            (
+                f"--{boundary}\r\n"
+                f'Content-Disposition: form-data; name="allow_cap_overwrite"\r\n\r\n'
+                f"true\r\n"
+            ).encode("utf-8")
+        )
+    body = b"".join(parts) + f"--{boundary}--\r\n".encode("utf-8")
 
     req = urllib.request.Request(
         f"{base_url}{API_PATH}",

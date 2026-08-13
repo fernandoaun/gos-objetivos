@@ -81,9 +81,10 @@ def ensure_capacitacion_schema() -> None:
             conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {coldef}"))
     _migrar_clasificacion_cursos()
     _migrar_estructura_programas()
-    _reparar_cursos_volcados_por_migracion()
+    # Nunca borrar datos al arrancar. El cleanup one-shot de 2026-07-17 quedó retirado.
     _migrar_sector_puesto()
     _migrar_centros_texto()
+    _maybe_snapshot_diario()
 
 
 def _migrar_centros_texto() -> None:
@@ -176,13 +177,15 @@ def _migrar_estructura_programas() -> None:
         db.session.commit()
 
 
-def _reparar_cursos_volcados_por_migracion() -> None:
-    """Cleanup one-shot de 2026-07-17: desactivado.
+def _maybe_snapshot_diario() -> None:
+    """Copia de seguridad diaria de tablas cap_* (no modifica datos)."""
+    try:
+        from gos.modulos.capacitacion.services.backup_service import maybe_daily_snapshot
 
-    Borraba todo PlanCurso con created_at >= esa fecha si había ≥10 filas.
-    Eso ya no es seguro: hoy borraría asignaciones manuales legítimas.
-    """
-    return
+        maybe_daily_snapshot(motivo="startup")
+    except Exception:
+        # El arranque no debe fallar por un snapshot.
+        pass
 
 
 def _migrar_sector_puesto() -> None:
