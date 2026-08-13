@@ -6060,8 +6060,8 @@
     const planes = programa.planes || [];
     const allCursos = window.capCursosCache || [];
     const planesHtml = planes.length ? planes.map((plan) => {
-      const usados = new Set((plan.cursos || []).map((c) => c.curso_id));
-      const disponibles = allCursos.filter((c) => !usados.has(c.id));
+      const usados = new Set((plan.cursos || []).map((c) => Number(c.curso_id)));
+      const disponibles = allCursos.filter((c) => !usados.has(Number(c.id)));
       const cursosHtml = (plan.cursos || []).map((c, i) => {
         const badges = (c.tambien_en || []).map((p) => `<span class="cap-badge cap-badge--soft">También en: ${escapeHtml(p.nombre)}</span>`).join(" ");
         const quitarBtn = editable
@@ -6072,7 +6072,7 @@
           <span>${escapeHtml(c.curso_codigo)} — ${escapeHtml(c.curso_nombre)} ${badges}</span>
           ${quitarBtn}
         </li>`;
-      }).join("") || '<li class="cap-empty">Sin cursos en este plan</li>';
+      }).join("") || `<li class="cap-empty">${editable ? "Sin cursos en este plan. Elegí uno abajo y pulsá +" : "Sin cursos en este plan. Pulsá Editar para agregarlos."}</li>`;
       const delPlanBtn = editable
         ? `<button type="button" class="cap-btn cap-btn--sm cap-btn--danger" data-del-plan="${plan.id}" title="Eliminar plan"><i class="bi bi-trash"></i></button>`
         : "";
@@ -6083,7 +6083,8 @@
             ${disponibles.map((c) => `<option value="${c.id}">${escapeHtml(c.codigo)} — ${escapeHtml(c.nombre)}</option>`).join("")}
           </select>
           <button type="button" class="cap-btn cap-btn--primary" data-add-plan-curso="${plan.id}"><i class="bi bi-plus-lg"></i></button>
-        </div>`
+        </div>
+        ${!allCursos.length ? '<p class="cap-empty">No hay cursos en el catálogo. Cargalos en Cursos y catálogos.</p>' : (!disponibles.length ? '<p class="cap-empty">Todos los cursos del catálogo ya están en este plan.</p>' : "")}`
         : "";
       return `<section class="cap-plan-block" data-plan-id="${plan.id}">
         <div class="cap-plan-head">
@@ -6133,7 +6134,11 @@
         const planId = Number(btn.dataset.addPlanCurso);
         const sel = planesEl.querySelector(`[data-plan-curso-select="${planId}"]`);
         const cursoId = Number(sel?.value || 0);
-        if (!cursoId) return;
+        if (!cursoId) {
+          alert("Elegí un curso de la lista antes de agregarlo al plan.");
+          sel?.focus();
+          return;
+        }
         try {
           await postJson(`${API}/planes/${planId}/cursos`, { curso_id: cursoId });
           await selectPrograma(programaSeleccionadoId, { resetEditMode: false });

@@ -177,22 +177,12 @@ def _migrar_estructura_programas() -> None:
 
 
 def _reparar_cursos_volcados_por_migracion() -> None:
-    """One-shot: quita cursos auto-copiados el 2026-07-17 por la migración defectuosa.
+    """Cleanup one-shot de 2026-07-17: desactivado.
 
-    Conserva los PlanCurso anteriores a esa fecha (asignación manual real).
+    Borraba todo PlanCurso con created_at >= esa fecha si había ≥10 filas.
+    Eso ya no es seguro: hoy borraría asignaciones manuales legítimas.
     """
-    from datetime import datetime
-
-    from gos.modulos.capacitacion.models import PlanCurso
-
-    cutoff = datetime(2026, 7, 17, 0, 0, 0)
-    contaminados = PlanCurso.query.filter(PlanCurso.created_at >= cutoff).all()
-    # Solo actuar si hubo un volcado masivo (no un alta manual aislada).
-    if len(contaminados) < 10:
-        return
-    for pc in contaminados:
-        db.session.delete(pc)
-    db.session.commit()
+    return
 
 
 def _migrar_sector_puesto() -> None:
