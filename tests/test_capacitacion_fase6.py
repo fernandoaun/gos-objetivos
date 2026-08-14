@@ -108,6 +108,7 @@ def test_matriz_analitica_filtros_y_vistas(app):
         meta = matriz_filtros_metadata(emp.id)
         assert "planes" in meta
         assert "personas" in meta
+        assert "cursos" in meta
 
         cal = matriz_analitica(emp.id, vista="calendario", anio=2026)
         assert cal["vista"] == "calendario"
@@ -133,10 +134,219 @@ def test_matriz_analitica_filtros_y_vistas(app):
         tabla_puesto = matriz_analitica(emp.id, vista="tabla", anio=2026, agrupar_por="puesto")
         assert tabla_puesto["data"]["agrupar_por"] == "puesto"
 
+        tabla_curso = matriz_analitica(emp.id, vista="tabla", anio=2026, agrupar_por="curso")
+        assert tabla_curso["data"]["agrupar_por"] == "curso"
+
         if cal["data"]["filas"]:
             fila = cal["data"]["filas"][0]
             assert "pct_cumpl_prog" in fila
             assert "pct_pend_sin_vencer" in fila
+
+
+def test_matriz_calendario_cuenta_cursos_y_planes_no_cupos(app):
+    """Un curso/plan con varias personas cuenta 1, no N cupos."""
+    with app.app_context():
+        from gos.models import Empresa
+
+        emp = Empresa.query.first()
+        curso = Curso(empresa_id=emp.id, codigo="UNI-1", nombre="Curso único", horas=2)
+        personas = [
+            Participante(empresa_id=emp.id, nombre=f"Persona {i}", legajo=f"9{i:03d}")
+            for i in range(3)
+        ]
+        prog = ProgramaCapacitacion(
+            empresa_id=emp.id, codigo="UNI-P", nombre="Prog Único", tipo="interno"
+        )
+        db.session.add_all([curso, prog, *personas])
+        db.session.flush()
+        plan = ProgramaPlan(programa_id=prog.id, nombre="Plan Único", orden=1)
+        db.session.add(plan)
+        db.session.flush()
+        db.session.add(PlanCurso(plan_id=plan.id, curso_id=curso.id, orden=1))
+        enc = EncuentroCapacitacion(
+            empresa_id=emp.id,
+            plan_id=plan.id,
+            programa_id=prog.id,
+            curso_id=curso.id,
+            titulo="Sesión única",
+            fecha=date(2026, 8, 1),
+            fecha_inicio=datetime(2026, 8, 1, 9, 0),
+            estado="planificado",
+        )
+        db.session.add(enc)
+        db.session.flush()
+        for p in personas:
+            db.session.add(
+                AsistenciaEncuentro(
+                    encuentro_id=enc.id, participante_id=p.id, asistencia="inscripto"
+                )
+            )
+        db.session.commit()
+
+        def agosto(dim: str) -> dict:
+            return matriz_analitica(emp.id, vista="calendario", anio=2026, dim=dim)["data"]["filas"][7]
+
+        assert agosto("cursos")["programados"] == 1
+        assert agosto("planes")["programados"] == 1
+        assert agosto("personas")["programados"] == 3
+
+
+def test_matriz_calendario_ignora_charlas_puntuales(app):
+    """BPC/charlas van al recuadro: no suman al plan, salvo que el curso se incorpore."""
+    with app.app_context():
+        from gos.models import Empresa
+        from gos.modulos.capacitacion.services.buenas_practicas_service import PROGRAMA_BPC_CODIGO
+
+        emp = Empresa.query.first()
+        curso_plan = Curso(empresa_id=emp.id, codigo="PLAN-C", nombre="Curso de plan", horas=2)
+        curso_bpc = Curso(empresa_id=emp.id, codigo="BPC-C", nombre="Charla puntual", horas=1)
+        persona = Participante(empresa_id=emp.id, nombre="Ana Puntual", legajo="8801")
+        prog = ProgramaCapacitacion(
+            empresa_id=emp.id, codigo="PP-1", nombre="Programa plan", tipo="interno"
+        )
+        prog_bpc = ProgramaCapacitacion(
+            empresa_id=emp.id,
+            codigo=PROGRAMA_BPC_CODIGO,
+            nombre="Buenas Prácticas Compartidas",
+            tipo="interno",
+        )
+        db.session.add_all([curso_plan, curso_bpc, persona, prog, prog_bpc])
+        db.session.flush()
+        plan = ProgramaPlan(programa_id=prog.id, nombre="Plan real", orden=1)
+        plan_bpc = ProgramaPlan(programa_id=prog_bpc.id, nombre="Charlas", orden=1)
+        db.session.add_all([plan, plan_bpc])
+        db.session.flush()
+        db.session.add(PlanCurso(plan_id=plan.id, curso_id=curso_plan.id, orden=1))
+        db.session.add(PlanCurso(plan_id=plan_bpc.id, curso_id=curso_bpc.id, orden=1))
+        enc_plan = EncuentroCapacitacion(
+            empresa_id=emp.id,
+            plan_id=plan.id,
+            programa_id=prog.id,
+            curso_id=curso_plan.id,
+            titulo="Curso de plan",
+            fecha=date(2026, 8, 1),
+            fecha_inicio=datetime(2026, 8, 1, 9, 0),
+            estado="planificado",
+        )
+        enc_bpc = EncuentroCapacitacion(
+            empresa_id=emp.id,
+            plan_id=plan_bpc.id,
+            programa_id=prog_bpc.id,
+            curso_id=curso_bpc.id,
+            titulo="BPC — Charla puntual",
+            fecha=date(2026, 8, 1),
+            fecha_inicio=datetime(2026, 8, 1, 9, 0),
+            estado="cerrado",
+            es_buenas_practicas=True,
+        )
+        db.session.add_all([enc_plan, enc_bpc])
+        db.session.flush()
+        db.session.add_all(
+            [
+                AsistenciaEncuentro(
+                    encuentro_id=enc_plan.id, participante_id=persona.id, asistencia="inscripto"
+                ),
+                AsistenciaEncuentro(
+                    encuentro_id=enc_bpc.id, participante_id=persona.id, asistencia="presente"
+                ),
+            ]
+        )
+        db.session.commit()
+
+        def agosto(dim: str) -> dict:
+            return matriz_analitica(emp.id, vista="calendario", anio=2026, dim=dim)["data"]["filas"][7]
+
+        assert agosto("cursos")["programados"] == 1
+        assert agosto("planes")["programados"] == 1
+        assert agosto("cursos")["charlas_puntuales"] == 1
+        assert agosto("cursos")["charlas_puntuales"] == agosto("planes")["charlas_puntuales"]
+
+        db.session.add(PlanCurso(plan_id=plan.id, curso_id=curso_bpc.id, orden=2))
+        db.session.commit()
+        # Incorporar el curso al plan no hace que la charla puntual sume: hay que programarla en el plan.
+        assert agosto("cursos")["programados"] == 1
+
+        enc_plan_bpc = EncuentroCapacitacion(
+            empresa_id=emp.id,
+            plan_id=plan.id,
+            programa_id=prog.id,
+            curso_id=curso_bpc.id,
+            titulo="Curso de plan (ex charla)",
+            fecha=date(2026, 8, 1),
+            fecha_inicio=datetime(2026, 8, 1, 10, 0),
+            estado="planificado",
+            es_buenas_practicas=False,
+        )
+        db.session.add(enc_plan_bpc)
+        db.session.flush()
+        db.session.add(
+            AsistenciaEncuentro(
+                encuentro_id=enc_plan_bpc.id, participante_id=persona.id, asistencia="inscripto"
+            )
+        )
+        db.session.commit()
+        assert agosto("cursos")["programados"] == 2
+
+
+def test_matriz_tabla_filtra_por_curso(app):
+    """El filtro de curso deja solo las asignaciones de ese curso en la tabla anual."""
+    with app.app_context():
+        from gos.models import Empresa
+
+        emp = Empresa.query.first()
+        curso_a = Curso(empresa_id=emp.id, codigo="FIL-A", nombre="Curso filtro A", horas=2)
+        curso_b = Curso(empresa_id=emp.id, codigo="FIL-B", nombre="Curso filtro B", horas=2)
+        persona = Participante(empresa_id=emp.id, nombre="Filtro Curso", apellido="Test", legajo="7701")
+        prog = ProgramaCapacitacion(
+            empresa_id=emp.id, codigo="FIL-P", nombre="Prog Filtro", tipo="interno"
+        )
+        db.session.add_all([curso_a, curso_b, persona, prog])
+        db.session.flush()
+        plan = ProgramaPlan(programa_id=prog.id, nombre="Plan Filtro", orden=1)
+        db.session.add(plan)
+        db.session.flush()
+        db.session.add_all([
+            PlanCurso(plan_id=plan.id, curso_id=curso_a.id, orden=1),
+            PlanCurso(plan_id=plan.id, curso_id=curso_b.id, orden=2),
+        ])
+        for curso in (curso_a, curso_b):
+            enc = EncuentroCapacitacion(
+                empresa_id=emp.id,
+                plan_id=plan.id,
+                programa_id=prog.id,
+                curso_id=curso.id,
+                titulo=curso.nombre,
+                fecha=date(2026, 3, 10),
+                fecha_inicio=datetime(2026, 3, 10, 9, 0),
+                estado="planificado",
+            )
+            db.session.add(enc)
+            db.session.flush()
+            db.session.add(
+                AsistenciaEncuentro(
+                    encuentro_id=enc.id, participante_id=persona.id, asistencia="inscripto"
+                )
+            )
+        db.session.commit()
+        cid_a, pid = curso_a.id, persona.id
+
+        tabla = matriz_analitica(emp.id, vista="tabla", anio=2026, persona_ids=[pid])["data"]
+        fila = next(f for f in tabla["filas"] if f["id"] == pid)
+        assert fila["meses"]["3"]["prog"] == 2
+
+        tabla_a = matriz_analitica(
+            emp.id, vista="tabla", anio=2026, persona_ids=[pid], curso_ids=[cid_a]
+        )["data"]
+        fila_a = next(f for f in tabla_a["filas"] if f["id"] == pid)
+        assert fila_a["meses"]["3"]["prog"] == 1
+
+        tabla_cursos = matriz_analitica(
+            emp.id, vista="tabla", anio=2026, agrupar_por="curso", persona_ids=[pid]
+        )["data"]
+        fila_curso_a = next(f for f in tabla_cursos["filas"] if f["id"] == cid_a)
+        assert fila_curso_a["meses"]["3"]["prog"] == 1
+        ids_cursos = {f["id"] for f in tabla_cursos["filas"]}
+        assert cid_a in ids_cursos
 
 
 def test_planes_cursos_endpoint(auth_client, app):

@@ -62,7 +62,7 @@
   let maVista = "calendario";
   let maResumenDim = "planes";
   let maTablaAgrupar = "persona";
-  let maFiltros = { planes: [], tipos: [], empresas: [], personas: [], puestos: [] };
+  let maFiltros = { planes: [], tipos: [], empresas: [], personas: [], puestos: [], cursos: [] };
   let maFiltrosMeta = null;
   let crVista = "calendario";
   let crResumenZoom = {
@@ -75,7 +75,7 @@
     cursoNombre: null,
     personaNombre: null,
   };
-  let crFiltros = { planes: [], tipos: [], empresas: [], personas: [], puestos: [] };
+  let crFiltros = { planes: [], tipos: [], empresas: [], personas: [], puestos: [], cursos: [] };
   let crFiltrosMeta = null;
   let crDetalleEventos = [];
   let encPlanesCache = [];
@@ -1650,6 +1650,7 @@
     if (maFiltros.empresas.length) q.set("empresas", maFiltros.empresas.join(","));
     if (maFiltros.personas.length) q.set("personas", maFiltros.personas.join(","));
     if (maFiltros.puestos.length) q.set("puestos", maFiltros.puestos.join(","));
+    if (maFiltros.cursos.length) q.set("cursos", maFiltros.cursos.join(","));
     if (maVista === "calendario") q.set("dim", maResumenDim);
     if (maVista === "tabla") q.set("agrupar_por", maTablaAgrupar);
     if (maVista === "persona") {
@@ -1665,6 +1666,7 @@
     empresas: { allLabel: "Todas las empresas", searchable: true },
     personas: { allLabel: "Todas las personas", searchable: true },
     puestos: { allLabel: "Todos los puestos", searchable: true },
+    cursos: { allLabel: "Todos los cursos", searchable: true },
   };
 
   let capMultiSelectBound = false;
@@ -1683,8 +1685,9 @@
 
   function capMsItemLabel(it, labelKey = "nombre") {
     const label = it[labelKey] || it.nombre || "";
-    const extra = it.legajo ? ` (${it.legajo})` : "";
-    return label + extra;
+    if (it.legajo) return `${label} (${it.legajo})`;
+    if (it.codigo) return `${it.codigo} — ${label}`;
+    return label;
   }
 
   function capMsBtnLabel(items, grupo, selected) {
@@ -1819,7 +1822,7 @@
       const grupo = g.dataset.grupo;
       const destacado =
         (maResumenDim === "planes" && grupo === "planes") ||
-        (maResumenDim === "cursos" && grupo === "tipos") ||
+        (maResumenDim === "cursos" && (grupo === "tipos" || grupo === "cursos")) ||
         (maResumenDim === "personas" && (grupo === "personas" || grupo === "puestos"));
       g.classList.toggle("cap-ma-filtro-grupo--destacado", destacado);
     });
@@ -1858,8 +1861,7 @@
       ["pendientes", colNom[1], "cap-ma-val--pendientes", "cap-ma-resumen-th--metric", 1],
       ["cumplidos", colNom[2], "cap-ma-val--cumplidos", "cap-ma-resumen-th--metric", 1],
       ["pct_cumpl_prog", "% Cumpl./Pr.", "cap-ma-val--pct", "cap-ma-resumen-th--metric", 1],
-      ["puntuales", "Cumplidos Puntuales", "cap-ma-val--puntuales", "cap-ma-resumen-th--metric", 1],
-      ["pct_punt_prog", "% Punt./Pr.", "cap-ma-val--pct", "cap-ma-resumen-th--metric", 1],
+      ["charlas_puntuales", "Puntuales", "cap-ma-val--charlas-puntuales", "cap-ma-resumen-th--puntuales", 1],
       ["pend_vencidos", "Pendientes Vencidos", "cap-ma-val--vencidos", "cap-ma-resumen-th--metric", 1],
       ["pct_venc_prog", "% Venc./Pr.", "cap-ma-val--pct", "cap-ma-resumen-th--metric", 1],
     ];
@@ -1903,12 +1905,12 @@
                 <th rowspan="2" class="cap-ma-resumen-anio">${escapeHtml(String(anio))}${rowHead ? `<span class="cap-ma-resumen-dim-sub">${escapeHtml(rowHead)}</span>` : ""}</th>
                 <th rowspan="2" class="cap-ma-resumen-th cap-ma-resumen-th--prog">${escapeHtml(colNom[0])}</th>
                 <th colspan="3" class="cap-ma-resumen-th cap-ma-resumen-th--metric">Cumplimiento</th>
-                <th colspan="2" class="cap-ma-resumen-th cap-ma-resumen-th--metric">Puntualidad</th>
+                <th rowspan="2" class="cap-ma-resumen-th cap-ma-resumen-th--puntuales">Puntuales</th>
                 <th colspan="2" class="cap-ma-resumen-th cap-ma-resumen-th--metric">Vencidos</th>
                 <th colspan="4" class="cap-ma-resumen-th cap-ma-resumen-th--pct-group">Distribución %</th>
               </tr>
               <tr>
-                ${countCols.slice(1).map(([, lbl, , thCls]) =>
+                ${countCols.slice(1).filter(([k]) => k !== "charlas_puntuales").map(([, lbl, , thCls]) =>
                   `<th class="cap-ma-resumen-th ${thCls}">${escapeHtml(lbl)}</th>`
                 ).join("")}
                 ${pctCols.map(([, lbl, , thCls]) =>
@@ -1954,6 +1956,7 @@
     if (crFiltros.empresas.length) q.set("empresas", crFiltros.empresas.join(","));
     if (crFiltros.personas.length) q.set("personas", crFiltros.personas.join(","));
     if (crFiltros.puestos.length) q.set("puestos", crFiltros.puestos.join(","));
+    if (crFiltros.cursos.length) q.set("cursos", crFiltros.cursos.join(","));
     return q;
   }
 
@@ -1982,7 +1985,7 @@
       const grupo = g.dataset.grupo;
       const destacado =
         (crResumenZoom.nivel === "planes" && grupo === "planes") ||
-        (crResumenZoom.nivel === "cursos" && grupo === "tipos") ||
+        (crResumenZoom.nivel === "cursos" && (grupo === "tipos" || grupo === "cursos")) ||
         (crResumenZoom.nivel === "personas" && (grupo === "personas" || grupo === "puestos"));
       g.classList.toggle("cap-ma-filtro-grupo--destacado", destacado);
     });
@@ -2173,6 +2176,7 @@
       renderCrPills("cap-cr-pills-empresas", crFiltrosMeta.empresas, "empresas");
       renderCrPills("cap-cr-pills-personas", crFiltrosMeta.personas, "personas");
       renderCrPills("cap-cr-pills-puestos", crFiltrosMeta.puestos, "puestos");
+      renderCrPills("cap-cr-pills-cursos", crFiltrosMeta.cursos, "cursos");
     }
     const anioSel = document.getElementById("cap-cr-anio");
     if (anioSel && !anioSel.options.length) {
@@ -2234,26 +2238,35 @@
     return map[est] || est;
   }
 
+  function maTablaAgruparButtons(agrupar) {
+    return [
+      ["persona", "Personas"],
+      ["puesto", "Puestos"],
+      ["curso", "Cursos"],
+    ].map(([id, lbl]) =>
+      `<button type="button" role="tab" class="cap-ma-resumen-dim${agrupar === id ? " active" : ""}" data-ma-agrupar="${id}">${lbl}</button>`
+    ).join("");
+  }
+
   function renderMaTabla(data) {
     const wrap = document.getElementById("cap-ma-vista-tabla");
     if (!wrap) return;
     const filas = data.filas || [];
     const meses = data.meses || [];
     const anio = data.anio || "";
-    const agrupar = data.agrupar_por || maTablaAgrupar;
+    const agrupar = maTablaAgrupar || data.agrupar_por || "persona";
     const subs = ["Prog", "Pdtes", "Cumpl", "Cumpl/Prog"];
     const subKeys = ["prog", "pdtes", "cumpl", "cumpl_prog"];
-    const rowLabel = agrupar === "puesto" ? "Puesto" : "Persona";
+    const rowLabel = { puesto: "Puesto", curso: "Curso" }[agrupar] || "Persona";
     const fmtCell = (k, v) => (k === "cumpl_prog" ? maFmtPct(v) : maFmtCount(v));
     if (!filas.length) {
       wrap.innerHTML = `
-        <div class="cap-ma-tabla-toolbar">
-          <div class="cap-ma-tabla-agrupar" role="tablist" aria-label="Agrupar filas por">
-            <button type="button" role="tab" class="cap-ma-resumen-dim${agrupar === "persona" ? " active" : ""}" data-ma-agrupar="persona">Personas</button>
-            <button type="button" role="tab" class="cap-ma-resumen-dim${agrupar === "puesto" ? " active" : ""}" data-ma-agrupar="puesto">Puestos</button>
+        <div class="cap-ma-resumen-wrap">
+          <div class="cap-ma-tabla-agrupar cap-ma-resumen-dims" role="tablist" aria-label="Agrupar filas por">
+            ${maTablaAgruparButtons(agrupar)}
           </div>
-        </div>
-        <p class="cap-empty">Sin datos para los filtros seleccionados</p>`;
+          <p class="cap-empty cap-ma-tabla-empty">Sin datos para los filtros seleccionados</p>
+        </div>`;
       bindMaTablaAgrupar();
       return;
     }
@@ -2282,24 +2295,23 @@
       return `<tr><th scope="row" class="cap-ma-persona-col">${escapeHtml(nombre)}</th>${celdas}${anualCells}</tr>`;
     }).join("");
     wrap.innerHTML = `
-      <div class="cap-ma-tabla-toolbar">
-        <div class="cap-ma-tabla-agrupar" role="tablist" aria-label="Agrupar filas por">
-          <button type="button" role="tab" class="cap-ma-resumen-dim${agrupar === "persona" ? " active" : ""}" data-ma-agrupar="persona">Personas</button>
-          <button type="button" role="tab" class="cap-ma-resumen-dim${agrupar === "puesto" ? " active" : ""}" data-ma-agrupar="puesto">Puestos</button>
+      <div class="cap-ma-resumen-wrap">
+        <div class="cap-ma-tabla-agrupar cap-ma-resumen-dims" role="tablist" aria-label="Agrupar filas por">
+          ${maTablaAgruparButtons(agrupar)}
         </div>
-      </div>
-      <div class="cap-ma-table-scroll">
-        <table class="cap-data-table cap-ma-tabla-anual">
-          <thead>
-            <tr>
-              <th rowspan="2" class="cap-ma-persona-col cap-ma-tabla-row-label">${escapeHtml(rowLabel)}</th>
-              ${mesHead}
-              <th colspan="4" class="cap-ma-tabla-mes cap-ma-tabla-mes--anual">Anual</th>
-            </tr>
-            <tr>${subHead}</tr>
-          </thead>
-          <tbody>${filaHtml}</tbody>
-        </table>
+        <div class="cap-ma-table-scroll cap-ma-resumen-scroll">
+          <table class="cap-data-table cap-ma-tabla-anual">
+            <thead>
+              <tr>
+                <th rowspan="2" class="cap-ma-persona-col cap-ma-tabla-row-label">${escapeHtml(rowLabel)}</th>
+                ${mesHead}
+                <th colspan="4" class="cap-ma-tabla-mes cap-ma-tabla-mes--anual">Anual</th>
+              </tr>
+              <tr>${subHead}</tr>
+            </thead>
+            <tbody>${filaHtml}</tbody>
+          </table>
+        </div>
       </div>`;
     bindMaTablaAgrupar();
   }
@@ -2307,7 +2319,12 @@
   function bindMaTablaAgrupar() {
     document.querySelectorAll("#cap-ma-vista-tabla [data-ma-agrupar]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        maTablaAgrupar = btn.dataset.maAgrupar || "persona";
+        const next = btn.dataset.maAgrupar || "persona";
+        if (next === maTablaAgrupar) return;
+        maTablaAgrupar = next;
+        document.querySelectorAll("#cap-ma-vista-tabla [data-ma-agrupar]").forEach((b) => {
+          b.classList.toggle("active", b.dataset.maAgrupar === maTablaAgrupar);
+        });
         loadMatrizAnalitica().catch(console.error);
       });
     });
@@ -2353,6 +2370,7 @@
       renderMaPills("cap-ma-pills-empresas", meta.empresas, "empresas");
       renderMaPills("cap-ma-pills-personas", meta.personas, "personas");
       renderMaPills("cap-ma-pills-puestos", meta.puestos, "puestos");
+      renderMaPills("cap-ma-pills-cursos", meta.cursos, "cursos");
       fillSelect("cap-ma-persona-select", meta.personas, "— Seleccionar persona —");
       if (matrizParticipanteId) {
         const sel = document.getElementById("cap-ma-persona-select");
@@ -2380,7 +2398,7 @@
   }
 
   async function initMatrizAnalitica() {
-    maFiltros = { planes: [], tipos: [], empresas: [], personas: [], puestos: [] };
+    maFiltros = { planes: [], tipos: [], empresas: [], personas: [], puestos: [], cursos: [] };
     if (matrizParticipanteId) {
       maFiltros.personas = [String(matrizParticipanteId)];
       maVista = "persona";
@@ -2396,6 +2414,7 @@
       renderMaPills("cap-ma-pills-empresas", maFiltrosMeta.empresas, "empresas");
       renderMaPills("cap-ma-pills-personas", maFiltrosMeta.personas, "personas");
       renderMaPills("cap-ma-pills-puestos", maFiltrosMeta.puestos, "puestos");
+      renderMaPills("cap-ma-pills-cursos", maFiltrosMeta.cursos, "cursos");
     }
     await loadMatrizAnalitica();
   }

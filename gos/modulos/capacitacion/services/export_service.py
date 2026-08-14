@@ -81,8 +81,7 @@ _CAL_COLS = [
     ("pendientes", "Cursos Pendientes"),
     ("cumplidos", "Cursos Cumplidos"),
     ("pct_cumpl_prog", "% Cumpl./Pr."),
-    ("puntuales", "Cumplidos Puntuales"),
-    ("pct_punt_prog", "% Punt./Pr."),
+    ("charlas_puntuales", "Puntuales"),
     ("pend_vencidos", "Pendientes Vencidos"),
     ("pct_venc_prog", "% Venc./Pr."),
 ]
@@ -192,12 +191,12 @@ def _export_tabla_personas(ws, data: dict) -> None:
     top = _aplicar_marca(
         ws,
         "Matriz Analítica — Tabla",
-        f"Año {anio} · por {'puesto' if agrupar == 'puesto' else 'persona'}",
+        f"Año {anio} · por { {'puesto': 'puesto', 'curso': 'curso'}.get(agrupar, 'persona') }",
         ancho_cols=ancho,
     )
 
     ws.cell(row=top, column=1, value="Planes:")
-    ws.cell(row=top + 1, column=1, value="Puestos" if agrupar == "puesto" else "Personas")
+    ws.cell(row=top + 1, column=1, value={"puesto": "Puestos", "curso": "Cursos"}.get(agrupar, "Personas"))
 
     row_mes = top + 2
     row_sub = top + 3
@@ -250,6 +249,7 @@ def exportar_matriz_analitica_excel(
     empresas=None,
     persona_ids=None,
     puesto_ids=None,
+    curso_ids=None,
     persona_id: int | None = None,
     agrupar_por: str = "persona",
     dim: str = "planes",
@@ -265,6 +265,7 @@ def exportar_matriz_analitica_excel(
         empresas=empresas,
         persona_ids=persona_ids,
         puesto_ids=puesto_ids,
+        curso_ids=curso_ids,
         persona_id=persona_id,
         agrupar_por=agrupar_por,
     )

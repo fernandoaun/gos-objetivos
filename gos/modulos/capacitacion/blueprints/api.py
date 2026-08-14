@@ -601,6 +601,7 @@ def matriz():
                     empresas=request.args.get("empresas") or request.args.get("empresa_ids"),
                     persona_ids=request.args.get("personas") or request.args.get("persona_ids"),
                     puesto_ids=request.args.get("puestos") or request.args.get("puesto_ids"),
+                    curso_ids=request.args.get("cursos") or request.args.get("curso_ids"),
                     persona_id=request.args.get("persona_id", type=int)
                     or request.args.get("participante_id", type=int),
                     agrupar_por=request.args.get("agrupar_por", "persona"),
@@ -642,6 +643,7 @@ def matriz_resumen_api():
                 empresas=request.args.get("empresas") or request.args.get("empresa_ids"),
                 persona_ids=request.args.get("personas") or request.args.get("persona_ids"),
                 puesto_ids=request.args.get("puestos") or request.args.get("puesto_ids"),
+                curso_ids=request.args.get("cursos") or request.args.get("curso_ids"),
             )
         )
     except ValueError as exc:
@@ -661,6 +663,7 @@ def matriz_calendario_api():
             empresas=request.args.get("empresas"),
             persona_ids=request.args.get("personas"),
             puesto_ids=request.args.get("puestos"),
+            curso_ids=request.args.get("cursos"),
         )
     )
 
@@ -677,6 +680,7 @@ def matriz_tabla_api():
             empresas=request.args.get("empresas"),
             persona_ids=request.args.get("personas"),
             puesto_ids=request.args.get("puestos"),
+            curso_ids=request.args.get("cursos"),
             anio=request.args.get("anio", type=int),
             agrupar_por=request.args.get("agrupar_por", "persona"),
         )
@@ -695,6 +699,7 @@ def matriz_persona_api(persona_id: int):
                 plan_ids=request.args.get("planes"),
                 tipos=(request.args.get("tipos") or "").split(",") if request.args.get("tipos") else [],
                 empresas=request.args.get("empresas"),
+                curso_ids=request.args.get("cursos"),
             )
         )
     except ValueError as exc:
@@ -722,6 +727,7 @@ def exportar_matriz():
                 empresas=request.args.get("empresas") or request.args.get("empresa_ids"),
                 persona_ids=request.args.get("personas") or request.args.get("persona_ids"),
                 puesto_ids=request.args.get("puestos") or request.args.get("puesto_ids"),
+                curso_ids=request.args.get("cursos") or request.args.get("curso_ids"),
                 persona_id=request.args.get("persona_id", type=int)
                 or request.args.get("participante_id", type=int),
                 agrupar_por=request.args.get("agrupar_por", "persona"),

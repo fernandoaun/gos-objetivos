@@ -8,6 +8,7 @@ from datetime import date
 from gos.modulos.capacitacion.models import (
     Acreditacion,
     AsistenciaEncuentro,
+    Curso,
     EncuentroCapacitacion,
     Participante,
     PlanCurso,
@@ -154,7 +155,9 @@ def _programas_filtrados(
             for p in programas
             if any(pl.id in plan_ids for pl in p.planes.all())
         ]
-    return programas
+    from gos.modulos.capacitacion.services.buenas_practicas_service import es_programa_bpc
+
+    return [p for p in programas if not es_programa_bpc(p)]
 
 
 def _personas_filtradas(
@@ -169,6 +172,23 @@ def _personas_filtradas(
     if puesto_ids:
         q = q.filter(Participante.puesto_id.in_(puesto_ids))
     return q.order_by(Participante.apellido, Participante.nombre).all()
+
+
+def _pasa_filtros_entidad(
+    persona: Participante,
+    enc: EncuentroCapacitacion,
+    *,
+    persona_ids: list[int],
+    puesto_ids: list[int],
+    curso_ids: list[int],
+) -> bool:
+    if persona_ids and persona.id not in persona_ids:
+        return False
+    if puesto_ids and persona.puesto_id not in puesto_ids:
+        return False
+    if curso_ids and (enc.curso_id or 0) not in curso_ids:
+        return False
+    return True
 
 
 def _progreso_color(porcentaje: float) -> str:
@@ -237,6 +257,7 @@ def matriz_filtros_metadata(empresa_id: int) -> dict:
         Participante.apellido, Participante.nombre
     ).all()
     puestos = Puesto.query.filter_by(empresa_id=empresa_id, activo=True).order_by(Puesto.nombre).all()
+    cursos = Curso.query.filter_by(empresa_id=empresa_id, activo=True).order_by(Curso.codigo, Curso.nombre).all()
     empresas = EmpresaCapacitadora.query.filter_by(empresa_id=empresa_id, activo=True).order_by(
         EmpresaCapacitadora.nombre
     ).all()
@@ -249,13 +270,20 @@ def matriz_filtros_metadata(empresa_id: int) -> dict:
             for p in personas
         ],
         "puestos": [{"id": p.id, "nombre": p.nombre} for p in puestos],
+        "cursos": [{"id": c.id, "nombre": c.nombre, "codigo": c.codigo} for c in cursos],
     }
 
 
 def listar_planes_filtro(empresa_id: int) -> list[dict]:
+    from gos.modulos.capacitacion.services.buenas_practicas_service import PROGRAMA_BPC_CODIGO
+
     planes = (
         ProgramaPlan.query.join(ProgramaCapacitacion)
-        .filter(ProgramaCapacitacion.empresa_id == empresa_id, ProgramaCapacitacion.activo.is_(True))
+        .filter(
+            ProgramaCapacitacion.empresa_id == empresa_id,
+            ProgramaCapacitacion.activo.is_(True),
+            ProgramaCapacitacion.codigo != PROGRAMA_BPC_CODIGO,
+        )
         .order_by(ProgramaPlan.nombre)
         .all()
     )
@@ -272,6 +300,24 @@ def listar_planes_filtro(empresa_id: int) -> list[dict]:
         else:
             vistos[key]["ids"].append(pl.id)
     return list(vistos.values())
+
+
+def _ids_programa_bpc(empresa_id: int) -> set[int]:
+    from gos.modulos.capacitacion.services.buenas_practicas_service import PROGRAMA_BPC_CODIGO
+
+    return {
+        p.id
+        for p in ProgramaCapacitacion.query.filter_by(
+            empresa_id=empresa_id, codigo=PROGRAMA_BPC_CODIGO, activo=True
+        ).all()
+    }
+
+
+def _es_charla_puntual(enc: EncuentroCapacitacion, bpc_programa_ids: set[int]) -> bool:
+    """Charla BPC / puntual: va al recuadro, no al cumplimiento del plan."""
+    if getattr(enc, "es_buenas_practicas", False):
+        return True
+    return bool(enc.programa_id and enc.programa_id in bpc_programa_ids)
 
 
 def _encuentro_pasa_filtros(
@@ -374,6 +420,7 @@ def _colectar_datos_anuales(
     empresas: list[int],
     persona_ids: list[int],
     puesto_ids: list[int],
+    curso_ids: list[int],
 ) -> dict:
     """Métricas agregadas y asignaciones individuales para drill-down."""
     refrescar_vigencias(empresa_id)
@@ -381,6 +428,7 @@ def _colectar_datos_anuales(
 
     programas = _programas_filtrados(empresa_id, plan_ids=plan_ids, tipos=tipos, puesto_ids=puesto_ids)
     programa_ids = {p.id for p in programas}
+    bpc_programa_ids = _ids_programa_bpc(empresa_id)
     plan_ids_validos: set[int] = set()
     plan_nombres: dict[int, str] = {}
     for p in programas:
@@ -405,20 +453,47 @@ def _colectar_datos_anuales(
     acr_cache: dict[int, Acreditacion | None] = {}
     por_persona_mes: dict[int, dict[int, dict]] = {}
     por_puesto_mes: dict[int, dict[int, dict]] = {}
+    por_curso_mes: dict[int, dict[int, dict]] = {}
     por_plan_mes: dict[int, dict[int, dict]] = {}
     por_mes: dict[int, dict] = {m: _metricas_vacias() for m in range(1, 13)}
     nombres: dict[int, str] = {}
     puesto_nombres: dict[int, str] = {}
+    curso_nombres: dict[int, str] = {}
     asignaciones: list[dict] = []
+    asignaciones_puntuales: list[dict] = []
 
     for asist in filas:
         enc = asist.encuentro
         persona = asist.participante
         if not enc or not persona:
             continue
-        if persona_ids and persona.id not in persona_ids:
+        if _es_charla_puntual(enc, bpc_programa_ids):
+            if not _pasa_filtros_entidad(
+                persona, enc, persona_ids=persona_ids, puesto_ids=puesto_ids, curso_ids=curso_ids
+            ):
+                continue
+            if not _encuentro_pasa_filtros(
+                enc,
+                tipos=tipos,
+                empresas=empresas,
+                plan_ids_validos=set(),
+                programa_ids=set(),
+                plan_ids=[],
+            ):
+                continue
+            asignaciones_puntuales.append(
+                {
+                    "mes": enc.fecha.month,
+                    "plan_id": enc.plan_id or 0,
+                    "persona_id": persona.id,
+                    "encuentro_id": enc.id,
+                    "curso_id": enc.curso_id or enc.id,
+                }
+            )
             continue
-        if puesto_ids and persona.puesto_id not in puesto_ids:
+        if not _pasa_filtros_entidad(
+            persona, enc, persona_ids=persona_ids, puesto_ids=puesto_ids, curso_ids=curso_ids
+        ):
             continue
         if not _encuentro_pasa_filtros(
             enc,
@@ -442,18 +517,26 @@ def _colectar_datos_anuales(
             puesto_nombres[puesto_id] = persona.puesto.nombre
         elif puesto_id == 0:
             puesto_nombres.setdefault(0, "Sin puesto")
+        curso = enc.curso
+        curso_id = enc.curso_id or 0
+        if curso:
+            codigo = (curso.codigo or "").strip()
+            curso_nombres[curso_id] = f"{codigo} — {curso.nombre}" if codigo else curso.nombre
+        else:
+            curso_nombres.setdefault(curso_id, enc.titulo or "Sin curso")
         if persona.id not in por_persona_mes:
             por_persona_mes[persona.id] = {m: _metricas_vacias() for m in range(1, 13)}
         if puesto_id not in por_puesto_mes:
             por_puesto_mes[puesto_id] = {m: _metricas_vacias() for m in range(1, 13)}
+        if curso_id not in por_curso_mes:
+            por_curso_mes[curso_id] = {m: _metricas_vacias() for m in range(1, 13)}
         if plan_id not in por_plan_mes:
             por_plan_mes[plan_id] = {m: _metricas_vacias() for m in range(1, 13)}
         _sumar_metricas(por_persona_mes[persona.id][mes], delta)
         _sumar_metricas(por_puesto_mes[puesto_id][mes], delta)
+        _sumar_metricas(por_curso_mes[curso_id][mes], delta)
         _sumar_metricas(por_plan_mes[plan_id][mes], delta)
         _sumar_metricas(por_mes[mes], delta)
-
-        curso = enc.curso
         emp_nombre = None
         if enc.empresa_capacitadora:
             emp_nombre = enc.empresa_capacitadora.nombre
@@ -493,16 +576,22 @@ def _colectar_datos_anuales(
     for puid, meses in por_puesto_mes.items():
         for mes in range(1, 13):
             _finalizar_metricas(meses[mes])
+    for cid, meses in por_curso_mes.items():
+        for mes in range(1, 13):
+            _finalizar_metricas(meses[mes])
 
     return {
         "por_mes": por_mes,
         "por_plan_mes": por_plan_mes,
         "por_persona_mes": por_persona_mes,
         "por_puesto_mes": por_puesto_mes,
+        "por_curso_mes": por_curso_mes,
         "nombres": nombres,
         "puesto_nombres": puesto_nombres,
+        "curso_nombres": curso_nombres,
         "plan_nombres": plan_nombres,
         "asignaciones": asignaciones,
+        "asignaciones_puntuales": asignaciones_puntuales,
     }
 
 
@@ -515,6 +604,7 @@ def _colectar_metricas_anuales(
     empresas: list[int],
     persona_ids: list[int],
     puesto_ids: list[int],
+    curso_ids: list[int] | None = None,
 ) -> tuple[dict[int, dict[int, dict]], dict[int, dict], dict[int, str]]:
     """Métricas por (persona, mes) y agregado por mes."""
     datos = _colectar_datos_anuales(
@@ -525,6 +615,7 @@ def _colectar_metricas_anuales(
         empresas=empresas,
         persona_ids=persona_ids,
         puesto_ids=puesto_ids,
+        curso_ids=curso_ids or [],
     )
     return datos["por_persona_mes"], datos["por_mes"], datos["nombres"]
 
@@ -572,6 +663,15 @@ def _metricas_mensuales_unicas(asignaciones: list[dict], id_key: str) -> dict[in
     return por_mes
 
 
+def _contar_unicos_por_mes(asignaciones: list[dict], id_key: str) -> dict[int, int]:
+    """Cantidad de entidades distintas por mes (sin %)."""
+    vistos: dict[int, set] = {m: set() for m in range(1, 13)}
+    for a in asignaciones:
+        eid = a.get(id_key) or a.get("encuentro_id") or 0
+        vistos[a["mes"]].add(eid)
+    return {m: len(ids) for m, ids in vistos.items()}
+
+
 _CALENDARIO_DIMS = {
     "planes": ("plan_id", "plan_nombre"),
     "cursos": ("curso_id", "curso_nombre"),
@@ -589,6 +689,7 @@ def matriz_calendario(
     empresas: list[int] | None = None,
     persona_ids: list[int] | None = None,
     puesto_ids: list[int] | None = None,
+    curso_ids: list[int] | None = None,
 ) -> dict:
     anio = anio or date.today().year
     plan_ids = plan_ids or []
@@ -596,6 +697,7 @@ def matriz_calendario(
     empresas = empresas or []
     persona_ids = persona_ids or []
     puesto_ids = puesto_ids or []
+    curso_ids = curso_ids or []
     dim = (dim or "planes").lower()
     if dim == "programas":
         dim = "planes"
@@ -610,17 +712,23 @@ def matriz_calendario(
         empresas=empresas,
         persona_ids=persona_ids,
         puesto_ids=puesto_ids,
+        curso_ids=curso_ids,
     )
     id_key, _nombre_key = _CALENDARIO_DIMS[dim]
     por_mes = _metricas_mensuales_unicas(datos["asignaciones"], id_key)
+    puntuales_mes = _contar_unicos_por_mes(datos.get("asignaciones_puntuales") or [], "curso_id")
 
     filas = []
     totales = _metricas_vacias()
+    tot_puntuales = 0
     for i, nombre in enumerate(MESES_NOMBRES, start=1):
         m = por_mes[i]
-        filas.append({"id": i, "mes": i, "nombre": nombre, **m})
+        n_punt = puntuales_mes.get(i, 0)
+        tot_puntuales += n_punt
+        filas.append({"id": i, "mes": i, "nombre": nombre, **m, "charlas_puntuales": n_punt})
         _sumar_metricas(totales, m)
     _finalizar_metricas(totales)
+    totales["charlas_puntuales"] = tot_puntuales
     return {"anio": anio, "dim": dim, "filas": filas, "totales": totales}
 
 
@@ -689,6 +797,7 @@ def matriz_resumen(
     empresas: list[int] | None = None,
     persona_ids: list[int] | None = None,
     puesto_ids: list[int] | None = None,
+    curso_ids: list[int] | None = None,
 ) -> dict:
     """Resumen mensual con drill-down: planes → cursos → personas → detalle."""
     anio = anio or date.today().year
@@ -697,6 +806,7 @@ def matriz_resumen(
     empresas = _parse_ids(empresas)
     persona_ids = _parse_ids(persona_ids)
     puesto_ids = _parse_ids(puesto_ids)
+    curso_ids = _parse_ids(curso_ids)
     nivel = (nivel or "planes").lower()
     if nivel == "programas":
         nivel = "planes"
@@ -709,6 +819,7 @@ def matriz_resumen(
         empresas=empresas,
         persona_ids=persona_ids,
         puesto_ids=puesto_ids,
+        curso_ids=curso_ids,
     )
     mes_nombre = MESES_NOMBRES[mes - 1] if mes and 1 <= mes <= 12 else ""
     curso_nombre = _nombre_curso(datos["asignaciones"], curso_id)
@@ -841,6 +952,7 @@ def matriz_tabla(
     empresas: list[int] | None = None,
     persona_ids: list[int] | None = None,
     puesto_ids: list[int] | None = None,
+    curso_ids: list[int] | None = None,
     agrupar_por: str = "persona",
 ) -> dict:
     anio = anio or date.today().year
@@ -848,9 +960,10 @@ def matriz_tabla(
     tipos = tipos or []
     persona_ids = persona_ids or []
     puesto_ids = puesto_ids or []
+    curso_ids = curso_ids or []
     empresas = empresas or []
     agrupar_por = (agrupar_por or "persona").lower()
-    if agrupar_por not in ("persona", "puesto"):
+    if agrupar_por not in ("persona", "puesto", "curso"):
         agrupar_por = "persona"
 
     datos = _colectar_datos_anuales(
@@ -861,11 +974,14 @@ def matriz_tabla(
         empresas=empresas,
         persona_ids=persona_ids,
         puesto_ids=puesto_ids,
+        curso_ids=curso_ids,
     )
     por_persona_mes = datos["por_persona_mes"]
     por_puesto_mes = datos["por_puesto_mes"]
+    por_curso_mes = datos["por_curso_mes"]
     nombres = datos["nombres"]
     puesto_nombres = datos["puesto_nombres"]
+    curso_nombres = datos["curso_nombres"]
 
     filas = []
     if agrupar_por == "puesto":
@@ -891,12 +1007,45 @@ def matriz_tabla(
             _finalizar_metricas(anual)
             meses_cortos["anual"] = _a_metricas_cortas(anual)
             if sum(anual.get(k, 0) or 0 for k in ("programados", "pendientes", "cumplidos")) == 0:
-                if puid not in por_puesto_mes and puesto_ids:
+                if puid not in por_puesto_mes and (puesto_ids or persona_ids or curso_ids):
                     continue
             filas.append(
                 {
                     "id": puid,
                     "nombre": puesto_nombres.get(puid, "Sin puesto"),
+                    "meses": meses_cortos,
+                }
+            )
+    elif agrupar_por == "curso":
+        cursos_filtrados = Curso.query.filter_by(empresa_id=empresa_id, activo=True)
+        if curso_ids:
+            cursos_filtrados = cursos_filtrados.filter(Curso.id.in_(curso_ids))
+        for curso in cursos_filtrados.order_by(Curso.codigo, Curso.nombre).all():
+            codigo = (curso.codigo or "").strip()
+            curso_nombres.setdefault(
+                curso.id, f"{codigo} — {curso.nombre}" if codigo else curso.nombre
+            )
+        ids_ordenados = sorted(
+            curso_nombres.keys(),
+            key=lambda x: (x == 0, (curso_nombres.get(x, "") or "").lower()),
+        )
+        for cid in ids_ordenados:
+            meses_data = por_curso_mes.get(cid, {m: _metricas_vacias() for m in range(1, 13)})
+            anual = _metricas_vacias()
+            meses_cortos = {}
+            for mes in range(1, 13):
+                m = meses_data.get(mes, _metricas_vacias())
+                _sumar_metricas(anual, m)
+                meses_cortos[str(mes)] = _a_metricas_cortas(m)
+            _finalizar_metricas(anual)
+            meses_cortos["anual"] = _a_metricas_cortas(anual)
+            if sum(anual.get(k, 0) or 0 for k in ("programados", "pendientes", "cumplidos")) == 0:
+                if cid not in por_curso_mes and (curso_ids or persona_ids or puesto_ids):
+                    continue
+            filas.append(
+                {
+                    "id": cid,
+                    "nombre": curso_nombres.get(cid, "Sin curso"),
                     "meses": meses_cortos,
                 }
             )
@@ -918,7 +1067,7 @@ def matriz_tabla(
             _finalizar_metricas(anual)
             meses_cortos["anual"] = _a_metricas_cortas(anual)
             if sum(anual.get(k, 0) or 0 for k in ("programados", "pendientes", "cumplidos")) == 0:
-                if pid not in por_persona_mes and (persona_ids or puesto_ids):
+                if pid not in por_persona_mes and (persona_ids or puesto_ids or curso_ids):
                     continue
             filas.append(
                 {
@@ -944,6 +1093,7 @@ def matriz_persona(
     plan_ids: list[int] | None = None,
     tipos: list[str] | None = None,
     empresas: list[int] | None = None,
+    curso_ids: list[int] | None = None,
 ) -> dict:
     refrescar_vigencias(empresa_id)
     persona = Participante.query.filter_by(id=persona_id, empresa_id=empresa_id, activo=True).first()
@@ -952,6 +1102,7 @@ def matriz_persona(
 
     plan_ids = plan_ids or []
     tipos = tipos or []
+    curso_ids = curso_ids or []
     programas = _programas_filtrados(
         empresa_id,
         plan_ids=plan_ids,
@@ -986,6 +1137,8 @@ def matriz_persona(
             for pc in plan.cursos.order_by(PlanCurso.orden).all():
                 curso = pc.curso
                 if not curso or not curso.activo:
+                    continue
+                if curso_ids and curso.id not in curso_ids:
                     continue
                 hs = float(curso.horas or 0)
                 m_tot += 1
@@ -1070,6 +1223,7 @@ def matriz_analitica(
     empresas=None,
     persona_ids=None,
     puesto_ids=None,
+    curso_ids=None,
     persona_id: int | None = None,
     agrupar_por: str = "persona",
 ) -> dict:
@@ -1078,6 +1232,7 @@ def matriz_analitica(
     empresas = _parse_ids(empresas)
     persona_ids = _parse_ids(persona_ids)
     puesto_ids = _parse_ids(puesto_ids)
+    curso_ids = _parse_ids(curso_ids)
 
     filtros = matriz_filtros_metadata(empresa_id)
 
@@ -1091,6 +1246,7 @@ def matriz_analitica(
             empresas=empresas,
             persona_ids=persona_ids,
             puesto_ids=puesto_ids,
+            curso_ids=curso_ids,
         )
     elif vista == "person" or vista == "persona":
         pid = persona_id or (persona_ids[0] if persona_ids else None)
@@ -1102,6 +1258,7 @@ def matriz_analitica(
             plan_ids=plan_ids,
             tipos=tipos,
             empresas=empresas,
+            curso_ids=curso_ids,
         )
     else:
         data = matriz_tabla(
@@ -1112,6 +1269,7 @@ def matriz_analitica(
             empresas=empresas,
             persona_ids=persona_ids,
             puesto_ids=puesto_ids,
+            curso_ids=curso_ids,
             agrupar_por=agrupar_por,
         )
 

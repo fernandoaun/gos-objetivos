@@ -2051,6 +2051,8 @@
 .cap-ma-val--pendientes { color: #2563eb; font-weight: 700; }
 .cap-ma-val--cumplidos { color: #7c3aed; font-weight: 700; }
 .cap-ma-val--puntuales { color: #16a34a; font-weight: 700; }
+.cap-ma-val--charlas-puntuales { color: #c2410c; font-weight: 700; }
+.cap-ma-resumen-th--puntuales { background: #fff7ed; color: #9a3412; }
 .cap-ma-val--vencidos { color: #dc2626; font-weight: 700; }
 .cap-ma-val--pend-sin-vencer { color: #2563eb; font-weight: 700; }
 .cap-ma-val--pct { font-weight: 600; }
@@ -2072,7 +2074,24 @@
   border-radius: 6px;
   overflow: hidden;
 }
-.cap-ma-tabla-agrupar .cap-ma-resumen-dim { min-width: 6.5rem; text-align: center; }
+.cap-ma-vista-tabla .cap-ma-resumen-wrap { align-items: flex-start; }
+.cap-ma-vista-tabla .cap-ma-tabla-agrupar.cap-ma-resumen-dims {
+  flex: 0 0 auto;
+  align-self: flex-start;
+}
+.cap-ma-tabla-agrupar .cap-ma-resumen-dim {
+  flex: 0 0 auto;
+  min-width: 6.5rem;
+  min-height: 2.35rem;
+  text-align: center;
+}
+.cap-ma-tabla-empty {
+  flex: 1;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--cap-border);
+  border-radius: 0 8px 8px 0;
+}
 .cap-ma-tabla-anual .cap-ma-tabla-mes {
   background: #1a1a1a;
   color: #fff;

@@ -1,2 +1,2 @@
-APP_VERSION = "0.3.10"
-APP_VERSION_LABEL = "v0.3.10 — Fix schema Objetivos y diagnóstico DB en Render"
+APP_VERSION = "0.3.11"
+APP_VERSION_LABEL = "v0.3.11 — Tabla anual agrupada por curso"
