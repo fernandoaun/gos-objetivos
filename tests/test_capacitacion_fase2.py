@@ -272,6 +272,52 @@ def test_importar_programas_excel_crea_y_completa(auth_client, app):
     plantilla = auth_client.get("/gos/capacitacion/api/programas/importar/plantilla")
     assert plantilla.status_code == 200
     assert "spreadsheet" in plantilla.content_type
+    from io import BytesIO
+
+    import openpyxl
+
+    wb = openpyxl.load_workbook(BytesIO(plantilla.data))
+    headers = [c.value for c in wb.active[1]]
+    assert "detalles" in headers
+    assert "plan" in headers
+    assert "puesto" in headers
+
+
+def test_importar_programas_excel_completa_detalles(auth_client, app):
+    from gos.modulos.capacitacion.models import ProgramaCapacitacion
+
+    with app.app_context():
+        from gos.models import Empresa
+
+        emp = Empresa.query.first()
+        db.session.add(
+            ProgramaCapacitacion(
+                empresa_id=emp.id,
+                codigo="FO",
+                nombre="Formación Operativa",
+                tipo="interno",
+                descripcion=None,
+            )
+        )
+        db.session.commit()
+
+    buf = _excel_programas(
+        [
+            ["programa", "detalles"],
+            ["Formación Operativa", "Inducción y oficios de planta."],
+        ]
+    )
+    r = auth_client.post(
+        "/gos/capacitacion/api/programas/importar",
+        data={"archivo": (buf, "programas.xlsx")},
+        content_type="multipart/form-data",
+    )
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data["actualizados"] == 1
+    det = auth_client.get("/gos/capacitacion/api/programas?detalle=1")
+    fo = next(p for p in det.get_json()["programas"] if p["codigo"] == "FO")
+    assert fo["descripcion"] == "Inducción y oficios de planta."
 
 
 def test_importar_programas_excel_listas_en_una_fila(auth_client, app):

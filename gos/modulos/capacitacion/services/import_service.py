@@ -291,7 +291,7 @@ _HEADER_PROGRAMA = {
     "programa": {"programa", "nombre", "programa_nombre", "nombre_programa"},
     "codigo": {"codigo", "programa_codigo", "cod", "codigo_programa"},
     "tipo": {"tipo", "tipo_programa"},
-    "descripcion": {"descripcion", "observaciones"},
+    "descripcion": {"descripcion", "detalle", "detalles", "observaciones"},
     "plan": {"plan", "planes", "nombre_plan", "plan_nombre"},
     "puesto": {
         "puesto",
@@ -536,26 +536,63 @@ def plantilla_programas_excel() -> BytesIO:
     ws = wb.active
     ws.title = "Programas"
 
-    headers = ["programa", "codigo", "tipo", "plan", "puesto", "curso"]
+    headers = ["programa", "codigo", "tipo", "detalles", "plan", "puesto", "curso"]
     header_fill = PatternFill("solid", fgColor="1F4E79")
     header_font = Font(color="FFFFFF", bold=True)
+    wrap = Alignment(horizontal="center", wrap_text=True)
     for col, name in enumerate(headers, start=1):
         cell = ws.cell(1, col, name)
         cell.fill = header_fill
         cell.font = header_font
-        cell.alignment = Alignment(horizontal="center")
+        cell.alignment = wrap
 
     ejemplos = [
-        ["Formación Operativa", "FO", "interno", "Seguridad", "Chofer", "Inducción"],
-        ["Formación Operativa", "FO", "interno", "Seguridad", "Chofer", "Primeros auxilios"],
-        ["Formación Operativa", "FO", "interno", "Técnico", "Mecánico", ""],
-        ["Liderazgo", "", "interno", "Gestión", "Supervisor, Jefe de turno", ""],
+        [
+            "Formación Operativa",
+            "FO",
+            "interno",
+            "Inducción y oficios de planta para personal operativo.",
+            "Seguridad",
+            "Chofer",
+            "Inducción",
+        ],
+        [
+            "Formación Operativa",
+            "FO",
+            "interno",
+            "Inducción y oficios de planta para personal operativo.",
+            "Seguridad",
+            "Chofer",
+            "Primeros auxilios",
+        ],
+        [
+            "Formación Operativa",
+            "FO",
+            "interno",
+            "Inducción y oficios de planta para personal operativo.",
+            "Técnico",
+            "Mecánico",
+            "",
+        ],
+        [
+            "Liderazgo",
+            "",
+            "interno",
+            "Desarrollo de mandos medios.",
+            "Gestión",
+            "Supervisor, Jefe de turno",
+            "",
+        ],
     ]
     for row in ejemplos:
         ws.append(row)
+        ws.cell(ws.max_row, 4).alignment = Alignment(wrap_text=True, vertical="top")
 
-    for col in range(1, 7):
-        ws.column_dimensions[get_column_letter(col)].width = 28
+    anchos = [28, 14, 12, 42, 22, 28, 28]
+    for col, ancho in enumerate(anchos, start=1):
+        ws.column_dimensions[get_column_letter(col)].width = ancho
+    ws.row_dimensions[1].height = 22
+    ws.freeze_panes = "A2"
 
     tipo_dv = DataValidation(type="list", formula1='"interno,externo"', allow_blank=True)
     tipo_dv.error = "Usá interno o externo"
@@ -574,6 +611,8 @@ def plantilla_programas_excel() -> BytesIO:
         "• programa (obligatorio): nombre del programa. Si ya existe, se completa; si no, se crea.",
         "• codigo: opcional. Sirve para identificar un programa ya cargado. Si lo dejás vacío se genera solo.",
         "• tipo: interno o externo. Si falta, se asume interno.",
+        "• detalles: texto libre del programa (el mismo campo Descripción / Guardar detalles de la ficha). "
+        "También se acepta la columna descripcion. Si el programa ya existe y no tiene texto, se completa.",
         "• plan: nombre del plan. Podés repetir filas (un plan por fila) o separar varios con coma o punto y coma.",
         "• puesto: nombre o código del puesto ya cargado en el catálogo. También admite varios separados por coma.",
         "• curso: opcional. Nombre o código de un curso ya cargado; se agrega al plan de esa fila.",
@@ -607,7 +646,7 @@ def importar_programas_excel(empresa_id: int, file_bytes: bytes) -> dict:
     if "programa" not in headers and "codigo" not in headers:
         raise ValueError(
             "El Excel debe tener encabezados en la fila 1. Mínimo: programa. "
-            "Opcionales: codigo, tipo, plan, puesto, curso. "
+            "Opcionales: codigo, tipo, detalles (o descripcion), plan, puesto, curso. "
             "Descargá la plantilla desde Programas para ver el formato."
         )
 
@@ -737,8 +776,14 @@ def importar_programas_excel(empresa_id: int, file_bytes: bytes) -> dict:
                 programa.activo = True
             if not programa.nombre and nombre:
                 programa.nombre = nombre
+            if grupo["descripcion"] and not (programa.descripcion or "").strip():
+                programa.descripcion = grupo["descripcion"]
+                cambio = True
+            else:
+                cambio = False
 
-        cambio = es_nuevo
+        if es_nuevo:
+            cambio = True
 
         for puesto_txt in grupo["puestos"].values():
             puesto = puestos_idx.get(_fold(puesto_txt))
