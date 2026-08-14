@@ -1133,7 +1133,17 @@
 
     if (!tbody) return;
 
-    tbody.innerHTML = (data.recursos || []).map((r) => `
+    tbody.innerHTML = (data.recursos || []).map((r) => {
+
+      const esPersonal = r.clave === "personal";
+
+      const tGreen = esPersonal ? "Habilitados" : "Vigentes";
+
+      const tRed = esPersonal ? "No habilitados (desaprobó o no lo hizo a tiempo)" : "Vencidas";
+
+      const tGray = esPersonal ? "Sin datos" : "Otros";
+
+      return `
 
       <tr>
 
@@ -1143,11 +1153,11 @@
 
           <div class="cap-status-group">
 
-            <span class="cap-badge cap-badge--green" title="Al día">${r.verde}</span>
+            <span class="cap-badge cap-badge--green" title="${tGreen}">${r.verde}</span>
 
-            <span class="cap-badge cap-badge--red" title="Pendiente">${r.rojo}</span>
+            <span class="cap-badge cap-badge--red" title="${tRed}">${r.rojo}</span>
 
-            <span class="cap-badge cap-badge--gray" title="Sin datos">${r.gris}</span>
+            <span class="cap-badge cap-badge--gray" title="${tGray}">${r.gris}</span>
 
           </div>
 
@@ -1155,7 +1165,9 @@
 
       </tr>
 
-    `).join("");
+    `;
+
+    }).join("");
 
 
 
@@ -1443,7 +1455,7 @@
 
         data: {
 
-          labels: ["Al día", "Pendiente", "Sin datos"],
+          labels: ["Habilitados", "No habilitados", "Sin datos"],
 
           datasets: [{ data: [personal.verde, personal.rojo, personal.gris], backgroundColor: ["#76B947", "#e74c3c", "#94a3b8"] }],
 

@@ -4,7 +4,11 @@ from calendar import monthrange
 from collections import defaultdict
 from datetime import date, timedelta
 
+from sqlalchemy.orm import joinedload
+
 from gos.modulos.capacitacion.models import (
+    Acreditacion,
+    AsistenciaEncuentro,
     CertificacionEmpleado,
     Curso,
     EncuentroCapacitacion,
@@ -15,6 +19,112 @@ from gos.modulos.capacitacion.services.analitico_service import analitico_partic
 from gos.modulos.capacitacion.services.taxonomia_service import etiqueta_taxonomia
 from gos.modulos.capacitacion.services.config_service import dias_proximo_vencer
 from gos.modulos.objetivos.models.catalogos import Sector
+
+
+def _fin_de_mes(d: date) -> date:
+    return date(d.year, d.month, monthrange(d.year, d.month)[1])
+
+
+def _cursos_ok_de_analitico(data: dict, hoy: date) -> set[int]:
+    ok: set[int] = set()
+    for reg in data.get("cursos_realizados") or []:
+        if not reg.get("aprobado") or not reg.get("curso_id"):
+            continue
+        if reg.get("vigente_hasta") and date.fromisoformat(reg["vigente_hasta"]) < hoy:
+            continue
+        ok.add(reg["curso_id"])
+    return ok
+
+
+def _flag_true(v) -> bool:
+    """SQLite may persist booleans as 0/1; `is True` would miss them."""
+    return v is True or v == 1
+
+
+def _flag_false(v) -> bool:
+    return v is False or v == 0
+
+
+def _asignacion_cumplida(asist, acr, hoy: date) -> bool:
+    if acr and _flag_true(acr.aprobo) and (acr.fecha_vencimiento is None or acr.fecha_vencimiento >= hoy):
+        return True
+    return _flag_true(asist.aprobado)
+
+
+def _desaprobo_explicito(asist, acr) -> bool:
+    if _flag_false(asist.aprobado):
+        return True
+    if acr is None:
+        return False
+    # Acreditacion.aprobo defaults to False (non-null). Only a real evaluation counts.
+    if _flag_true(acr.aprobo):
+        return False
+    return acr.nota is not None or acr.fecha_aprobacion is not None
+
+
+def _encuentro_se_dictó(enc, asist) -> bool:
+    """Roster-only inscription on a session that never ran is not a missed deadline."""
+    estado = (getattr(enc, "estado", None) or "").lower()
+    if estado in ("cerrado", "realizado", "en_curso"):
+        return True
+    if getattr(enc, "fecha_realizacion", None):
+        return True
+    return asist.asistencia in ("presente", "ausente")
+
+
+def _asignacion_inhabilita(asist, enc, acr, hoy: date, cursos_ok: set[int]) -> bool:
+    """Solo inhabilita un curso programado desaprobado o vencido sin aprobar.
+
+    Huecos de catálogo (RequisitoFormacion / programa) no inhabilitan.
+    Inscripto en un encuentro aún planificado —aunque el mes ya pasó— tampoco:
+    suele ser inscripción masiva al cronograma, no un desaprobado.
+    """
+    estado = (getattr(enc, "estado", None) or "").lower()
+    if estado in ("cancelado", "reprogramado"):
+        return False
+    if getattr(enc, "es_buenas_practicas", False):
+        return False
+    if enc.curso_id and enc.curso_id in cursos_ok:
+        return False
+    if _asignacion_cumplida(asist, acr, hoy):
+        return False
+    if _desaprobo_explicito(asist, acr):
+        return True
+    mes_vencido = bool(enc.fecha and _fin_de_mes(enc.fecha) < hoy)
+    return mes_vencido and _encuentro_se_dictó(enc, asist)
+
+
+def persona_habilitada_por_programados(asignaciones: list, hoy: date, cursos_ok: set[int]) -> bool:
+    """Habilitada por defecto; deja de estarlo si un curso programado falló o venció."""
+    for asist, enc, acr in asignaciones:
+        if _asignacion_inhabilita(asist, enc, acr, hoy, cursos_ok):
+            return False
+    return True
+
+
+def _programados_por_persona(participante_ids: list[int]) -> dict[int, list]:
+    if not participante_ids:
+        return {}
+    asistencias = (
+        AsistenciaEncuentro.query.options(joinedload(AsistenciaEncuentro.encuentro))
+        .join(EncuentroCapacitacion)
+        .filter(AsistenciaEncuentro.participante_id.in_(participante_ids))
+        .filter(EncuentroCapacitacion.estado != "cancelado")
+        .all()
+    )
+    acrs = Acreditacion.query.filter(Acreditacion.persona_id.in_(participante_ids)).all()
+    acr_by_asist = {a.cronograma_persona_id: a for a in acrs if a.cronograma_persona_id}
+    acr_by_key = {(a.persona_id, a.programa_id, a.plan_id, a.curso_id): a for a in acrs}
+    resultado: dict[int, list] = defaultdict(list)
+    for asist in asistencias:
+        enc = asist.encuentro
+        if not enc:
+            continue
+        acr = acr_by_asist.get(asist.id)
+        if acr is None and enc.curso_id and enc.programa_id and enc.plan_id:
+            acr = acr_by_key.get((asist.participante_id, enc.programa_id, enc.plan_id, enc.curso_id))
+        resultado[asist.participante_id].append((asist, enc, acr))
+    return resultado
 
 
 def resumen_dashboard(empresa_id: int, *, sector_id: int | None = None) -> dict:
@@ -37,14 +147,14 @@ def resumen_dashboard(empresa_id: int, *, sector_id: int | None = None) -> dict:
     horas_mes = 0.0
     aprobados = 0
     evaluados = 0
-    requisitos_ok = 0
-    requisitos_total = 0
 
     cumplimiento_por_sector: dict[int, dict] = {}
     cumplimiento_por_curso: dict[int, dict] = defaultdict(lambda: {"ok": 0, "total": 0, "nombre": ""})
     cumplimiento_por_tipo: dict[str, dict] = defaultdict(lambda: {"ok": 0, "total": 0, "nombre": ""})
     cumplimiento_por_persona: list[dict] = []
     ranking_vencimientos: dict[int, dict] = defaultdict(lambda: {"count": 0, "nombre": "", "codigo": ""})
+    estado_habilitado: dict[int, bool] = {}
+    programados = _programados_por_persona([p.id for p in participantes])
 
     for p in participantes:
         data = analitico_participante(p.id, empresa_id=empresa_id)
@@ -86,17 +196,15 @@ def resumen_dashboard(empresa_id: int, *, sector_id: int | None = None) -> dict:
                 elif fv <= hoy + timedelta(days=dias_umbral):
                     proximas_vencer += 1
 
-        if pend == 0:
-            if realizados or data["resumen"]["total_certificaciones"]:
-                verde += 1
-            else:
-                gris += 1
+        cursos_ok = _cursos_ok_de_analitico(data, hoy)
+        habilitada = persona_habilitada_por_programados(programados.get(p.id, []), hoy, cursos_ok)
+        estado_habilitado[p.id] = habilitada
+        if habilitada:
+            verde += 1
         else:
             rojo += 1
 
         total_req = realizados + pend
-        requisitos_ok += realizados
-        requisitos_total += total_req
         pct_persona = round((realizados / total_req) * 100) if total_req else 100
         cumplimiento_por_persona.append(
             {"id": p.id, "nombre": p.nombre_completo, "pct": pct_persona, "pendientes": pend}
@@ -106,7 +214,7 @@ def resumen_dashboard(empresa_id: int, *, sector_id: int | None = None) -> dict:
         if sid not in cumplimiento_por_sector:
             cumplimiento_por_sector[sid] = {"ok": 0, "total": 0, "nombre": p.sector.nombre if p.sector else "Sin sector"}
         cumplimiento_por_sector[sid]["total"] += 1
-        if pend == 0 and (data["resumen"]["total_cursos_realizados"] or data["resumen"]["total_certificaciones"]):
+        if habilitada:
             cumplimiento_por_sector[sid]["ok"] += 1
 
     registros_mes = (
@@ -147,12 +255,8 @@ def resumen_dashboard(empresa_id: int, *, sector_id: int | None = None) -> dict:
         del_sector = [p for p in participantes if p.sector_id == sector.id]
         s_v = s_r = s_g = 0
         for p in del_sector:
-            data = analitico_participante(p.id, empresa_id=empresa_id)
-            if data["resumen"]["total_pendientes"] == 0:
-                if data["resumen"]["total_cursos_realizados"] or data["resumen"]["total_certificaciones"]:
-                    s_v += 1
-                else:
-                    s_g += 1
+            if estado_habilitado.get(p.id, True):
+                s_v += 1
             else:
                 s_r += 1
         if del_sector:
@@ -233,9 +337,9 @@ def resumen_dashboard(empresa_id: int, *, sector_id: int | None = None) -> dict:
         "cumplimiento_por_persona": sorted(cumplimiento_por_persona, key=lambda x: x["pct"])[:15],
         "ranking_vencimientos": ranking,
         "evolucion_mensual": evolucion,
-        # Habilitados = % de requisitos cumplidos (no excluye a quien tiene pendientes).
-        # Pendientes = % de personas con al menos un requisito pendiente.
-        "habilitados_pct": round(requisitos_ok / requisitos_total * 100) if requisitos_total else 0,
+        # Habilitados por defecto. Rojo solo si un curso programado se desaprobó
+        # o el encuentro se dictó y el mes venció sin aprobar.
+        "habilitados_pct": round(verde / total * 100) if participantes else 0,
         "inhabilitados_pct": round(rojo / total * 100) if participantes else 0,
         "totales": {"participantes": len(participantes), "encuentros_mes": encuentros_mes},
     }

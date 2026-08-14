@@ -56,6 +56,162 @@ def test_dashboard_cumplimiento_por_tipo(app):
     assert "cumplimiento_por_tipo" in data
 
 
+def test_dashboard_recursos_habilitado_por_defecto(app):
+    """Sin curso programado = habilitado. Requisito de catálogo no inhabilita.
+    Cae si desaprobó o si el encuentro ya se dictó y el mes programado venció."""
+    from gos.modulos.capacitacion.models import (
+        AsistenciaEncuentro,
+        EncuentroCapacitacion,
+        Puesto,
+        RequisitoFormacion,
+    )
+
+    with app.app_context():
+        from gos.models import Empresa
+
+        emp = Empresa.query.first()
+        puesto = Puesto(empresa_id=emp.id, codigo="TEC-H", nombre="Técnico Hab")
+        curso = Curso(empresa_id=emp.id, codigo="HAB-1", nombre="Curso habilitación")
+        db.session.add_all([puesto, curso])
+        db.session.flush()
+
+        sin_cursos = Participante(empresa_id=emp.id, nombre="Sin Cursos", legajo="H1")
+        con_req = Participante(
+            empresa_id=emp.id, nombre="Con Requisito", legajo="H2", puesto_id=puesto.id
+        )
+        vencido = Participante(empresa_id=emp.id, nombre="Vencido", legajo="H3")
+        desaprobo = Participante(empresa_id=emp.id, nombre="Desaprobó", legajo="H4")
+        en_plazo = Participante(empresa_id=emp.id, nombre="En Plazo", legajo="H5")
+        db.session.add_all([sin_cursos, con_req, vencido, desaprobo, en_plazo])
+        db.session.flush()
+
+        db.session.add(
+            RequisitoFormacion(
+                empresa_id=emp.id,
+                puesto_id=puesto.id,
+                curso_id=curso.id,
+                obligatorio=True,
+            )
+        )
+
+        enc_venc = EncuentroCapacitacion(
+            empresa_id=emp.id,
+            curso_id=curso.id,
+            titulo="Sesión vencida",
+            fecha=date(2026, 6, 1),
+            estado="cerrado",
+        )
+        enc_fail = EncuentroCapacitacion(
+            empresa_id=emp.id,
+            curso_id=curso.id,
+            titulo="Sesión desaprobada",
+            fecha=date(2026, 8, 1),
+            estado="planificado",
+        )
+        enc_ok = EncuentroCapacitacion(
+            empresa_id=emp.id,
+            curso_id=curso.id,
+            titulo="Sesión en plazo",
+            fecha=date(2026, 8, 1),
+            estado="planificado",
+        )
+        db.session.add_all([enc_venc, enc_fail, enc_ok])
+        db.session.flush()
+        db.session.add_all(
+            [
+                AsistenciaEncuentro(
+                    encuentro_id=enc_venc.id,
+                    participante_id=vencido.id,
+                    asistencia="inscripto",
+                ),
+                AsistenciaEncuentro(
+                    encuentro_id=enc_fail.id,
+                    participante_id=desaprobo.id,
+                    asistencia="presente",
+                    aprobado=False,
+                ),
+                AsistenciaEncuentro(
+                    encuentro_id=enc_ok.id,
+                    participante_id=en_plazo.id,
+                    asistencia="inscripto",
+                ),
+            ]
+        )
+        db.session.commit()
+
+        data = resumen_dashboard(emp.id)
+        personal = next(r for r in data["recursos"] if r["clave"] == "personal")
+        assert personal["verde"] == 3
+        assert personal["rojo"] == 2
+        assert personal["gris"] == 0
+        assert data["habilitados_pct"] == 60
+        assert data["inhabilitados_pct"] == 40
+
+
+def test_asignacion_inhabilita_no_penaliza_roster_ni_acreditacion_default():
+    """Inscripto masivo / Acreditacion.aprobo=False sin evaluar no inhabilitan."""
+    from types import SimpleNamespace
+
+    from gos.modulos.capacitacion.services.dashboard_service import (
+        _asignacion_inhabilita,
+        persona_habilitada_por_programados,
+    )
+
+    hoy = date(2026, 8, 14)
+
+    def enc(**kw):
+        base = dict(
+            estado="planificado",
+            curso_id=1,
+            fecha=date(2026, 8, 1),
+            es_buenas_practicas=False,
+            fecha_realizacion=None,
+        )
+        base.update(kw)
+        return SimpleNamespace(**base)
+
+    def asist(**kw):
+        base = dict(asistencia="inscripto", aprobado=None)
+        base.update(kw)
+        return SimpleNamespace(**base)
+
+    assert persona_habilitada_por_programados([], hoy, set()) is True
+    assert (
+        _asignacion_inhabilita(
+            asist(), enc(fecha=date(2026, 6, 1), estado="planificado"), None, hoy, set()
+        )
+        is False
+    )
+    assert (
+        _asignacion_inhabilita(
+            asist(), enc(fecha=date(2026, 6, 1), estado="cerrado"), None, hoy, set()
+        )
+        is True
+    )
+    assert (
+        _asignacion_inhabilita(asist(asistencia="presente", aprobado=False), enc(), None, hoy, set())
+        is True
+    )
+    assert (
+        _asignacion_inhabilita(asist(aprobado=0), enc(fecha=date(2026, 6, 1), estado="cerrado"), None, hoy, set())
+        is True
+    )
+    assert (
+        _asignacion_inhabilita(
+            asist(), enc(fecha=date(2026, 6, 1), estado="cerrado", curso_id=9), None, hoy, {9}
+        )
+        is False
+    )
+    acr_default = SimpleNamespace(
+        aprobo=False, nota=None, fecha_aprobacion=None, fecha_vencimiento=None
+    )
+    assert _asignacion_inhabilita(asist(), enc(), acr_default, hoy, set()) is False
+    acr_fail = SimpleNamespace(aprobo=False, nota=4, fecha_aprobacion=None, fecha_vencimiento=None)
+    assert _asignacion_inhabilita(asist(asistencia="presente"), enc(), acr_fail, hoy, set()) is True
+    bpc = enc(fecha=date(2026, 6, 1), estado="cerrado", es_buenas_practicas=True)
+    assert _asignacion_inhabilita(asist(), bpc, None, hoy, set()) is False
+
+
 def test_sync_vacaciones_sector(app, monkeypatch):
     """Sync enriquecido: sector y fecha_ingreso desde Vacaciones."""
     with app.app_context():
