@@ -114,6 +114,16 @@ def test_matriz_analitica_filtros_y_vistas(app):
         assert "data" in cal
         assert "filas" in cal["data"]
         assert len(cal["data"]["filas"]) == 12
+        assert cal["data"].get("dim") == "planes"
+        assert cal["data"]["filas"][0]["nombre"] == "Enero"
+
+        cal_cursos = matriz_analitica(emp.id, vista="calendario", anio=2026, dim="cursos")
+        assert cal_cursos["data"].get("dim") == "cursos"
+        assert len(cal_cursos["data"]["filas"]) == 12
+
+        cal_personas = matriz_analitica(emp.id, vista="calendario", anio=2026, dim="personas")
+        assert cal_personas["data"].get("dim") == "personas"
+        assert len(cal_personas["data"]["filas"]) == 12
 
         tabla = matriz_analitica(emp.id, vista="tabla", anio=2026)
         assert "filas" in tabla["data"]

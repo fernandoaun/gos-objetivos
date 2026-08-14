@@ -2012,6 +2012,22 @@
   text-align: center;
   min-width: 5.5rem;
 }
+.cap-ma-resumen-anio {
+  line-height: 1.2;
+}
+.cap-ma-resumen-dim-sub {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.cap-ma-entidad-cell {
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+}
 .cap-ma-resumen-th {
   text-align: center;
   font-weight: 700;

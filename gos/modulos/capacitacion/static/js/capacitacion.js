@@ -60,19 +60,19 @@
   let matrizParticipanteId = window.CAP_INITIAL_PARTICIPANTE_ID || null;
   let matrizParticipanteNombre = null;
   let maVista = "calendario";
-  let maResumenDim = "programas";
+  let maResumenDim = "planes";
   let maTablaAgrupar = "persona";
   let maFiltros = { planes: [], tipos: [], empresas: [], personas: [], puestos: [] };
   let maFiltrosMeta = null;
   let crVista = "calendario";
   let crResumenZoom = {
-    nivel: "programas",
+    nivel: "planes",
     mes: null,
-    planId: null,
+    cursoId: null,
     personaId: null,
     metrica: null,
     mesNombre: null,
-    planNombre: null,
+    cursoNombre: null,
     personaNombre: null,
   };
   let crFiltros = { planes: [], tipos: [], empresas: [], personas: [], puestos: [] };
@@ -1650,6 +1650,7 @@
     if (maFiltros.empresas.length) q.set("empresas", maFiltros.empresas.join(","));
     if (maFiltros.personas.length) q.set("personas", maFiltros.personas.join(","));
     if (maFiltros.puestos.length) q.set("puestos", maFiltros.puestos.join(","));
+    if (maVista === "calendario") q.set("dim", maResumenDim);
     if (maVista === "tabla") q.set("agrupar_por", maTablaAgrupar);
     if (maVista === "persona") {
       const pid = document.getElementById("cap-ma-persona-select")?.value;
@@ -1818,18 +1819,23 @@
       const grupo = g.dataset.grupo;
       const destacado =
         (maResumenDim === "planes" && grupo === "planes") ||
+        (maResumenDim === "cursos" && grupo === "tipos") ||
         (maResumenDim === "personas" && (grupo === "personas" || grupo === "puestos"));
       g.classList.toggle("cap-ma-filtro-grupo--destacado", destacado);
     });
   }
 
-  function bindMaResumenDims(data) {
+  function bindMaResumenDims() {
     const wrap = document.getElementById("cap-ma-vista-calendario");
     if (!wrap) return;
     wrap.querySelectorAll("[data-ma-dim]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        maResumenDim = btn.dataset.maDim || "programas";
-        renderMaCalendario(data);
+        const next = btn.dataset.maDim || "planes";
+        if (next === maResumenDim) return;
+        maResumenDim = next;
+        const wrap = document.getElementById("cap-ma-vista-calendario");
+        if (wrap) wrap.innerHTML = '<p class="cap-loading">Cargando...</p>';
+        loadMatrizAnalitica().catch(console.error);
       });
     });
     applyMaResumenDimHighlight();
@@ -1841,10 +1847,16 @@
     const filas = data.filas || [];
     const tot = data.totales || {};
     const anio = data.anio || "";
+    const dim = data.dim || maResumenDim;
+    const colNom = {
+      planes: ["Planes Programados", "Planes Pendientes", "Planes Cumplidos"],
+      cursos: ["Cursos Programados", "Cursos Pendientes", "Cursos Cumplidos"],
+      personas: ["Personas Programadas", "Personas Pendientes", "Personas Cumplidas"],
+    }[dim] || ["Cursos Programados", "Cursos Pendientes", "Cursos Cumplidos"];
     const countCols = [
-      ["programados", "Cursos Programados", "cap-ma-val--programados", "cap-ma-resumen-th--prog", 1],
-      ["pendientes", "Cursos Pendientes", "cap-ma-val--pendientes", "cap-ma-resumen-th--metric", 1],
-      ["cumplidos", "Cursos Cumplidos", "cap-ma-val--cumplidos", "cap-ma-resumen-th--metric", 1],
+      ["programados", colNom[0], "cap-ma-val--programados", "cap-ma-resumen-th--prog", 1],
+      ["pendientes", colNom[1], "cap-ma-val--pendientes", "cap-ma-resumen-th--metric", 1],
+      ["cumplidos", colNom[2], "cap-ma-val--cumplidos", "cap-ma-resumen-th--metric", 1],
       ["pct_cumpl_prog", "% Cumpl./Pr.", "cap-ma-val--pct", "cap-ma-resumen-th--metric", 1],
       ["puntuales", "Cumplidos Puntuales", "cap-ma-val--puntuales", "cap-ma-resumen-th--metric", 1],
       ["pct_punt_prog", "% Punt./Pr.", "cap-ma-val--pct", "cap-ma-resumen-th--metric", 1],
@@ -1859,10 +1871,12 @@
     ];
     const allCols = [...countCols, ...pctCols];
     const dims = [
-      ["programas", "Programas"],
       ["planes", "Planes"],
+      ["cursos", "Cursos"],
       ["personas", "Personas"],
     ];
+    const dimLabels = { planes: "Plan", cursos: "Curso", personas: "Persona" };
+    const rowHead = dimLabels[dim] || "";
     const cellVal = (row, key) => (key.startsWith("pct_") ? maFmtPct(row[key]) : maFmtCount(row[key]));
     const rowCells = (row) => allCols.map(([k, , cls]) =>
       `<td class="cap-ma-num ${cls}">${cellVal(row, k)}</td>`
@@ -1870,6 +1884,11 @@
     const totalCells = allCols.map(([k, , cls]) =>
       `<td class="cap-ma-num cap-ma-total-cell ${cls}">${cellVal(tot, k)}</td>`
     ).join("");
+    const bodyRows = filas.length
+      ? filas.map((f) =>
+          `<tr><th scope="row" class="cap-ma-mes-cell">${escapeHtml(f.nombre)}</th>${rowCells(f)}</tr>`
+        ).join("")
+      : `<tr><td colspan="${allCols.length + 1}" class="cap-empty">Sin datos para este ámbito</td></tr>`;
     wrap.innerHTML = `
       <div class="cap-ma-resumen-wrap">
         <div class="cap-ma-resumen-dims" id="cap-ma-resumen-dims" role="tablist" aria-label="Ámbito del resumen">
@@ -1881,8 +1900,8 @@
           <table class="cap-data-table cap-ma-resumen-table">
             <thead>
               <tr>
-                <th rowspan="2" class="cap-ma-resumen-anio">${escapeHtml(String(anio))}</th>
-                <th rowspan="2" class="cap-ma-resumen-th cap-ma-resumen-th--prog">Cursos Programados</th>
+                <th rowspan="2" class="cap-ma-resumen-anio">${escapeHtml(String(anio))}${rowHead ? `<span class="cap-ma-resumen-dim-sub">${escapeHtml(rowHead)}</span>` : ""}</th>
+                <th rowspan="2" class="cap-ma-resumen-th cap-ma-resumen-th--prog">${escapeHtml(colNom[0])}</th>
                 <th colspan="3" class="cap-ma-resumen-th cap-ma-resumen-th--metric">Cumplimiento</th>
                 <th colspan="2" class="cap-ma-resumen-th cap-ma-resumen-th--metric">Puntualidad</th>
                 <th colspan="2" class="cap-ma-resumen-th cap-ma-resumen-th--metric">Vencidos</th>
@@ -1898,9 +1917,7 @@
               </tr>
             </thead>
             <tbody>
-              ${filas.map((f) =>
-                `<tr><th scope="row" class="cap-ma-mes-cell">${escapeHtml(f.nombre)}</th>${rowCells(f)}</tr>`
-              ).join("")}
+              ${bodyRows}
               <tr class="cap-ma-total-row">
                 <th scope="row" class="cap-ma-mes-cell cap-ma-mes-cell--total">Total</th>
                 ${totalCells}
@@ -1909,7 +1926,7 @@
           </table>
         </div>
       </div>`;
-    bindMaResumenDims(data);
+    bindMaResumenDims();
   }
 
   const CR_METRICAS = [
@@ -1920,8 +1937,8 @@
     ["pend_vencidos", "Pendientes Vencidos", "cap-ma-val--vencidos", "cap-ma-resumen-th--metric"],
   ];
   const CR_DIMS = [
-    ["programas", "Programas"],
     ["planes", "Planes"],
+    ["cursos", "Cursos"],
     ["personas", "Personas"],
   ];
 
@@ -1929,7 +1946,7 @@
     const anio = document.getElementById("cap-cr-anio")?.value || new Date().getFullYear();
     const q = new URLSearchParams({ anio, nivel: crResumenZoom.nivel });
     if (crResumenZoom.mes) q.set("mes", String(crResumenZoom.mes));
-    if (crResumenZoom.planId) q.set("plan_id", String(crResumenZoom.planId));
+    if (crResumenZoom.cursoId != null) q.set("curso_id", String(crResumenZoom.cursoId));
     if (crResumenZoom.personaId) q.set("persona_id", String(crResumenZoom.personaId));
     if (crResumenZoom.metrica) q.set("metrica", crResumenZoom.metrica);
     if (crFiltros.planes.length) q.set("planes", crFiltros.planes.join(","));
@@ -1942,13 +1959,13 @@
 
   function crResetZoom() {
     crResumenZoom = {
-      nivel: "programas",
+      nivel: "planes",
       mes: null,
-      planId: null,
+      cursoId: null,
       personaId: null,
       metrica: null,
       mesNombre: null,
-      planNombre: null,
+      cursoNombre: null,
       personaNombre: null,
     };
   }
@@ -1965,6 +1982,7 @@
       const grupo = g.dataset.grupo;
       const destacado =
         (crResumenZoom.nivel === "planes" && grupo === "planes") ||
+        (crResumenZoom.nivel === "cursos" && grupo === "tipos") ||
         (crResumenZoom.nivel === "personas" && (grupo === "personas" || grupo === "puestos"));
       g.classList.toggle("cap-ma-filtro-grupo--destacado", destacado);
     });
@@ -1973,12 +1991,12 @@
   function renderCrBreadcrumb() {
     const nav = document.getElementById("cap-cr-breadcrumb");
     if (!nav) return;
-    const parts = [{ label: "Resumen anual", nivel: "programas" }];
+    const parts = [{ label: "Resumen anual", nivel: "planes" }];
     if (crResumenZoom.mes) {
-      parts.push({ label: crResumenZoom.mesNombre || `Mes ${crResumenZoom.mes}`, nivel: "planes" });
+      parts.push({ label: crResumenZoom.mesNombre || `Mes ${crResumenZoom.mes}`, nivel: "cursos" });
     }
-    if (crResumenZoom.planId) {
-      parts.push({ label: crResumenZoom.planNombre || "Plan", nivel: "personas" });
+    if (crResumenZoom.cursoId != null) {
+      parts.push({ label: crResumenZoom.cursoNombre || "Curso", nivel: "personas" });
     }
     if (crResumenZoom.personaId) {
       parts.push({ label: crResumenZoom.personaNombre || "Persona", nivel: "detalle" });
@@ -1997,21 +2015,21 @@
   }
 
   function crNavigateTo(nivel) {
-    if (nivel === "programas") {
-      crResumenZoom.nivel = "programas";
+    if (nivel === "planes" || nivel === "programas") {
+      crResumenZoom.nivel = "planes";
       crResumenZoom.mes = null;
-      crResumenZoom.planId = null;
+      crResumenZoom.cursoId = null;
       crResumenZoom.personaId = null;
       crResumenZoom.metrica = null;
       crResumenZoom.mesNombre = null;
-      crResumenZoom.planNombre = null;
+      crResumenZoom.cursoNombre = null;
       crResumenZoom.personaNombre = null;
-    } else if (nivel === "planes") {
-      crResumenZoom.nivel = "planes";
-      crResumenZoom.planId = null;
+    } else if (nivel === "cursos") {
+      crResumenZoom.nivel = "cursos";
+      crResumenZoom.cursoId = null;
       crResumenZoom.personaId = null;
       crResumenZoom.personaNombre = null;
-      crResumenZoom.planNombre = null;
+      crResumenZoom.cursoNombre = null;
     } else if (nivel === "personas") {
       crResumenZoom.nivel = "personas";
       crResumenZoom.personaId = null;
@@ -2021,8 +2039,8 @@
   }
 
   function crNextNivel() {
-    if (crResumenZoom.nivel === "programas") return "planes";
-    if (crResumenZoom.nivel === "planes") return "personas";
+    if (crResumenZoom.nivel === "planes") return "cursos";
+    if (crResumenZoom.nivel === "cursos") return "personas";
     return "detalle";
   }
 
@@ -2040,15 +2058,15 @@
       return;
     }
     crResumenZoom.metrica = metrica;
-    if (crResumenZoom.nivel === "programas") {
+    if (crResumenZoom.nivel === "planes") {
       crResumenZoom.mes = rowId;
       const fila = (crResumenZoom._filas || []).find((f) => f.id === rowId);
       crResumenZoom.mesNombre = fila?.nombre || null;
-      crResumenZoom.nivel = "planes";
-    } else if (crResumenZoom.nivel === "planes") {
-      crResumenZoom.planId = rowId;
+      crResumenZoom.nivel = "cursos";
+    } else if (crResumenZoom.nivel === "cursos") {
+      crResumenZoom.cursoId = rowId;
       const fila = (crResumenZoom._filas || []).find((f) => f.id === rowId);
-      crResumenZoom.planNombre = fila?.nombre || null;
+      crResumenZoom.cursoNombre = fila?.nombre || null;
       crResumenZoom.nivel = "personas";
     }
     loadCronogramaResumen().catch(console.error);
@@ -2062,7 +2080,7 @@
     crDetalleEventos = data.eventos || [];
     const ctx = [
       crResumenZoom.mesNombre,
-      crResumenZoom.planNombre,
+      crResumenZoom.cursoNombre,
       crResumenZoom.personaNombre,
     ].filter(Boolean).join(" · ");
     if (titulo) titulo.textContent = ctx || "Detalle de cronogramas";
@@ -2105,7 +2123,7 @@
     const totalCells = CR_METRICAS.map(([k, , cls]) =>
       `<td class="cap-ma-num cap-ma-total-cell ${cls}">${maFmtCount(tot[k])}</td>`
     ).join("");
-    const rowLabel = nivel === "programas" ? String(anio) : (data.mes_nombre || "Detalle");
+    const rowLabel = (nivel === "planes" || nivel === "programas") ? String(anio) : (data.mes_nombre || "Detalle");
     wrap.innerHTML = `
       <div class="cap-ma-resumen-wrap">
         <div class="cap-ma-resumen-dims" role="tablist" aria-label="Nivel de zoom">

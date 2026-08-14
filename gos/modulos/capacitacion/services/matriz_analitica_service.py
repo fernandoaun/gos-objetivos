@@ -467,7 +467,8 @@ def _colectar_datos_anuales(
                 "persona_id": persona.id,
                 "persona_nombre": persona.nombre_completo,
                 "encuentro_id": enc.id,
-                "curso_nombre": curso.nombre if curso else enc.titulo,
+                "curso_id": enc.curso_id or 0,
+                "curso_nombre": curso.nombre if curso else (enc.titulo or "Sin curso"),
                 "fecha": enc.fecha.isoformat() if enc.fecha else None,
                 "fecha_realizacion": enc.fecha_realizacion.isoformat() if enc.fecha_realizacion else None,
                 "capacitador": enc.instructor or (enc.instructor_rel.nombre if enc.instructor_rel else None),
@@ -528,10 +529,61 @@ def _colectar_metricas_anuales(
     return datos["por_persona_mes"], datos["por_mes"], datos["nombres"]
 
 
+def _unidad_entidad(sumado: dict) -> dict:
+    """Colapsa las asignaciones de una entidad (plan/curso/persona) a 1 unidad."""
+    prog = sumado.get("programados", 0) or 0
+    unit = _metricas_vacias()
+    if prog <= 0:
+        return unit
+    unit["programados"] = 1
+    all_cumpl = (sumado.get("cumplidos", 0) or 0) >= prog
+    all_punt = (sumado.get("puntuales", 0) or 0) >= prog
+    any_venc = (sumado.get("pend_vencidos", 0) or 0) > 0 or (sumado.get("pend_vencidos_det", 0) or 0) > 0
+    if all_cumpl:
+        unit["cumplidos"] = 1
+        if all_punt:
+            unit["puntuales"] = 1
+            unit["cumpl_puntuales"] = 1
+        else:
+            unit["cumpl_no_puntuales"] = 1
+    elif any_venc:
+        unit["pend_vencidos"] = 1
+        unit["pend_vencidos_det"] = 1
+    else:
+        unit["pend_sin_vencer"] = 1
+    return unit
+
+
+def _metricas_mensuales_unicas(asignaciones: list[dict], id_key: str) -> dict[int, dict]:
+    """Cuenta entidades distintas por mes (1 plan programado = 1, no 25 cupos)."""
+    por_mes_ent: dict[int, dict[int, dict]] = {m: {} for m in range(1, 13)}
+    for a in asignaciones:
+        mes = a["mes"]
+        eid = a.get(id_key) or 0
+        if eid not in por_mes_ent[mes]:
+            por_mes_ent[mes][eid] = _metricas_vacias()
+        _sumar_metricas(por_mes_ent[mes][eid], a["delta"])
+
+    por_mes = {m: _metricas_vacias() for m in range(1, 13)}
+    for mes, entidades in por_mes_ent.items():
+        for sumado in entidades.values():
+            _sumar_metricas(por_mes[mes], _unidad_entidad(sumado))
+        _finalizar_metricas(por_mes[mes])
+    return por_mes
+
+
+_CALENDARIO_DIMS = {
+    "planes": ("plan_id", "plan_nombre"),
+    "cursos": ("curso_id", "curso_nombre"),
+    "personas": ("persona_id", "persona_nombre"),
+}
+
+
 def matriz_calendario(
     empresa_id: int,
     *,
     anio: int | None = None,
+    dim: str = "planes",
     plan_ids: list[int] | None = None,
     tipos: list[str] | None = None,
     empresas: list[int] | None = None,
@@ -544,55 +596,11 @@ def matriz_calendario(
     empresas = empresas or []
     persona_ids = persona_ids or []
     puesto_ids = puesto_ids or []
-
-    _, por_mes, _ = _colectar_metricas_anuales(
-        empresa_id,
-        anio=anio,
-        plan_ids=plan_ids,
-        tipos=tipos,
-        empresas=empresas,
-        persona_ids=persona_ids,
-        puesto_ids=puesto_ids,
-    )
-
-    filas = []
-    totales = _metricas_vacias()
-    for i, nombre in enumerate(MESES_NOMBRES, start=1):
-        m = por_mes[i]
-        filas.append({"mes": i, "nombre": nombre, **m})
-        _sumar_metricas(totales, m)
-    _finalizar_metricas(totales)
-
-    return {"anio": anio, "filas": filas, "totales": totales}
-
-
-def _fila_metricas(entity_id, nombre: str, metricas: dict) -> dict:
-    return {"id": entity_id, "nombre": nombre, **metricas}
-
-
-def matriz_resumen(
-    empresa_id: int,
-    *,
-    anio: int | None = None,
-    nivel: str = "programas",
-    mes: int | None = None,
-    plan_id: int | None = None,
-    persona_id: int | None = None,
-    metrica: str | None = None,
-    plan_ids: list[int] | None = None,
-    tipos: list[str] | None = None,
-    empresas: list[int] | None = None,
-    persona_ids: list[int] | None = None,
-    puesto_ids: list[int] | None = None,
-) -> dict:
-    """Resumen mensual con drill-down: programas → planes → personas → detalle."""
-    anio = anio or date.today().year
-    plan_ids = _parse_ids(plan_ids)
-    tipos = [t.lower() for t in (tipos or []) if t]
-    empresas = _parse_ids(empresas)
-    persona_ids = _parse_ids(persona_ids)
-    puesto_ids = _parse_ids(puesto_ids)
-    nivel = (nivel or "programas").lower()
+    dim = (dim or "planes").lower()
+    if dim == "programas":
+        dim = "planes"
+    if dim not in _CALENDARIO_DIMS:
+        dim = "planes"
 
     datos = _colectar_datos_anuales(
         empresa_id,
@@ -603,6 +611,107 @@ def matriz_resumen(
         persona_ids=persona_ids,
         puesto_ids=puesto_ids,
     )
+    id_key, _nombre_key = _CALENDARIO_DIMS[dim]
+    por_mes = _metricas_mensuales_unicas(datos["asignaciones"], id_key)
+
+    filas = []
+    totales = _metricas_vacias()
+    for i, nombre in enumerate(MESES_NOMBRES, start=1):
+        m = por_mes[i]
+        filas.append({"id": i, "mes": i, "nombre": nombre, **m})
+        _sumar_metricas(totales, m)
+    _finalizar_metricas(totales)
+    return {"anio": anio, "dim": dim, "filas": filas, "totales": totales}
+
+
+def _fila_metricas(entity_id, nombre: str, metricas: dict) -> dict:
+    return {"id": entity_id, "nombre": nombre, **metricas}
+
+
+def _nombre_curso(asignaciones: list[dict], curso_id: int | None) -> str:
+    if curso_id is None:
+        return ""
+    for a in asignaciones:
+        if (a.get("curso_id") or 0) == curso_id:
+            return a.get("curso_nombre") or ""
+    return ""
+
+
+def _filas_desde_asignaciones(
+    asignaciones: list[dict],
+    *,
+    mes: int | None,
+    id_key: str,
+    nombre_key: str,
+    filtros: dict | None = None,
+    metrica: str | None = None,
+) -> tuple[list[dict], dict]:
+    filtros = {k: v for k, v in (filtros or {}).items() if v is not None}
+    buckets: dict[int, dict] = {}
+    nombres: dict[int, str] = {}
+    for a in asignaciones:
+        if mes is not None and a["mes"] != mes:
+            continue
+        if any(a.get(k) != v for k, v in filtros.items()):
+            continue
+        eid = a.get(id_key) or 0
+        if eid not in buckets:
+            buckets[eid] = _metricas_vacias()
+            nombres[eid] = a.get(nombre_key) or "—"
+        _sumar_metricas(buckets[eid], a["delta"])
+    filas = []
+    totales = _metricas_vacias()
+    for eid in sorted(buckets, key=lambda x: (nombres[x] or "").lower()):
+        m = buckets[eid]
+        _finalizar_metricas(m)
+        if metrica and (m.get(metrica, 0) or 0) == 0:
+            continue
+        if sum(m.get(k, 0) or 0 for k in METRICAS_RESUMEN[:4]) == 0 and m.get("pend_vencidos", 0) == 0:
+            continue
+        filas.append(_fila_metricas(eid, nombres[eid], m))
+        _sumar_metricas(totales, m)
+    _finalizar_metricas(totales)
+    return filas, totales
+
+
+def matriz_resumen(
+    empresa_id: int,
+    *,
+    anio: int | None = None,
+    nivel: str = "planes",
+    mes: int | None = None,
+    plan_id: int | None = None,
+    curso_id: int | None = None,
+    persona_id: int | None = None,
+    metrica: str | None = None,
+    plan_ids: list[int] | None = None,
+    tipos: list[str] | None = None,
+    empresas: list[int] | None = None,
+    persona_ids: list[int] | None = None,
+    puesto_ids: list[int] | None = None,
+) -> dict:
+    """Resumen mensual con drill-down: planes → cursos → personas → detalle."""
+    anio = anio or date.today().year
+    plan_ids = _parse_ids(plan_ids)
+    tipos = [t.lower() for t in (tipos or []) if t]
+    empresas = _parse_ids(empresas)
+    persona_ids = _parse_ids(persona_ids)
+    puesto_ids = _parse_ids(puesto_ids)
+    nivel = (nivel or "planes").lower()
+    if nivel == "programas":
+        nivel = "planes"
+
+    datos = _colectar_datos_anuales(
+        empresa_id,
+        anio=anio,
+        plan_ids=plan_ids,
+        tipos=tipos,
+        empresas=empresas,
+        persona_ids=persona_ids,
+        puesto_ids=puesto_ids,
+    )
+    mes_nombre = MESES_NOMBRES[mes - 1] if mes and 1 <= mes <= 12 else ""
+    curso_nombre = _nombre_curso(datos["asignaciones"], curso_id)
 
     if nivel == "detalle":
         if not mes:
@@ -611,7 +720,9 @@ def matriz_resumen(
         for a in datos["asignaciones"]:
             if a["mes"] != mes:
                 continue
-            if plan_id and a["plan_id"] != plan_id:
+            if plan_id is not None and a["plan_id"] != plan_id:
+                continue
+            if curso_id is not None and (a.get("curso_id") or 0) != curso_id:
                 continue
             if persona_id and a["persona_id"] != persona_id:
                 continue
@@ -645,6 +756,7 @@ def matriz_resumen(
             "nivel": "detalle",
             "mes": mes,
             "plan_id": plan_id,
+            "curso_id": curso_id,
             "persona_id": persona_id,
             "metrica": metrica,
             "eventos": list(eventos_map.values()),
@@ -653,69 +765,58 @@ def matriz_resumen(
     if nivel == "personas":
         if not mes:
             raise ValueError("Seleccioná un mes para desglosar por persona")
-        filas = []
-        totales = _metricas_vacias()
-        for pid in sorted(datos["nombres"].keys(), key=lambda x: datos["nombres"][x]):
-            meses_data = datos["por_persona_mes"].get(pid, {})
-            m = meses_data.get(mes, _metricas_vacias())
-            if plan_id:
-                # Recalcular solo asignaciones de ese plan
-                m = _metricas_vacias()
-                for a in datos["asignaciones"]:
-                    if a["mes"] != mes or a["persona_id"] != pid:
-                        continue
-                    if a["plan_id"] != plan_id:
-                        continue
-                    _sumar_metricas(m, a["delta"])
-                _finalizar_metricas(m)
-            if metrica and (m.get(metrica, 0) or 0) == 0:
-                continue
-            if sum(m.get(k, 0) or 0 for k in METRICAS_RESUMEN[:4]) == 0 and m.get("pend_vencidos", 0) == 0:
-                continue
-            filas.append(_fila_metricas(pid, datos["nombres"][pid], m))
-            _sumar_metricas(totales, m)
-        _finalizar_metricas(totales)
+        filtros = {}
+        if curso_id is not None:
+            filtros["curso_id"] = curso_id
+        elif plan_id is not None:
+            filtros["plan_id"] = plan_id
+        filas, totales = _filas_desde_asignaciones(
+            datos["asignaciones"],
+            mes=mes,
+            id_key="persona_id",
+            nombre_key="persona_nombre",
+            filtros=filtros,
+            metrica=metrica,
+        )
         return {
             "anio": anio,
             "nivel": "personas",
             "mes": mes,
             "plan_id": plan_id,
+            "curso_id": curso_id,
             "metrica": metrica,
-            "mes_nombre": MESES_NOMBRES[mes - 1] if 1 <= mes <= 12 else "",
+            "mes_nombre": mes_nombre,
+            "plan_nombre": datos["plan_nombres"].get(plan_id or 0, ""),
+            "curso_nombre": curso_nombre,
+            "filas": filas,
+            "totales": totales,
+        }
+
+    if nivel == "cursos":
+        if not mes:
+            raise ValueError("Seleccioná un mes para desglosar por curso")
+        filtros = {"plan_id": plan_id} if plan_id is not None else {}
+        filas, totales = _filas_desde_asignaciones(
+            datos["asignaciones"],
+            mes=mes,
+            id_key="curso_id",
+            nombre_key="curso_nombre",
+            filtros=filtros,
+            metrica=metrica,
+        )
+        return {
+            "anio": anio,
+            "nivel": "cursos",
+            "mes": mes,
+            "plan_id": plan_id,
+            "metrica": metrica,
+            "mes_nombre": mes_nombre,
             "plan_nombre": datos["plan_nombres"].get(plan_id or 0, ""),
             "filas": filas,
             "totales": totales,
         }
 
-    if nivel == "planes":
-        if not mes:
-            raise ValueError("Seleccioná un mes para desglosar por plan")
-        filas = []
-        totales = _metricas_vacias()
-        for plid in sorted(
-            datos["plan_nombres"].keys(),
-            key=lambda x: datos["plan_nombres"][x],
-        ):
-            meses_data = datos["por_plan_mes"].get(plid, {})
-            m = meses_data.get(mes, _metricas_vacias())
-            if metrica and m.get(metrica, 0) == 0:
-                continue
-            if sum(m.get(k, 0) or 0 for k in METRICAS_RESUMEN[:4]) == 0 and m.get("pend_vencidos", 0) == 0:
-                continue
-            filas.append(_fila_metricas(plid, datos["plan_nombres"][plid], m))
-            _sumar_metricas(totales, m)
-        _finalizar_metricas(totales)
-        return {
-            "anio": anio,
-            "nivel": "planes",
-            "mes": mes,
-            "metrica": metrica,
-            "mes_nombre": MESES_NOMBRES[mes - 1] if 1 <= mes <= 12 else "",
-            "filas": filas,
-            "totales": totales,
-        }
-
-    # nivel programas (default): filas = meses
+    # nivel planes (default): filas = meses
     filas = []
     totales = _metricas_vacias()
     for i, nombre in enumerate(MESES_NOMBRES, start=1):
@@ -725,7 +826,7 @@ def matriz_resumen(
     _finalizar_metricas(totales)
     return {
         "anio": anio,
-        "nivel": "programas",
+        "nivel": "planes",
         "filas": filas,
         "totales": totales,
     }
@@ -963,6 +1064,7 @@ def matriz_analitica(
     *,
     vista: str = "tabla",
     anio: int | None = None,
+    dim: str = "planes",
     plan_ids=None,
     tipos=None,
     empresas=None,
@@ -983,6 +1085,7 @@ def matriz_analitica(
         data = matriz_calendario(
             empresa_id,
             anio=anio,
+            dim=dim,
             plan_ids=plan_ids,
             tipos=tipos,
             empresas=empresas,

@@ -149,8 +149,8 @@ def _export_calendario_resumen(ws, data: dict) -> None:
         ws, "Matriz Analítica — Calendario", f"Año {anio}", ancho_cols=len(all_cols) + 1
     )
 
-    ws.cell(row=top, column=1, value="Programas")
-    ws.cell(row=top + 1, column=1, value="Planes")
+    ws.cell(row=top, column=1, value="Planes")
+    ws.cell(row=top + 1, column=1, value="Cursos")
     ws.cell(row=top + 2, column=1, value="Personas")
 
     row_head = top + 3
@@ -252,12 +252,14 @@ def exportar_matriz_analitica_excel(
     puesto_ids=None,
     persona_id: int | None = None,
     agrupar_por: str = "persona",
+    dim: str = "planes",
 ) -> BytesIO:
     """Exporta la matriz analítica según la vista activa."""
     result = matriz_analitica(
         empresa_id,
         vista=vista,
         anio=anio,
+        dim=dim,
         plan_ids=plan_ids,
         tipos=tipos,
         empresas=empresas,

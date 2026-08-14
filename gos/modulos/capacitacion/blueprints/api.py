@@ -604,6 +604,7 @@ def matriz():
                     persona_id=request.args.get("persona_id", type=int)
                     or request.args.get("participante_id", type=int),
                     agrupar_por=request.args.get("agrupar_por", "persona"),
+                    dim=request.args.get("dim", "planes"),
                 )
             )
         except ValueError as exc:
@@ -630,9 +631,10 @@ def matriz_resumen_api():
             matriz_resumen(
                 current_user.empresa_id,
                 anio=request.args.get("anio", type=int),
-                nivel=request.args.get("nivel", "programas"),
+                nivel=request.args.get("nivel", "planes"),
                 mes=request.args.get("mes", type=int),
                 plan_id=request.args.get("plan_id", type=int),
+                curso_id=request.args.get("curso_id", type=int),
                 persona_id=request.args.get("persona_id", type=int),
                 metrica=request.args.get("metrica"),
                 plan_ids=request.args.get("planes") or request.args.get("plan_ids"),
@@ -723,6 +725,7 @@ def exportar_matriz():
                 persona_id=request.args.get("persona_id", type=int)
                 or request.args.get("participante_id", type=int),
                 agrupar_por=request.args.get("agrupar_por", "persona"),
+                dim=request.args.get("dim", "planes"),
             )
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
