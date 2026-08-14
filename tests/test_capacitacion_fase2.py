@@ -172,3 +172,140 @@ def test_api_programas_por_puesto_y_persona(auth_client, app):
     codigos_persona = [p["codigo"] for p in por_persona.get_json()["programas"]]
     assert "PRG-I" in codigos_persona
     assert "PRG-P" in codigos_persona
+
+
+def _excel_programas(rows):
+    from io import BytesIO
+
+    import openpyxl
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Programas"
+    for row in rows:
+        ws.append(row)
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
+
+def test_importar_programas_excel_crea_y_completa(auth_client, app):
+    from gos.modulos.capacitacion.models import PlanCurso, ProgramaCapacitacion, ProgramaPlan, ProgramaPuesto
+
+    with app.app_context():
+        from gos.models import Empresa
+
+        emp = Empresa.query.first()
+        chofer = Puesto(empresa_id=emp.id, codigo="CHF", nombre="Chofer")
+        mecanico = Puesto(empresa_id=emp.id, codigo="MEC", nombre="Mecánico")
+        supervisor = Puesto(empresa_id=emp.id, codigo="SUP", nombre="Supervisor")
+        curso = Curso(empresa_id=emp.id, codigo="IND-10", nombre="Inducción")
+        existente = ProgramaCapacitacion(
+            empresa_id=emp.id,
+            codigo="LID",
+            nombre="Liderazgo",
+            tipo="interno",
+            alcance="general",
+        )
+        db.session.add_all([chofer, mecanico, supervisor, curso, existente])
+        db.session.flush()
+        db.session.add(ProgramaPlan(programa_id=existente.id, nombre="Gestión", orden=1))
+        db.session.commit()
+
+    nuevo = _excel_programas(
+        [
+            ["programa", "codigo", "tipo", "plan", "puesto", "curso"],
+            ["Formación Operativa", "FO", "interno", "Seguridad", "Chofer", "Inducción"],
+            ["Formación Operativa", "FO", "interno", "Técnico", "Mecánico", ""],
+            ["Liderazgo", "", "interno", "Gestión", "Supervisor", ""],
+            ["Liderazgo", "", "", "Comunicación", "Jefe de turno", ""],
+        ]
+    )
+    r = auth_client.post(
+        "/gos/capacitacion/api/programas/importar",
+        data={"archivo": (nuevo, "programas.xlsx")},
+        content_type="multipart/form-data",
+    )
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data["creados"] == 1
+    assert data["actualizados"] == 1
+    assert data["planes_agregados"] == 3
+    assert data["puestos_agregados"] == 3
+    assert data["cursos_agregados"] == 1
+    assert any("Jefe de turno" in e for e in data["errores"])
+
+    det = auth_client.get("/gos/capacitacion/api/programas?detalle=1")
+    programas = {p["nombre"]: p for p in det.get_json()["programas"]}
+    fo = programas["Formación Operativa"]
+    assert {pl["nombre"] for pl in fo["planes"]} == {"Seguridad", "Técnico"}
+    assert {p["nombre"] for p in fo["puestos"]} == {"Chofer", "Mecánico"}
+    lid = programas["Liderazgo"]
+    assert {pl["nombre"] for pl in lid["planes"]} == {"Gestión", "Comunicación"}
+    assert {p["nombre"] for p in lid["puestos"]} == {"Supervisor"}
+
+    with app.app_context():
+        fo_db = ProgramaCapacitacion.query.filter_by(codigo="FO").one()
+        seg = ProgramaPlan.query.filter_by(programa_id=fo_db.id, nombre="Seguridad").one()
+        assert PlanCurso.query.filter_by(plan_id=seg.id).count() == 1
+        assert ProgramaPuesto.query.filter_by(programa_id=fo_db.id).count() == 2
+
+    otra_vez = _excel_programas(
+        [
+            ["programa", "codigo", "tipo", "plan", "puesto", "curso"],
+            ["Formación Operativa", "FO", "interno", "Seguridad", "Chofer", "Inducción"],
+        ]
+    )
+    r2 = auth_client.post(
+        "/gos/capacitacion/api/programas/importar",
+        data={"archivo": (otra_vez, "programas.xlsx")},
+        content_type="multipart/form-data",
+    )
+    assert r2.status_code == 200
+    data2 = r2.get_json()
+    assert data2["creados"] == 0
+    assert data2["planes_agregados"] == 0
+    assert data2["puestos_agregados"] == 0
+    assert data2["cursos_agregados"] == 0
+
+    plantilla = auth_client.get("/gos/capacitacion/api/programas/importar/plantilla")
+    assert plantilla.status_code == 200
+    assert "spreadsheet" in plantilla.content_type
+
+
+def test_importar_programas_excel_listas_en_una_fila(auth_client, app):
+    with app.app_context():
+        from gos.models import Empresa
+
+        emp = Empresa.query.first()
+        db.session.add_all(
+            [
+                Puesto(empresa_id=emp.id, codigo="CHF2", nombre="Chofer"),
+                Puesto(empresa_id=emp.id, codigo="MEC2", nombre="Mecánico"),
+            ]
+        )
+        db.session.commit()
+
+    buf = _excel_programas(
+        [
+            ["Programa", "Planes", "Puestos"],
+            ["Formación Operativa", "Seguridad; Técnico", "Chofer, Mecánico"],
+        ]
+    )
+    r = auth_client.post(
+        "/gos/capacitacion/api/programas/importar",
+        data={"archivo": (buf, "programas.xlsx")},
+        content_type="multipart/form-data",
+    )
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data["creados"] == 1
+    assert data["planes_agregados"] == 2
+    assert data["puestos_agregados"] == 2
+    assert not data["errores"]
+
+    det = auth_client.get("/gos/capacitacion/api/programas?detalle=1")
+    fo = next(p for p in det.get_json()["programas"] if p["nombre"] == "Formación Operativa")
+    assert {pl["nombre"] for pl in fo["planes"]} == {"Seguridad", "Técnico"}
+    assert {p["nombre"] for p in fo["puestos"]} == {"Chofer", "Mecánico"}

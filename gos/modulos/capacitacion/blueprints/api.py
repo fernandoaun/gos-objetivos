@@ -53,6 +53,8 @@ from gos.modulos.capacitacion.services import (
     guardar_config,
     importar_cursos_excel,
     importar_participantes_excel,
+    importar_programas_excel,
+    plantilla_programas_excel,
     inscribir_participantes,
     listar_adjuntos_encuentro,
     listar_alertas,
@@ -932,6 +934,33 @@ def programas():
             detalle=request.args.get("detalle") == "1",
         )
     })
+
+
+@bp.route("/programas/importar/plantilla")
+@login_required
+def plantilla_importar_programas():
+    buf = plantilla_programas_excel()
+    return send_file(
+        buf,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name="plantilla_programas.xlsx",
+    )
+
+
+@bp.route("/programas/importar", methods=["POST"])
+@login_required
+def importar_programas():
+    if not _puede_editar():
+        return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    archivo = request.files.get("archivo")
+    if not archivo:
+        return jsonify({"error": "Debe enviar un archivo Excel."}), 400
+    try:
+        result = importar_programas_excel(current_user.empresa_id, archivo.read())
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(result)
 
 
 @bp.route("/programas/<int:programa_id>", methods=["GET", "PUT", "DELETE"])

@@ -85,6 +85,8 @@ from gos.modulos.capacitacion.services.requisito_service import (
 from gos.modulos.capacitacion.services.import_service import (
     importar_cursos_excel,
     importar_participantes_excel,
+    importar_programas_excel,
+    plantilla_programas_excel,
 )
 from gos.modulos.capacitacion.services.reporte_service import reporte_iso, resumen_general_auditoria
 from gos.modulos.capacitacion.services.sync_service import sincronizar_legajos_vacaciones
@@ -134,6 +136,8 @@ __all__ = [
     "eliminar_requisito",
     "importar_participantes_excel",
     "importar_cursos_excel",
+    "importar_programas_excel",
+    "plantilla_programas_excel",
     "listar_programas",
     "listar_participantes_cronograma",
     "obtener_programa",

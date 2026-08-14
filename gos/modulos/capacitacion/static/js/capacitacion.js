@@ -6306,6 +6306,33 @@
     document.getElementById("cap-btn-nuevo-programa")?.addEventListener("click", () => {
       abrirFormularioPrograma().catch(console.error);
     });
+    document.getElementById("cap-btn-importar-programas")?.addEventListener("click", () => {
+      document.getElementById("cap-import-programas-file")?.click();
+    });
+    document.getElementById("cap-import-programas-file")?.addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const r = await uploadFile(`${API}/programas/importar`, file);
+        const partes = [
+          `${r.creados || 0} programas nuevos`,
+          `${r.actualizados || 0} actualizados`,
+          `${r.planes_agregados || 0} planes`,
+          `${r.puestos_agregados || 0} puestos`,
+        ];
+        if (r.cursos_agregados) partes.push(`${r.cursos_agregados} cursos`);
+        let msg = `Importación: ${partes.join(", ")}.`;
+        if (r.errores?.length) {
+          msg += "\n\nAvisos:\n" + r.errores.slice(0, 40).join("\n");
+          if (r.errores.length > 40) msg += `\n… y ${r.errores.length - 40} más`;
+        }
+        alert(msg);
+        await loadProgramas();
+      } catch (err) {
+        alert(err.message);
+      }
+      e.target.value = "";
+    });
     document.getElementById("cap-programa-cancel")?.addEventListener("click", () => {
       togglePanel("cap-programa-form-panel", false);
       togglePanel("cap-prog-empresa-quick", false);
