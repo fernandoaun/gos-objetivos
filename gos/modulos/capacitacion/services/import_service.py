@@ -288,7 +288,7 @@ def importar_cursos_excel(empresa_id: int, file_bytes: bytes) -> dict:
 
 
 _HEADER_PROGRAMA = {
-    "programa": {"programa", "nombre", "programa_nombre", "nombre_programa"},
+    "programa": {"programa", "nombre", "programa_nombre", "nombre_programa", "plan de carrera", "plan_de_carrera", "planes de carrera", "planes_de_carrera"},
     "codigo": {"codigo", "programa_codigo", "cod", "codigo_programa"},
     "tipo": {"tipo", "tipo_programa"},
     "descripcion": {"descripcion", "detalle", "detalles", "observaciones"},
@@ -416,7 +416,7 @@ def _resolver_programa(
             return candidatos[0]
         if len(candidatos) > 1:
             errores.append(
-                f"Fila {fila}: hay varios programas llamados «{nombre}». "
+                f"Fila {fila}: hay varios planes de carrera llamados «{nombre}». "
                 "Indicá el código para saber cuál completar."
             )
             return "error"
@@ -531,10 +531,10 @@ def _fusionar_grupos_programa(
 
 
 def plantilla_programas_excel() -> BytesIO:
-    """Excel de ejemplo para cargar programas, planes y puestos."""
+    """Excel de ejemplo para cargar planes de carrera, planes y puestos."""
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Programas"
+    ws.title = "Planes de carrera"
 
     headers = ["programa", "codigo", "tipo", "detalles", "plan", "puesto", "curso"]
     header_fill = PatternFill("solid", fgColor="1F4E79")
@@ -601,25 +601,25 @@ def plantilla_programas_excel() -> BytesIO:
     tipo_dv.add("C2:C500")
 
     inst = wb.create_sheet("Instrucciones")
-    inst["A1"] = "Cómo importar programas"
+    inst["A1"] = "Cómo importar planes de carrera"
     inst["A1"].font = Font(bold=True, size=14)
     lineas = [
         "",
-        "Usá este archivo (o uno propio con los mismos encabezados) en Capacitación → Programas → Importar Excel.",
+        "Usá este archivo (o uno propio con los mismos encabezados) en Capacitación → Planes de carrera → Importar Excel.",
         "",
         "Columnas:",
-        "• programa (obligatorio): nombre del programa. Si ya existe, se completa; si no, se crea.",
-        "• codigo: opcional. Sirve para identificar un programa ya cargado. Si lo dejás vacío se genera solo.",
+        "• programa (obligatorio): nombre del plan de carrera. Si ya existe, se completa; si no, se crea. También se acepta el encabezado «plan de carrera».",
+        "• codigo: opcional. Sirve para identificar un plan de carrera ya cargado. Si lo dejás vacío se genera solo.",
         "• tipo: interno o externo. Si falta, se asume interno.",
-        "• detalles: texto libre del programa (el mismo campo Descripción / Guardar detalles de la ficha). "
-        "También se acepta la columna descripcion. Si el programa ya existe y no tiene texto, se completa.",
+        "• detalles: texto libre del plan de carrera (el mismo campo Descripción / Guardar detalles de la ficha). "
+        "También se acepta la columna descripcion. Si el plan de carrera ya existe y no tiene texto, se completa.",
         "• plan: nombre del plan. Podés repetir filas (un plan por fila) o separar varios con coma o punto y coma.",
         "• puesto: nombre o código del puesto ya cargado en el catálogo. También admite varios separados por coma.",
         "• curso: opcional. Nombre o código de un curso ya cargado; se agrega al plan de esa fila.",
         "",
         "Comportamiento:",
-        "• Programas nuevos: se crean con los planes y puestos del Excel.",
-        "• Programas que ya existen: solo se agregan los planes y puestos que falten. No se borra nada.",
+        "• Planes de carrera nuevos: se crean con los planes y puestos del Excel.",
+        "• Planes de carrera que ya existen: solo se agregan los planes y puestos que falten. No se borra nada.",
         "• Los puestos y cursos tienen que existir en el sistema; si un nombre no coincide, esa fila se informa como error.",
         "• Podés volver a importar el mismo archivo: lo que ya esté no se duplica.",
     ]
@@ -637,7 +637,7 @@ def importar_programas_excel(empresa_id: int, file_bytes: bytes) -> dict:
     wb = openpyxl.load_workbook(BytesIO(file_bytes), data_only=True)
     ws = None
     for name in wb.sheetnames:
-        if _fold(name) in {"programas", "programa", "datos"}:
+        if _fold(name) in {"programas", "programa", "datos", "planes de carrera", "plan de carrera"}:
             ws = wb[name]
             break
     if ws is None:
@@ -647,7 +647,7 @@ def importar_programas_excel(empresa_id: int, file_bytes: bytes) -> dict:
         raise ValueError(
             "El Excel debe tener encabezados en la fila 1. Mínimo: programa. "
             "Opcionales: codigo, tipo, detalles (o descripcion), plan, puesto, curso. "
-            "Descargá la plantilla desde Programas para ver el formato."
+            "Descargá la plantilla desde Planes de carrera para ver el formato."
         )
 
     programas = ProgramaCapacitacion.query.filter_by(empresa_id=empresa_id).all()
@@ -748,11 +748,11 @@ def importar_programas_excel(empresa_id: int, file_bytes: bytes) -> dict:
         es_nuevo = hallado is None
         if es_nuevo:
             if not nombre:
-                errores.append(f"Fila {fila}: para crear un programa nuevo hace falta el nombre")
+                errores.append(f"Fila {fila}: para crear un plan de carrera nuevo hace falta el nombre")
                 continue
             codigo_final = codigo or _generar_codigo_programa(empresa_id, nombre, codigos_usados)
             if codigo and _fold(codigo) in programas_codigo:
-                errores.append(f"Fila {fila}: ya existe un programa con el código «{codigo}»")
+                errores.append(f"Fila {fila}: ya existe un plan de carrera con el código «{codigo}»")
                 continue
             tipo = grupo["tipo"] or "interno"
             programa = ProgramaCapacitacion(

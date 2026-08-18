@@ -83,7 +83,7 @@ def _validar_refs(
         id=programa_id, empresa_id=empresa_id, activo=True
     ).first()
     if not programa:
-        raise ValueError("Programa no válido")
+        raise ValueError("Plan de carrera no válido")
     plan = ProgramaPlan.query.filter_by(id=plan_id, programa_id=programa_id).first()
     if not plan:
         raise ValueError("Plan no válido")

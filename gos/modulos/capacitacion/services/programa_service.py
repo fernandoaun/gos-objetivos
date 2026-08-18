@@ -92,7 +92,7 @@ def obtener_programa(empresa_id: int, programa_id: int) -> dict:
         id=programa_id, empresa_id=empresa_id, activo=True
     ).first()
     if not programa:
-        raise ValueError("Programa no encontrado")
+        raise ValueError("Plan de carrera no encontrado")
     return _programa_dict(programa, detalle=True)
 
 
@@ -118,7 +118,7 @@ def listar_participantes_cronograma(
         id=programa_id, empresa_id=empresa_id, activo=True
     ).first()
     if not programa:
-        raise ValueError("Programa no encontrado")
+        raise ValueError("Plan de carrera no encontrado")
 
     prog_puesto_ids = _puesto_ids_programa(programa)
     if puesto_ids:
@@ -143,15 +143,15 @@ def crear_programa(empresa_id: int, data: dict) -> dict:
             codigo = f"{base}{n}"
             n += 1
     elif ProgramaCapacitacion.query.filter_by(empresa_id=empresa_id, codigo=codigo).first():
-        raise ValueError(f"Ya existe un programa con el código «{codigo}»")
+        raise ValueError(f"Ya existe un plan de carrera con el código «{codigo}»")
 
     tipo = (data.get("tipo") or "interno").strip().lower()
     if tipo not in TIPOS_PROGRAMA:
-        raise ValueError("Tipo de programa inválido (interno/externo)")
+        raise ValueError("Tipo de plan de carrera inválido (interno/externo)")
 
     estado = (data.get("estado") or "programado").strip().lower()
     if estado not in ESTADOS_PROGRAMA:
-        raise ValueError("Estado de programa inválido")
+        raise ValueError("Estado de plan de carrera inválido")
 
     puesto_ids = _parse_id_list(data.get("puesto_ids") or data.get("puestos"))
     puesto_id = data.get("puesto_id") or None
@@ -160,7 +160,7 @@ def crear_programa(empresa_id: int, data: dict) -> dict:
 
     alcance = (data.get("alcance") or ("puesto" if puesto_ids else "general")).strip().lower()
     if alcance not in ALCANCES_PROGRAMA:
-        raise ValueError("Alcance de programa inválido")
+        raise ValueError("Alcance de plan de carrera inválido")
 
     for pid in puesto_ids:
         if not Puesto.query.filter_by(id=pid, empresa_id=empresa_id, activo=True).first():
@@ -207,7 +207,7 @@ def actualizar_programa(empresa_id: int, programa_id: int, data: dict) -> dict:
         id=programa_id, empresa_id=empresa_id, activo=True
     ).first()
     if not programa:
-        raise ValueError("Programa no encontrado")
+        raise ValueError("Plan de carrera no encontrado")
 
     if "nombre" in data:
         nombre = (data.get("nombre") or "").strip()
@@ -219,7 +219,7 @@ def actualizar_programa(empresa_id: int, programa_id: int, data: dict) -> dict:
     if "tipo" in data:
         tipo = (data.get("tipo") or "").strip().lower()
         if tipo not in TIPOS_PROGRAMA:
-            raise ValueError("Tipo de programa inválido (interno/externo)")
+            raise ValueError("Tipo de plan de carrera inválido (interno/externo)")
         programa.tipo = tipo
         if tipo == "interno":
             programa.empresa_capacitadora_id = None
@@ -234,7 +234,7 @@ def actualizar_programa(empresa_id: int, programa_id: int, data: dict) -> dict:
     if "estado" in data:
         estado = (data.get("estado") or "").strip().lower()
         if estado not in ESTADOS_PROGRAMA:
-            raise ValueError("Estado de programa inválido")
+            raise ValueError("Estado de plan de carrera inválido")
         programa.estado = estado
     if "activo" in data:
         programa.activo = bool(data["activo"])
@@ -244,7 +244,7 @@ def actualizar_programa(empresa_id: int, programa_id: int, data: dict) -> dict:
         actuales = {pp.puesto_id for pp in programa.puestos_asignados.all()}
         if not puesto_ids and actuales and not data.get("clear_puestos"):
             raise ValueError(
-                "Para quitar todos los puestos del programa enviá clear_puestos=true "
+                "Para quitar todos los puestos del plan de carrera enviá clear_puestos=true "
                 "(protección anti-borrado accidental)."
             )
         for pid in puesto_ids:
@@ -267,7 +267,7 @@ def eliminar_programa(empresa_id: int, programa_id: int) -> dict:
         id=programa_id, empresa_id=empresa_id, activo=True
     ).first()
     if not programa:
-        raise ValueError("Programa no encontrado")
+        raise ValueError("Plan de carrera no encontrado")
     programa.activo = False
     db.session.commit()
     return {"id": programa_id, "eliminado": True}
@@ -278,7 +278,7 @@ def agregar_plan(empresa_id: int, programa_id: int, data: dict) -> dict:
         id=programa_id, empresa_id=empresa_id, activo=True
     ).first()
     if not programa:
-        raise ValueError("Programa no encontrado")
+        raise ValueError("Plan de carrera no encontrado")
     nombre = (data.get("nombre") or "").strip()
     if not nombre:
         raise ValueError("El nombre del plan es obligatorio")
@@ -626,7 +626,7 @@ def eliminar_encuentro(empresa_id: int, encuentro_id: int) -> dict:
 def inscribir_participantes(empresa_id: int, programa_id: int, participante_ids: list[int]) -> dict:
     programa = ProgramaCapacitacion.query.filter_by(id=programa_id, empresa_id=empresa_id).first()
     if not programa:
-        raise ValueError("Programa no encontrado")
+        raise ValueError("Plan de carrera no encontrado")
 
     inscriptos = 0
     for pid in participante_ids:

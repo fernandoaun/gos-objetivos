@@ -14,7 +14,7 @@
 
   <div class="cap-global-search" id="cap-global-search-wrap">
     <i class="bi bi-search"></i>
-    <input type="search" class="cap-input cap-global-search-input" id="cap-global-search" placeholder="Buscar personas, cursos, programas…" autocomplete="off">
+    <input type="search" class="cap-input cap-global-search-input" id="cap-global-search" placeholder="Buscar personas, cursos, planes de carrera…" autocomplete="off">
     <div class="cap-global-search-results cap-hidden" id="cap-global-search-results"></div>
   </div>
 
@@ -182,15 +182,15 @@
         <div id="cap-enc-modo-programa">
         <div class="cap-form-row cap-form-row--2">
           <div>
-            <label class="cap-label" for="cap-enc-programa">1. Programa *</label>
+            <label class="cap-label" for="cap-enc-programa">1. Plan de carrera *</label>
             <select class="cap-input" id="cap-enc-programa" required disabled>
-              <option value="">— Seleccionar programa —</option>
+              <option value="">— Seleccionar plan de carrera —</option>
             </select>
           </div>
           <div>
             <label class="cap-label" for="cap-enc-tipo">2. Tipo *</label>
             <select class="cap-input" id="cap-enc-tipo" name="tipo" required disabled>
-              <option value="">— Seleccioná un programa —</option>
+              <option value="">— Seleccioná un plan de carrera —</option>
             </select>
           </div>
         </div>
@@ -199,7 +199,7 @@
           <div>
             <label class="cap-label" for="cap-enc-plan">3. Plan *</label>
             <select class="cap-input" id="cap-enc-plan" name="plan_id" required disabled>
-              <option value="">— Seleccioná el programa y tipo —</option>
+              <option value="">— Seleccioná el plan de carrera y tipo —</option>
             </select>
           </div>
         </div>
@@ -360,7 +360,7 @@
       <div class="cap-widget-head cap-widget-head--split">
         <div class="cap-widget-head-left">
           <i class="bi bi-journal-bookmark"></i>
-          <h2 class="cap-widget-title">Programas de capacitación</h2>
+          <h2 class="cap-widget-title">Planes de carrera</h2>
         </div>
         <div class="cap-toolbar-actions">
           <select class="cap-input cap-input--sm" id="cap-prog-filtro-tipo" aria-label="Filtrar por tipo">
@@ -370,12 +370,12 @@
           </select>
           <a class="cap-btn cap-btn--ghost" id="cap-prog-plantilla" href="{{ api_base }}/programas/importar/plantilla"><i class="bi bi-download"></i> Plantilla</a>
           <button type="button" class="cap-btn cap-btn--ghost" id="cap-btn-importar-programas"><i class="bi bi-upload"></i> Importar Excel</button>
-          <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-nuevo-programa"><i class="bi bi-plus-lg"></i> Nuevo programa</button>
+          <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-nuevo-programa"><i class="bi bi-plus-lg"></i> Nuevo plan de carrera</button>
         </div>
       </div>
       <input type="file" id="cap-import-programas-file" accept=".xlsx,.xls" class="cap-hidden">
       <div class="cap-widget-body">
-        <p class="cap-form-hint cap-mb">Armá la estructura <strong>Programa → Plan → Cursos</strong>, asigná los puestos que aplican y después programá fechas en <strong>Cronograma</strong>. Hacé clic en un programa para ver su composición; volvé a hacer clic para cerrarlo. Con <strong>Importar Excel</strong> podés crear programas nuevos o completar planes y puestos que falten, sin borrar lo que ya esté cargado.</p>
+        <p class="cap-form-hint cap-mb">Armá la estructura <strong>Plan de carrera → Plan → Cursos</strong>, asigná los puestos que aplican y después programá fechas en <strong>Cronograma</strong>. Hacé clic en un plan de carrera para ver su composición; volvé a hacer clic para cerrarlo. Con <strong>Importar Excel</strong> podés crear planes de carrera nuevos o completar planes y puestos que falten, sin borrar lo que ya esté cargado.</p>
 
         <div class="cap-form-panel cap-hidden cap-mb" id="cap-programa-form-panel">
           <form id="cap-programa-form" class="cap-form">
@@ -384,15 +384,15 @@
               <div>
                 <label class="cap-label" for="cap-prog-nombre-select">Nombre *</label>
                 <div class="cap-input-group">
-                  <select class="cap-input" id="cap-prog-nombre-select" name="nombre" required aria-label="Seleccionar nombre de programa">
-                    <option value="">— Seleccionar programa —</option>
+                  <select class="cap-input" id="cap-prog-nombre-select" name="nombre" required aria-label="Seleccionar nombre de plan de carrera">
+                    <option value="">— Seleccionar plan de carrera —</option>
                   </select>
-                  <button type="button" class="cap-btn cap-btn--icon" id="cap-prog-nombre-add" title="Agregar nombre de programa">
+                  <button type="button" class="cap-btn cap-btn--icon" id="cap-prog-nombre-add" title="Agregar nombre de plan de carrera">
                     <i class="bi bi-plus-lg"></i>
                   </button>
                 </div>
                 <div class="cap-quick-form cap-hidden" id="cap-prog-nombre-quick">
-                  <p class="cap-quick-form-title">Nuevo nombre de programa</p>
+                  <p class="cap-quick-form-title">Nuevo nombre de plan de carrera</p>
                   <input class="cap-input" id="cap-prog-nombre-quick-nombre" placeholder="Ej. Formación Operativa" maxlength="200">
                   <div class="cap-form-actions">
                     <button type="button" class="cap-btn cap-btn--ghost" id="cap-prog-nombre-quick-cancel">Cancelar</button>
@@ -471,13 +471,13 @@
             <p class="cap-form-hint cap-form-hint--error" id="cap-programa-form-error"></p>
             <div class="cap-form-actions">
               <button type="button" class="cap-btn cap-btn--ghost" id="cap-programa-cancel">Cancelar</button>
-              <button type="submit" class="cap-btn cap-btn--primary" id="cap-programa-submit">Crear programa</button>
+              <button type="submit" class="cap-btn cap-btn--primary" id="cap-programa-submit">Crear plan de carrera</button>
             </div>
           </form>
         </div>
 
         <div class="cap-programas-grid-wrap">
-          <div class="cap-programas-grid" id="cap-programas-grid" aria-label="Programas de capacitación">
+          <div class="cap-programas-grid" id="cap-programas-grid" aria-label="Planes de carrera">
             <p class="cap-loading">Cargando...</p>
           </div>
         </div>

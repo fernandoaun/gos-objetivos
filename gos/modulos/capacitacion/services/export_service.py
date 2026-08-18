@@ -279,7 +279,7 @@ def exportar_matriz_analitica_excel(
         ws.title = "Persona"
         persona = data.get("persona") or {}
         headers = [
-            "Programa",
+            "Plan de carrera",
             "Plan",
             "Curso",
             "Estado",

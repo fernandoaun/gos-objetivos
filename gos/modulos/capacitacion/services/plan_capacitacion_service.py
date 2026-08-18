@@ -69,7 +69,7 @@ def crear_plan_capacitacion(empresa_id: int, participante_id: int, data: dict) -
         if not ProgramaCapacitacion.query.filter_by(
             id=programa_id, empresa_id=empresa_id, activo=True
         ).first():
-            raise ValueError("Programa no válido")
+            raise ValueError("Plan de carrera no válido")
 
     encuentro_id = data.get("encuentro_id")
     fecha_planificada = _parse_date(data.get("fecha_planificada"))

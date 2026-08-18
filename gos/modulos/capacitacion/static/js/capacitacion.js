@@ -2358,7 +2358,7 @@
         <div class="cap-ma-metrica"><div class="cap-ma-metrica-val">${m.horas_completadas || 0}/${m.horas_requeridas || 0}</div><div class="cap-ma-metrica-lbl">Horas</div></div>
         <div class="cap-ma-metrica"><div class="cap-ma-metrica-val">${m.porcentaje || 0}%</div><div class="cap-ma-metrica-lbl">Cumplimiento</div></div>
         <div class="cap-ma-metrica"><div class="cap-ma-metrica-val">${m.materias_aprobadas || 0}/${m.materias_totales || 0}</div><div class="cap-ma-metrica-lbl">Materias</div></div>
-      </div>${cards || '<p class="cap-empty">Sin programas asignados al puesto actual</p>'}${bpcCard}`;
+      </div>${cards || '<p class="cap-empty">Sin planes de carrera asignados al puesto actual</p>'}${bpcCard}`;
   }
 
   async function loadMatrizAnalitica() {
@@ -2493,7 +2493,7 @@
 
       available.map((c) => ({ id: c.id, codigo: c.codigo, nombre: c.nombre })),
 
-      available.length ? "— Seleccionar curso —" : "— Todos los cursos ya están en el programa —"
+      available.length ? "— Seleccionar curso —" : "— Todos los cursos ya están en el plan de carrera —"
 
     );
 
@@ -2763,7 +2763,7 @@
 
               <button type="button" class="cap-global-search-item" data-vista="${r.vista}" data-tipo="${r.tipo}" data-id="${r.id}">
 
-                ${r.titulo}<small>${r.subtitulo || r.tipo}</small>
+                ${r.titulo}<small>${r.subtitulo || (r.tipo === "programa" ? "Plan de carrera" : r.tipo)}</small>
 
               </button>`).join("");
 
@@ -3018,7 +3018,7 @@
     const sel = document.getElementById("cap-enc-programa");
     if (!sel) return;
     const nombres = encNombresDisponibles();
-    sel.innerHTML = '<option value="">— Seleccionar programa —</option>';
+    sel.innerHTML = '<option value="">— Seleccionar plan de carrera —</option>';
     nombres.forEach((nombre) => {
       const opt = document.createElement("option");
       opt.value = nombre;
@@ -3162,7 +3162,7 @@
 
     if (!planId) {
 
-      el.innerHTML = '<p class="cap-empty">Seleccioná un plan para ver los puestos del programa</p>';
+      el.innerHTML = '<p class="cap-empty">Seleccioná un plan para ver los puestos del plan de carrera</p>';
 
       return;
 
@@ -3172,7 +3172,7 @@
 
     if (!items.length) {
 
-      el.innerHTML = '<p class="cap-empty">Este programa no tiene puestos asignados. Definilos en <strong>Programas</strong>.</p>';
+      el.innerHTML = '<p class="cap-empty">Este plan de carrera no tiene puestos asignados. Definilos en <strong>Planes de carrera</strong>.</p>';
 
       return;
 
@@ -3616,8 +3616,8 @@
         hint.textContent = "Buenas Prácticas Compartidas — Charla con acreditación en la matriz analítica.";
       } else {
         hint.textContent = editing
-          ? "Etapa A — Modificá la planificación. Programa → Tipo → Empresa (si externo) → Plan → Participantes."
-          : "Etapa A — Programa → Tipo → Empresa (si externo) → Plan → Participantes. Cada paso habilita el siguiente.";
+          ? "Etapa A — Modificá la planificación. Plan de carrera → Tipo → Empresa (si externo) → Plan → Participantes."
+          : "Etapa A — Plan de carrera → Tipo → Empresa (si externo) → Plan → Participantes. Cada paso habilita el siguiente.";
       }
     }
 
@@ -4289,7 +4289,7 @@
 
       const programa = getEncProgramaActual();
       if (!programa) {
-        setFormError("cap-encuentro-form-error", "Completá programa y tipo");
+        setFormError("cap-encuentro-form-error", "Completá plan de carrera y tipo");
         return;
       }
       body.programa_id = programa.id;
@@ -5757,7 +5757,7 @@
       names.push(cur);
       names.sort((a, b) => a.localeCompare(b, "es"));
     }
-    sel.innerHTML = '<option value="">— Seleccionar programa —</option>';
+    sel.innerHTML = '<option value="">— Seleccionar plan de carrera —</option>';
     names.forEach((nombre) => {
       const opt = document.createElement("option");
       opt.value = nombre;
@@ -5922,7 +5922,7 @@
     const data = await fetchJson(`${API}/programas${qs}`);
     programasCache = data.programas || [];
     if (!programasCache.length) {
-      grid.innerHTML = '<p class="cap-empty">Todavía no hay programas. Usá <strong>+ Nuevo programa</strong> para agregar el primero.</p>';
+      grid.innerHTML = '<p class="cap-empty">Todavía no hay planes de carrera. Usá <strong>+ Nuevo plan de carrera</strong> para agregar el primero.</p>';
       return;
     }
     grid.innerHTML = programasCache.map((p) => renderProgramaCardHtml(p)).join("");
@@ -5983,7 +5983,7 @@
             <label class="cap-radio"><input type="radio" name="cap-prog-tipo-edit-${programa.id}" value="interno" ${esExterno ? "" : "checked"}> Interno</label>
             <label class="cap-radio"><input type="radio" name="cap-prog-tipo-edit-${programa.id}" value="externo" ${esExterno ? "checked" : ""}> Externo</label>
           </div>
-          <p class="cap-muted">Si el programa es externo, la empresa que lo dicta se indica al cerrar el cronograma.</p>
+          <p class="cap-muted">Si el plan de carrera es externo, la empresa que lo dicta se indica al cerrar el cronograma.</p>
         </div>
         <div class="cap-prog-detail-edit-field">
           <label class="cap-label" for="cap-prog-desc-edit-${programa.id}">Descripción</label>
@@ -6004,10 +6004,10 @@
       <div class="cap-prog-detail-inner${editable ? " cap-prog-detail-inner--editable" : ""}">
         <div class="cap-prog-detail-head">
           <div class="cap-prog-detail-head-main">
-            <h4 class="cap-prog-detail-title">Estructura del programa</h4>
+            <h4 class="cap-prog-detail-title">Estructura del plan de carrera</h4>
             ${editable
               ? `<div class="cap-input-group cap-prog-nombre-edit">
-                   <input type="text" id="cap-prog-nombre-edit-${programa.id}" class="cap-input" value="${escapeHtml(programa.nombre)}" maxlength="200" aria-label="Nombre del programa">
+                   <input type="text" id="cap-prog-nombre-edit-${programa.id}" class="cap-input" value="${escapeHtml(programa.nombre)}" maxlength="200" aria-label="Nombre del plan de carrera">
                    <button type="button" class="cap-btn cap-btn--primary cap-btn--sm" data-prog-guardar-nombre="${programa.id}">Guardar nombre</button>
                  </div>
                  <p class="cap-form-hint cap-form-hint--error" id="cap-prog-nombre-error-${programa.id}"></p>`
@@ -6143,7 +6143,7 @@
         <ul class="cap-plan-cursos">${cursosHtml}</ul>
         ${addCursoRow}
       </section>`;
-    }).join("") : `<p class="cap-empty">${editable ? "Este programa no tiene planes. Agregá el primero abajo." : "Este programa no tiene planes."}</p>`;
+    }).join("") : `<p class="cap-empty">${editable ? "Este plan de carrera no tiene planes. Agregá el primero abajo." : "Este plan de carrera no tiene planes."}</p>`;
 
     const planSelectId = `cap-detalle-plan-select-${programa.id}`;
     const planQuickId = `cap-detalle-plan-quick-${programa.id}`;
@@ -6331,7 +6331,7 @@
       inp.checked = inp.value === tipo;
     });
     renderPuestosChecks("cap-prog-puestos", (programa?.puestos || []).map((p) => p.id));
-    document.getElementById("cap-programa-submit").textContent = programa ? "Guardar cambios" : "Crear programa";
+    document.getElementById("cap-programa-submit").textContent = programa ? "Guardar cambios" : "Crear plan de carrera";
     togglePanel("cap-prog-empresa-quick", false);
     togglePanel("cap-prog-plan-quick", false);
     togglePanel("cap-prog-nombre-quick", false);
@@ -6364,7 +6364,7 @@
       try {
         const r = await uploadFile(`${API}/programas/importar`, file);
         const partes = [
-          `${r.creados || 0} programas nuevos`,
+          `${r.creados || 0} planes de carrera nuevos`,
           `${r.actualizados || 0} actualizados`,
           `${r.planes_agregados || 0} planes`,
           `${r.puestos_agregados || 0} puestos`,
@@ -6479,7 +6479,7 @@
         const puestoIds = selectedPuestoIds(`cap-programa-puestos-detalle-${id}`);
         const prev = (programasCache.find((p) => p.id === id)?.puestos || []).length;
         if (!puestoIds.length && prev > 0) {
-          if (!confirm("Vas a quitar TODOS los puestos de este programa. ¿Continuar?")) return;
+          if (!confirm("Vas a quitar TODOS los puestos de este plan de carrera. ¿Continuar?")) return;
         }
         try {
           const body = { puesto_ids: puestoIds };
@@ -6529,7 +6529,7 @@
       if (eliminarBtn) {
         ev.stopPropagation();
         const id = Number(eliminarBtn.dataset.progEliminar);
-        if (!confirm("¿Eliminar este programa? Esta acción no se puede deshacer.")) return;
+        if (!confirm("¿Eliminar este plan de carrera? Esta acción no se puede deshacer.")) return;
         try {
           await deleteJson(`${API}/programas/${id}`);
           collapsePrograma();
@@ -6607,11 +6607,11 @@
       body.tipo = e.target.querySelector('input[name="tipo"]:checked')?.value || "interno";
       delete body.empresa_capacitadora_id;
       if (!body.nombre || body.nombre === "__nuevo__") {
-        setFormError("cap-programa-form-error", "Seleccioná o agregá el nombre del programa");
+        setFormError("cap-programa-form-error", "Seleccioná o agregá el nombre del plan de carrera");
         return;
       }
       if (!progPlanesDraft.length) {
-        setFormError("cap-programa-form-error", "Agregá al menos un plan al programa");
+        setFormError("cap-programa-form-error", "Agregá al menos un plan al plan de carrera");
         return;
       }
       body.planes = progPlanesDraft.map((p, i) => ({
