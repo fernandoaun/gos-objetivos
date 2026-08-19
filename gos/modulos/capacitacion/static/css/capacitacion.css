@@ -2210,25 +2210,6 @@
   outline: 2px solid #fff176;
   outline-offset: -2px;
 }
-.cap-cr-breadcrumb {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem;
-  font-size: 0.82rem;
-}
-.cap-cr-breadcrumb-link {
-  border: 0;
-  background: none;
-  color: var(--cap-navy);
-  font-weight: 600;
-  cursor: pointer;
-  padding: 0;
-  text-decoration: underline;
-}
-.cap-cr-breadcrumb-link:hover { color: var(--cap-navy-light); }
-.cap-cr-breadcrumb-current { font-weight: 700; color: var(--cap-muted); }
-.cap-cr-breadcrumb-sep { color: var(--cap-muted); user-select: none; }
 .cap-ma-evento--detalle {
   display: block;
   width: 100%;

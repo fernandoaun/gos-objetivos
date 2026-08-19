@@ -290,6 +290,12 @@ def test_matriz_calendario_curso_cumplido_si_una_persona(app):
         assert fila_pl["meses"]["6"]["prog"] == 1
         assert fila_pl["meses"]["6"]["cumpl"] == 1
 
+        res_cursos = matriz_resumen(emp.id, anio=2026, nivel="planes", dim="cursos")
+        junio_res = res_cursos["filas"][5]
+        assert junio_res["programados"] == 1
+        assert junio_res["cumplidos"] == 1
+        assert junio_res["pendientes"] == 0
+
 
 def test_matriz_calendario_ignora_charlas_puntuales(app):
     """BPC/charlas van al recuadro: no suman al plan, salvo que el curso se incorpore."""

@@ -926,7 +926,7 @@ def matriz_resumen(
     puesto_ids: list[int] | None = None,
     curso_ids: list[int] | None = None,
 ) -> dict:
-    """Resumen mensual con drill-down: planes → cursos → personas → detalle."""
+    """Resumen mensual (dim planes/cursos/personas) y detalle de popup por celda."""
     anio = anio or date.today().year
     plan_ids = _parse_ids(plan_ids)
     tipos = [t.lower() for t in (tipos or []) if t]
@@ -1057,17 +1057,32 @@ def matriz_resumen(
             "totales": totales,
         }
 
-    # nivel planes (default): filas = meses
+    # nivel planes (default): misma unidad que el resumen mensual de la matriz.
+    if dim not in _CALENDARIO_DIMS:
+        dim = "planes"
+        exigir_todos = False
+    id_key, _nombre_key = _CALENDARIO_DIMS[dim]
+    por_mes = _metricas_mensuales_unicas(
+        datos["asignaciones"],
+        id_key,
+        exigir_todos=exigir_todos,
+    )
+    puntuales_mes = _contar_unicos_por_mes(datos.get("asignaciones_puntuales") or [], "curso_id")
     filas = []
     totales = _metricas_vacias()
+    tot_puntuales = 0
     for i, nombre in enumerate(MESES_NOMBRES, start=1):
-        m = datos["por_mes"][i]
-        filas.append(_fila_metricas(i, nombre, m))
+        m = por_mes[i]
+        n_punt = puntuales_mes.get(i, 0)
+        tot_puntuales += n_punt
+        filas.append({"id": i, "mes": i, "nombre": nombre, **m, "charlas_puntuales": n_punt})
         _sumar_metricas(totales, m)
     _finalizar_metricas(totales)
+    totales["charlas_puntuales"] = tot_puntuales
     return {
         "anio": anio,
         "nivel": "planes",
+        "dim": dim,
         "filas": filas,
         "totales": totales,
     }
