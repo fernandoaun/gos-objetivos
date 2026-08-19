@@ -368,3 +368,40 @@ def test_planes_cursos_endpoint(auth_client, app):
     r = auth_client.get(f"/gos/capacitacion/api/planes/{plan_id}/cursos")
     assert r.status_code == 200
     assert len(r.get_json()["cursos"]) == 1
+
+
+def test_cronograma_lista_mes_programado_y_dia_real(auth_client, app):
+    """El calendario debe ver el mes programado aunque el día real sea otro mes."""
+    with app.app_context():
+        from gos.models import Empresa
+
+        emp = Empresa.query.first()
+        enc_julio = EncuentroCapacitacion(
+            empresa_id=emp.id,
+            titulo="Curso solo julio",
+            fecha=date(2026, 7, 1),
+            fecha_inicio=datetime(2026, 7, 1, 9, 0),
+            estado="planificado",
+        )
+        enc_cruzado = EncuentroCapacitacion(
+            empresa_id=emp.id,
+            titulo="Curso julio realizado agosto",
+            fecha=date(2026, 7, 1),
+            fecha_inicio=datetime(2026, 7, 1, 9, 0),
+            fecha_realizacion=date(2026, 8, 15),
+            estado="cerrado",
+        )
+        db.session.add_all([enc_julio, enc_cruzado])
+        db.session.commit()
+
+    julio = auth_client.get("/gos/capacitacion/api/encuentros?desde=2026-07-01&hasta=2026-07-31")
+    assert julio.status_code == 200
+    titulos_julio = {e["titulo"] for e in julio.get_json()["encuentros"]}
+    assert "Curso solo julio" in titulos_julio
+    assert "Curso julio realizado agosto" in titulos_julio
+
+    agosto = auth_client.get("/gos/capacitacion/api/encuentros?desde=2026-08-01&hasta=2026-08-31")
+    assert agosto.status_code == 200
+    titulos_agosto = {e["titulo"] for e in agosto.get_json()["encuentros"]}
+    assert "Curso julio realizado agosto" in titulos_agosto
+    assert "Curso solo julio" not in titulos_agosto

@@ -37,6 +37,8 @@
   let calView = "mes";
 
   let encuentros = [];
+  let encuentrosYearLoaded = null;
+  const MESES_CORTOS = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
   let currentCapView = "panel";
   let encuentroEditId = null;
   let encAccionEncuentroId = null;
@@ -1183,12 +1185,32 @@
 
 
 
+  function mesKey(year, monthIdx) {
+    return `${year}-${pad(monthIdx + 1)}`;
+  }
+
+  function encuentrosEnMes(year, monthIdx) {
+    const ym = mesKey(year, monthIdx);
+    return encuentros.filter((e) => {
+      const mesProg = String(e.fecha || "").slice(0, 7);
+      const mesReal = String(e.fecha_realizacion || "").slice(0, 7);
+      return mesProg === ym || mesReal === ym;
+    });
+  }
+
+  function encuentrosProgramadosMes(year, monthIdx) {
+    const ym = mesKey(year, monthIdx);
+    return encuentros.filter((e) => {
+      const mesProg = String(e.fecha || "").slice(0, 7);
+      if (mesProg !== ym) return false;
+      const mesReal = String(e.fecha_realizacion || "").slice(0, 7);
+      return !mesReal || mesReal !== ym;
+    });
+  }
+
   function encuentrosDelDia(y, m, d) {
-
     const iso = isoDate(y, m, d);
-
-    return encuentros.filter((e) => (e.fecha_realizacion || e.fecha) === iso);
-
+    return encuentros.filter((e) => e.fecha_realizacion === iso);
   }
 
 
@@ -1289,6 +1311,9 @@
 
     if (grid2) grid2.innerHTML = html;
 
+    renderCalMonthStrip();
+    renderCalProgramadosMes();
+
     document.querySelectorAll("[data-encuentro-id]").forEach((el) => {
 
       el.addEventListener("click", (ev) => {
@@ -1301,6 +1326,48 @@
 
     });
 
+  }
+
+  function renderCalMonthStrip() {
+    const counts = MESES_CORTOS.map((_, i) => encuentrosEnMes(calYear, i).length);
+    const html = MESES_CORTOS.map((nom, i) => {
+      const n = counts[i];
+      const active = i === calMonth ? " cap-cal-month-chip--active" : "";
+      const has = n > 0 ? " cap-cal-month-chip--has" : "";
+      const badge = n > 0 ? `<span class="cap-cal-month-chip-n">${n}</span>` : "";
+      return `<button type="button" class="cap-cal-month-chip${active}${has}" data-cal-goto-mes="${i}" title="${MESES[i]} ${calYear}">${nom}${badge}</button>`;
+    }).join("");
+    ["cap-cal-month-strip", "cap-cal-month-strip-2"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = html;
+    });
+    document.querySelectorAll("[data-cal-goto-mes]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const m = Number(btn.dataset.calGotoMes);
+        if (Number.isNaN(m) || m === calMonth) return;
+        calMonth = m;
+        loadEncuentros();
+      });
+    });
+  }
+
+  function renderCalProgramadosMes() {
+    const items = encuentrosProgramadosMes(calYear, calMonth);
+    const html = items.length
+      ? `<p class="cap-cal-programados-label">Programados en ${MESES[calMonth]} <span class="cap-muted">(el día aparece al cerrar el cronograma)</span></p>
+        ${items.map((e) => {
+          const extra = e.fecha_realizacion
+            ? ` · Realizado el ${fmtDiaReal(e.fecha_realizacion)}`
+            : "";
+          return `<button type="button" class="cap-cal-event cap-cal-event--mes${e.estado === "cancelado" ? " cap-cal-event--cancelado" : ""}" data-encuentro-id="${e.id}" title="${escapeHtml(e.titulo)}">${escapeHtml(e.titulo)}${extra}</button>`;
+        }).join("")}`
+      : "";
+    ["cap-cal-programados", "cap-cal-programados-2"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.innerHTML = html;
+      el.classList.toggle("cap-hidden", !items.length);
+    });
   }
 
 
@@ -1321,18 +1388,14 @@
 
 
 
-  async function loadEncuentros() {
-
-    const desde = isoDate(calYear, calMonth, 1);
-
-    const hasta = isoDate(calYear, calMonth, lastDayOfMonth(calYear, calMonth));
-
-    const data = await fetchJson(`${API}/encuentros?desde=${desde}&hasta=${hasta}`);
-
-    encuentros = data.encuentros || [];
-
+  async function loadEncuentros(forceReload) {
+    if (forceReload) encuentrosYearLoaded = null;
+    if (encuentrosYearLoaded !== calYear) {
+      const data = await fetchJson(`${API}/encuentros?desde=${calYear}-01-01&hasta=${calYear}-12-31`);
+      encuentros = data.encuentros || [];
+      encuentrosYearLoaded = calYear;
+    }
     renderCronograma();
-
   }
 
 
@@ -3938,7 +4001,7 @@
 
     updateEncuentroFormMode(false);
 
-    await loadEncuentros();
+    await loadEncuentros(true);
 
   }
 
@@ -4258,7 +4321,7 @@
           togglePanel("cap-encuentro-form-panel", false);
           encuentroEditId = null;
           await resetEncuentroForm();
-          await loadEncuentros();
+          await loadEncuentros(true);
         } catch (err) {
           setFormError("cap-encuentro-form-error", err.message);
         }
@@ -4341,7 +4404,7 @@
 
         await resetEncuentroForm();
 
-        await loadEncuentros();
+        await loadEncuentros(true);
 
       } catch (err) {
 
@@ -6861,7 +6924,7 @@
         if (resFile) await uploadFile(`${API}/encuentros/${asistenciaEncuentroId}/resultados`, resFile);
         await putJson(`${API}/encuentros/${asistenciaEncuentroId}/cierre`, payload);
         closeAsistenciaModal();
-        if (typeof loadEncuentros === "function") await loadEncuentros();
+        if (typeof loadEncuentros === "function") await loadEncuentros(true);
       } catch (err) {
         alert(err.message);
       }

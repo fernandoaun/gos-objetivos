@@ -328,6 +328,84 @@
   text-decoration: line-through;
 }
 
+.cap-cal-month-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.65rem 0.75rem 0.35rem;
+}
+
+.cap-cal-month-chip {
+  border: 1px solid var(--cap-border);
+  background: #fff;
+  color: var(--cap-muted);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.cap-cal-month-chip:hover {
+  border-color: var(--cap-navy-light);
+  color: var(--cap-navy);
+}
+
+.cap-cal-month-chip--has {
+  color: var(--cap-navy);
+  background: var(--gos-yellow-soft, #fff8e1);
+  border-color: #e6d48a;
+}
+
+.cap-cal-month-chip--active {
+  background: var(--cap-navy-light);
+  border-color: var(--cap-navy-light);
+  color: #fff;
+}
+
+.cap-cal-month-chip--active .cap-cal-month-chip-n {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.cap-cal-month-chip-n {
+  min-width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 999px;
+  background: var(--cap-navy-light);
+  color: #fff;
+  font-size: 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.25rem;
+}
+
+.cap-cal-programados {
+  padding: 0.15rem 0.75rem 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.cap-cal-programados-label {
+  flex: 1 0 100%;
+  margin: 0 0 0.15rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--cap-navy);
+}
+
+.cap-cal-event--mes {
+  display: inline-block;
+  margin-top: 0;
+  max-width: 100%;
+}
+
 /* —— Personas (lista en filas + legajo abajo) —— */
 .cap-personas-row-wrap {
   padding-bottom: 0.25rem;

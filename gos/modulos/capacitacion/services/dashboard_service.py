@@ -4,6 +4,7 @@ from calendar import monthrange
 from collections import defaultdict
 from datetime import date, timedelta
 
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import joinedload
 
 from gos.modulos.capacitacion.models import (
@@ -368,10 +369,22 @@ def _evolucion_mensual(empresa_id: int, meses: int = 6) -> list[dict]:
 
 
 def encuentros_cronograma(empresa_id: int, desde: date, hasta: date) -> list[dict]:
+    """Incluye el mes programado (`fecha`) y el día real (`fecha_realizacion`)."""
     rows = (
         EncuentroCapacitacion.query.filter_by(empresa_id=empresa_id)
-        .filter(EncuentroCapacitacion.fecha >= desde)
-        .filter(EncuentroCapacitacion.fecha <= hasta)
+        .filter(
+            or_(
+                and_(
+                    EncuentroCapacitacion.fecha >= desde,
+                    EncuentroCapacitacion.fecha <= hasta,
+                ),
+                and_(
+                    EncuentroCapacitacion.fecha_realizacion.isnot(None),
+                    EncuentroCapacitacion.fecha_realizacion >= desde,
+                    EncuentroCapacitacion.fecha_realizacion <= hasta,
+                ),
+            )
+        )
         .order_by(EncuentroCapacitacion.fecha, EncuentroCapacitacion.hora_inicio)
         .all()
     )
