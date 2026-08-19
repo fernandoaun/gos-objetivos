@@ -7098,7 +7098,7 @@
       metaClientes = data.clientes || [];
     tbody.innerHTML = metaClientes.map((c) => {
       const logo = c.tiene_logo
-        ? `<img class="cap-table-logo" src="${API}/clientes/${c.id}/logo?t=${Date.now()}" alt="">`
+        ? `<img class="cap-table-logo" src="${API}/clientes/${c.id}/logo?t=${Date.now()}" alt="" onerror="this.replaceWith(document.createTextNode('—'))">`
         : '<span class="cap-muted">—</span>';
       return `<tr data-id="${c.id}">
         <td>${logo}</td>

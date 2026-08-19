@@ -50,6 +50,8 @@ _COLUMN_UPGRADES = [
     ("cap_config", "periodos_vigencia", "TEXT"),
     ("cap_puestos", "sector_id", "INTEGER"),
     ("cap_config", "logo_empresa_path", "VARCHAR(500)"),
+    ("cap_config", "logo_empresa_mime", "VARCHAR(80)"),
+    ("cap_clientes", "logo_mime", "VARCHAR(80)"),
 ]
 
 
@@ -82,12 +84,31 @@ def ensure_capacitacion_schema() -> None:
             continue
         with db.engine.begin() as conn:
             conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {coldef}"))
+    _ensure_logo_blob_columns()
     _migrar_clasificacion_cursos()
     _migrar_estructura_programas()
     # Nunca borrar datos al arrancar. El cleanup one-shot de 2026-07-17 quedó retirado.
     _migrar_sector_puesto()
     _migrar_centros_texto()
     _maybe_snapshot_diario()
+
+
+def _ensure_logo_blob_columns() -> None:
+    """Agrega columnas binarias para logos. Solo ADD; no borra filas ni rutas."""
+    blob = "BYTEA" if db.engine.dialect.name == "postgresql" else "BLOB"
+    inspector = inspect(db.engine)
+    for table, column in (
+        ("cap_clientes", "logo_bytes"),
+        ("cap_config", "logo_empresa_bytes"),
+    ):
+        if not inspector.has_table(table):
+            continue
+        existing = {c["name"] for c in inspector.get_columns(table)}
+        if column in existing:
+            continue
+        with db.engine.begin() as conn:
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {blob}"))
+        inspector = inspect(db.engine)
 
 
 def _migrar_centros_texto() -> None:

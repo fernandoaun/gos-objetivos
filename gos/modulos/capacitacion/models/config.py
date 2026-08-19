@@ -22,5 +22,7 @@ class CapacitacionConfig(db.Model, TimestampMixin):
     ultimo_envio_notif = db.Column(db.DateTime, nullable=True)
     periodos_vigencia = db.Column(db.Text, nullable=True)
     logo_empresa_path = db.Column(db.String(500), nullable=True)
+    logo_empresa_bytes = db.Column(db.LargeBinary, nullable=True)
+    logo_empresa_mime = db.Column(db.String(80), nullable=True)
 
     empresa = db.relationship("Empresa")

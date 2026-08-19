@@ -1,5 +1,6 @@
 from datetime import date
 from io import BytesIO
+from pathlib import Path
 
 from flask import Blueprint, jsonify, request, send_file
 from flask_login import current_user, login_required
@@ -168,6 +169,12 @@ def configuracion():
     return jsonify({"config": cfg})
 
 
+def _send_logo(path_or_bytes, mimetype: str):
+    if isinstance(path_or_bytes, (bytes, memoryview)):
+        return send_file(BytesIO(bytes(path_or_bytes)), mimetype=mimetype, download_name="logo")
+    return send_file(Path(path_or_bytes), mimetype=mimetype)
+
+
 @bp.route("/configuracion/logo", methods=["GET", "POST", "DELETE"])
 @login_required
 def configuracion_logo():
@@ -177,7 +184,7 @@ def configuracion_logo():
             path, mimetype = descargar_logo_empresa(eid)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 404
-        return send_file(path, mimetype=mimetype)
+        return _send_logo(path, mimetype)
     if not _puede_editar():
         return jsonify({"error": "No tenés permiso para esta acción."}), 403
     if request.method == "DELETE":
@@ -644,7 +651,7 @@ def cliente_logo(cliente_id: int):
             path, mimetype = descargar_logo_cliente(eid, cliente_id)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 404
-        return send_file(path, mimetype=mimetype)
+        return _send_logo(path, mimetype)
     if not _puede_editar():
         return jsonify({"error": "No tenés permiso para esta acción."}), 403
     if request.method == "DELETE":

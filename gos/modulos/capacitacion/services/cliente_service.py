@@ -24,11 +24,13 @@ def _cliente_ids_de(participante: Participante) -> list[int]:
 def cliente_dict(cliente: ClienteCapacitacion, *, personas_count: int | None = None) -> dict:
     if personas_count is None:
         personas_count = cliente.asignaciones.count()
+    from gos.modulos.capacitacion.services.evidencia_service import cliente_tiene_logo
+
     return {
         "id": cliente.id,
         "codigo": cliente.codigo,
         "nombre": cliente.nombre,
-        "tiene_logo": bool(cliente.logo_path),
+        "tiene_logo": cliente_tiene_logo(cliente),
         "personas_count": personas_count,
         "activo": cliente.activo,
     }

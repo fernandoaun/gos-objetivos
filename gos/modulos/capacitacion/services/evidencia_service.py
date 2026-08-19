@@ -23,9 +23,10 @@ MAX_BYTES = 10 * 1024 * 1024
 MAX_FOTO_BYTES = 5 * 1024 * 1024
 
 
-def _upload_dir(empresa_id: int, sub: str) -> Path:
+def _upload_dir(empresa_id: int, sub: str, *, crear: bool = True) -> Path:
     base = Path(current_app.root_path).parent / "storage" / "capacitacion" / str(empresa_id) / sub
-    base.mkdir(parents=True, exist_ok=True)
+    if crear:
+        base.mkdir(parents=True, exist_ok=True)
     return base
 
 
@@ -300,11 +301,74 @@ def descargar_adjunto_encuentro(empresa_id: int, encuentro_id: int, adjunto_id: 
 _MIME_IMG = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
 
 
+def _project_root() -> Path:
+    return Path(current_app.root_path).parent
+
+
+def _path_from_stored(stored: str | None) -> Path | None:
+    if not stored:
+        return None
+    p = Path(stored)
+    if p.is_file():
+        return p
+    rel = _project_root() / stored
+    if rel.is_file():
+        return rel
+    return None
+
+
+def _canonical_image(dest_dir: Path, stem: str) -> Path | None:
+    if not dest_dir.is_dir():
+        return None
+    for ext in _MIME_IMG:
+        cand = dest_dir / f"{stem}{ext}"
+        if cand.is_file():
+            return cand
+    return None
+
+
+def _store_rel(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(_project_root().resolve()))
+    except ValueError:
+        return str(path)
+
+
+def _limpiar_otras_ext(dest: Path) -> None:
+    for ext in _MIME_IMG:
+        other = dest.with_suffix(ext)
+        if other != dest and other.is_file():
+            other.unlink(missing_ok=True)
+
+
+def _resolver_logo(
+    stored_path: str | None,
+    blob: bytes | None,
+    mime: str | None,
+    dest_dir: Path,
+    stem: str,
+) -> tuple[Path | bytes, str]:
+    path = _path_from_stored(stored_path) or _canonical_image(dest_dir, stem)
+    if path:
+        return path, _MIME_IMG.get(path.suffix.lower(), mime or "image/png")
+    if blob:
+        return blob, mime or "image/png"
+    raise ValueError("Logo no encontrado")
+
+
+def cliente_tiene_logo(cliente) -> bool:
+    if getattr(cliente, "logo_bytes", None):
+        return True
+    dest_dir = _upload_dir(cliente.empresa_id, "logos", crear=False)
+    return bool(_path_from_stored(cliente.logo_path) or _canonical_image(dest_dir, f"cli_{cliente.id}"))
+
+
 def _guardar_imagen(dest: Path, file_storage) -> Path:
     filename = _validar_imagen(file_storage)
     ext = Path(filename).suffix.lower()
     dest = dest.with_suffix(ext)
     file_storage.save(dest)
+    _limpiar_otras_ext(dest)
     return dest
 
 
@@ -315,36 +379,45 @@ def subir_logo_cliente(empresa_id: int, cliente_id: int, file_storage) -> dict:
     dest_dir = _upload_dir(empresa_id, "logos")
     dest = _guardar_imagen(dest_dir / f"cli_{cliente_id}", file_storage)
     if cliente.logo_path:
-        old = Path(cliente.logo_path)
-        if old.is_file() and old != dest:
+        old = _path_from_stored(cliente.logo_path)
+        if old and old.is_file() and old != dest:
             old.unlink(missing_ok=True)
-    cliente.logo_path = str(dest)
+    cliente.logo_path = _store_rel(dest)
+    cliente.logo_bytes = dest.read_bytes()
+    cliente.logo_mime = _MIME_IMG.get(dest.suffix.lower(), "image/png")
     db.session.commit()
     return cliente_dict(cliente)
 
 
-def descargar_logo_cliente(empresa_id: int, cliente_id: int) -> tuple[Path, str]:
+def descargar_logo_cliente(empresa_id: int, cliente_id: int) -> tuple[Path | bytes, str]:
     cliente = ClienteCapacitacion.query.filter_by(
         id=cliente_id, empresa_id=empresa_id, activo=True
     ).first()
-    if not cliente or not cliente.logo_path:
+    if not cliente:
         raise ValueError("Logo no encontrado")
-    path = Path(cliente.logo_path)
-    if not path.is_file():
-        raise ValueError("Archivo no disponible")
-    return path, _MIME_IMG.get(path.suffix.lower(), "image/png")
+    dest_dir = _upload_dir(empresa_id, "logos", crear=False)
+    return _resolver_logo(
+        cliente.logo_path,
+        getattr(cliente, "logo_bytes", None),
+        getattr(cliente, "logo_mime", None),
+        dest_dir,
+        f"cli_{cliente_id}",
+    )
 
 
 def eliminar_logo_cliente(empresa_id: int, cliente_id: int) -> dict:
     from gos.modulos.capacitacion.services.cliente_service import cliente_dict, obtener_cliente
 
     cliente = obtener_cliente(empresa_id, cliente_id)
-    if cliente.logo_path:
-        path = Path(cliente.logo_path)
-        if path.is_file():
-            path.unlink(missing_ok=True)
-        cliente.logo_path = None
-        db.session.commit()
+    dest_dir = _upload_dir(empresa_id, "logos")
+    found = _path_from_stored(cliente.logo_path) or _canonical_image(dest_dir, f"cli_{cliente_id}")
+    if found and found.is_file():
+        found.unlink(missing_ok=True)
+    _limpiar_otras_ext(dest_dir / f"cli_{cliente_id}.png")
+    cliente.logo_path = None
+    cliente.logo_bytes = None
+    cliente.logo_mime = None
+    db.session.commit()
     return cliente_dict(cliente)
 
 
@@ -355,32 +428,41 @@ def subir_logo_empresa(empresa_id: int, file_storage) -> dict:
     dest_dir = _upload_dir(empresa_id, "logos")
     dest = _guardar_imagen(dest_dir / "empresa", file_storage)
     if row.logo_empresa_path:
-        old = Path(row.logo_empresa_path)
-        if old.is_file() and old != dest:
+        old = _path_from_stored(row.logo_empresa_path)
+        if old and old.is_file() and old != dest:
             old.unlink(missing_ok=True)
-    row.logo_empresa_path = str(dest)
+    row.logo_empresa_path = _store_rel(dest)
+    row.logo_empresa_bytes = dest.read_bytes()
+    row.logo_empresa_mime = _MIME_IMG.get(dest.suffix.lower(), "image/png")
     db.session.commit()
     return obtener_config(empresa_id)
 
 
-def descargar_logo_empresa(empresa_id: int) -> tuple[Path, str]:
+def descargar_logo_empresa(empresa_id: int) -> tuple[Path | bytes, str]:
     row = CapacitacionConfig.query.filter_by(empresa_id=empresa_id).first()
-    if not row or not row.logo_empresa_path:
+    if not row:
         raise ValueError("Logo no encontrado")
-    path = Path(row.logo_empresa_path)
-    if not path.is_file():
-        raise ValueError("Archivo no disponible")
-    return path, _MIME_IMG.get(path.suffix.lower(), "image/png")
+    dest_dir = _upload_dir(empresa_id, "logos", crear=False)
+    return _resolver_logo(
+        row.logo_empresa_path,
+        getattr(row, "logo_empresa_bytes", None),
+        getattr(row, "logo_empresa_mime", None),
+        dest_dir,
+        "empresa",
+    )
 
 
 def eliminar_logo_empresa(empresa_id: int) -> dict:
     from gos.modulos.capacitacion.services.config_service import _get_or_create, obtener_config
 
     row = _get_or_create(empresa_id)
-    if row.logo_empresa_path:
-        path = Path(row.logo_empresa_path)
-        if path.is_file():
-            path.unlink(missing_ok=True)
-        row.logo_empresa_path = None
-        db.session.commit()
+    dest_dir = _upload_dir(empresa_id, "logos")
+    found = _path_from_stored(row.logo_empresa_path) or _canonical_image(dest_dir, "empresa")
+    if found and found.is_file():
+        found.unlink(missing_ok=True)
+    _limpiar_otras_ext(dest_dir / "empresa.png")
+    row.logo_empresa_path = None
+    row.logo_empresa_bytes = None
+    row.logo_empresa_mime = None
+    db.session.commit()
     return obtener_config(empresa_id)

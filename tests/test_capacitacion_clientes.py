@@ -1,8 +1,10 @@
+from io import BytesIO
+
 from gos.extensions import db
 from gos.models import Empresa
 from gos.modulos.capacitacion.models import ClienteCapacitacion, Participante, ParticipanteCliente
 from gos.modulos.capacitacion.services.catalogo_service import actualizar_participante, crear_participante
-from gos.modulos.capacitacion.services.cliente_service import crear_cliente
+from gos.modulos.capacitacion.services.cliente_service import actualizar_cliente, crear_cliente
 from gos.modulos.capacitacion.services.dashboard_service import informe_cliente
 
 
@@ -73,3 +75,36 @@ def test_api_clientes_e_informe(auth_client, app):
     assert body["cliente"]["nombre"] == "Beta SRL"
     assert body["kpis"]["personas_activas"] == 1
     assert body["personas_detalle"][0]["nombre"] == "Carla"
+
+
+def test_logo_cliente_se_conserva_al_editar_y_con_ruta_invalida(auth_client, app):
+    png = b"\x89PNG\r\n\x1a\n" + b"logo-pampa"
+    with app.app_context():
+        emp = Empresa.query.first()
+        cliente = crear_cliente(emp.id, {"nombre": "PAMPA ENERGIA", "codigo": "PAM"})
+        cid = cliente["id"]
+
+    uploaded = auth_client.post(
+        f"/gos/capacitacion/api/clientes/{cid}/logo",
+        data={"archivo": (BytesIO(png), "pampa.png")},
+        content_type="multipart/form-data",
+    )
+    assert uploaded.status_code == 200
+    assert uploaded.get_json()["cliente"]["tiene_logo"] is True
+
+    with app.app_context():
+        emp = Empresa.query.first()
+        actualizar_cliente(emp.id, cid, {"nombre": "PAMPA ENERGIA", "codigo": "PAM"})
+        row = db.session.get(ClienteCapacitacion, cid)
+        assert row.logo_bytes
+        row.logo_path = r"C:\maquina-vieja\storage\cli_1.png"
+        db.session.commit()
+
+    listed = auth_client.get("/gos/capacitacion/api/clientes")
+    assert listed.status_code == 200
+    item = next(c for c in listed.get_json()["clientes"] if c["id"] == cid)
+    assert item["tiene_logo"] is True
+
+    logo = auth_client.get(f"/gos/capacitacion/api/clientes/{cid}/logo")
+    assert logo.status_code == 200
+    assert logo.data.startswith(b"\x89PNG")

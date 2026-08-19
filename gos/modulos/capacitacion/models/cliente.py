@@ -13,6 +13,8 @@ class ClienteCapacitacion(db.Model, TimestampMixin):
     codigo = db.Column(db.String(20), nullable=False)
     nombre = db.Column(db.String(200), nullable=False)
     logo_path = db.Column(db.String(500), nullable=True)
+    logo_bytes = db.Column(db.LargeBinary, nullable=True)
+    logo_mime = db.Column(db.String(80), nullable=True)
     activo = db.Column(db.Boolean, default=True, nullable=False)
 
     empresa = db.relationship("Empresa")
