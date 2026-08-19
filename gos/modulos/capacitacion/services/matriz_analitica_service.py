@@ -95,8 +95,10 @@ def _sumar_metricas(dest: dict, src: dict) -> None:
         "pend_vencidos_det",
         "cumpl_puntuales",
         "cumpl_no_puntuales",
+        "dictados",
+        "dictados_puntuales",
     ):
-        dest[k] += src.get(k, 0)
+        dest[k] = dest.get(k, 0) + src.get(k, 0)
 
 
 def _finalizar_metricas(m: dict) -> dict:
@@ -362,6 +364,14 @@ def _acr_para_asistencia(
     return acr
 
 
+def _asistio_en_encuentro(asist: AsistenciaEncuentro, acr: Acreditacion | None) -> bool:
+    if acr:
+        v = _asistio_desde_acreditacion(acr)
+        if v is not None:
+            return v
+    return asist.asistencia == "presente"
+
+
 def _clasificar_asignacion(
     asist: AsistenciaEncuentro,
     enc: EncuentroCapacitacion,
@@ -384,6 +394,17 @@ def _clasificar_asignacion(
         puntual = True
 
     vencido = not cumplido and enc.fecha and _fin_de_mes(enc.fecha) < hoy
+    asistio = _asistio_en_encuentro(asist, acr)
+    dictado = asistio or cumplido
+    fecha_dictado = fecha_aprob or enc.fecha_realizacion
+    puntual_dictado = False
+    if dictado:
+        if fecha_dictado and enc.fecha:
+            puntual_dictado = fecha_dictado <= _fin_de_mes(enc.fecha)
+        elif cumplido:
+            puntual_dictado = puntual
+        else:
+            puntual_dictado = not vencido
 
     return {
         "programados": 1,
@@ -394,6 +415,8 @@ def _clasificar_asignacion(
         "pend_vencidos_det": 1 if not cumplido and vencido else 0,
         "cumpl_puntuales": 1 if cumplido and puntual else 0,
         "cumpl_no_puntuales": 1 if cumplido and not puntual else 0,
+        "dictados": 1 if dictado else 0,
+        "dictados_puntuales": 1 if dictado and puntual_dictado else 0,
     }
 
 
@@ -620,19 +643,28 @@ def _colectar_metricas_anuales(
     return datos["por_persona_mes"], datos["por_mes"], datos["nombres"]
 
 
-def _unidad_entidad(sumado: dict) -> dict:
+def _unidad_entidad(sumado: dict, *, exigir_todos: bool = True) -> dict:
     """Colapsa las asignaciones de una entidad (plan/curso/persona) a 1 unidad."""
     prog = sumado.get("programados", 0) or 0
     unit = _metricas_vacias()
     if prog <= 0:
         return unit
     unit["programados"] = 1
-    all_cumpl = (sumado.get("cumplidos", 0) or 0) >= prog
-    all_punt = (sumado.get("puntuales", 0) or 0) >= prog
+    n_cumpl = sumado.get("cumplidos", 0) or 0
+    n_punt = sumado.get("puntuales", 0) or 0
+    n_dict = sumado.get("dictados", 0) or 0
+    n_dict_punt = sumado.get("dictados_puntuales", 0) or 0
     any_venc = (sumado.get("pend_vencidos", 0) or 0) > 0 or (sumado.get("pend_vencidos_det", 0) or 0) > 0
-    if all_cumpl:
+    if exigir_todos:
+        ok = n_cumpl >= prog
+        punt = n_punt >= prog
+    else:
+        # Cursos/planes: con una sola persona a la que se le dictó, el ítem está cumplido.
+        ok = n_cumpl > 0 or n_dict > 0
+        punt = n_punt > 0 or n_dict_punt > 0
+    if ok:
         unit["cumplidos"] = 1
-        if all_punt:
+        if punt:
             unit["puntuales"] = 1
             unit["cumpl_puntuales"] = 1
         else:
@@ -645,7 +677,12 @@ def _unidad_entidad(sumado: dict) -> dict:
     return unit
 
 
-def _metricas_mensuales_unicas(asignaciones: list[dict], id_key: str) -> dict[int, dict]:
+def _metricas_mensuales_unicas(
+    asignaciones: list[dict],
+    id_key: str,
+    *,
+    exigir_todos: bool = True,
+) -> dict[int, dict]:
     """Cuenta entidades distintas por mes (1 plan programado = 1, no 25 cupos)."""
     por_mes_ent: dict[int, dict[int, dict]] = {m: {} for m in range(1, 13)}
     for a in asignaciones:
@@ -658,7 +695,7 @@ def _metricas_mensuales_unicas(asignaciones: list[dict], id_key: str) -> dict[in
     por_mes = {m: _metricas_vacias() for m in range(1, 13)}
     for mes, entidades in por_mes_ent.items():
         for sumado in entidades.values():
-            _sumar_metricas(por_mes[mes], _unidad_entidad(sumado))
+            _sumar_metricas(por_mes[mes], _unidad_entidad(sumado, exigir_todos=exigir_todos))
         _finalizar_metricas(por_mes[mes])
     return por_mes
 
@@ -715,7 +752,11 @@ def matriz_calendario(
         curso_ids=curso_ids,
     )
     id_key, _nombre_key = _CALENDARIO_DIMS[dim]
-    por_mes = _metricas_mensuales_unicas(datos["asignaciones"], id_key)
+    por_mes = _metricas_mensuales_unicas(
+        datos["asignaciones"],
+        id_key,
+        exigir_todos=dim == "personas",
+    )
     puntuales_mes = _contar_unicos_por_mes(datos.get("asignaciones_puntuales") or [], "curso_id")
 
     filas = []

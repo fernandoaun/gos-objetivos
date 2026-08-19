@@ -191,6 +191,77 @@ def test_matriz_calendario_cuenta_cursos_y_planes_no_cupos(app):
         assert agosto("personas")["programados"] == 3
 
 
+def test_matriz_calendario_curso_cumplido_si_una_persona(app):
+    """En cursos/planes basta con que se le haya dictado a una persona programada."""
+    with app.app_context():
+        from gos.models import Empresa
+
+        emp = Empresa.query.first()
+        curso = Curso(empresa_id=emp.id, codigo="ANY-1", nombre="Curso parcial", horas=2)
+        personas = [
+            Participante(empresa_id=emp.id, nombre=f"Parcial {i}", legajo=f"8{i:03d}")
+            for i in range(3)
+        ]
+        prog = ProgramaCapacitacion(
+            empresa_id=emp.id, codigo="ANY-P", nombre="Prog Parcial", tipo="interno"
+        )
+        db.session.add_all([curso, prog, *personas])
+        db.session.flush()
+        plan = ProgramaPlan(programa_id=prog.id, nombre="Plan Parcial", orden=1)
+        db.session.add(plan)
+        db.session.flush()
+        db.session.add(PlanCurso(plan_id=plan.id, curso_id=curso.id, orden=1))
+        enc = EncuentroCapacitacion(
+            empresa_id=emp.id,
+            plan_id=plan.id,
+            programa_id=prog.id,
+            curso_id=curso.id,
+            titulo="Sesión parcial",
+            fecha=date(2026, 6, 1),
+            fecha_inicio=datetime(2026, 6, 1, 9, 0),
+            fecha_realizacion=date(2026, 6, 10),
+            estado="cerrado",
+        )
+        db.session.add(enc)
+        db.session.flush()
+        for i, p in enumerate(personas):
+            if i == 0:
+                db.session.add(
+                    AsistenciaEncuentro(
+                        encuentro_id=enc.id,
+                        participante_id=p.id,
+                        asistencia="presente",
+                        aprobado=True,
+                        fecha_aprobacion=date(2026, 6, 10),
+                    )
+                )
+            else:
+                db.session.add(
+                    AsistenciaEncuentro(
+                        encuentro_id=enc.id, participante_id=p.id, asistencia="inscripto"
+                    )
+                )
+        db.session.commit()
+
+        def junio(dim: str) -> dict:
+            return matriz_analitica(emp.id, vista="calendario", anio=2026, dim=dim)["data"]["filas"][5]
+
+        cursos = junio("cursos")
+        planes = junio("planes")
+        personas_m = junio("personas")
+        assert cursos["programados"] == 1
+        assert cursos["cumplidos"] == 1
+        assert cursos["pendientes"] == 0
+        assert cursos["pend_vencidos"] == 0
+        assert planes["programados"] == 1
+        assert planes["cumplidos"] == 1
+        assert planes["pendientes"] == 0
+        assert personas_m["programados"] == 3
+        assert personas_m["cumplidos"] == 1
+        assert personas_m["pendientes"] == 2
+        assert personas_m["pend_vencidos"] == 2
+
+
 def test_matriz_calendario_ignora_charlas_puntuales(app):
     """BPC/charlas van al recuadro: no suman al plan, salvo que el curso se incorpore."""
     with app.app_context():
