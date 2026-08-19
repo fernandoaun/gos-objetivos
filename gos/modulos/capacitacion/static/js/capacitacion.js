@@ -1991,7 +1991,6 @@
             </tbody>
           </table>
         </div>
-        <p class="cap-form-hint cap-mt">Clic en un mes o en un valor para ver a qué cursos y personas se refiere.</p>
       </div>`;
     bindMaResumenDims();
     wrap.querySelectorAll("[data-ma-mes]").forEach((el) => {
