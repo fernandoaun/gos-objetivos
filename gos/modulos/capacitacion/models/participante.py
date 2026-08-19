@@ -42,6 +42,12 @@ class Participante(db.Model, TimestampMixin):
     certificaciones = db.relationship("CertificacionEmpleado", back_populates="participante", lazy="dynamic")
     planes = db.relationship("PlanCapacitacion", back_populates="participante", lazy="dynamic")
     requisitos = db.relationship("RequisitoFormacion", back_populates="participante", lazy="dynamic")
+    clientes = db.relationship(
+        "ParticipanteCliente",
+        back_populates="participante",
+        cascade="all, delete-orphan",
+        lazy="dynamic",
+    )
 
     @property
     def nombre_completo(self) -> str:

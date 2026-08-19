@@ -49,6 +49,7 @@ _COLUMN_UPGRADES = [
     ("cap_config", "ultimo_envio_notif", "TIMESTAMP"),
     ("cap_config", "periodos_vigencia", "TEXT"),
     ("cap_puestos", "sector_id", "INTEGER"),
+    ("cap_config", "logo_empresa_path", "VARCHAR(500)"),
 ]
 
 
@@ -59,6 +60,8 @@ def ensure_capacitacion_schema() -> None:
         AlertaCapacitacion,
         CapacitacionConfig,
         Centro,
+        ClienteCapacitacion,
+        ParticipanteCliente,
         CronogramaPuesto,
         EmpresaCapacitadora,
         EncuentroAdjunto,

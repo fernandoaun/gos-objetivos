@@ -41,6 +41,7 @@ def _register_models() -> None:
         AlertaCapacitacion,
         AsistenciaEncuentro,
         CapacitacionConfig,
+        ClienteCapacitacion,
         CertificacionEmpleado,
         CertificacionTipo,
         Curso,
@@ -110,6 +111,11 @@ def _nav_items():
             "label": "Dashboard",
             "endpoint": "capacitacion_main.index",
             "icon": "bi-speedometer2",
+        },
+        {
+            "label": "Informes clientes",
+            "endpoint": "capacitacion_main.informes",
+            "icon": "bi-building",
         },
         {
             "label": "Matriz analítica",

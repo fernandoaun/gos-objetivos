@@ -48,7 +48,7 @@
   let metaPuestos = [];
 
   let metaCentros = [];
-
+  let metaClientes = [];
   let personaEditId = null;
   let cursoEditId = null;
   let periodosVigenciaCache = null;
@@ -57,6 +57,9 @@
   let chartCert = null;
   let chartSector = null;
   let chartTipo = null;
+  let chartInforme = null;
+  let clienteEditId = null;
+  let clienteLogoId = null;
   let isoNormaActual = "9001";
   let personaSeleccionadaId = null;
   let matrizParticipanteId = window.CAP_INITIAL_PARTICIPANTE_ID || null;
@@ -80,19 +83,22 @@
 
 
   async function fetchJson(url, options) {
-
     const r = await fetch(url, { credentials: "same-origin", ...options });
-
     const data = await r.json().catch(() => ({}));
-
     if (!r.ok) {
-
-      throw new Error(data.error || "Error de red");
-
+      throw new Error(mensajeErrorHttp(r.status, data));
     }
-
     return data;
+  }
 
+  function mensajeErrorHttp(status, data) {
+    if (data && data.error) return data.error;
+    if (status === 404) {
+      return "El servidor no tiene esta función todavía. Cerrá GOS local y volvé a abrirlo con ABRIR LOCAL PRUEBA.bat, después recargá la página.";
+    }
+    if (status === 403) return "No tenés permiso para esta acción.";
+    if (status >= 500) return "Error interno del servidor. Revisá la ventana de GOS local.";
+    return `Error de red (${status})`;
   }
 
 
@@ -171,7 +177,7 @@
     fd.append("archivo", file);
     const r = await fetch(url, { method: "POST", credentials: "same-origin", body: fd });
     const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(data.error || "Error de red");
+    if (!r.ok) throw new Error(mensajeErrorHttp(r.status, data));
     return data;
   }
 
@@ -455,6 +461,46 @@
 
     if (current) sel.value = current;
 
+  }
+
+  function renderClienteChecks(selectedIds) {
+    const wrap = document.getElementById("cap-p-clientes");
+    if (!wrap) return;
+    const selected = new Set((selectedIds || []).map(Number));
+    if (!metaClientes.length) {
+      wrap.innerHTML = '<p class="cap-muted">Cargá clientes en Cursos y catálogos.</p>';
+      return;
+    }
+    wrap.innerHTML = metaClientes.map((c) => `
+      <label class="cap-check-item">
+        <input type="checkbox" data-cliente-id="${c.id}" ${selected.has(c.id) ? "checked" : ""}>
+        ${escapeHtml(c.nombre)}
+      </label>
+    `).join("");
+  }
+
+  function selectedClienteIds() {
+    return [...document.querySelectorAll("#cap-p-clientes input[data-cliente-id]:checked")]
+      .map((el) => Number(el.dataset.clienteId))
+      .filter(Number.isFinite);
+  }
+
+  function nombresClientes(ids) {
+    if (!ids || !ids.length) return "";
+    const map = new Map(metaClientes.map((c) => [c.id, c.nombre]));
+    return ids.map((id) => map.get(id) || `#${id}`).join(", ");
+  }
+
+  function renderEmpresaLogoPreview(tiene) {
+    const img = document.getElementById("cap-cfg-logo-preview");
+    const empty = document.getElementById("cap-cfg-logo-empty");
+    const del = document.getElementById("cap-cfg-logo-del");
+    if (img) {
+      img.classList.toggle("cap-hidden", !tiene);
+      if (tiene) img.src = `${API}/configuracion/logo?t=${Date.now()}`;
+    }
+    empty?.classList.toggle("cap-hidden", !!tiene);
+    del?.classList.toggle("cap-hidden", !tiene);
   }
 
 
@@ -1092,30 +1138,22 @@
 
   async function loadMeta() {
 
-    const [sectores, puestos, centros] = await Promise.all([
-
+    const [sectores, puestos, centros, clientes] = await Promise.all([
       fetchJson(`${API}/sectores`),
-
       fetchJson(`${API}/puestos`),
-
       fetchJson(`${API}/centros`),
-
+      fetchJson(`${API}/clientes`).catch(() => ({ clientes: [] })),
     ]);
-
     metaSectores = sectores.sectores || [];
-
     metaPuestos = puestos.puestos || [];
-
     metaCentros = centros.centros || [];
-
+    metaClientes = clientes.clientes || [];
+    const clientesSeleccionados = selectedClienteIds();
     fillSelect("cap-p-sector", metaSectores, "— Sin sector —");
-
     fillSelect("cap-p-puesto", metaPuestos, "— Sin puesto —");
-
     fillSelect("cap-p-centro", metaCentros, "— Sin centro —");
-
     fillSelect("cap-puesto-quick-sector", metaSectores, "— Sin sector —");
-
+    renderClienteChecks(clientesSeleccionados);
   }
 
 
@@ -2606,7 +2644,7 @@
     const ult = document.getElementById("cap-config-ultimo-envio");
 
     if (ult) ult.textContent = cfg.ultimo_envio_notif ? `Último envío: ${cfg.ultimo_envio_notif}` : "";
-
+    renderEmpresaLogoPreview(!!cfg.tiene_logo_empresa);
   }
 
 
@@ -2671,6 +2709,31 @@
 
       }
 
+    });
+
+    document.getElementById("cap-cfg-logo-btn")?.addEventListener("click", () => {
+      document.getElementById("cap-cfg-logo-file")?.click();
+    });
+    document.getElementById("cap-cfg-logo-file")?.addEventListener("change", async (ev) => {
+      const file = ev.target.files?.[0];
+      ev.target.value = "";
+      if (!file) return;
+      try {
+        await uploadFile(`${API}/configuracion/logo`, file);
+        await loadConfig();
+      } catch (e) {
+        const logoErr = document.getElementById("cap-config-error");
+        if (logoErr) logoErr.textContent = e.message;
+      }
+    });
+    document.getElementById("cap-cfg-logo-del")?.addEventListener("click", async () => {
+      try {
+        await deleteJson(`${API}/configuracion/logo`);
+        await loadConfig();
+      } catch (e) {
+        const logoErr = document.getElementById("cap-config-error");
+        if (logoErr) logoErr.textContent = e.message;
+      }
     });
 
   }
@@ -4420,7 +4483,9 @@
       if (item.sector_id) document.getElementById("cap-p-sector").value = item.sector_id;
 
       if (item.puesto_id) document.getElementById("cap-p-puesto").value = item.puesto_id;
-
+      renderClienteChecks(item.cliente_ids || []);
+    } else {
+      renderClienteChecks([]);
     }
 
     document.getElementById("cap-persona-baja")?.classList.toggle("cap-hidden", !personaEditId);
@@ -4694,6 +4759,7 @@
       if (payload.puesto_id) payload.puesto_id = Number(payload.puesto_id);
 
       if (payload.centro_id) payload.centro_id = Number(payload.centro_id);
+      payload.cliente_ids = selectedClienteIds();
 
       try {
 
@@ -4759,6 +4825,7 @@
           ${renderLegajoCampo("Sector", p.sector_nombre)}
           ${renderLegajoCampo("Puesto", p.puesto_nombre)}
           ${renderLegajoCampo("Centro", p.centro_nombre)}
+          ${renderLegajoCampo("Clientes", nombresClientes(p.cliente_ids))}
           ${observaciones}
         </dl>
       </div>
@@ -5098,7 +5165,7 @@
         sector_id: p.sector_id,
 
         puesto_id: p.puesto_id,
-
+        cliente_ids: p.cliente_ids || [],
       });
 
     });
@@ -7018,6 +7085,243 @@
 
 
 
+  function bindClienteForm() {
+    const form = document.getElementById("cap-cliente-form");
+    if (!form) return;
+    document.getElementById("cap-btn-nuevo-cliente")?.addEventListener("click", () => {
+      clienteEditId = null;
+      form.reset();
+      document.getElementById("cap-cli-id").value = "";
+      document.getElementById("cap-cliente-baja")?.classList.add("cap-hidden");
+      setFormError("cap-cliente-form-error", "");
+      togglePanel("cap-cliente-form-panel", true);
+      document.getElementById("cap-cli-nombre")?.focus();
+    });
+    document.getElementById("cap-cliente-cancel")?.addEventListener("click", () => {
+      clienteEditId = null;
+      togglePanel("cap-cliente-form-panel", false);
+    });
+    document.getElementById("cap-cliente-baja")?.addEventListener("click", async () => {
+      if (!clienteEditId) return;
+      if (!confirm("¿Dar de baja este cliente?")) return;
+      try {
+        await deleteJson(`${API}/clientes/${clienteEditId}`);
+        clienteEditId = null;
+        togglePanel("cap-cliente-form-panel", false);
+        await loadClientes();
+      } catch (err) {
+        setFormError("cap-cliente-form-error", err.message);
+      }
+    });
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const payload = {
+        codigo: document.getElementById("cap-cli-codigo")?.value.trim(),
+        nombre: document.getElementById("cap-cli-nombre")?.value.trim(),
+      };
+      try {
+        if (clienteEditId) {
+          await putJson(`${API}/clientes/${clienteEditId}`, payload);
+        } else {
+          await postJson(`${API}/clientes`, payload);
+        }
+        clienteEditId = null;
+        togglePanel("cap-cliente-form-panel", false);
+        form.reset();
+        await loadClientes();
+      } catch (err) {
+        setFormError("cap-cliente-form-error", err.message);
+      }
+    });
+    document.getElementById("cap-cliente-logo-file")?.addEventListener("change", async (ev) => {
+      const file = ev.target.files?.[0];
+      ev.target.value = "";
+      if (!file || !clienteLogoId) return;
+      try {
+        await uploadFile(`${API}/clientes/${clienteLogoId}/logo`, file);
+        await loadClientes();
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  }
+
+  async function loadClientes() {
+    const tbody = document.getElementById("cap-clientes-body");
+    if (!tbody) return;
+    try {
+      const data = await fetchJson(`${API}/clientes`);
+      metaClientes = data.clientes || [];
+    tbody.innerHTML = metaClientes.map((c) => {
+      const logo = c.tiene_logo
+        ? `<img class="cap-table-logo" src="${API}/clientes/${c.id}/logo?t=${Date.now()}" alt="">`
+        : '<span class="cap-muted">—</span>';
+      return `<tr data-id="${c.id}">
+        <td>${logo}</td>
+        <td>${escapeHtml(c.codigo || "")}</td>
+        <td>${escapeHtml(c.nombre)}</td>
+        <td>${c.personas_count || 0}</td>
+        <td class="cap-col-actions">
+          <button type="button" class="cap-btn cap-btn--ghost cap-btn--xs" data-cli-logo="${c.id}" title="Logo"><i class="bi bi-image"></i></button>
+          <button type="button" class="cap-btn cap-btn--ghost cap-btn--xs" data-cli-edit="${c.id}" title="Editar"><i class="bi bi-pencil"></i></button>
+        </td>
+      </tr>`;
+    }).join("") || '<tr><td colspan="5" class="cap-empty">Sin clientes. Agregá las empresas a las que afecta el personal.</td></tr>';
+    tbody.querySelectorAll("[data-cli-edit]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const c = metaClientes.find((x) => String(x.id) === btn.dataset.cliEdit);
+        if (!c) return;
+        clienteEditId = c.id;
+        document.getElementById("cap-cli-id").value = c.id;
+        document.getElementById("cap-cli-codigo").value = c.codigo || "";
+        document.getElementById("cap-cli-nombre").value = c.nombre || "";
+        document.getElementById("cap-cliente-baja")?.classList.remove("cap-hidden");
+        setFormError("cap-cliente-form-error", "");
+        togglePanel("cap-cliente-form-panel", true);
+      });
+    });
+    tbody.querySelectorAll("[data-cli-logo]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        clienteLogoId = Number(btn.dataset.cliLogo);
+        document.getElementById("cap-cliente-logo-file")?.click();
+      });
+    });
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="5" class="cap-empty">${escapeHtml(err.message)}</td></tr>`;
+    }
+  }
+
+  function bindInformes() {
+    document.getElementById("cap-informe-volver")?.addEventListener("click", () => {
+      document.getElementById("cap-informe-doc")?.classList.add("cap-hidden");
+      document.getElementById("cap-informes-list")?.classList.remove("cap-hidden");
+    });
+    document.getElementById("cap-informe-imprimir")?.addEventListener("click", () => window.print());
+  }
+
+  async function loadInformesList() {
+    const wrap = document.getElementById("cap-informes-cards");
+    if (!wrap) return;
+    const data = await fetchJson(`${API}/clientes`);
+    const clientes = data.clientes || [];
+    if (!clientes.length) {
+      wrap.innerHTML = '<p class="cap-empty">Todavía no hay clientes. Crealos en Cursos y catálogos y asigná personas a cada empresa.</p>';
+      return;
+    }
+    wrap.innerHTML = clientes.map((c) => {
+      const logo = c.tiene_logo
+        ? `<img src="${API}/clientes/${c.id}/logo?t=${Date.now()}" alt="">`
+        : `<span class="cap-cliente-card__ph">${escapeHtml((c.nombre || "?").slice(0, 2).toUpperCase())}</span>`;
+      return `<button type="button" class="cap-cliente-card" data-cliente-id="${c.id}">
+        <span class="cap-cliente-card__logo">${logo}</span>
+        <span class="cap-cliente-card__name">${escapeHtml(c.nombre)}</span>
+        <span class="cap-cliente-card__meta">${c.personas_count || 0} persona${(c.personas_count || 0) === 1 ? "" : "s"}</span>
+      </button>`;
+    }).join("");
+    wrap.querySelectorAll("[data-cliente-id]").forEach((btn) => {
+      btn.addEventListener("click", () => loadInformeCliente(Number(btn.dataset.clienteId)).catch(console.error));
+    });
+  }
+
+  async function loadInformeCliente(clienteId) {
+    const data = await fetchJson(`${API}/clientes/${clienteId}/informe`);
+    document.getElementById("cap-informes-list")?.classList.add("cap-hidden");
+    document.getElementById("cap-informe-doc")?.classList.remove("cap-hidden");
+    const cli = data.cliente || {};
+    document.getElementById("cap-informe-cliente-nombre").textContent = cli.nombre || "Cliente";
+    const fecha = data.fecha_informe ? data.fecha_informe.split("-").reverse().join("/") : "";
+    document.getElementById("cap-informe-fecha").textContent = fecha ? `Fecha del informe: ${fecha}` : "";
+
+    const logoEmp = document.getElementById("cap-informe-logo-empresa");
+    if (logoEmp) {
+      const emp = data.logo_empresa || {};
+      logoEmp.onerror = () => { logoEmp.src = emp.fallback_url || "/static/img/gos-logo.png"; };
+      logoEmp.src = emp.tiene_logo ? `${emp.url}?t=${Date.now()}` : (emp.fallback_url || "/static/img/gos-logo.png");
+    }
+    const logoCli = document.getElementById("cap-informe-logo-cliente");
+    const ph = document.getElementById("cap-informe-logo-cliente-ph");
+    if (logoCli && ph) {
+      if (cli.tiene_logo) {
+        logoCli.src = `${API}/clientes/${cli.id}/logo?t=${Date.now()}`;
+        logoCli.classList.remove("cap-hidden");
+        ph.classList.add("cap-hidden");
+      } else {
+        logoCli.classList.add("cap-hidden");
+        ph.textContent = (cli.nombre || "C").slice(0, 1).toUpperCase();
+        ph.classList.remove("cap-hidden");
+      }
+    }
+
+    const k = data.kpis || {};
+    const kpis = document.getElementById("cap-informe-kpis");
+    if (kpis) {
+      kpis.innerHTML = [
+        ["Personas", k.personas_activas],
+        ["Cumplimiento", `${k.cumplimiento_general || 0}%`],
+        ["Pendientes", k.pendientes],
+        ["Vencidas", k.vencidas],
+        ["Horas (mes)", k.horas_hombre_mes],
+        ["Aprobación", `${k.tasa_aprobacion || 0}%`],
+      ].map(([label, val]) => `
+        <div class="cap-kpi-card"><span class="cap-kpi-label">${label}</span><span class="cap-kpi-value">${val ?? "—"}</span></div>
+      `).join("");
+    }
+
+    const hab = document.getElementById("cap-informe-hab");
+    const inh = document.getElementById("cap-informe-inh");
+    if (hab) hab.textContent = `${data.habilitados_pct || 0}%`;
+    if (inh) inh.textContent = `${data.inhabilitados_pct || 0}%`;
+
+    const tbody = document.getElementById("cap-informe-personas-body");
+    const personas = data.personas_detalle || [];
+    if (tbody) {
+      tbody.innerHTML = personas.map((p) => `
+        <tr>
+          <td>${escapeHtml(p.nombre)}</td>
+          <td>${escapeHtml(p.legajo || "—")}</td>
+          <td>${escapeHtml(p.puesto || "—")}</td>
+          <td>${p.habilitada ? '<span class="cap-badge cap-badge--green">Habilitado</span>' : '<span class="cap-badge cap-badge--red">No habilitado</span>'}</td>
+          <td>${p.pct}%</td>
+          <td>${p.pendientes}</td>
+        </tr>
+      `).join("") || '<tr><td colspan="6" class="cap-empty">Ninguna persona asignada a este cliente.</td></tr>';
+    }
+
+    const sect = document.getElementById("cap-informe-sectores");
+    if (sect) {
+      sect.innerHTML = (data.cumplimiento_por_sector || []).map((s) => `
+        <div class="cap-bar-row">
+          <span class="cap-bar-label">${escapeHtml(s.nombre)}</span>
+          <div class="cap-bar-track"><div class="cap-bar-fill" style="width:${s.pct}%"></div></div>
+          <span class="cap-bar-pct">${s.pct}%</span>
+        </div>`).join("") || "<p class='cap-empty'>Sin datos</p>";
+    }
+    const evo = document.getElementById("cap-informe-evolucion");
+    if (evo) {
+      const items = data.evolucion_mensual || [];
+      const max = Math.max(...items.map((i) => i.realizadas), 1);
+      evo.innerHTML = `<div class="cap-vbars">${items.map((i) => `
+        <div class="cap-bar-row cap-bar-row--vertical">
+          <div class="cap-vbar" style="height:${Math.round(i.realizadas / max * 100)}%" title="${i.realizadas}"></div>
+          <span class="cap-bar-label">${(i.mes || "").slice(5)}</span>
+        </div>`).join("")}</div>`;
+    }
+
+    const canvas = document.getElementById("cap-informe-donut");
+    const personal = (data.recursos || []).find((r) => r.clave === "personal");
+    if (canvas && typeof Chart !== "undefined" && personal) {
+      if (chartInforme) chartInforme.destroy();
+      chartInforme = new Chart(canvas, {
+        type: "doughnut",
+        data: {
+          labels: ["Habilitados", "No habilitados"],
+          datasets: [{ data: [personal.verde, personal.rojo], backgroundColor: ["#76B947", "#e74c3c"] }],
+        },
+        options: { plugins: { legend: { position: "bottom" } }, maintainAspectRatio: false },
+      });
+    }
+  }
+
   function showView(view) {
 
     currentCapView = view;
@@ -7052,6 +7356,9 @@
     await ensureTaxonomia();
 
     bindSectorForm();
+
+    bindClienteForm();
+    bindInformes();
 
     bindMatriz();
     bindCronogramaResumen();
@@ -7148,11 +7455,17 @@
 
     }
 
+    if (view === "informes") {
+      try { await loadInformesList(); } catch (e) { console.error(e); }
+    }
+
     if (view === "catalogos") {
 
       try { await loadCursos(); } catch (e) { console.error(e); }
 
       try { await loadSectores(); } catch (e) { console.error(e); }
+
+      try { await loadClientes(); } catch (e) { console.error(e); }
 
       try {
 

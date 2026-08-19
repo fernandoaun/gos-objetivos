@@ -2375,3 +2375,147 @@
   padding: 0 1rem 1rem;
   flex-wrap: wrap;
 }
+
+.cap-cliente-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.cap-cliente-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 1.1rem 0.85rem;
+  border: 1px solid var(--cap-border);
+  border-radius: var(--cap-radius);
+  background: #fff;
+  cursor: pointer;
+  text-align: center;
+}
+
+.cap-cliente-card:hover {
+  border-color: var(--cap-navy-light);
+}
+
+.cap-cliente-card__logo {
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--cap-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.cap-cliente-card__logo img,
+.cap-table-logo,
+.cap-logo-preview,
+.cap-informe-logo {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.cap-cliente-card__ph,
+.cap-informe-logo-ph {
+  font-weight: 700;
+  color: var(--cap-navy);
+  font-size: 1.2rem;
+}
+
+.cap-cliente-card__name {
+  font-weight: 700;
+  color: var(--cap-navy);
+}
+
+.cap-cliente-card__meta {
+  font-size: 0.8rem;
+  color: var(--cap-muted);
+}
+
+.cap-table-logo {
+  width: 40px;
+  height: 28px;
+}
+
+.cap-logo-preview {
+  max-height: 56px;
+  max-width: 160px;
+}
+
+.cap-informe {
+  background: #fff;
+  border: 1px solid var(--cap-border);
+  border-radius: var(--cap-radius);
+  padding: 1.25rem 1.5rem 2rem;
+}
+
+.cap-informe-header {
+  display: grid;
+  grid-template-columns: 140px 1fr 140px;
+  gap: 1rem;
+  align-items: center;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid var(--cap-navy);
+  margin-bottom: 1rem;
+}
+
+.cap-informe-logo-slot {
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cap-informe-logo {
+  max-height: 72px;
+  max-width: 130px;
+}
+
+.cap-informe-header-center {
+  text-align: center;
+}
+
+.cap-informe-kicker {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+  color: var(--cap-muted);
+}
+
+.cap-informe-title {
+  margin: 0.2rem 0 0.15rem;
+  font-size: 1.45rem;
+  color: var(--cap-navy);
+}
+
+.cap-informe-meta {
+  margin: 0;
+  color: var(--cap-muted);
+  font-size: 0.85rem;
+}
+
+.cap-informe-actions {
+  justify-content: flex-end;
+  margin-bottom: 1rem;
+}
+
+@media print {
+  .cap-global-search,
+  .cap-no-print,
+  .cap-informe-actions {
+    display: none !important;
+  }
+  .cap-app {
+    padding: 0;
+    background: #fff;
+  }
+  .cap-informe {
+    border: 0;
+  }
+}

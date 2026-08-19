@@ -1,5 +1,6 @@
 from gos.modulos.capacitacion.models.acreditacion import Acreditacion
 from gos.modulos.capacitacion.models.alerta import AlertaCapacitacion
+from gos.modulos.capacitacion.models.cliente import ClienteCapacitacion, ParticipanteCliente
 from gos.modulos.capacitacion.models.catalogo import (
     Centro,
     CertificacionTipo,
@@ -33,6 +34,8 @@ from gos.modulos.capacitacion.models.taxonomia_item import TaxonomiaItem
 
 __all__ = [
     "Acreditacion",
+    "ClienteCapacitacion",
+    "ParticipanteCliente",
     "Centro",
     "Puesto",
     "Curso",

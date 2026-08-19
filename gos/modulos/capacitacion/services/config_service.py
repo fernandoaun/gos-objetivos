@@ -135,6 +135,7 @@ def _defaults() -> dict:
         "emails_por_rol": {},
         "ultimo_envio_notif": None,
         "periodos_vigencia": list(DEFAULT_PERIODOS_VIGENCIA),
+        "tiene_logo_empresa": False,
     }
 
 
@@ -152,6 +153,7 @@ def _row_to_dict(row: CapacitacionConfig) -> dict:
         "emails_por_rol": _parse_json_map(row.emails_por_rol),
         "ultimo_envio_notif": row.ultimo_envio_notif.isoformat() if row.ultimo_envio_notif else None,
         "periodos_vigencia": _parse_periodos_vigencia(row.periodos_vigencia),
+        "tiene_logo_empresa": bool(getattr(row, "logo_empresa_path", None)),
     }
 
 

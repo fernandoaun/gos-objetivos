@@ -53,6 +53,8 @@ TABLES = [
     "cap_certificacion_tipos",
     "cap_cursos",
     "cap_participantes",
+    "cap_clientes",
+    "cap_participante_clientes",
     "cap_programas",
     "cap_planes",
     "cap_programa_planes",

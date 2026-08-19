@@ -8,11 +8,13 @@ from werkzeug.utils import secure_filename
 from gos.extensions import db
 from gos.modulos.capacitacion.models import (
     CertificacionEmpleado,
+    ClienteCapacitacion,
     EncuentroAdjunto,
     EncuentroCapacitacion,
     Participante,
     RegistroCapacitacion,
 )
+from gos.modulos.capacitacion.models.config import CapacitacionConfig
 
 ALLOWED_EXT = (".pdf",)
 ALLOWED_FOTO_EXT = (".jpg", ".jpeg", ".png", ".webp")
@@ -293,3 +295,92 @@ def descargar_adjunto_encuentro(empresa_id: int, encuentro_id: int, adjunto_id: 
     if not path.is_file():
         raise ValueError("Archivo no disponible")
     return path, adj.nombre_original or path.name
+
+
+_MIME_IMG = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}
+
+
+def _guardar_imagen(dest: Path, file_storage) -> Path:
+    filename = _validar_imagen(file_storage)
+    ext = Path(filename).suffix.lower()
+    dest = dest.with_suffix(ext)
+    file_storage.save(dest)
+    return dest
+
+
+def subir_logo_cliente(empresa_id: int, cliente_id: int, file_storage) -> dict:
+    from gos.modulos.capacitacion.services.cliente_service import cliente_dict, obtener_cliente
+
+    cliente = obtener_cliente(empresa_id, cliente_id)
+    dest_dir = _upload_dir(empresa_id, "logos")
+    dest = _guardar_imagen(dest_dir / f"cli_{cliente_id}", file_storage)
+    if cliente.logo_path:
+        old = Path(cliente.logo_path)
+        if old.is_file() and old != dest:
+            old.unlink(missing_ok=True)
+    cliente.logo_path = str(dest)
+    db.session.commit()
+    return cliente_dict(cliente)
+
+
+def descargar_logo_cliente(empresa_id: int, cliente_id: int) -> tuple[Path, str]:
+    cliente = ClienteCapacitacion.query.filter_by(
+        id=cliente_id, empresa_id=empresa_id, activo=True
+    ).first()
+    if not cliente or not cliente.logo_path:
+        raise ValueError("Logo no encontrado")
+    path = Path(cliente.logo_path)
+    if not path.is_file():
+        raise ValueError("Archivo no disponible")
+    return path, _MIME_IMG.get(path.suffix.lower(), "image/png")
+
+
+def eliminar_logo_cliente(empresa_id: int, cliente_id: int) -> dict:
+    from gos.modulos.capacitacion.services.cliente_service import cliente_dict, obtener_cliente
+
+    cliente = obtener_cliente(empresa_id, cliente_id)
+    if cliente.logo_path:
+        path = Path(cliente.logo_path)
+        if path.is_file():
+            path.unlink(missing_ok=True)
+        cliente.logo_path = None
+        db.session.commit()
+    return cliente_dict(cliente)
+
+
+def subir_logo_empresa(empresa_id: int, file_storage) -> dict:
+    from gos.modulos.capacitacion.services.config_service import _get_or_create, obtener_config
+
+    row = _get_or_create(empresa_id)
+    dest_dir = _upload_dir(empresa_id, "logos")
+    dest = _guardar_imagen(dest_dir / "empresa", file_storage)
+    if row.logo_empresa_path:
+        old = Path(row.logo_empresa_path)
+        if old.is_file() and old != dest:
+            old.unlink(missing_ok=True)
+    row.logo_empresa_path = str(dest)
+    db.session.commit()
+    return obtener_config(empresa_id)
+
+
+def descargar_logo_empresa(empresa_id: int) -> tuple[Path, str]:
+    row = CapacitacionConfig.query.filter_by(empresa_id=empresa_id).first()
+    if not row or not row.logo_empresa_path:
+        raise ValueError("Logo no encontrado")
+    path = Path(row.logo_empresa_path)
+    if not path.is_file():
+        raise ValueError("Archivo no disponible")
+    return path, _MIME_IMG.get(path.suffix.lower(), "image/png")
+
+
+def eliminar_logo_empresa(empresa_id: int) -> dict:
+    from gos.modulos.capacitacion.services.config_service import _get_or_create, obtener_config
+
+    row = _get_or_create(empresa_id)
+    if row.logo_empresa_path:
+        path = Path(row.logo_empresa_path)
+        if path.is_file():
+            path.unlink(missing_ok=True)
+        row.logo_empresa_path = None
+        db.session.commit()
+    return obtener_config(empresa_id)

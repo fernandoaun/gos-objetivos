@@ -20,6 +20,7 @@ from gos.modulos.capacitacion.services import (
     analitico_participante,
     baja_curso,
     baja_participante,
+    baja_cliente,
     busqueda_global,
     cerrar_cronograma,
     crear_curso,
@@ -31,6 +32,8 @@ from gos.modulos.capacitacion.services import (
     crear_programa,
     crear_puesto,
     crear_centro,
+    crear_cliente,
+    actualizar_cliente,
     crear_requisito,
     crear_sector,
     cursos_de_puestos,
@@ -55,10 +58,12 @@ from gos.modulos.capacitacion.services import (
     importar_participantes_excel,
     importar_programas_excel,
     plantilla_programas_excel,
+    informe_cliente,
     inscribir_participantes,
     listar_adjuntos_encuentro,
     listar_alertas,
     listar_cursos,
+    listar_clientes,
     listar_empresas_capacitadoras,
     listar_instructores,
     listar_programas,
@@ -86,6 +91,12 @@ from gos.modulos.capacitacion.services import (
     subir_certificado_registro,
     subir_documento_certificacion,
     subir_foto_participante,
+    subir_logo_cliente,
+    descargar_logo_cliente,
+    eliminar_logo_cliente,
+    subir_logo_empresa,
+    descargar_logo_empresa,
+    eliminar_logo_empresa,
     subir_adjunto_encuentro,
     subir_material_encuentro,
     subir_resultados_encuentro,
@@ -152,6 +163,28 @@ def configuracion():
         return jsonify({"error": "No tenés permiso para esta acción."}), 403
     try:
         cfg = guardar_config(current_user.empresa_id, _json_body())
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"config": cfg})
+
+
+@bp.route("/configuracion/logo", methods=["GET", "POST", "DELETE"])
+@login_required
+def configuracion_logo():
+    eid = current_user.empresa_id
+    if request.method == "GET":
+        try:
+            path, mimetype = descargar_logo_empresa(eid)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 404
+        return send_file(path, mimetype=mimetype)
+    if not _puede_editar():
+        return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    if request.method == "DELETE":
+        return jsonify({"config": eliminar_logo_empresa(eid)})
+    archivo = request.files.get("archivo")
+    try:
+        cfg = subir_logo_empresa(eid, archivo)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify({"config": cfg})
@@ -256,6 +289,7 @@ def participantes():
                 "puesto_id": p.puesto_id,
                 "centro_id": p.centro_id,
                 "centro_nombre": p.centro.nombre if p.centro else None,
+                "cliente_ids": [v.cliente_id for v in p.clientes],
                 "activo": p.activo,
             }
         )
@@ -582,6 +616,69 @@ def actualizar_sector_route(sector_id: int):
 def dashboard():
     sector_id = request.args.get("sector_id", type=int)
     return jsonify(resumen_dashboard(current_user.empresa_id, sector_id=sector_id))
+
+
+@bp.route("/clientes", methods=["GET", "POST"])
+@login_required
+def clientes():
+    eid = current_user.empresa_id
+    if request.method == "POST":
+        if not _puede_editar():
+            return jsonify({"error": "No tenés permiso para esta acción."}), 403
+        try:
+            item = crear_cliente(eid, _json_body())
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"cliente": item}), 201
+    return jsonify({"clientes": listar_clientes(eid)})
+
+
+@bp.route("/clientes/<int:cliente_id>", methods=["PUT", "DELETE"])
+@login_required
+def cliente_detalle(cliente_id: int):
+    if not _puede_editar():
+        return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    try:
+        if request.method == "DELETE":
+            return jsonify(baja_cliente(current_user.empresa_id, cliente_id))
+        item = actualizar_cliente(current_user.empresa_id, cliente_id, _json_body())
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"cliente": item})
+
+
+@bp.route("/clientes/<int:cliente_id>/logo", methods=["GET", "POST", "DELETE"])
+@login_required
+def cliente_logo(cliente_id: int):
+    eid = current_user.empresa_id
+    if request.method == "GET":
+        try:
+            path, mimetype = descargar_logo_cliente(eid, cliente_id)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 404
+        return send_file(path, mimetype=mimetype)
+    if not _puede_editar():
+        return jsonify({"error": "No tenés permiso para esta acción."}), 403
+    if request.method == "DELETE":
+        try:
+            return jsonify({"cliente": eliminar_logo_cliente(eid, cliente_id)})
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+    archivo = request.files.get("archivo")
+    try:
+        item = subir_logo_cliente(eid, cliente_id, archivo)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"cliente": item})
+
+
+@bp.route("/clientes/<int:cliente_id>/informe")
+@login_required
+def cliente_informe(cliente_id: int):
+    try:
+        return jsonify(informe_cliente(current_user.empresa_id, cliente_id))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 404
 
 
 @bp.route("/matriz")

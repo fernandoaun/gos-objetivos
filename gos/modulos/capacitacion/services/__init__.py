@@ -32,8 +32,15 @@ from gos.modulos.capacitacion.services.catalogo_service import (
     obtener_taxonomia_cursos,
 )
 from gos.modulos.capacitacion.services.config_service import guardar_config, obtener_config, agregar_periodo_vigencia, listar_periodos_vigencia
+from gos.modulos.capacitacion.services.cliente_service import (
+    actualizar_cliente,
+    baja_cliente,
+    crear_cliente,
+    listar_clientes,
+)
 from gos.modulos.capacitacion.services.dashboard_service import (
     encuentros_cronograma,
+    informe_cliente,
     resumen_dashboard,
 )
 from gos.modulos.capacitacion.services.buenas_practicas_service import crear_charla_buenas_practicas
@@ -42,13 +49,19 @@ from gos.modulos.capacitacion.services.evidencia_service import (
     descargar_certificado_registro,
     descargar_documento_certificacion,
     descargar_foto_participante,
+    descargar_logo_cliente,
+    descargar_logo_empresa,
     eliminar_certificado_registro,
     eliminar_foto_participante,
+    eliminar_logo_cliente,
+    eliminar_logo_empresa,
     listar_adjuntos_encuentro,
     subir_adjunto_encuentro,
     subir_certificado_registro,
     subir_documento_certificacion,
     subir_foto_participante,
+    subir_logo_cliente,
+    subir_logo_empresa,
     subir_material_encuentro,
     subir_resultados_encuentro,
 )
@@ -100,6 +113,11 @@ __all__ = [
     "matriz_resumen",
     "matriz_filtros_metadata",
     "resumen_dashboard",
+    "informe_cliente",
+    "listar_clientes",
+    "crear_cliente",
+    "actualizar_cliente",
+    "baja_cliente",
     "encuentros_cronograma",
     "generar_alertas",
     "listar_alertas",
@@ -168,6 +186,12 @@ __all__ = [
     "subir_foto_participante",
     "descargar_foto_participante",
     "eliminar_foto_participante",
+    "subir_logo_cliente",
+    "descargar_logo_cliente",
+    "eliminar_logo_cliente",
+    "subir_logo_empresa",
+    "descargar_logo_empresa",
+    "eliminar_logo_empresa",
     "subir_material_encuentro",
     "subir_resultados_encuentro",
     "subir_adjunto_encuentro",

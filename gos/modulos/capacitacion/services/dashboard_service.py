@@ -128,11 +128,25 @@ def _programados_por_persona(participante_ids: list[int]) -> dict[int, list]:
     return resultado
 
 
-def resumen_dashboard(empresa_id: int, *, sector_id: int | None = None) -> dict:
+def resumen_dashboard(
+    empresa_id: int,
+    *,
+    sector_id: int | None = None,
+    participante_ids: list[int] | None = None,
+    incluir_todas_personas: bool = False,
+) -> dict:
     participantes_q = Participante.query.filter_by(empresa_id=empresa_id, activo=True)
     if sector_id:
         participantes_q = participantes_q.filter_by(sector_id=sector_id)
-    participantes = participantes_q.all()
+    if participante_ids is not None:
+        if not participante_ids:
+            participantes = []
+        else:
+            participantes_q = participantes_q.filter(Participante.id.in_(participante_ids))
+            participantes = participantes_q.all()
+    else:
+        participantes = participantes_q.all()
+    pids = [p.id for p in participantes]
 
     hoy = date.today()
     dias_umbral = dias_proximo_vencer(empresa_id)
@@ -218,12 +232,16 @@ def resumen_dashboard(empresa_id: int, *, sector_id: int | None = None) -> dict:
         if habilitada:
             cumplimiento_por_sector[sid]["ok"] += 1
 
-    registros_mes = (
+    registros_q = (
         RegistroCapacitacion.query.filter_by(empresa_id=empresa_id)
         .filter(RegistroCapacitacion.fecha_realizacion >= inicio_mes)
         .filter(RegistroCapacitacion.fecha_realizacion <= fin_mes)
-        .all()
     )
+    if participante_ids is not None:
+        registros_q = registros_q.filter(
+            RegistroCapacitacion.participante_id.in_(pids or [-1])
+        )
+    registros_mes = registros_q.all()
     realizadas_mes = len(registros_mes)
     for r in registros_mes:
         if r.horas:
@@ -263,8 +281,11 @@ def resumen_dashboard(empresa_id: int, *, sector_id: int | None = None) -> dict:
         if del_sector:
             filas_sector.append({"id": sector.id, "nombre": sector.nombre, "verde": s_v, "rojo": s_r, "gris": s_g})
 
+    certs_q = CertificacionEmpleado.query.filter_by(empresa_id=empresa_id)
+    if participante_ids is not None:
+        certs_q = certs_q.filter(CertificacionEmpleado.participante_id.in_(pids or [-1]))
     certs_vigentes = (
-        CertificacionEmpleado.query.filter_by(empresa_id=empresa_id, vigente=True)
+        certs_q.filter_by(vigente=True)
         .filter(
             (CertificacionEmpleado.fecha_vencimiento.is_(None))
             | (CertificacionEmpleado.fecha_vencimiento >= hoy)
@@ -272,13 +293,14 @@ def resumen_dashboard(empresa_id: int, *, sector_id: int | None = None) -> dict:
         .count()
     )
     certs_vencidas_count = (
-        CertificacionEmpleado.query.filter_by(empresa_id=empresa_id)
-        .filter(CertificacionEmpleado.fecha_vencimiento.isnot(None))
+        certs_q.filter(CertificacionEmpleado.fecha_vencimiento.isnot(None))
         .filter(CertificacionEmpleado.fecha_vencimiento < hoy)
         .count()
     )
 
-    evolucion = _evolucion_mensual(empresa_id, meses=6)
+    evolucion = _evolucion_mensual(
+        empresa_id, meses=6, participante_ids=pids if participante_ids is not None else None
+    )
     ranking = sorted(
         [{"curso_id": k, **v} for k, v in ranking_vencimientos.items()],
         key=lambda x: x["count"],
@@ -335,7 +357,23 @@ def resumen_dashboard(empresa_id: int, *, sector_id: int | None = None) -> dict:
             for k, v in cumplimiento_por_tipo.items()
             if v["total"] > 0
         ],
-        "cumplimiento_por_persona": sorted(cumplimiento_por_persona, key=lambda x: x["pct"])[:15],
+        "cumplimiento_por_persona": sorted(cumplimiento_por_persona, key=lambda x: x["pct"])[
+            : None if incluir_todas_personas else 15
+        ],
+        "personas_detalle": [
+            {
+                **item,
+                "habilitada": estado_habilitado.get(item["id"], True),
+                "legajo": next((p.legajo for p in participantes if p.id == item["id"]), None),
+                "puesto": next(
+                    (p.puesto.nombre if p.puesto else None for p in participantes if p.id == item["id"]),
+                    None,
+                ),
+            }
+            for item in sorted(cumplimiento_por_persona, key=lambda x: x["nombre"].lower())
+        ]
+        if incluir_todas_personas
+        else [],
         "ranking_vencimientos": ranking,
         "evolucion_mensual": evolucion,
         # Habilitados por defecto. Rojo solo si un curso programado se desaprobó
@@ -346,7 +384,9 @@ def resumen_dashboard(empresa_id: int, *, sector_id: int | None = None) -> dict:
     }
 
 
-def _evolucion_mensual(empresa_id: int, meses: int = 6) -> list[dict]:
+def _evolucion_mensual(
+    empresa_id: int, meses: int = 6, participante_ids: list[int] | None = None
+) -> list[dict]:
     hoy = date.today()
     resultado = []
     for i in range(meses - 1, -1, -1):
@@ -358,14 +398,41 @@ def _evolucion_mensual(empresa_id: int, meses: int = 6) -> list[dict]:
         _, ult = monthrange(y, m)
         desde = date(y, m, 1)
         hasta = date(y, m, ult)
-        count = (
+        q = (
             RegistroCapacitacion.query.filter_by(empresa_id=empresa_id)
             .filter(RegistroCapacitacion.fecha_realizacion >= desde)
             .filter(RegistroCapacitacion.fecha_realizacion <= hasta)
-            .count()
         )
-        resultado.append({"mes": f"{y}-{m:02d}", "realizadas": count})
+        if participante_ids is not None:
+            q = q.filter(RegistroCapacitacion.participante_id.in_(participante_ids or [-1]))
+        resultado.append({"mes": f"{y}-{m:02d}", "realizadas": q.count()})
     return resultado
+
+
+def informe_cliente(empresa_id: int, cliente_id: int) -> dict:
+    from gos.modulos.capacitacion.services.cliente_service import (
+        cliente_dict,
+        ids_participantes_de_cliente,
+        obtener_cliente,
+    )
+    from gos.modulos.capacitacion.services.config_service import obtener_config
+
+    cliente = obtener_cliente(empresa_id, cliente_id)
+    pids = ids_participantes_de_cliente(empresa_id, cliente_id)
+    data = resumen_dashboard(
+        empresa_id,
+        participante_ids=pids,
+        incluir_todas_personas=True,
+    )
+    cfg = obtener_config(empresa_id)
+    data["cliente"] = cliente_dict(cliente, personas_count=len(pids))
+    data["logo_empresa"] = {
+        "tiene_logo": bool(cfg.get("tiene_logo_empresa")),
+        "url": "/gos/capacitacion/api/configuracion/logo",
+        "fallback_url": "/static/img/gos-logo.png",
+    }
+    data["fecha_informe"] = date.today().isoformat()
+    return data
 
 
 def encuentros_cronograma(empresa_id: int, desde: date, hasta: date) -> list[dict]:

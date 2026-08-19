@@ -613,6 +613,10 @@ def crear_participante(empresa_id: int, data: dict) -> dict:
         puesto_id=puesto_id,
     )
     db.session.add(participante)
+    db.session.flush()
+    from gos.modulos.capacitacion.services.cliente_service import sync_clientes_participante
+
+    sync_clientes_participante(empresa_id, participante, data.get("cliente_ids"))
     db.session.commit()
     return _participante_dict(participante)
 
@@ -682,6 +686,10 @@ def actualizar_participante(empresa_id: int, participante_id: int, data: dict) -
     participante.sector_id = sector_id
     puesto_anterior = participante.puesto_id
     participante.puesto_id = puesto_id
+    if "cliente_ids" in data:
+        from gos.modulos.capacitacion.services.cliente_service import sync_clientes_participante
+
+        sync_clientes_participante(empresa_id, participante, data.get("cliente_ids"))
     db.session.commit()
 
     # La matriz recalcula programas aplicables según el puesto actual (lectura dinámica)
@@ -756,7 +764,14 @@ def _curso_dict(curso: Curso, empresa_id: int) -> dict:
     }
 
 
+def _participante_cliente_ids(p: Participante) -> list[int]:
+    from gos.modulos.capacitacion.models import ParticipanteCliente
+
+    return [v.cliente_id for v in p.clientes.order_by(ParticipanteCliente.cliente_id).all()]
+
+
 def _participante_dict(p: Participante) -> dict:
+    cliente_ids = _participante_cliente_ids(p)
     return {
         "id": p.id,
         "nombre": p.nombre,
@@ -774,6 +789,7 @@ def _participante_dict(p: Participante) -> dict:
         "activo": p.activo,
         "sector_id": p.sector_id,
         "puesto_id": p.puesto_id,
+        "cliente_ids": cliente_ids,
     }
 
 
@@ -789,6 +805,7 @@ def _participante_resumen_dict(p: Participante) -> dict:
         "puesto_nombre": p.puesto.nombre if p.puesto else None,
         "centro_id": p.centro_id,
         "centro_nombre": p.centro.nombre if p.centro else None,
+        "cliente_ids": _participante_cliente_ids(p),
         "activo": p.activo,
     }
 

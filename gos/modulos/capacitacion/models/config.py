@@ -21,5 +21,6 @@ class CapacitacionConfig(db.Model, TimestampMixin):
     emails_por_rol = db.Column(db.Text, nullable=True)
     ultimo_envio_notif = db.Column(db.DateTime, nullable=True)
     periodos_vigencia = db.Column(db.Text, nullable=True)
+    logo_empresa_path = db.Column(db.String(500), nullable=True)
 
     empresa = db.relationship("Empresa")

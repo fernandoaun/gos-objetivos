@@ -16,6 +16,12 @@ def programas():
     return render_template("capacitacion/shell.html", view="programas")
 
 
+@bp.route("/informes")
+@login_required
+def informes():
+    return render_template("capacitacion/shell.html", view="informes")
+
+
 @bp.route("/personas")
 @login_required
 def personas():

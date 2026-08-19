@@ -116,6 +116,95 @@
     </div>
   </div>
 
+  <!-- INFORMES POR CLIENTE -->
+  <div data-cap-view="informes" class="cap-hidden">
+    <div id="cap-informes-list">
+      <div class="cap-widget cap-mb">
+        <div class="cap-widget-head cap-widget-head--split">
+          <div class="cap-widget-head-left">
+            <i class="bi bi-building"></i>
+            <h2 class="cap-widget-title">Informes por cliente</h2>
+          </div>
+          <p class="cap-form-hint cap-mb-0">Elegí un cliente para ver el informe de las personas afectadas.</p>
+        </div>
+        <div class="cap-widget-body">
+          <div class="cap-cliente-cards" id="cap-informes-cards">
+            <p class="cap-empty">Cargando...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="cap-informe-doc" class="cap-hidden">
+      <article class="cap-informe">
+        <header class="cap-informe-header">
+          <div class="cap-informe-logo-slot">
+            <img id="cap-informe-logo-empresa" alt="Logo de nuestra empresa" class="cap-informe-logo">
+          </div>
+          <div class="cap-informe-header-center">
+            <p class="cap-informe-kicker">Informe de capacitaciones</p>
+            <h1 class="cap-informe-title" id="cap-informe-cliente-nombre">—</h1>
+            <p class="cap-informe-meta" id="cap-informe-fecha"></p>
+          </div>
+          <div class="cap-informe-logo-slot">
+            <img id="cap-informe-logo-cliente" alt="Logo del cliente" class="cap-informe-logo cap-hidden">
+            <div id="cap-informe-logo-cliente-ph" class="cap-informe-logo-ph">Cliente</div>
+          </div>
+        </header>
+        <div class="cap-toolbar-actions cap-informe-actions cap-no-print">
+          <button type="button" class="cap-btn cap-btn--ghost" id="cap-informe-volver"><i class="bi bi-arrow-left"></i> Volver</button>
+          <button type="button" class="cap-btn cap-btn--primary" id="cap-informe-imprimir"><i class="bi bi-printer"></i> Imprimir</button>
+        </div>
+        <div class="cap-kpi-grid" id="cap-informe-kpis"></div>
+        <div class="cap-grid-2 cap-mt">
+          <div class="cap-widget">
+            <div class="cap-widget-head"><i class="bi bi-people-fill"></i><h2 class="cap-widget-title">Personal afectado</h2></div>
+            <div class="cap-widget-body cap-widget-body--flush">
+              <table class="cap-data-table">
+                <thead>
+                  <tr>
+                    <th>Persona</th>
+                    <th>Legajo</th>
+                    <th>Puesto</th>
+                    <th>Estado</th>
+                    <th>Cumplimiento</th>
+                    <th>Pendientes</th>
+                  </tr>
+                </thead>
+                <tbody id="cap-informe-personas-body">
+                  <tr><td colspan="6" class="cap-loading">Cargando...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="cap-widget">
+            <div class="cap-widget-head"><i class="bi bi-pie-chart"></i><h2 class="cap-widget-title">Habilitación</h2></div>
+            <div class="cap-widget-body cap-donut-single"><canvas id="cap-informe-donut" height="200"></canvas></div>
+            <div class="cap-summary-row cap-px cap-pb">
+              <div class="cap-summary-box cap-summary-box--ok">
+                <div class="cap-summary-label">Habilitados</div>
+                <div class="cap-summary-pct" id="cap-informe-hab">—</div>
+              </div>
+              <div class="cap-summary-box cap-summary-box--bad">
+                <div class="cap-summary-label">No habilitados</div>
+                <div class="cap-summary-pct" id="cap-informe-inh">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="cap-grid-2 cap-mt">
+          <div class="cap-widget">
+            <div class="cap-widget-head"><i class="bi bi-bar-chart"></i><h2 class="cap-widget-title">Cumplimiento por sector</h2></div>
+            <div class="cap-widget-body" id="cap-informe-sectores"></div>
+          </div>
+          <div class="cap-widget">
+            <div class="cap-widget-head"><i class="bi bi-graph-up"></i><h2 class="cap-widget-title">Evolución mensual</h2></div>
+            <div class="cap-widget-body" id="cap-informe-evolucion"></div>
+          </div>
+        </div>
+      </article>
+    </div>
+  </div>
+
   <!-- CRONOGRAMA -->
   <div data-cap-view="cronograma" class="cap-hidden">
     <div class="cap-widget">
@@ -618,6 +707,19 @@
             <textarea class="cap-input" id="cap-cfg-emails-rol" rows="2" placeholder='{"administrador":["admin@empresa.com"]}'></textarea>
           </div>
           <p class="cap-form-hint" id="cap-config-ultimo-envio"></p>
+          <h3 class="cap-subtitle">Identidad en informes</h3>
+          <p class="cap-form-hint">Logo de nuestra empresa. Se muestra junto al logo del cliente en cada informe.</p>
+          <div class="cap-form-row cap-form-row--2" style="align-items:center">
+            <div>
+              <img id="cap-cfg-logo-preview" class="cap-logo-preview cap-hidden" alt="Logo empresa">
+              <p class="cap-muted" id="cap-cfg-logo-empty">Usando el logo GOS por defecto.</p>
+            </div>
+            <div class="cap-toolbar-actions">
+              <input type="file" id="cap-cfg-logo-file" accept="image/jpeg,image/png,image/webp" class="cap-hidden">
+              <button type="button" class="cap-btn cap-btn--ghost" id="cap-cfg-logo-btn"><i class="bi bi-upload"></i> Subir logo</button>
+              <button type="button" class="cap-btn cap-btn--ghost cap-hidden" id="cap-cfg-logo-del">Quitar</button>
+            </div>
+          </div>
           <p class="cap-form-hint" id="cap-config-error"></p>
           <div class="cap-form-actions">
             <button type="submit" class="cap-btn cap-btn--primary">Guardar configuración</button>
@@ -730,6 +832,12 @@
                   <i class="bi bi-plus-lg"></i>
                 </button>
               </div>
+            </div>
+          </div>
+          <div class="cap-form-row">
+            <label class="cap-label">Empresas cliente (puede ser más de una)</label>
+            <div class="cap-check-grid cap-check-grid--scroll" id="cap-p-clientes">
+              <p class="cap-muted">Cargá clientes en Cursos y catálogos.</p>
             </div>
           </div>
           <p class="cap-form-hint" id="cap-persona-form-error"></p>
@@ -947,6 +1055,57 @@
             <ul class="cap-taxonomia-list" id="cap-tax-list-modalidad"><li class="cap-taxonomia-empty">Cargando...</li></ul>
           </div>
         </div>
+        </div>
+      </div>
+
+      <div class="cap-widget cap-widget--full">
+        <div class="cap-widget-head cap-widget-head--split">
+          <div class="cap-widget-head-left">
+            <i class="bi bi-buildings"></i>
+            <h2 class="cap-widget-title">Clientes</h2>
+          </div>
+          <button type="button" class="cap-btn cap-btn--primary" id="cap-btn-nuevo-cliente">
+            <i class="bi bi-plus-lg"></i> Agregar
+          </button>
+        </div>
+        <p class="cap-form-hint cap-px">Empresas a las que se afecta el personal. Una persona puede estar en más de un cliente.</p>
+        <input type="file" id="cap-cliente-logo-file" accept="image/jpeg,image/png,image/webp" class="cap-hidden">
+        <div class="cap-form-panel cap-hidden" id="cap-cliente-form-panel">
+          <form id="cap-cliente-form" class="cap-form">
+            <input type="hidden" id="cap-cli-id" name="id" value="">
+            <div class="cap-form-row cap-form-row--2">
+              <div>
+                <label class="cap-label" for="cap-cli-codigo">Código</label>
+                <input class="cap-input" id="cap-cli-codigo" name="codigo" maxlength="20" placeholder="Opcional">
+              </div>
+              <div>
+                <label class="cap-label" for="cap-cli-nombre">Nombre *</label>
+                <input class="cap-input" id="cap-cli-nombre" name="nombre" required maxlength="200">
+              </div>
+            </div>
+            <p class="cap-form-hint cap-form-hint--error" id="cap-cliente-form-error"></p>
+            <div class="cap-form-actions">
+              <button type="button" class="cap-btn cap-btn--ghost" id="cap-cliente-cancel">Cancelar</button>
+              <button type="button" class="cap-btn cap-btn--danger cap-hidden" id="cap-cliente-baja">Dar de baja</button>
+              <button type="submit" class="cap-btn cap-btn--primary">Guardar</button>
+            </div>
+          </form>
+        </div>
+        <div class="cap-widget-body cap-widget-body--flush">
+          <table class="cap-data-table" id="cap-clientes-table">
+            <thead>
+              <tr>
+                <th>Logo</th>
+                <th>Código</th>
+                <th>Nombre</th>
+                <th>Personas</th>
+                <th class="cap-col-actions"></th>
+              </tr>
+            </thead>
+            <tbody id="cap-clientes-body">
+              <tr><td colspan="5" class="cap-loading">Cargando...</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
