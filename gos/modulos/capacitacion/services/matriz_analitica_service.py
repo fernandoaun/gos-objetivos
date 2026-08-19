@@ -972,6 +972,11 @@ def matriz_resumen(
                 a, mes=mes, plan_id=plan_id, curso_id=curso_id, persona_id=persona_id
             ):
                 continue
+            if exigir_todos and metrica and metrica != "charlas_puntuales":
+                if not _asignacion_cuenta_metrica(
+                    a.get("delta") or {}, metrica, exigir_todos=True
+                ):
+                    continue
             _agregar_evento_detalle(eventos_map, a)
         return {
             "anio": anio,

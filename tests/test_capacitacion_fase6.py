@@ -269,6 +269,13 @@ def test_matriz_calendario_curso_cumplido_si_una_persona(app):
         assert det["eventos"][0]["curso_nombre"] == "Curso parcial"
         assert len(det["eventos"][0]["personas"]) == 3
 
+        det_per = matriz_resumen(
+            emp.id, anio=2026, nivel="detalle", mes=6, metrica="cumplidos", dim="personas"
+        )
+        nombres = [p["nombre"] for ev in det_per["eventos"] for p in ev["personas"]]
+        assert len(nombres) == 1
+        assert nombres[0].startswith("Parcial")
+
 
 def test_matriz_calendario_ignora_charlas_puntuales(app):
     """BPC/charlas van al recuadro: no suman al plan, salvo que el curso se incorpore."""

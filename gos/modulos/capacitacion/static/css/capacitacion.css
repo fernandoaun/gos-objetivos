@@ -2242,6 +2242,15 @@
 }
 .cap-ma-evento--detalle:hover { border-color: var(--cap-navy-light); background: #fffde7; }
 .cap-ma-evento--detalle strong { display: block; margin-bottom: 0.15rem; }
+.cap-ma-evento--static { cursor: default; }
+.cap-ma-evento--static:hover { border-color: var(--cap-border); background: var(--cap-card); }
+.cap-ma-detalle-personas {
+  margin: 0;
+  padding: 0 0 0 1.1rem;
+  display: grid;
+  gap: 0.35rem;
+}
+.cap-ma-detalle-personas li { font-size: 0.92rem; }
 .cap-ma-resumen-dim:disabled {
   opacity: 0.55;
   cursor: default;

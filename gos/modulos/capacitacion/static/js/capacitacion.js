@@ -2015,7 +2015,7 @@
     q.set("dim", maResumenDim);
     const data = await fetchJson(`${API}/matriz/resumen?${q}`);
     const mesNombre = MESES[mes - 1] || "";
-    openMaResumenDetalle(data, [mesNombre, label].filter(Boolean).join(" · "));
+    openMaResumenDetalle(data, [mesNombre, label].filter(Boolean).join(" · "), maResumenDim);
   }
 
   const CR_METRICAS = [
@@ -2162,7 +2162,19 @@
     loadCronogramaResumen().catch(console.error);
   }
 
-  function openMaResumenDetalle(data, tituloTxt) {
+  function personasUnicasDeEventos(eventos) {
+    const map = new Map();
+    (eventos || []).forEach((ev) => {
+      (ev.personas || []).forEach((p) => {
+        const id = p.persona_id != null ? String(p.persona_id) : (p.nombre || "");
+        if (!id || map.has(id)) return;
+        map.set(id, p);
+      });
+    });
+    return [...map.values()].sort((a, b) => (a.nombre || "").localeCompare(b.nombre || "", "es"));
+  }
+
+  function openMaResumenDetalle(data, tituloTxt, dim) {
     const modal = document.getElementById("cap-ma-evento-modal");
     const body = document.getElementById("cap-ma-evento-body");
     const titulo = document.getElementById("cap-ma-evento-titulo");
@@ -2171,6 +2183,20 @@
     if (titulo) titulo.textContent = tituloTxt || "Detalle";
     if (!crDetalleEventos.length) {
       body.innerHTML = '<p class="cap-empty">Sin cronogramas para esta selección</p>';
+    } else if (dim === "personas") {
+      const personas = personasUnicasDeEventos(crDetalleEventos);
+      body.innerHTML = personas.length
+        ? `<ul class="cap-ma-detalle-personas">${personas.map((p) =>
+            `<li>${escapeHtml(p.nombre || "")}</li>`
+          ).join("")}</ul>`
+        : '<p class="cap-empty">Sin personas para esta selección</p>';
+    } else if (dim === "planes" || dim === "cursos") {
+      body.innerHTML = crDetalleEventos.map((ev) =>
+        `<div class="cap-ma-evento cap-ma-evento--detalle cap-ma-evento--static">
+          <strong>${escapeHtml(ev.curso_nombre || "Curso")}</strong>
+          <span class="cap-muted">${escapeHtml(ev.fecha_realizacion ? fmtDiaReal(ev.fecha_realizacion) : fmtMesProgramado(ev.fecha))}${ev.plan_nombre ? ` · ${escapeHtml(ev.plan_nombre)}` : ""}</span>
+        </div>`
+      ).join("");
     } else {
       body.innerHTML = crDetalleEventos.map((ev, i) => {
         const n = (ev.personas || []).length;
