@@ -9,7 +9,7 @@ TIPOS_PROGRAMA = ("interno", "externo")
 
 
 class ProgramaCapacitacion(db.Model, TimestampMixin):
-    """Programa curricular: agrupa planes con cursos y aplica a uno o más puestos."""
+    """Plan de carrera: cuelga de uno o más puestos y agrupa planes con cursos."""
 
     __tablename__ = "cap_programas"
 
@@ -95,7 +95,7 @@ class PlanCurso(db.Model, TimestampMixin):
 
 
 class ProgramaPuesto(db.Model, TimestampMixin):
-    """Puestos a los que aplica un programa."""
+    """Puestos de los que cuelga un plan de carrera."""
 
     __tablename__ = "cap_programa_puestos"
     __table_args__ = (db.UniqueConstraint("programa_id", "puesto_id", name="uq_cap_programa_puesto"),)

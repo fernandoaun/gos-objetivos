@@ -614,11 +614,11 @@ def plantilla_programas_excel() -> BytesIO:
         "• detalles: texto libre del plan de carrera (el mismo campo Descripción / Guardar detalles de la ficha). "
         "También se acepta la columna descripcion. Si el plan de carrera ya existe y no tiene texto, se completa.",
         "• plan: nombre del plan. Podés repetir filas (un plan por fila) o separar varios con coma o punto y coma.",
-        "• puesto: nombre o código del puesto ya cargado en el catálogo. También admite varios separados por coma.",
+        "• puesto (recomendado): nombre o código del puesto ya cargado. El plan de carrera cuelga del puesto; también admite varios separados por coma.",
         "• curso: opcional. Nombre o código de un curso ya cargado; se agrega al plan de esa fila.",
         "",
         "Comportamiento:",
-        "• Planes de carrera nuevos: se crean con los planes y puestos del Excel.",
+        "• Planes de carrera nuevos: se crean con los puestos y planes del Excel (puesto → plan de carrera → plan → curso).",
         "• Planes de carrera que ya existen: solo se agregan los planes y puestos que falten. No se borra nada.",
         "• Los puestos y cursos tienen que existir en el sistema; si un nombre no coincide, esa fila se informa como error.",
         "• Podés volver a importar el mismo archivo: lo que ya esté no se duplica.",

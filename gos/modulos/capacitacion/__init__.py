@@ -128,14 +128,14 @@ def _nav_items():
             "icon": "bi-calendar3",
         },
         {
-            "label": "Planes de carrera",
-            "endpoint": "capacitacion_main.programas",
-            "icon": "bi-calendar-event",
-        },
-        {
             "label": "Personas",
             "endpoint": "capacitacion_main.personas",
             "icon": "bi-people",
+        },
+        {
+            "label": "Planes de carrera",
+            "endpoint": "capacitacion_main.programas",
+            "icon": "bi-calendar-event",
         },
         {
             "label": "Cursos y catálogos",

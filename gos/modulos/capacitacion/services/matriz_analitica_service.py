@@ -538,6 +538,8 @@ def _colectar_datos_anuales(
                     "plan_nombre": enc.plan.nombre if enc.plan else "Buenas Prácticas",
                     "persona_id": persona.id,
                     "persona_nombre": persona.nombre_completo,
+                    "puesto_id": persona.puesto_id or 0,
+                    "puesto_nombre": persona.puesto.nombre if persona.puesto else "Sin puesto",
                     "encuentro_id": enc.id,
                     "curso_id": enc.curso_id or enc.id,
                     "curso_nombre": (enc.curso.nombre if enc.curso else None) or enc.titulo or "Charla puntual",
@@ -612,6 +614,8 @@ def _colectar_datos_anuales(
                 "plan_nombre": plan_nombre,
                 "persona_id": persona.id,
                 "persona_nombre": persona.nombre_completo,
+                "puesto_id": puesto_id,
+                "puesto_nombre": puesto_nombres.get(puesto_id, "Sin puesto"),
                 "encuentro_id": enc.id,
                 "curso_id": enc.curso_id or 0,
                 "curso_nombre": curso.nombre if curso else (enc.titulo or "Sin curso"),
@@ -750,6 +754,7 @@ def _contar_unicos_por_mes(asignaciones: list[dict], id_key: str) -> dict[int, i
 
 
 _CALENDARIO_DIMS = {
+    "puestos": ("puesto_id", "puesto_nombre"),
     "planes": ("plan_id", "plan_nombre"),
     "cursos": ("curso_id", "curso_nombre"),
     "personas": ("persona_id", "persona_nombre"),
@@ -778,6 +783,8 @@ def matriz_calendario(
     dim = (dim or "planes").lower()
     if dim == "programas":
         dim = "planes"
+    if dim == "puesto":
+        dim = "puestos"
     if dim not in _CALENDARIO_DIMS:
         dim = "planes"
 
@@ -926,7 +933,7 @@ def matriz_resumen(
     puesto_ids: list[int] | None = None,
     curso_ids: list[int] | None = None,
 ) -> dict:
-    """Resumen mensual (dim planes/cursos/personas) y detalle de popup por celda."""
+    """Resumen mensual (dim puestos/personas/planes/cursos) y detalle de popup por celda."""
     anio = anio or date.today().year
     plan_ids = _parse_ids(plan_ids)
     tipos = [t.lower() for t in (tipos or []) if t]
@@ -940,6 +947,8 @@ def matriz_resumen(
     dim = (dim or "planes").lower()
     if dim == "programas":
         dim = "planes"
+    if dim == "puesto":
+        dim = "puestos"
     exigir_todos = dim == "personas"
 
     datos = _colectar_datos_anuales(

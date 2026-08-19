@@ -66,12 +66,12 @@
   let matrizParticipanteId = window.CAP_INITIAL_PARTICIPANTE_ID || null;
   let matrizParticipanteNombre = null;
   let maVista = "calendario";
-  let maResumenDim = "planes";
-  let maTablaAgrupar = "persona";
+  let maResumenDim = "puestos";
+  let maTablaAgrupar = "puesto";
   let maFiltros = { planes: [], tipos: [], empresas: [], personas: [], puestos: [], cursos: [] };
   let maFiltrosMeta = null;
   let crVista = "calendario";
-  let crResumenDim = "planes";
+  let crResumenDim = "puestos";
   let crFiltros = { planes: [], tipos: [], empresas: [], personas: [], puestos: [], cursos: [] };
   let crFiltrosMeta = null;
   let crDetalleEventos = [];
@@ -1916,6 +1916,7 @@
     root.querySelectorAll(".cap-ma-filtro-grupo").forEach((g) => {
       const grupo = g.dataset.grupo;
       const destacado =
+        (dim === "puestos" && grupo === "puestos") ||
         (dim === "planes" && grupo === "planes") ||
         (dim === "cursos" && (grupo === "tipos" || grupo === "cursos")) ||
         (dim === "personas" && (grupo === "personas" || grupo === "puestos"));
@@ -1933,6 +1934,7 @@
     const tot = data.totales || {};
     const anio = data.anio || "";
     const colNom = {
+      puestos: ["Puestos Programados", "Puestos Pendientes", "Puestos Cumplidos"],
       planes: ["Planes Programados", "Planes Pendientes", "Planes Cumplidos"],
       cursos: ["Cursos Programados", "Cursos Pendientes", "Cursos Cumplidos"],
       personas: ["Personas Programadas", "Personas Pendientes", "Personas Cumplidas"],
@@ -1954,11 +1956,12 @@
     ];
     const allCols = [...countCols, ...pctCols];
     const dims = [
+      ["puestos", "Puestos"],
+      ["personas", "Personas"],
       ["planes", "Planes"],
       ["cursos", "Cursos"],
-      ["personas", "Personas"],
     ];
-    const dimLabels = { planes: "Plan", cursos: "Curso", personas: "Persona" };
+    const dimLabels = { puestos: "Puesto", planes: "Plan", cursos: "Curso", personas: "Persona" };
     const rowHead = dimLabels[dim] || "";
     const cellVal = (row, key) => (key.startsWith("pct_") ? maFmtPct(row[key]) : maFmtCount(row[key]));
     const rowCells = (row) => allCols.map(([k, lbl, cls]) => {
@@ -2012,7 +2015,7 @@
       </div>`;
     wrap.querySelectorAll("[data-resumen-dim]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const next = btn.dataset.resumenDim || "planes";
+        const next = btn.dataset.resumenDim || "puestos";
         if (next === dim) return;
         wrap.innerHTML = '<p class="cap-loading">Cargando...</p>';
         onDimChange(next);
@@ -2218,10 +2221,10 @@
 
   function maTablaAgruparButtons(agrupar) {
     return [
+      ["puesto", "Puestos"],
+      ["persona", "Personas"],
       ["plan", "Planes"],
       ["curso", "Cursos"],
-      ["persona", "Personas"],
-      ["puesto", "Puestos"],
     ].map(([id, lbl]) =>
       `<button type="button" role="tab" class="cap-ma-resumen-dim${agrupar === id ? " active" : ""}" data-ma-agrupar="${id}">${lbl}</button>`
     ).join("");
@@ -2488,8 +2491,11 @@
 
   let programaCursosIds = [];
   let programaSeleccionadoId = null;
+  let programaSeleccionadoGrupoPuestoId = "";
   let programaDetalleEditable = false;
   let programasCache = [];
+  let progFiltros = { puestos: [] };
+  let progFiltroPuestoKey = "";
   let progPlanesDraft = [];
   let progPlanCatalogCache = [];
   let progNombreCatalogCache = [];
@@ -2985,19 +2991,44 @@
   function encProgramasByNombre(nombre) {
     const key = (nombre || "").trim().toLowerCase();
     if (!key) return [];
-    return encProgramasCache.filter((p) => (p.nombre || "").trim().toLowerCase() === key);
+    return encProgramasFiltradosPorPuestos().filter((p) => (p.nombre || "").trim().toLowerCase() === key);
   }
 
   function encProgramasViables(items) {
     return (items || []).filter(encProgramaTienePlanesConCursos);
   }
 
+  function encProgramaCubrePuestos(programa, puestoIds) {
+    if (!puestoIds.length) return false;
+    const pids = (programa.puestos || []).map((p) => normPuestoId(p.id)).filter((id) => id !== null);
+    return puestoIds.every((id) => pids.includes(id));
+  }
+
+  function encProgramasFiltradosPorPuestos() {
+    const ids = getEncPuestosSeleccionados();
+    if (!ids.length) return [];
+    return encProgramasViables(encProgramasCache).filter((p) => encProgramaCubrePuestos(p, ids));
+  }
+
   function encNombresDisponibles() {
     const names = new Set();
-    encProgramasViables(encProgramasCache).forEach((p) => {
+    encProgramasFiltradosPorPuestos().forEach((p) => {
       if ((p.nombre || "").trim()) names.add(p.nombre.trim());
     });
     return Array.from(names).sort((a, b) => a.localeCompare(b, "es"));
+  }
+
+  function encPuestosDisponibles() {
+    const fromProg = new Set();
+    (encProgramasCache || []).forEach((prog) => {
+      (prog.puestos || []).forEach((p) => {
+        const id = normPuestoId(p.id);
+        if (id !== null) fromProg.add(id);
+      });
+    });
+    return (metaPuestos || []).filter(
+      (p) => p.en_uso || fromProg.has(normPuestoId(p.id)) || encPuestoSetHas(p.id)
+    );
   }
 
   function encTiposDisponibles(nombre) {
@@ -3055,16 +3086,31 @@
   function fillEncProgramaSelect(selectedNombre = "") {
     const sel = document.getElementById("cap-enc-programa");
     if (!sel) return;
+    const hayPuestos = getEncPuestosSeleccionados().length > 0;
     const nombres = encNombresDisponibles();
-    sel.innerHTML = '<option value="">— Seleccionar plan de carrera —</option>';
+    const placeholder = !hayPuestos
+      ? "— Seleccioná al menos un puesto —"
+      : (nombres.length ? "— Seleccionar plan de carrera —" : "— Ningún plan de carrera aplica a esos puestos —");
+    sel.innerHTML = `<option value="">${placeholder}</option>`;
     nombres.forEach((nombre) => {
       const opt = document.createElement("option");
       opt.value = nombre;
       opt.textContent = nombre;
       sel.appendChild(opt);
     });
-    sel.disabled = nombres.length === 0;
-    if (selectedNombre && nombres.includes(selectedNombre)) sel.value = selectedNombre;
+    sel.disabled = !hayPuestos || nombres.length === 0;
+    if (selectedNombre && nombres.includes(selectedNombre)) {
+      sel.value = selectedNombre;
+    } else if (selectedNombre) {
+      const opt = document.createElement("option");
+      opt.value = selectedNombre;
+      opt.textContent = selectedNombre;
+      sel.appendChild(opt);
+      sel.disabled = false;
+      sel.value = selectedNombre;
+    } else if (nombres.length === 1) {
+      sel.value = nombres[0];
+    }
   }
 
   function fillEncTipoSelect(nombre, selectedTipo = "") {
@@ -3107,14 +3153,17 @@
   }
 
   function resetEncCascadeFrom(level) {
-    if (level === "programa") {
+    if (level === "puestos") {
+      fillEncProgramaSelect();
+      fillEncTipoSelect("");
+      fillEncPlanSelect();
+    } else if (level === "programa") {
       fillEncTipoSelect("");
       fillEncPlanSelect();
     } else if (level === "tipo") {
       fillEncPlanSelect();
     }
     if (level !== "plan") {
-      encPuestosSeleccionados = new Set();
       const cursoSel = document.getElementById("cap-enc-curso");
       if (cursoSel) {
         cursoSel.disabled = true;
@@ -3122,25 +3171,18 @@
       }
       document.getElementById("cap-enc-curso-meta")?.classList.add("cap-hidden");
     }
-    if (level !== "plan") {
-      renderEncPuestos();
-      loadEncPersonas().catch(console.error);
-    }
   }
 
   function onEncProgramaChange() {
     const nombre = document.getElementById("cap-enc-programa")?.value || "";
     fillEncTipoSelect(nombre);
     fillEncPlanSelect();
-    encPuestosSeleccionados = new Set();
     const cursoSel = document.getElementById("cap-enc-curso");
     if (cursoSel) {
       cursoSel.disabled = true;
       cursoSel.innerHTML = '<option value="">— Seleccioná un plan primero —</option>';
     }
     document.getElementById("cap-enc-curso-meta")?.classList.add("cap-hidden");
-    renderEncPuestos();
-    loadEncPersonas().catch(console.error);
     const tipo = document.getElementById("cap-enc-tipo")?.value || "";
     if (nombre && tipo) onEncTipoChange();
   }
@@ -3149,15 +3191,12 @@
     const nombre = document.getElementById("cap-enc-programa")?.value || "";
     const tipo = document.getElementById("cap-enc-tipo")?.value || "";
     fillEncPlanSelect();
-    encPuestosSeleccionados = new Set();
     const cursoSel = document.getElementById("cap-enc-curso");
     if (cursoSel) {
       cursoSel.disabled = true;
       cursoSel.innerHTML = '<option value="">— Seleccioná un plan primero —</option>';
     }
     document.getElementById("cap-enc-curso-meta")?.classList.add("cap-hidden");
-    renderEncPuestos();
-    loadEncPersonas().catch(console.error);
     const origenSel = document.getElementById("cap-enc-origen");
     if (origenSel) origenSel.value = tipo === "externo" ? "externa" : "interna";
     if (nombre && tipo) {
@@ -3168,24 +3207,10 @@
 
   async function onEncPlanChange() {
     await loadEncCursos();
-    const programa = await ensureEncProgramaDetalle();
-    if (programa?.puestos?.length && encPuestosSeleccionados.size === 0) {
-      encPuestosSeleccionados = new Set(
-        programa.puestos.map((p) => normPuestoId(p.id)).filter((id) => id !== null)
-      );
-    }
-    renderEncPuestos();
-    await onEncPuestosChange();
   }
 
   function getEncPuestosDelPrograma() {
-    const programa = getEncProgramaActual();
-    if (!programa) return [];
-    const puestosProg = programa.puestos || [];
-    return puestosProg.map((p) => {
-      const mp = (metaPuestos || []).find((m) => normPuestoId(m.id) === normPuestoId(p.id));
-      return mp || p;
-    });
+    return encPuestosDisponibles();
   }
 
 
@@ -3196,21 +3221,11 @@
 
     if (!el) return;
 
-    const planId = document.getElementById("cap-enc-plan")?.value;
-
-    if (!planId) {
-
-      el.innerHTML = '<p class="cap-empty">Seleccioná un plan para ver los puestos del plan de carrera</p>';
-
-      return;
-
-    }
-
-    const items = getEncPuestosDelPrograma();
+    const items = encPuestosDisponibles();
 
     if (!items.length) {
 
-      el.innerHTML = '<p class="cap-empty">Este plan de carrera no tiene puestos asignados. Definilos en <strong>Planes de carrera</strong>.</p>';
+      el.innerHTML = '<p class="cap-empty">No hay puestos vigentes. Asigná puestos a las personas en <strong>Personas</strong> y después definí el plan de carrera.</p>';
 
       return;
 
@@ -3251,11 +3266,21 @@
 
 
   async function onEncPuestosChange() {
-
+    const nombrePrev = document.getElementById("cap-enc-programa")?.value || "";
+    const tipoPrev = document.getElementById("cap-enc-tipo")?.value || "";
+    const planPrev = document.getElementById("cap-enc-plan")?.value || "";
+    fillEncProgramaSelect(nombrePrev);
+    const nombre = document.getElementById("cap-enc-programa")?.value || "";
+    if (!nombre) {
+      resetEncCascadeFrom("programa");
+    } else {
+      fillEncTipoSelect(nombre, tipoPrev);
+      fillEncPlanSelect(planPrev);
+      if (document.getElementById("cap-enc-plan")?.value) {
+        await loadEncCursos();
+      }
+    }
     await loadEncPersonas();
-
-    await loadEncCursos();
-
   }
 
 
@@ -3268,13 +3293,13 @@
 
     if (!el) return;
 
-    const planId = document.getElementById("cap-enc-plan")?.value;
+    const puestoIds = getEncPuestosSeleccionados();
 
-    if (!planId && !todas) {
+    if (!todas && !puestoIds.length) {
 
       encPersonasCache = [];
 
-      el.innerHTML = '<p class="cap-empty">Seleccioná un plan (paso 3) para continuar</p>';
+      el.innerHTML = '<p class="cap-empty">Seleccioná al menos un puesto en el paso 1</p>';
 
       if (countEl) countEl.textContent = "";
 
@@ -3283,20 +3308,6 @@
     }
 
     const programa = await ensureEncProgramaDetalle();
-
-    const puestoIds = getEncPuestosSeleccionados();
-
-    if (!todas && !puestoIds.length) {
-
-      encPersonasCache = [];
-
-      el.innerHTML = '<p class="cap-empty">Seleccioná al menos un puesto en el paso 4</p>';
-
-      if (countEl) countEl.textContent = "";
-
-      return;
-
-    }
 
     el.innerHTML = '<p class="cap-loading">Cargando personas...</p>';
 
@@ -3654,8 +3665,8 @@
         hint.textContent = "Buenas Prácticas Compartidas — Charla con acreditación en la matriz analítica.";
       } else {
         hint.textContent = editing
-          ? "Etapa A — Modificá la planificación. Plan de carrera → Tipo → Empresa (si externo) → Plan → Participantes."
-          : "Etapa A — Plan de carrera → Tipo → Empresa (si externo) → Plan → Participantes. Cada paso habilita el siguiente.";
+          ? "Etapa A — Modificá la planificación. Puesto → Plan de carrera → Tipo → Plan → Personas."
+          : "Etapa A — Puesto → Plan de carrera → Tipo → Plan → Personas. Cada paso habilita el siguiente.";
       }
     }
 
@@ -3772,9 +3783,9 @@
     updateEncuentroFormMode(false);
 
     await loadEncProgramas();
+    renderEncPuestos();
     fillEncProgramaSelect();
     resetEncCascadeFrom("programa");
-    renderEncPuestos();
     await loadEncPersonas();
 
   }
@@ -3886,20 +3897,17 @@
 
     if (programa) {
       const tipo = programa.tipo || data.tipo || "interno";
+      renderEncPuestos();
       fillEncProgramaSelect(programa.nombre);
       document.getElementById("cap-enc-programa").value = programa.nombre;
       fillEncTipoSelect(programa.nombre, tipo);
       fillEncPlanSelect(data.plan_id);
       await onEncPlanChange();
-      if (!encPuestosSeleccionados.size && programa.puestos?.length) {
-        encPuestosSeleccionados = new Set(
-          programa.puestos.map((p) => normPuestoId(p.id)).filter((id) => id !== null)
-        );
-      }
       renderEncPuestos();
       await loadEncPersonas(participanteIds);
     } else if (data.programa_nombre) {
       const tipo = data.programa_tipo || data.tipo || "interno";
+      renderEncPuestos();
       fillEncProgramaSelect(data.programa_nombre);
       document.getElementById("cap-enc-programa").value = data.programa_nombre;
       fillEncTipoSelect(data.programa_nombre, tipo);
@@ -4812,6 +4820,41 @@
 
 
 
+  async function loadLegajoCarrera(p) {
+    const wrap = document.getElementById("cap-legajo-carrera");
+    if (!wrap) return;
+    if (!p.puesto_id) {
+      wrap.innerHTML = `<h3>Plan de carrera del puesto</h3>
+        <p class="cap-empty">Esta persona no tiene puesto. Asignalo para ver el plan de carrera y hacer el seguimiento.</p>`;
+      return;
+    }
+    try {
+      const data = await fetchJson(`${API}/programas?puesto_id=${p.puesto_id}&detalle=1`);
+      const programas = data.programas || [];
+      if (!programas.length) {
+        wrap.innerHTML = `<h3>Plan de carrera del puesto</h3>
+          <p class="cap-muted">${escapeHtml(p.puesto_nombre || "Puesto")}</p>
+          <p class="cap-empty">Este puesto todavía no tiene plan de carrera. Cargalo en <strong>Planes de carrera</strong>.</p>`;
+        return;
+      }
+      wrap.innerHTML = `<h3>Plan de carrera del puesto</h3>
+        <p class="cap-muted">${escapeHtml(p.puesto_nombre || "Puesto")} → plan de carrera → planes</p>
+        ${programas.map((prog) => {
+          const tipo = prog.tipo === "externo" ? "Externo" : "Interno";
+          const planes = (prog.planes || []).map((pl) => {
+            const cursos = (pl.cursos || []).map((c) => escapeHtml(c.curso_nombre || "")).filter(Boolean);
+            return `<li><strong>${escapeHtml(pl.nombre)}</strong>${cursos.length ? ` · ${cursos.join(", ")}` : ""}</li>`;
+          }).join("") || "<li class=\"cap-muted\">Sin planes</li>";
+          return `<section class="cap-plan-block">
+            <div class="cap-plan-head"><h4>${escapeHtml(prog.nombre)}</h4><span class="cap-badge ${prog.tipo === "externo" ? "cap-badge--yellow" : "cap-badge--blue"}">${tipo}</span></div>
+            <ul class="cap-plan-cursos">${planes}</ul>
+          </section>`;
+        }).join("")}`;
+    } catch (err) {
+      wrap.innerHTML = `<h3>Plan de carrera del puesto</h3><p class="cap-empty">${escapeHtml(err.message || "No se pudieron cargar los planes de carrera")}</p>`;
+    }
+  }
+
   function renderLegajoPerfil(p) {
     const observaciones = p.observaciones
       ? `<div class="cap-legajo-campo cap-legajo-campo--full"><dt>Observaciones</dt><dd>${p.observaciones}</dd></div>`
@@ -5058,6 +5101,10 @@
       </div>
 
       ${renderLegajoPerfil(p)}
+      <div class="cap-legajo-carrera" id="cap-legajo-carrera">
+        <h3>Plan de carrera del puesto</h3>
+        <p class="cap-loading">Cargando planes de carrera...</p>
+      </div>
 
       <div class="cap-legajo-matriz cap-hidden" id="cap-legajo-matriz">
 
@@ -5094,6 +5141,8 @@
     `;
 
 
+
+    loadLegajoCarrera(p).catch(console.error);
 
     document.getElementById("cap-btn-editar-persona")?.addEventListener("click", async () => {
 
@@ -5870,13 +5919,14 @@
     if (sel) sel.value = "";
   }
 
-  function renderProgramaCardHtml(p) {
+  function renderProgramaCardHtml(p, groupPuestoId = "") {
     const tipoLabel = p.tipo === "externo" ? "Externo" : "Interno";
     const badgeClass = p.tipo === "externo" ? "cap-badge--yellow" : "cap-badge--blue";
-    const expanded = p.id === programaSeleccionadoId;
+    const expanded = p.id === programaSeleccionadoId && String(programaSeleccionadoGrupoPuestoId) === String(groupPuestoId);
     const desc = (p.descripcion || "").trim();
+    const puestosTxt = (p.puestos || []).map((x) => x.nombre || x.codigo).filter(Boolean).join(" · ");
     return `
-    <article class="cap-prog-card${expanded ? " cap-prog-card--expanded" : ""}" data-programa-id="${p.id}">
+    <article class="cap-prog-card${expanded ? " cap-prog-card--expanded" : ""}" data-programa-id="${p.id}" data-group-puesto-id="${groupPuestoId}">
       <div class="cap-prog-card-summary" role="button" tabindex="0" aria-expanded="${expanded}">
         <div class="cap-prog-card-head">
           <h3 class="cap-prog-card-title">${escapeHtml(p.nombre)}</h3>
@@ -5885,8 +5935,8 @@
         <div class="cap-prog-card-stats">
           <span><i class="bi bi-diagram-3"></i> ${p.planes_count || 0} planes</span>
           <span><i class="bi bi-journal-text"></i> ${p.cursos_count || 0} cursos</span>
-          <span><i class="bi bi-person-badge"></i> ${p.puestos_count || 0} puestos</span>
         </div>
+        ${puestosTxt ? `<p class="cap-prog-card-puestos cap-muted">${escapeHtml(puestosTxt)}</p>` : ""}
         ${desc ? `<p class="cap-prog-card-desc">${escapeHtml(desc)}</p>` : ""}
         <div class="cap-prog-card-actions">
           <button type="button" class="cap-btn cap-btn--primary cap-btn--sm" data-prog-toggle="${p.id}">
@@ -5898,6 +5948,84 @@
     </article>`;
   }
 
+  function progPuestoOptions(programas) {
+    const seen = new Map();
+    (programas || []).forEach((prog) => {
+      (prog.puestos || []).forEach((p) => {
+        if (p?.id && !seen.has(p.id)) {
+          seen.set(p.id, { id: p.id, nombre: p.nombre || p.codigo || String(p.id), codigo: p.codigo || "" });
+        }
+      });
+    });
+    (metaPuestos || []).forEach((p) => {
+      if (p?.id && p.en_uso && !seen.has(p.id)) {
+        seen.set(p.id, { id: p.id, nombre: p.nombre, codigo: p.codigo || "" });
+      }
+    });
+    return Array.from(seen.values()).sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), "es"));
+  }
+
+  function progFiltroEsTodos(puestoItems) {
+    const selected = progFiltros.puestos || [];
+    if (!selected.length) return true;
+    const allIds = (puestoItems || []).map((p) => String(p.id));
+    return allIds.length > 0 && selected.length === allIds.length && allIds.every((id) => selected.includes(id));
+  }
+
+  function programasFiltrados() {
+    const items = progPuestoOptions(programasCache);
+    if (progFiltroEsTodos(items)) return programasCache;
+    const set = new Set((progFiltros.puestos || []).map(String));
+    return programasCache.filter((prog) => (prog.puestos || []).some((p) => set.has(String(p.id))));
+  }
+
+  function renderProgFiltroPuesto(programas) {
+    const items = progPuestoOptions(programas);
+    const key = items.map((p) => p.id).join(",");
+    const el = document.getElementById("cap-prog-filtro-puesto");
+    if (el && progFiltroPuestoKey === key && el.querySelector(".cap-multi-btn")) return;
+    progFiltroPuestoKey = key;
+    renderCapMultiSelect("cap-prog-filtro-puesto", items, "puestos", progFiltros, () => {
+      if (programaSeleccionadoId) {
+        const visible = programasFiltrados().some((p) => p.id === programaSeleccionadoId);
+        if (!visible) {
+          programaSeleccionadoId = null;
+          programaSeleccionadoGrupoPuestoId = "";
+          programaDetalleEditable = false;
+        }
+      }
+      renderProgramasGrid();
+    });
+  }
+
+  function renderProgramasGrid() {
+    const grid = document.getElementById("cap-programas-grid");
+    if (!grid) return;
+    if (!programasCache.length) {
+      grid.innerHTML = '<p class="cap-empty">Todavía no hay planes de carrera. Usá <strong>+ Nuevo plan de carrera</strong>: primero elegí el puesto, después el plan de carrera y los planes.</p>';
+      return;
+    }
+    const visibles = programasFiltrados();
+    if (!visibles.length) {
+      grid.innerHTML = '<p class="cap-empty">No hay planes de carrera para los puestos seleccionados.</p>';
+      return;
+    }
+    grid.innerHTML = visibles.map((p) => renderProgramaCardHtml(p, "")).join("");
+    if (programaSeleccionadoId) {
+      const card = document.querySelector(programaCardSelector(programaSeleccionadoId, programaSeleccionadoGrupoPuestoId));
+      if (!card) {
+        programaSeleccionadoId = null;
+        programaSeleccionadoGrupoPuestoId = "";
+        return;
+      }
+      const detailEl = card.querySelector(".cap-prog-card-detail");
+      const cached = programasCache.find((prog) => prog.id === programaSeleccionadoId);
+      if (detailEl && cached?.planes) {
+        renderProgramaDetalleEnCard(cached, detailEl, programaDetalleEditable);
+      }
+    }
+  }
+
   async function loadProgramas() {
     const grid = document.getElementById("cap-programas-grid");
     if (!grid) return;
@@ -5906,35 +6034,27 @@
     const qs = tipo ? `?tipo=${encodeURIComponent(tipo)}` : "";
     const data = await fetchJson(`${API}/programas${qs}`);
     programasCache = data.programas || [];
-    if (!programasCache.length) {
-      grid.innerHTML = '<p class="cap-empty">Todavía no hay planes de carrera. Usá <strong>+ Nuevo plan de carrera</strong> para agregar el primero.</p>';
-      return;
+    renderProgFiltroPuesto(programasCache);
+    renderProgramasGrid();
+  }
+
+  function programaCardSelector(programaId, groupPuestoId) {
+    if (groupPuestoId !== undefined && groupPuestoId !== null && String(groupPuestoId) !== "") {
+      return `.cap-prog-card[data-programa-id="${programaId}"][data-group-puesto-id="${groupPuestoId}"]`;
     }
-    grid.innerHTML = programasCache.map((p) => renderProgramaCardHtml(p)).join("");
-    if (programaSeleccionadoId) {
-      const stillVisible = programasCache.some((prog) => prog.id === programaSeleccionadoId);
-      if (!stillVisible) {
-        programaSeleccionadoId = null;
-        return;
-      }
-      const card = grid.querySelector(`[data-programa-id="${programaSeleccionadoId}"]`);
-      const detailEl = card?.querySelector(".cap-prog-card-detail");
-      const cached = programasCache.find((prog) => prog.id === programaSeleccionadoId);
-      if (detailEl && cached?.planes) {
-        renderProgramaDetalleEnCard(cached, detailEl, programaDetalleEditable);
-      }
-    }
+    return `.cap-prog-card[data-programa-id="${programaId}"]`;
   }
 
   function collapsePrograma() {
     programaSeleccionadoId = null;
+    programaSeleccionadoGrupoPuestoId = "";
     programaDetalleEditable = false;
     loadProgramas().catch(console.error);
   }
 
   function refreshProgramaDetalle() {
     if (!programaSeleccionadoId) return;
-    const card = document.querySelector(`.cap-prog-card[data-programa-id="${programaSeleccionadoId}"]`);
+    const card = document.querySelector(programaCardSelector(programaSeleccionadoId, programaSeleccionadoGrupoPuestoId));
     const detailEl = card?.querySelector(".cap-prog-card-detail");
     const programa = programasCache.find((p) => p.id === programaSeleccionadoId);
     if (detailEl && programa?.planes) {
@@ -5942,12 +6062,13 @@
     }
   }
 
-  async function togglePrograma(programaId) {
-    if (programaSeleccionadoId === programaId) {
+  async function togglePrograma(programaId, groupPuestoId) {
+    const gid = groupPuestoId == null ? "" : String(groupPuestoId);
+    if (programaSeleccionadoId === programaId && String(programaSeleccionadoGrupoPuestoId) === gid) {
       collapsePrograma();
       return;
     }
-    await selectPrograma(programaId);
+    await selectPrograma(programaId, { groupPuestoId: gid });
   }
 
   function renderProgramaDetalleEnCard(programa, containerEl, editable = false) {
@@ -5989,7 +6110,7 @@
       <div class="cap-prog-detail-inner${editable ? " cap-prog-detail-inner--editable" : ""}">
         <div class="cap-prog-detail-head">
           <div class="cap-prog-detail-head-main">
-            <h4 class="cap-prog-detail-title">Estructura del plan de carrera</h4>
+            <h4 class="cap-prog-detail-title">Puesto → Plan de carrera → Planes</h4>
             ${editable
               ? `<div class="cap-input-group cap-prog-nombre-edit">
                    <input type="text" id="cap-prog-nombre-edit-${programa.id}" class="cap-input" value="${escapeHtml(programa.nombre)}" maxlength="200" aria-label="Nombre del plan de carrera">
@@ -6008,11 +6129,12 @@
         </div>
         ${editable ? detallesEditable : (programa.descripcion ? `<p class="cap-prog-detail-desc">${escapeHtml(programa.descripcion)}</p>` : "")}
         <div class="cap-prog-detail-meta">${metaRows}</div>
-        <div data-prog-planes-wrap></div>
         <div class="cap-prog-detail-puestos">
-          <h4 class="cap-subtitle">Puestos que aplican</h4>
+          <h4 class="cap-subtitle">1. Puestos de los que cuelga</h4>
           ${puestosSection}
         </div>
+        <h4 class="cap-subtitle">2. Planes y cursos</h4>
+        <div data-prog-planes-wrap></div>
       </div>`;
     if (editable) {
       renderPuestosChecks(puestosId, (programa.puestos || []).map((p) => p.id));
@@ -6073,11 +6195,12 @@
       .map((inp) => Number(inp.value));
   }
 
-  async function selectPrograma(programaId, { resetEditMode = true } = {}) {
+  async function selectPrograma(programaId, { resetEditMode = true, groupPuestoId } = {}) {
     programaSeleccionadoId = programaId;
+    if (groupPuestoId !== undefined) programaSeleccionadoGrupoPuestoId = String(groupPuestoId);
     if (resetEditMode) programaDetalleEditable = false;
     await loadProgramas();
-    const card = document.querySelector(`.cap-prog-card[data-programa-id="${programaId}"]`);
+    const card = document.querySelector(programaCardSelector(programaId, programaSeleccionadoGrupoPuestoId));
     const detailEl = card?.querySelector(".cap-prog-card-detail");
     if (!detailEl) return;
     detailEl.classList.remove("cap-hidden");
@@ -6527,13 +6650,14 @@
       const toggleBtn = ev.target.closest("[data-prog-toggle]");
       if (toggleBtn) {
         ev.stopPropagation();
-        togglePrograma(Number(toggleBtn.dataset.progToggle)).catch(console.error);
+        const card = toggleBtn.closest("[data-programa-id]");
+        togglePrograma(Number(toggleBtn.dataset.progToggle), card?.dataset.groupPuestoId).catch(console.error);
         return;
       }
       const summary = ev.target.closest(".cap-prog-card-summary");
       if (summary && !ev.target.closest("button, input, select, textarea, a, label")) {
         const card = summary.closest("[data-programa-id]");
-        if (card) togglePrograma(Number(card.dataset.programaId)).catch(console.error);
+        if (card) togglePrograma(Number(card.dataset.programaId), card.dataset.groupPuestoId).catch(console.error);
       }
     });
     document.getElementById("cap-programas-grid")?.addEventListener("keydown", (ev) => {
@@ -6542,7 +6666,7 @@
       if (!summary) return;
       ev.preventDefault();
       const card = summary.closest("[data-programa-id]");
-      if (card) togglePrograma(Number(card.dataset.programaId)).catch(console.error);
+      if (card) togglePrograma(Number(card.dataset.programaId), card.dataset.groupPuestoId).catch(console.error);
     });
     document.getElementById("cap-prog-plan-add")?.addEventListener("click", () => {
       const sel = document.getElementById("cap-prog-plan-select");
@@ -6593,6 +6717,10 @@
       delete body.empresa_capacitadora_id;
       if (!body.nombre || body.nombre === "__nuevo__") {
         setFormError("cap-programa-form-error", "Seleccioná o agregá el nombre del plan de carrera");
+        return;
+      }
+      if (!body.puesto_ids.length) {
+        setFormError("cap-programa-form-error", "Seleccioná al menos un puesto. El plan de carrera cuelga del puesto.");
         return;
       }
       if (!progPlanesDraft.length) {

@@ -570,13 +570,18 @@
   color: var(--cap-navy);
 }
 
-.cap-legajo-datos h3 {
+.cap-legajo-datos h3,
+.cap-legajo-carrera h3 {
   font-size: 0.82rem;
   font-weight: 700;
   color: var(--cap-navy);
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin: 0 0 0.75rem;
+}
+
+.cap-legajo-carrera {
+  margin-top: 1.25rem;
 }
 
 .cap-legajo-grid {
@@ -1546,6 +1551,11 @@
   margin-top: 0.25rem;
 }
 
+.cap-toolbar-actions .cap-prog-filtro-puesto {
+  min-width: 14rem;
+  max-width: 20rem;
+}
+
 .cap-programas-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -1554,8 +1564,37 @@
 
 .cap-programas-grid > .cap-empty,
 .cap-programas-grid > .cap-loading {
-  grid-column: 1 / -1;
   margin: 0;
+  grid-column: 1 / -1;
+}
+
+.cap-puesto-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 2px solid var(--gos-green, #2e7d32);
+}
+
+.cap-puesto-group-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--cap-navy);
+}
+
+.cap-puesto-group-meta {
+  font-size: 0.82rem;
+  color: var(--cap-muted);
+}
+
+.cap-puesto-group-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
 }
 
 .cap-prog-card {
@@ -1609,6 +1648,12 @@
 .cap-prog-card-stats i {
   margin-right: 0.2rem;
   color: var(--cap-navy-light);
+}
+
+.cap-prog-card-puestos {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
 }
 
 .cap-prog-card-desc {
