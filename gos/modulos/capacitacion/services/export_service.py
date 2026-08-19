@@ -191,12 +191,12 @@ def _export_tabla_personas(ws, data: dict) -> None:
     top = _aplicar_marca(
         ws,
         "Matriz Analítica — Tabla",
-        f"Año {anio} · por { {'puesto': 'puesto', 'curso': 'curso'}.get(agrupar, 'persona') }",
+        f"Año {anio} · por { {'puesto': 'puesto', 'curso': 'curso', 'plan': 'plan'}.get(agrupar, 'persona') }",
         ancho_cols=ancho,
     )
 
     ws.cell(row=top, column=1, value="Planes:")
-    ws.cell(row=top + 1, column=1, value={"puesto": "Puestos", "curso": "Cursos"}.get(agrupar, "Personas"))
+    ws.cell(row=top + 1, column=1, value={"puesto": "Puestos", "curso": "Cursos", "plan": "Planes"}.get(agrupar, "Personas"))
 
     row_mes = top + 2
     row_sub = top + 3

@@ -124,6 +124,20 @@ def _a_metricas_cortas(m: dict) -> dict:
     }
 
 
+def _meses_cortos_entidad(meses_data: dict, *, exigir_todos: bool) -> dict:
+    """Misma unidad que el resumen mensual: 1 entidad por mes, no cupos."""
+    anual = _metricas_vacias()
+    meses_cortos = {}
+    for mes in range(1, 13):
+        unit = _unidad_entidad(meses_data.get(mes, _metricas_vacias()), exigir_todos=exigir_todos)
+        _finalizar_metricas(unit)
+        meses_cortos[str(mes)] = _a_metricas_cortas(unit)
+        _sumar_metricas(anual, unit)
+    _finalizar_metricas(anual)
+    meses_cortos["anual"] = _a_metricas_cortas(anual)
+    return meses_cortos
+
+
 def _parse_ids(raw) -> list[int]:
     if not raw:
         return []
@@ -1079,8 +1093,11 @@ def matriz_tabla(
     curso_ids = curso_ids or []
     empresas = empresas or []
     agrupar_por = (agrupar_por or "persona").lower()
-    if agrupar_por not in ("persona", "puesto", "curso"):
+    if agrupar_por == "planes":
+        agrupar_por = "plan"
+    if agrupar_por not in ("persona", "puesto", "curso", "plan"):
         agrupar_por = "persona"
+    exigir_todos = agrupar_por == "persona"
 
     datos = _colectar_datos_anuales(
         empresa_id,
@@ -1095,9 +1112,15 @@ def matriz_tabla(
     por_persona_mes = datos["por_persona_mes"]
     por_puesto_mes = datos["por_puesto_mes"]
     por_curso_mes = datos["por_curso_mes"]
+    por_plan_mes = datos["por_plan_mes"]
     nombres = datos["nombres"]
     puesto_nombres = datos["puesto_nombres"]
     curso_nombres = datos["curso_nombres"]
+    plan_nombres = datos["plan_nombres"]
+
+    def _anual_vacio(meses_cortos: dict) -> bool:
+        anual = meses_cortos.get("anual") or {}
+        return sum(anual.get(k, 0) or 0 for k in ("prog", "pdtes", "cumpl")) == 0
 
     filas = []
     if agrupar_por == "puesto":
@@ -1114,15 +1137,8 @@ def matriz_tabla(
         )
         for puid in ids_ordenados:
             meses_data = por_puesto_mes.get(puid, {m: _metricas_vacias() for m in range(1, 13)})
-            anual = _metricas_vacias()
-            meses_cortos = {}
-            for mes in range(1, 13):
-                m = meses_data.get(mes, _metricas_vacias())
-                _sumar_metricas(anual, m)
-                meses_cortos[str(mes)] = _a_metricas_cortas(m)
-            _finalizar_metricas(anual)
-            meses_cortos["anual"] = _a_metricas_cortas(anual)
-            if sum(anual.get(k, 0) or 0 for k in ("programados", "pendientes", "cumplidos")) == 0:
+            meses_cortos = _meses_cortos_entidad(meses_data, exigir_todos=exigir_todos)
+            if _anual_vacio(meses_cortos):
                 if puid not in por_puesto_mes and (puesto_ids or persona_ids or curso_ids):
                     continue
             filas.append(
@@ -1147,21 +1163,32 @@ def matriz_tabla(
         )
         for cid in ids_ordenados:
             meses_data = por_curso_mes.get(cid, {m: _metricas_vacias() for m in range(1, 13)})
-            anual = _metricas_vacias()
-            meses_cortos = {}
-            for mes in range(1, 13):
-                m = meses_data.get(mes, _metricas_vacias())
-                _sumar_metricas(anual, m)
-                meses_cortos[str(mes)] = _a_metricas_cortas(m)
-            _finalizar_metricas(anual)
-            meses_cortos["anual"] = _a_metricas_cortas(anual)
-            if sum(anual.get(k, 0) or 0 for k in ("programados", "pendientes", "cumplidos")) == 0:
+            meses_cortos = _meses_cortos_entidad(meses_data, exigir_todos=exigir_todos)
+            if _anual_vacio(meses_cortos):
                 if cid not in por_curso_mes and (curso_ids or persona_ids or puesto_ids):
                     continue
             filas.append(
                 {
                     "id": cid,
                     "nombre": curso_nombres.get(cid, "Sin curso"),
+                    "meses": meses_cortos,
+                }
+            )
+    elif agrupar_por == "plan":
+        ids_ordenados = sorted(
+            set(plan_nombres) | set(por_plan_mes),
+            key=lambda x: (x == 0, (plan_nombres.get(x, "") or "").lower()),
+        )
+        for plid in ids_ordenados:
+            meses_data = por_plan_mes.get(plid, {m: _metricas_vacias() for m in range(1, 13)})
+            meses_cortos = _meses_cortos_entidad(meses_data, exigir_todos=exigir_todos)
+            if _anual_vacio(meses_cortos):
+                if plid not in por_plan_mes and (plan_ids or persona_ids or puesto_ids or curso_ids):
+                    continue
+            filas.append(
+                {
+                    "id": plid,
+                    "nombre": plan_nombres.get(plid, "Sin plan"),
                     "meses": meses_cortos,
                 }
             )
@@ -1174,15 +1201,8 @@ def matriz_tabla(
 
         for pid in sorted(nombres.keys(), key=lambda x: nombres[x]):
             meses_data = por_persona_mes.get(pid, {m: _metricas_vacias() for m in range(1, 13)})
-            anual = _metricas_vacias()
-            meses_cortos = {}
-            for mes in range(1, 13):
-                m = meses_data.get(mes, _metricas_vacias())
-                _sumar_metricas(anual, m)
-                meses_cortos[str(mes)] = _a_metricas_cortas(m)
-            _finalizar_metricas(anual)
-            meses_cortos["anual"] = _a_metricas_cortas(anual)
-            if sum(anual.get(k, 0) or 0 for k in ("programados", "pendientes", "cumplidos")) == 0:
+            meses_cortos = _meses_cortos_entidad(meses_data, exigir_todos=exigir_todos)
+            if _anual_vacio(meses_cortos):
                 if pid not in por_persona_mes and (persona_ids or puesto_ids or curso_ids):
                     continue
             filas.append(

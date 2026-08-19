@@ -2357,9 +2357,10 @@
 
   function maTablaAgruparButtons(agrupar) {
     return [
+      ["plan", "Planes"],
+      ["curso", "Cursos"],
       ["persona", "Personas"],
       ["puesto", "Puestos"],
-      ["curso", "Cursos"],
     ].map(([id, lbl]) =>
       `<button type="button" role="tab" class="cap-ma-resumen-dim${agrupar === id ? " active" : ""}" data-ma-agrupar="${id}">${lbl}</button>`
     ).join("");
@@ -2374,7 +2375,7 @@
     const agrupar = maTablaAgrupar || data.agrupar_por || "persona";
     const subs = ["Prog", "Pdtes", "Cumpl", "Cumpl/Prog"];
     const subKeys = ["prog", "pdtes", "cumpl", "cumpl_prog"];
-    const rowLabel = { puesto: "Puesto", curso: "Curso" }[agrupar] || "Persona";
+    const rowLabel = { puesto: "Puesto", curso: "Curso", plan: "Plan" }[agrupar] || "Persona";
     const fmtCell = (k, v) => (k === "cumpl_prog" ? maFmtPct(v) : maFmtCount(v));
     if (!filas.length) {
       wrap.innerHTML = `
@@ -2401,7 +2402,8 @@
         const v = md[String(m.num)] || {};
         return subKeys.map((k, si) => {
           const cls = si === 2 ? " cap-ma-tabla-comp" : "";
-          return `<td class="cap-ma-num${cls}">${fmtCell(k, v[k])}</td>`;
+          const label = `${nombre} · ${subs[si]}`;
+          return `<td class="cap-ma-num${cls} cap-ma-cell--clickable" data-ma-tabla-id="${f.id}" data-ma-tabla-mes="${m.num}" data-ma-tabla-metric="${k}" data-ma-tabla-label="${escapeHtml(label)}" tabindex="0" role="button" title="Clic para ver el detalle">${fmtCell(k, v[k])}</td>`;
         }).join("");
       }).join("");
       const anual = md.anual || {};
@@ -2431,6 +2433,39 @@
         </div>
       </div>`;
     bindMaTablaAgrupar();
+    wrap.querySelectorAll("[data-ma-tabla-mes]").forEach((el) => {
+      const handler = () => maOpenTablaDetalle(el).catch(console.error);
+      el.addEventListener("click", handler);
+      el.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); handler(); }
+      });
+    });
+  }
+
+  async function maOpenTablaDetalle(el) {
+    const mes = Number(el.dataset.maTablaMes);
+    const rowId = Number(el.dataset.maTablaId);
+    const sub = el.dataset.maTablaMetric || "prog";
+    const label = el.dataset.maTablaLabel || "";
+    if (!mes) return;
+    const metricMap = { prog: "programados", pdtes: "pendientes", cumpl: "cumplidos", cumpl_prog: "cumplidos" };
+    const dimMap = { persona: "personas", curso: "cursos", plan: "planes", puesto: "personas" };
+    const agrupar = maTablaAgrupar || "persona";
+    const dim = dimMap[agrupar] || "personas";
+    const q = maQueryParams();
+    q.delete("vista");
+    q.delete("agrupar_por");
+    q.set("nivel", "detalle");
+    q.set("mes", String(mes));
+    q.set("metrica", metricMap[sub] || "programados");
+    q.set("dim", dim);
+    if (agrupar === "curso") q.set("curso_id", String(rowId));
+    if (agrupar === "persona") q.set("persona_id", String(rowId));
+    if (agrupar === "plan") q.set("plan_id", String(rowId));
+    if (agrupar === "puesto") q.set("puestos", String(rowId));
+    const data = await fetchJson(`${API}/matriz/resumen?${q}`);
+    const mesNombre = MESES[mes - 1] || "";
+    openMaResumenDetalle(data, [mesNombre, label].filter(Boolean).join(" · "), dim);
   }
 
   function bindMaTablaAgrupar() {

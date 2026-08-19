@@ -276,6 +276,20 @@ def test_matriz_calendario_curso_cumplido_si_una_persona(app):
         assert len(nombres) == 1
         assert nombres[0].startswith("Parcial")
 
+        tabla_c = matriz_analitica(emp.id, vista="tabla", anio=2026, agrupar_por="curso")["data"]
+        fila_c = next(f for f in tabla_c["filas"] if "Curso parcial" in f["nombre"])
+        assert fila_c["meses"]["6"]["prog"] == 1
+        assert fila_c["meses"]["6"]["cumpl"] == 1
+        assert fila_c["meses"]["6"]["pdtes"] == 0
+        tabla_pe = matriz_analitica(emp.id, vista="tabla", anio=2026, agrupar_por="persona")["data"]
+        junio_pe = [f["meses"]["6"] for f in tabla_pe["filas"] if f["meses"]["6"]["prog"]]
+        assert len(junio_pe) == 3
+        assert sum(m["cumpl"] for m in junio_pe) == 1
+        tabla_pl = matriz_analitica(emp.id, vista="tabla", anio=2026, agrupar_por="plan")["data"]
+        fila_pl = next(f for f in tabla_pl["filas"] if f["nombre"] == "Plan Parcial")
+        assert fila_pl["meses"]["6"]["prog"] == 1
+        assert fila_pl["meses"]["6"]["cumpl"] == 1
+
 
 def test_matriz_calendario_ignora_charlas_puntuales(app):
     """BPC/charlas van al recuadro: no suman al plan, salvo que el curso se incorpore."""
@@ -418,7 +432,7 @@ def test_matriz_tabla_filtra_por_curso(app):
 
         tabla = matriz_analitica(emp.id, vista="tabla", anio=2026, persona_ids=[pid])["data"]
         fila = next(f for f in tabla["filas"] if f["id"] == pid)
-        assert fila["meses"]["3"]["prog"] == 2
+        assert fila["meses"]["3"]["prog"] == 1
 
         tabla_a = matriz_analitica(
             emp.id, vista="tabla", anio=2026, persona_ids=[pid], curso_ids=[cid_a]
