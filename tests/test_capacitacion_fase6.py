@@ -19,6 +19,7 @@ from gos.modulos.capacitacion.services.matriz_analitica_service import (
     _estado_acreditacion,
     matriz_analitica,
     matriz_filtros_metadata,
+    matriz_resumen,
 )
 
 
@@ -260,6 +261,13 @@ def test_matriz_calendario_curso_cumplido_si_una_persona(app):
         assert personas_m["cumplidos"] == 1
         assert personas_m["pendientes"] == 2
         assert personas_m["pend_vencidos"] == 2
+
+        det = matriz_resumen(
+            emp.id, anio=2026, nivel="detalle", mes=6, metrica="cumplidos", dim="cursos"
+        )
+        assert len(det["eventos"]) == 1
+        assert det["eventos"][0]["curso_nombre"] == "Curso parcial"
+        assert len(det["eventos"][0]["personas"]) == 3
 
 
 def test_matriz_calendario_ignora_charlas_puntuales(app):

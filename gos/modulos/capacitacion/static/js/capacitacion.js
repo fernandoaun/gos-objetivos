@@ -1943,15 +1943,16 @@
     const dimLabels = { planes: "Plan", cursos: "Curso", personas: "Persona" };
     const rowHead = dimLabels[dim] || "";
     const cellVal = (row, key) => (key.startsWith("pct_") ? maFmtPct(row[key]) : maFmtCount(row[key]));
-    const rowCells = (row) => allCols.map(([k, , cls]) =>
-      `<td class="cap-ma-num ${cls}">${cellVal(row, k)}</td>`
-    ).join("");
+    const rowCells = (row) => allCols.map(([k, lbl, cls]) => {
+      const mes = row.mes || row.id;
+      return `<td class="cap-ma-num ${cls} cap-ma-cell--clickable" data-ma-mes="${mes}" data-ma-metric="${k}" data-ma-label="${escapeHtml(lbl)}" tabindex="0" role="button" title="Clic para ver el detalle">${cellVal(row, k)}</td>`;
+    }).join("");
     const totalCells = allCols.map(([k, , cls]) =>
       `<td class="cap-ma-num cap-ma-total-cell ${cls}">${cellVal(tot, k)}</td>`
     ).join("");
     const bodyRows = filas.length
       ? filas.map((f) =>
-          `<tr><th scope="row" class="cap-ma-mes-cell">${escapeHtml(f.nombre)}</th>${rowCells(f)}</tr>`
+          `<tr><th scope="row" class="cap-ma-mes-cell cap-ma-cell--clickable" data-ma-mes="${f.mes || f.id}" data-ma-metric="programados" data-ma-label="${escapeHtml(colNom[0])}" tabindex="0" role="button" title="Clic para ver el detalle">${escapeHtml(f.nombre)}</th>${rowCells(f)}</tr>`
         ).join("")
       : `<tr><td colspan="${allCols.length + 1}" class="cap-empty">Sin datos para este ámbito</td></tr>`;
     wrap.innerHTML = `
@@ -1990,8 +1991,32 @@
             </tbody>
           </table>
         </div>
+        <p class="cap-form-hint cap-mt">Clic en un mes o en un valor para ver a qué cursos y personas se refiere.</p>
       </div>`;
     bindMaResumenDims();
+    wrap.querySelectorAll("[data-ma-mes]").forEach((el) => {
+      const handler = () => maOpenResumenDetalle(el).catch(console.error);
+      el.addEventListener("click", handler);
+      el.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); handler(); }
+      });
+    });
+  }
+
+  async function maOpenResumenDetalle(el) {
+    const mes = Number(el.dataset.maMes);
+    const metrica = el.dataset.maMetric || "programados";
+    const label = el.dataset.maLabel || "";
+    if (!mes) return;
+    const q = maQueryParams();
+    q.delete("vista");
+    q.set("nivel", "detalle");
+    q.set("mes", String(mes));
+    q.set("metrica", metrica);
+    q.set("dim", maResumenDim);
+    const data = await fetchJson(`${API}/matriz/resumen?${q}`);
+    const mesNombre = MESES[mes - 1] || "";
+    openMaResumenDetalle(data, [mesNombre, label].filter(Boolean).join(" · "));
   }
 
   const CR_METRICAS = [
@@ -2138,18 +2163,13 @@
     loadCronogramaResumen().catch(console.error);
   }
 
-  function openCrDetalleModal(data) {
+  function openMaResumenDetalle(data, tituloTxt) {
     const modal = document.getElementById("cap-ma-evento-modal");
     const body = document.getElementById("cap-ma-evento-body");
     const titulo = document.getElementById("cap-ma-evento-titulo");
     if (!modal || !body) return;
     crDetalleEventos = data.eventos || [];
-    const ctx = [
-      crResumenZoom.mesNombre,
-      crResumenZoom.cursoNombre,
-      crResumenZoom.personaNombre,
-    ].filter(Boolean).join(" · ");
-    if (titulo) titulo.textContent = ctx || "Detalle de cronogramas";
+    if (titulo) titulo.textContent = tituloTxt || "Detalle";
     if (!crDetalleEventos.length) {
       body.innerHTML = '<p class="cap-empty">Sin cronogramas para esta selección</p>';
     } else {
@@ -2168,6 +2188,15 @@
       });
     }
     modal.classList.remove("cap-hidden");
+  }
+
+  function openCrDetalleModal(data) {
+    const ctx = [
+      crResumenZoom.mesNombre,
+      crResumenZoom.cursoNombre,
+      crResumenZoom.personaNombre,
+    ].filter(Boolean).join(" · ");
+    openMaResumenDetalle(data, ctx || "Detalle de cronogramas");
   }
 
   function renderCrResumenTable(data) {

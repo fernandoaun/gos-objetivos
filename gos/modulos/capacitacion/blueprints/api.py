@@ -638,6 +638,7 @@ def matriz_resumen_api():
                 curso_id=request.args.get("curso_id", type=int),
                 persona_id=request.args.get("persona_id", type=int),
                 metrica=request.args.get("metrica"),
+                dim=request.args.get("dim", "planes"),
                 plan_ids=request.args.get("planes") or request.args.get("plan_ids"),
                 tipos=(request.args.get("tipos") or "").split(",") if request.args.get("tipos") else [],
                 empresas=request.args.get("empresas") or request.args.get("empresa_ids"),

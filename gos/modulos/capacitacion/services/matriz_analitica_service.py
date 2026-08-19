@@ -420,17 +420,30 @@ def _clasificar_asignacion(
     }
 
 
-def _asignacion_cuenta_metrica(delta: dict, metrica: str) -> bool:
+def _asignacion_cuenta_metrica(delta: dict, metrica: str, *, exigir_todos: bool = True) -> bool:
+    if not metrica:
+        return True
     if metrica == "programados":
         return delta.get("programados", 0) > 0
-    if metrica == "cumplidos":
-        return delta.get("cumplidos", 0) > 0
-    if metrica == "puntuales":
-        return delta.get("puntuales", 0) > 0
-    if metrica == "pend_vencidos":
+    if metrica in ("cumplidos", "pct_cumpl_prog"):
+        if exigir_todos:
+            return delta.get("cumplidos", 0) > 0
+        return (delta.get("cumplidos", 0) or 0) > 0 or (delta.get("dictados", 0) or 0) > 0
+    if metrica in ("puntuales", "pct_cumpl_puntuales"):
+        if exigir_todos:
+            return delta.get("puntuales", 0) > 0
+        return (delta.get("puntuales", 0) or 0) > 0 or (delta.get("dictados_puntuales", 0) or 0) > 0
+    if metrica in ("pend_vencidos", "pct_venc_prog", "pct_pend_vencidos"):
         return delta.get("pend_vencidos", 0) > 0
     if metrica == "pendientes":
-        return delta.get("programados", 0) > 0 and delta.get("cumplidos", 0) == 0
+        if exigir_todos:
+            return delta.get("programados", 0) > 0 and delta.get("cumplidos", 0) == 0
+        dictado = (delta.get("cumplidos", 0) or 0) > 0 or (delta.get("dictados", 0) or 0) > 0
+        return delta.get("programados", 0) > 0 and not dictado
+    if metrica in ("pend_sin_vencer", "pct_pend_sin_vencer"):
+        return delta.get("pend_sin_vencer", 0) > 0
+    if metrica in ("cumpl_no_puntuales", "pct_cumpl_no_puntuales"):
+        return delta.get("cumpl_no_puntuales", 0) > 0
     return False
 
 
@@ -508,9 +521,22 @@ def _colectar_datos_anuales(
                 {
                     "mes": enc.fecha.month,
                     "plan_id": enc.plan_id or 0,
+                    "plan_nombre": enc.plan.nombre if enc.plan else "Buenas Prácticas",
                     "persona_id": persona.id,
+                    "persona_nombre": persona.nombre_completo,
                     "encuentro_id": enc.id,
                     "curso_id": enc.curso_id or enc.id,
+                    "curso_nombre": (enc.curso.nombre if enc.curso else None) or enc.titulo or "Charla puntual",
+                    "fecha": enc.fecha.isoformat() if enc.fecha else None,
+                    "fecha_realizacion": enc.fecha_realizacion.isoformat() if enc.fecha_realizacion else None,
+                    "capacitador": enc.instructor or (enc.instructor_rel.nombre if enc.instructor_rel else None),
+                    "lugar": enc.lugar,
+                    "link": enc.link_virtual,
+                    "empresa_nombre": None,
+                    "asistio": True,
+                    "nota": None,
+                    "aprobo": None,
+                    "delta": {"programados": 1},
                 }
             )
             continue
@@ -823,6 +849,51 @@ def _filas_desde_asignaciones(
     return filas, totales
 
 
+def _fila_pasa_contexto(
+    a: dict,
+    *,
+    mes: int | None,
+    plan_id: int | None,
+    curso_id: int | None,
+    persona_id: int | None,
+) -> bool:
+    if mes is not None and a.get("mes") != mes:
+        return False
+    if plan_id is not None and a.get("plan_id") != plan_id:
+        return False
+    if curso_id is not None and (a.get("curso_id") or 0) != curso_id:
+        return False
+    if persona_id and a.get("persona_id") != persona_id:
+        return False
+    return True
+
+
+def _agregar_evento_detalle(eventos_map: dict, a: dict) -> None:
+    eid = a["encuentro_id"]
+    if eid not in eventos_map:
+        eventos_map[eid] = {
+            "encuentro_id": eid,
+            "curso_nombre": a.get("curso_nombre"),
+            "plan_nombre": a.get("plan_nombre"),
+            "empresa_nombre": a.get("empresa_nombre"),
+            "fecha": a.get("fecha"),
+            "fecha_realizacion": a.get("fecha_realizacion"),
+            "capacitador": a.get("capacitador"),
+            "lugar": a.get("lugar"),
+            "link": a.get("link"),
+            "personas": [],
+        }
+    eventos_map[eid]["personas"].append(
+        {
+            "persona_id": a.get("persona_id"),
+            "nombre": a.get("persona_nombre"),
+            "asistio": a.get("asistio"),
+            "nota": a.get("nota"),
+            "aprobo": a.get("aprobo"),
+        }
+    )
+
+
 def matriz_resumen(
     empresa_id: int,
     *,
@@ -833,6 +904,7 @@ def matriz_resumen(
     curso_id: int | None = None,
     persona_id: int | None = None,
     metrica: str | None = None,
+    dim: str | None = None,
     plan_ids: list[int] | None = None,
     tipos: list[str] | None = None,
     empresas: list[int] | None = None,
@@ -851,6 +923,10 @@ def matriz_resumen(
     nivel = (nivel or "planes").lower()
     if nivel == "programas":
         nivel = "planes"
+    dim = (dim or "planes").lower()
+    if dim == "programas":
+        dim = "planes"
+    exigir_todos = dim == "personas"
 
     datos = _colectar_datos_anuales(
         empresa_id,
@@ -868,41 +944,35 @@ def matriz_resumen(
     if nivel == "detalle":
         if not mes:
             raise ValueError("Seleccioná un mes para ver el detalle")
+        fuentes = (
+            datos.get("asignaciones_puntuales") or []
+            if metrica == "charlas_puntuales"
+            else datos["asignaciones"]
+        )
+        matching: set[int] = set()
+        for a in fuentes:
+            if not _fila_pasa_contexto(
+                a, mes=mes, plan_id=plan_id, curso_id=curso_id, persona_id=persona_id
+            ):
+                continue
+            if (
+                metrica
+                and metrica != "charlas_puntuales"
+                and not _asignacion_cuenta_metrica(
+                    a.get("delta") or {}, metrica, exigir_todos=exigir_todos
+                )
+            ):
+                continue
+            matching.add(a["encuentro_id"])
         eventos_map: dict[int, dict] = {}
-        for a in datos["asignaciones"]:
-            if a["mes"] != mes:
+        for a in fuentes:
+            if a.get("encuentro_id") not in matching:
                 continue
-            if plan_id is not None and a["plan_id"] != plan_id:
+            if not _fila_pasa_contexto(
+                a, mes=mes, plan_id=plan_id, curso_id=curso_id, persona_id=persona_id
+            ):
                 continue
-            if curso_id is not None and (a.get("curso_id") or 0) != curso_id:
-                continue
-            if persona_id and a["persona_id"] != persona_id:
-                continue
-            if metrica and not _asignacion_cuenta_metrica(a["delta"], metrica):
-                continue
-            eid = a["encuentro_id"]
-            if eid not in eventos_map:
-                eventos_map[eid] = {
-                    "encuentro_id": eid,
-                    "curso_nombre": a["curso_nombre"],
-                    "plan_nombre": a["plan_nombre"],
-                    "empresa_nombre": a["empresa_nombre"],
-                    "fecha": a["fecha"],
-                    "fecha_realizacion": a.get("fecha_realizacion"),
-                    "capacitador": a["capacitador"],
-                    "lugar": a["lugar"],
-                    "link": a["link"],
-                    "personas": [],
-                }
-            eventos_map[eid]["personas"].append(
-                {
-                    "persona_id": a["persona_id"],
-                    "nombre": a["persona_nombre"],
-                    "asistio": a["asistio"],
-                    "nota": a["nota"],
-                    "aprobo": a["aprobo"],
-                }
-            )
+            _agregar_evento_detalle(eventos_map, a)
         return {
             "anio": anio,
             "nivel": "detalle",
