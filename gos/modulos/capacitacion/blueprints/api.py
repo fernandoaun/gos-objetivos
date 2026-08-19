@@ -274,25 +274,13 @@ def participantes():
     if puesto_id:
         q = q.filter_by(puesto_id=puesto_id)
 
+    from gos.modulos.capacitacion.services.catalogo_service import _participante_resumen_dict
+
     items = []
     for p in q.order_by(Participante.nombre).all():
         if busqueda and busqueda not in p.nombre_completo.lower() and busqueda not in (p.legajo or "").lower():
             continue
-        items.append(
-            {
-                "id": p.id,
-                "nombre": p.nombre_completo,
-                "legajo": p.legajo,
-                "dni": p.dni,
-                "tiene_foto": bool(p.foto_path),
-                "sector_id": p.sector_id,
-                "puesto_id": p.puesto_id,
-                "centro_id": p.centro_id,
-                "centro_nombre": p.centro.nombre if p.centro else None,
-                "cliente_ids": [v.cliente_id for v in p.clientes],
-                "activo": p.activo,
-            }
-        )
+        items.append(_participante_resumen_dict(p))
     return jsonify({"participantes": items})
 
 

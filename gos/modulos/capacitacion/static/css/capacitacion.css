@@ -406,60 +406,66 @@
   max-width: 100%;
 }
 
-/* —— Personas (lista en filas + legajo abajo) —— */
-.cap-personas-row-wrap {
-  padding-bottom: 0.25rem;
+/* —— Personas (tabla + legajo opcional) —— */
+.cap-personas-table-wrap {
+  overflow-x: auto;
 }
 
-.cap-personas-row {
+.cap-personas-table {
+  min-width: 960px;
+}
+
+.cap-personas-table .cap-col-actions {
+  position: sticky;
+  right: 0;
+  background: #fff;
+  z-index: 1;
+}
+
+.cap-personas-table thead .cap-col-actions {
+  background: #fafbfc;
+}
+
+.cap-personas-table tbody tr:hover td {
+  background: var(--gos-yellow-soft);
+}
+
+.cap-personas-table tbody tr.cap-row-active td {
+  background: var(--gos-success-soft);
+}
+
+.cap-persona-nombre-cell {
   display: flex;
-  flex-direction: column;
-  gap: 0;
-  min-height: 2.5rem;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 12rem;
 }
 
-.cap-persona-item {
-  display: flex;
-  flex-direction: column;
+.cap-persona-nombre-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--cap-navy-dark);
+  cursor: pointer;
+  text-align: left;
 }
 
-.cap-persona-item--expanded .cap-persona-card {
-  border-bottom: none;
+.cap-persona-nombre-btn:hover {
+  text-decoration: underline;
 }
 
 .cap-persona-detail {
   width: 100%;
   box-sizing: border-box;
-  padding: 1rem 1.25rem 1.25rem calc(0.75rem + 3px);
+  padding: 1rem 1.25rem 1.25rem;
   background: #fafbfc;
-  border-bottom: 1px solid var(--cap-border);
   border-left: 3px solid var(--gos-green);
 }
 
-.cap-persona-card {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.75rem;
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  border: none;
-  border-bottom: 1px solid var(--cap-border);
-  border-radius: 0;
-  background: #fff;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.15s;
-}
-
-.cap-persona-card:hover {
-  background: var(--gos-yellow-soft);
-}
-
-.cap-persona-card.active {
-  background: var(--gos-success-soft);
-  border-left: 3px solid var(--gos-green);
-  padding-left: calc(0.75rem - 3px);
+#cap-persona-detail-row td {
+  padding: 0;
 }
 
 .cap-persona-card__avatar {

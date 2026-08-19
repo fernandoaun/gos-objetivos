@@ -62,6 +62,7 @@
   let clienteLogoId = null;
   let isoNormaActual = "9001";
   let personaSeleccionadaId = null;
+  let personasCache = [];
   let matrizParticipanteId = window.CAP_INITIAL_PARTICIPANTE_ID || null;
   let matrizParticipanteNombre = null;
   let maVista = "calendario";
@@ -4851,188 +4852,136 @@
   }
 
 
-  function collapsePersonaDetail() {
-    document.querySelectorAll(".cap-persona-item--expanded").forEach((el) => {
-      el.classList.remove("cap-persona-item--expanded");
-    });
-    const detail = document.getElementById("cap-persona-detail-active");
-    if (detail) {
-      detail.classList.add("cap-hidden");
-      detail.innerHTML = "";
-      detail.remove();
-    }
+  function personaCell(value) {
+    const text = String(value ?? "").trim();
+    return text ? escapeHtml(text) : "—";
   }
 
-  function mountPersonaDetailAfter(btn) {
-    let detail = document.getElementById("cap-persona-detail-active");
-    if (!detail) {
-      detail = document.createElement("div");
-      detail.id = "cap-persona-detail-active";
-      detail.className = "cap-persona-detail";
+  function personaRowEl(id) {
+    return document.querySelector(`#cap-personas-body tr[data-id="${id}"]`);
+  }
+
+  function collapsePersonaDetail() {
+    document.querySelectorAll("#cap-personas-body tr.cap-row-active").forEach((el) => {
+      el.classList.remove("cap-row-active");
+    });
+    document.getElementById("cap-persona-detail-row")?.remove();
+  }
+
+  function mountPersonaDetailAfter(row) {
+    let detailTr = document.getElementById("cap-persona-detail-row");
+    if (!detailTr) {
+      detailTr = document.createElement("tr");
+      detailTr.id = "cap-persona-detail-row";
+      detailTr.innerHTML = '<td colspan="8"><div id="cap-persona-detail-active" class="cap-persona-detail"></div></td>';
     }
-    detail.classList.remove("cap-hidden");
-    if (detail.previousElementSibling !== btn) {
-      detail.remove();
-      btn.insertAdjacentElement("afterend", detail);
+    if (detailTr.previousElementSibling !== row) {
+      detailTr.remove();
+      row.insertAdjacentElement("afterend", detailTr);
     }
-    return detail;
+    return document.getElementById("cap-persona-detail-active");
   }
 
   function isPersonaExpanded(id) {
     if (String(personaSeleccionadaId) !== String(id)) return false;
-    const detail = document.getElementById("cap-persona-detail-active");
-    return detail && !detail.classList.contains("cap-hidden");
+    const detailTr = document.getElementById("cap-persona-detail-row");
+    const row = personaRowEl(id);
+    return Boolean(detailTr && row && detailTr.previousElementSibling === row);
   }
 
-
   async function loadPersonas(selectId) {
-
-    const row = document.getElementById("cap-personas-row");
-
-    if (!row) return;
+    const tbody = document.getElementById("cap-personas-body");
+    if (!tbody) return;
 
     collapsePersonaDetail();
-
-    row.innerHTML = '<p class="cap-empty">Cargando...</p>';
+    tbody.innerHTML = '<tr><td colspan="8" class="cap-loading">Cargando...</td></tr>';
 
     const q = document.getElementById("cap-personas-q")?.value?.trim() || "";
-
     const sectorId = document.getElementById("cap-personas-sector")?.value || "";
-
     let url = `${API}/participantes?`;
-
     if (q) url += `q=${encodeURIComponent(q)}&`;
-
     if (sectorId) url += `sector_id=${sectorId}&`;
 
     const items = (await fetchJson(url)).participantes || [];
-
-
+    personasCache = items;
 
     if (!items.length) {
-
-      row.innerHTML = '<p class="cap-empty">Sin participantes cargados</p>';
-
+      tbody.innerHTML = '<tr><td colspan="8" class="cap-empty">Sin participantes cargados</td></tr>';
       personaSeleccionadaId = null;
-
       return;
-
     }
 
+    tbody.innerHTML = items.map((p) => `
+      <tr data-id="${p.id}">
+        <td>
+          <div class="cap-persona-nombre-cell">
+            <span class="cap-persona-card__avatar">${renderPersonaAvatar(p)}</span>
+            <button type="button" class="cap-persona-nombre-btn" data-persona-open="${p.id}">${personaCell(p.nombre)}</button>
+          </div>
+        </td>
+        <td>${personaCell(p.legajo)}</td>
+        <td>${personaCell(p.email)}</td>
+        <td>${personaCell(p.centro_nombre)}</td>
+        <td>${personaCell(p.sector_nombre)}</td>
+        <td>${personaCell(p.puesto_nombre)}</td>
+        <td>${personaCell(nombresClientes(p.cliente_ids))}</td>
+        <td class="cap-col-actions">${editButton("Editar persona", { id: p.id })}</td>
+      </tr>
+    `).join("");
 
-
-    row.innerHTML = items
-
-      .map(
-
-        (p) =>
-
-          `<div class="cap-persona-item" data-id="${p.id}">
-
-            <button type="button" class="cap-persona-card" data-id="${p.id}">
-
-              <span class="cap-persona-card__avatar">${renderPersonaAvatar(p)}</span>
-
-              <span class="cap-persona-card__nombre">${p.nombre}</span>
-
-              <span class="cap-persona-card__legajo">${p.legajo || "—"}</span>
-
-            </button>
-
-          </div>`
-
-      )
-
-      .join("");
-
-
-
-    row.querySelectorAll(".cap-persona-card").forEach((btn) => {
-
+    tbody.querySelectorAll("[data-persona-open]").forEach((btn) => {
       btn.addEventListener("click", () => {
-
-        const id = btn.dataset.id;
-
+        const id = btn.dataset.personaOpen;
         if (personaSeleccionadaId === id && isPersonaExpanded(id)) {
-
           deselectPersona();
-
           return;
-
         }
-
-        selectPersona(id, btn);
-
+        selectPersona(id, personaRowEl(id));
       });
-
     });
 
-
+    tbody.querySelectorAll(".cap-btn-edit").forEach((btn) => {
+      btn.addEventListener("click", async (ev) => {
+        ev.stopPropagation();
+        const item = personasCache.find((x) => String(x.id) === String(btn.dataset.id));
+        if (!item) return;
+        await loadMeta();
+        openPersonaForm({
+          id: item.id,
+          nombre: item.nombre,
+          legajo: item.legajo,
+          email: item.email,
+          centro_id: item.centro_id,
+          sector_id: item.sector_id,
+          puesto_id: item.puesto_id,
+          cliente_ids: item.cliente_ids || [],
+        });
+        document.getElementById("cap-persona-form-panel")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+    });
 
     if (selectId) {
-
-      const targetBtn = row.querySelector(`.cap-persona-card[data-id="${selectId}"]`);
-
-      if (targetBtn) {
-
-        selectPersona(selectId, targetBtn);
-
-        return;
-
+      const target = personaRowEl(selectId);
+      if (target) {
+        target.classList.add("cap-row-active");
+        target.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }
-
     }
-
-    if (personaSeleccionadaId) {
-
-      const activeBtn = row.querySelector(`.cap-persona-card[data-id="${personaSeleccionadaId}"]`);
-
-      if (activeBtn) {
-
-        selectPersona(personaSeleccionadaId, activeBtn);
-
-        return;
-
-      }
-
-    }
-
-    deselectPersona();
-
   }
-
-
 
   function deselectPersona() {
-
-    document.querySelectorAll(".cap-persona-card").forEach((b) => b.classList.remove("active"));
-
     personaSeleccionadaId = null;
-
     collapsePersonaDetail();
-
   }
 
-
-
   async function selectPersona(id, btn) {
-
-    if (!btn) {
-      btn = document.querySelector(`.cap-persona-card[data-id="${id}"]`);
-    }
-    if (!btn) return;
+    const row = btn?.tagName === "TR" ? btn : personaRowEl(id);
+    if (!row) return;
 
     collapsePersonaDetail();
-
-    document.querySelectorAll(".cap-persona-card").forEach((b) => b.classList.remove("active"));
-
-    btn.classList.add("active");
-
-    btn.closest(".cap-persona-item")?.classList.add("cap-persona-item--expanded");
-
+    row.classList.add("cap-row-active");
     personaSeleccionadaId = id;
-
-    const detail = mountPersonaDetailAfter(btn);
+    const detail = mountPersonaDetailAfter(row);
 
     detail.innerHTML = '<p class="cap-loading">Cargando legajo...</p>';
 
@@ -5213,10 +5162,8 @@
       try {
 
         await deleteJson(`${API}/participantes/${id}/foto`);
-
-        await selectPersona(id, btn);
-
         await loadPersonas(id);
+        await selectPersona(id);
 
       } catch (e) {
 
@@ -5245,12 +5192,9 @@
       try {
 
         await uploadFile(`${API}/participantes/${personaSeleccionadaId}/foto`, file);
-
-        const activeBtn = document.querySelector(`.cap-persona-card[data-id="${personaSeleccionadaId}"]`);
-
-        await selectPersona(personaSeleccionadaId, activeBtn);
-
-        await loadPersonas(personaSeleccionadaId);
+        const id = personaSeleccionadaId;
+        await loadPersonas(id);
+        await selectPersona(id);
 
       } catch (e) {
 
