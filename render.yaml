@@ -1,6 +1,10 @@
-# Render — PostgreSQL obligatorio en producción
-# Secretos (GOS_ADMIN_PASSWORD, GOS_IMPORT_SECRET): configurar en el dashboard
-# de Render → Environment, o dejar generateValue: true en el primer deploy.
+# Render — dos programas separados (Option B)
+# Secretos: configurar en Dashboard → Environment (o generateValue en el primer deploy).
+#
+# Tras el primer deploy:
+#   1) Subí Objetivos: SUBIR BACKUP A RENDER.bat (base instance/objetivos/gos.db)
+#   2) Subí Cap:      python scripts/subir_cap_a_render.py
+#   3) En gos-objetivos setear GOS_CAPACITACION_URL = URL pública de gos-capacitacion
 
 databases:
   - name: gos-objetivos-db
@@ -8,7 +12,13 @@ databases:
     user: gos_objetivos
     plan: free
 
+  - name: gos-capacitacion-db
+    databaseName: gos_capacitacion
+    user: gos_capacitacion
+    plan: free
+
 services:
+  # ── Objetivos + resto (sin Cap local) ───────────────────────────────────
   - type: web
     name: gos-objetivos
     runtime: python
@@ -18,6 +28,10 @@ services:
     envVars:
       - key: FLASK_ENV
         value: production
+      - key: GOS_APP_MODE
+        # full = Cap sigue vivo en este servicio hasta poblar gos-capacitacion.
+        # Después del upload Cap, cambiá a: objetivos
+        value: full
       - key: SECRET_KEY
         generateValue: true
       - key: GOS_ADMIN_EMAIL
@@ -27,6 +41,38 @@ services:
       - key: DATABASE_URL
         fromDatabase:
           name: gos-objetivos-db
+          property: connectionString
+      - key: GOS_AUTO_LOGIN
+        value: "false"
+      - key: GOS_IMPORT_SECRET
+        generateValue: true
+      # Activá cuando Cap ya tenga datos en su DB:
+      # - key: GOS_CAPACITACION_URL
+      #   value: https://gos-capacitacion.onrender.com/gos/capacitacion
+      - key: PYTHON_VERSION
+        value: 3.12.8
+
+  # ── Capacitación (programa separado) ────────────────────────────────────
+  - type: web
+    name: gos-capacitacion
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python scripts/render_start.py && gunicorn --bind 0.0.0.0:$PORT --timeout 120 wsgi_capacitacion:app
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: GOS_APP_MODE
+        value: capacitacion
+      - key: SECRET_KEY
+        generateValue: true
+      - key: GOS_ADMIN_EMAIL
+        value: admin@demo.local
+      - key: GOS_ADMIN_PASSWORD
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gos-capacitacion-db
           property: connectionString
       - key: GOS_AUTO_LOGIN
         value: "false"

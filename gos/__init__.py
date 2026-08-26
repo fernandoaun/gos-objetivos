@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from flask import Flask
 
 from gos import env
+from gos.app_mode import AppMode, capacitacion_enabled, objetivos_stack_enabled
 from gos.config import apply_env_to_app, config_by_name
 from gos.extensions import db, login_manager, migrate
 
@@ -28,7 +29,17 @@ def create_app(config_name: str | None = None) -> Flask:
     app.config.from_object(config_by_name.get(env_name, config_by_name["development"]))
     apply_env_to_app(app)
 
+    mode: AppMode = env.app_mode()  # type: ignore[assignment]
+    app.config["GOS_APP_MODE"] = mode
+    app.config["GOS_CAPACITACION_ENABLED"] = capacitacion_enabled(mode)
+    app.config["GOS_OBJETIVOS_STACK"] = objetivos_stack_enabled(mode)
+
     Path(app.instance_path).mkdir(parents=True, exist_ok=True)
+    # Bases separadas: asegurar carpeta del SQLite por modo.
+    uri = app.config.get("SQLALCHEMY_DATABASE_URI") or ""
+    if uri.startswith("sqlite:///") and not uri.endswith(":memory:"):
+        db_path = Path(uri.replace("sqlite:///", "", 1))
+        db_path.parent.mkdir(parents=True, exist_ok=True)
 
     db.init_app(app)
     migrate.init_app(app, db)
@@ -37,20 +48,19 @@ def create_app(config_name: str | None = None) -> Flask:
     from gos.models import Empresa, Perfil, Usuario  # noqa: F401
 
     with app.app_context():
-        _ensure_schema()
+        _ensure_schema(mode)
 
     @login_manager.user_loader
     def load_user(user_id):
         return db.session.get(Usuario, int(user_id))
 
     _register_core_blueprints(app)
-    _register_modules(app)
+    _register_modules(app, mode)
 
-    # Bootstrap después de registrar módulos (necesita tablas de Objetivos, etc.).
     if not app.config.get("TESTING"):
         with app.app_context():
             try:
-                _bootstrap_database()
+                _bootstrap_database(mode)
             except Exception:
                 db.session.rollback()
                 app.logger.exception(
@@ -59,66 +69,7 @@ def create_app(config_name: str | None = None) -> Flask:
 
     _register_module_access_guard(app)
     _register_auto_login(app)
-
-    @app.context_processor
-    def inject_platform():
-        from flask import request
-        from flask_login import current_user
-
-        from gos.services.modulo_service import modulos_para_usuario
-        from gos.version import APP_VERSION, APP_VERSION_LABEL
-
-        modules = []
-        with app.app_context():
-            from gos.modulos.dashboard import module_descriptor as dashboard_descriptor
-            from gos.modulos.hwo import module_descriptor as hwo_descriptor
-            from gos.modulos.objetivos import module_descriptor as objetivos_descriptor
-            from gos.modulos.vacaciones import module_descriptor as vacaciones_descriptor
-            from gos.modulos.capacitacion import module_descriptor as capacitacion_descriptor
-            from gos.modulos.ralenti import module_descriptor as ralenti_descriptor
-            from gos.modulos.mantenimiento import module_descriptor as mantenimiento_descriptor
-            from gos.modulos.om import module_descriptor as om_descriptor
-            from gos.modulos.sgc import module_descriptor as sgc_descriptor
-
-            modules.append(dashboard_descriptor())
-            modules.append(objetivos_descriptor())
-            modules.append(capacitacion_descriptor())
-            modules.append(hwo_descriptor())
-            modules.append(vacaciones_descriptor())
-            modules.append(ralenti_descriptor())
-            modules.append(mantenimiento_descriptor())
-            modules.append(om_descriptor())
-            modules.append(sgc_descriptor())
-
-        modules = modulos_para_usuario(current_user, modules)
-
-        current_module = ""
-        if request.path.startswith("/gos/dashboard"):
-            current_module = "dashboard"
-        elif request.path.startswith("/gos/objetivos"):
-            current_module = "objetivos"
-        elif request.path.startswith("/gos/hwo"):
-            current_module = "hwo"
-        elif request.path.startswith("/gos/vacaciones"):
-            current_module = "vacaciones"
-        elif request.path.startswith("/gos/capacitacion"):
-            current_module = "capacitacion"
-        elif request.path.startswith("/gos/ralenti"):
-            current_module = "ralenti"
-        elif request.path.startswith("/gos/mantenimiento"):
-            current_module = "mantenimiento"
-        elif request.path.startswith("/gos/om"):
-            current_module = "om"
-        elif request.path.startswith("/gos/sgc"):
-            current_module = "sgc"
-
-        return {
-            "gos_modules": modules,
-            "current_module": current_module,
-            "app_version": APP_VERSION,
-            "app_version_label": APP_VERSION_LABEL,
-            "presentacion_catalog": _presentacion_catalog_contexto(current_user),
-        }
+    _register_platform_context(app, mode)
 
     return app
 
@@ -133,33 +84,44 @@ def _presentacion_catalog_contexto(user) -> list[dict]:
         return []
 
 
-def _ensure_schema() -> None:
+def _ensure_schema(mode: AppMode) -> None:
     from gos.models import Empresa, Perfil, Usuario  # noqa: F401
-    from gos.modulos.hwo.models import HwoDataset, HwoModalidad  # noqa: F401
-    from gos.modulos.vacaciones.models import Registro, Vacacion  # noqa: F401
-    from gos.modulos.ralenti.models import RalentiConfig, RalentiEvent, RalentiFile  # noqa: F401
-    # Capacitación y Mantenimiento antes que O&M (FKs participante_id / unidad_id).
-    import gos.modulos.capacitacion.models  # noqa: F401
-    import gos.modulos.mantenimiento.models  # noqa: F401
-    from gos.modulos.om.models import (  # noqa: F401
-        OmAuditLog,
-        OmItem,
-        OmModule,
-        OmPersonnel,
-        OmPhone,
-    )
-    import gos.modulos.sgc.models  # noqa: F401
     from gos.schema_upgrade import ensure_core_schema
+
+    if capacitacion_enabled(mode):
+        # Catálogos Objetivos reutilizados por Cap (FK sectores/responsables/areas).
+        from gos.modulos.objetivos.models.catalogos import (  # noqa: F401
+            Area,
+            Responsable,
+            Sector,
+        )
+        import gos.modulos.capacitacion.models  # noqa: F401
+
+    if objetivos_stack_enabled(mode):
+        from gos.modulos.hwo.models import HwoDataset, HwoModalidad  # noqa: F401
+        from gos.modulos.vacaciones.models import Registro, Vacacion  # noqa: F401
+        from gos.modulos.ralenti.models import RalentiConfig, RalentiEvent, RalentiFile  # noqa: F401
+        import gos.modulos.mantenimiento.models  # noqa: F401
+        from gos.modulos.om.models import (  # noqa: F401
+            OmAuditLog,
+            OmItem,
+            OmModule,
+            OmPersonnel,
+            OmPhone,
+        )
+        import gos.modulos.sgc.models  # noqa: F401
 
     ensure_core_schema()
 
 
-def _bootstrap_database() -> None:
+def _bootstrap_database(mode: AppMode) -> None:
     from gos.services.bootstrap_service import ensure_initial_admin
-    from gos.modulos.objetivos import ensure_planeamiento_config
 
     ensure_initial_admin()
-    ensure_planeamiento_config()
+    if objetivos_stack_enabled(mode):
+        from gos.modulos.objetivos import ensure_planeamiento_config
+
+        ensure_planeamiento_config()
 
 
 def _register_core_blueprints(app: Flask) -> None:
@@ -176,26 +138,124 @@ def _register_core_blueprints(app: Flask) -> None:
     app.register_blueprint(presentacion_bp)
 
 
-def _register_modules(app: Flask) -> None:
-    from gos.modulos.dashboard import register as register_dashboard
-    from gos.modulos.hwo import register as register_hwo
-    from gos.modulos.objetivos import register as register_objetivos
-    from gos.modulos.vacaciones import register as register_vacaciones
-    from gos.modulos.capacitacion import register as register_capacitacion
-    from gos.modulos.ralenti import register as register_ralenti
-    from gos.modulos.mantenimiento import register as register_mantenimiento
-    from gos.modulos.om import register as register_om
-    from gos.modulos.sgc import register as register_sgc
+def _register_modules(app: Flask, mode: AppMode) -> None:
+    if objetivos_stack_enabled(mode):
+        from gos.modulos.dashboard import register as register_dashboard
+        from gos.modulos.hwo import register as register_hwo
+        from gos.modulos.objetivos import register as register_objetivos
+        from gos.modulos.vacaciones import register as register_vacaciones
+        from gos.modulos.ralenti import register as register_ralenti
+        from gos.modulos.mantenimiento import register as register_mantenimiento
+        from gos.modulos.om import register as register_om
+        from gos.modulos.sgc import register as register_sgc
 
-    register_dashboard(app)
-    register_objetivos(app)
-    register_capacitacion(app)
-    register_hwo(app)
-    register_ralenti(app)
-    register_vacaciones(app)
-    register_mantenimiento(app)
-    register_om(app)
-    register_sgc(app)
+        register_dashboard(app)
+        register_objetivos(app)
+        register_hwo(app)
+        register_ralenti(app)
+        register_vacaciones(app)
+        register_mantenimiento(app)
+        register_om(app)
+        register_sgc(app)
+
+    if capacitacion_enabled(mode):
+        from gos.modulos.capacitacion import register as register_capacitacion
+
+        register_capacitacion(app)
+
+
+def _module_descriptors(mode: AppMode) -> list[dict]:
+    modules: list[dict] = []
+    if objetivos_stack_enabled(mode):
+        from gos.modulos.dashboard import module_descriptor as dashboard_descriptor
+        from gos.modulos.hwo import module_descriptor as hwo_descriptor
+        from gos.modulos.objetivos import module_descriptor as objetivos_descriptor
+        from gos.modulos.vacaciones import module_descriptor as vacaciones_descriptor
+        from gos.modulos.ralenti import module_descriptor as ralenti_descriptor
+        from gos.modulos.mantenimiento import module_descriptor as mantenimiento_descriptor
+        from gos.modulos.om import module_descriptor as om_descriptor
+        from gos.modulos.sgc import module_descriptor as sgc_descriptor
+
+        modules.extend(
+            [
+                dashboard_descriptor(),
+                objetivos_descriptor(),
+                hwo_descriptor(),
+                vacaciones_descriptor(),
+                ralenti_descriptor(),
+                mantenimiento_descriptor(),
+                om_descriptor(),
+                sgc_descriptor(),
+            ]
+        )
+
+    if capacitacion_enabled(mode):
+        from gos.modulos.capacitacion import module_descriptor as capacitacion_descriptor
+
+        # En full queda junto a objetivos; en solo Cap es el único módulo.
+        if mode == "full":
+            modules.insert(2, capacitacion_descriptor())
+        else:
+            modules.append(capacitacion_descriptor())
+    else:
+        # Enlace externo al programa Cap (Option B).
+        external = env.capacitacion_external_url()
+        if external:
+            modules.insert(
+                2,
+                {
+                    "code": "capacitacion",
+                    "label": "Capacitación",
+                    "description": "Programa separado de capacitación.",
+                    "url": external.rstrip("/") + "/",
+                    "external": True,
+                    "icon": "bi-mortarboard",
+                },
+            )
+
+    return modules
+
+
+def _register_platform_context(app: Flask, mode: AppMode) -> None:
+    @app.context_processor
+    def inject_platform():
+        from flask import request
+        from flask_login import current_user
+
+        from gos.services.modulo_service import modulos_para_usuario
+        from gos.version import APP_VERSION, APP_VERSION_LABEL
+
+        modules = modulos_para_usuario(current_user, _module_descriptors(mode))
+
+        current_module = ""
+        path = request.path
+        if path.startswith("/gos/dashboard"):
+            current_module = "dashboard"
+        elif path.startswith("/gos/objetivos"):
+            current_module = "objetivos"
+        elif path.startswith("/gos/hwo"):
+            current_module = "hwo"
+        elif path.startswith("/gos/vacaciones"):
+            current_module = "vacaciones"
+        elif path.startswith("/gos/capacitacion"):
+            current_module = "capacitacion"
+        elif path.startswith("/gos/ralenti"):
+            current_module = "ralenti"
+        elif path.startswith("/gos/mantenimiento"):
+            current_module = "mantenimiento"
+        elif path.startswith("/gos/om"):
+            current_module = "om"
+        elif path.startswith("/gos/sgc"):
+            current_module = "sgc"
+
+        return {
+            "gos_modules": modules,
+            "current_module": current_module,
+            "app_version": APP_VERSION,
+            "app_version_label": APP_VERSION_LABEL,
+            "gos_app_mode": mode,
+            "presentacion_catalog": _presentacion_catalog_contexto(current_user),
+        }
 
 
 def _register_module_access_guard(app: Flask) -> None:
@@ -204,22 +264,24 @@ def _register_module_access_guard(app: Flask) -> None:
 
     from gos.services.modulo_service import modulo_desde_ruta, usuario_puede_acceder_modulo
 
+    static_endpoints = {
+        "static",
+        "dashboard_static.static",
+        "objetivos_static.static",
+        "capacitacion_static.static",
+        "hwo_static.static",
+        "vacaciones_static.static",
+        "ralenti_static.static",
+        "mantenimiento_static.static",
+        "om_static.static",
+        "sgc_static.static",
+    }
+
     @app.before_request
     def _verificar_acceso_modulo():
         if not current_user.is_authenticated:
             return
-        if request.endpoint in (
-            "static",
-            "dashboard_static.static",
-            "objetivos_static.static",
-            "capacitacion_static.static",
-            "hwo_static.static",
-            "vacaciones_static.static",
-            "ralenti_static.static",
-            "mantenimiento_static.static",
-            "om_static.static",
-            "sgc_static.static",
-        ):
+        if request.endpoint in static_endpoints:
             return
 
         module_code = modulo_desde_ruta(request.path)
@@ -236,20 +298,22 @@ def _register_auto_login(app: Flask) -> None:
 
     from gos.services import auth_service
 
+    static_endpoints = {
+        "static",
+        "dashboard_static.static",
+        "objetivos_static.static",
+        "capacitacion_static.static",
+        "hwo_static.static",
+        "vacaciones_static.static",
+        "ralenti_static.static",
+        "mantenimiento_static.static",
+        "om_static.static",
+        "sgc_static.static",
+    }
+
     @app.before_request
     def _auto_login():
-        if request.endpoint in (
-            "static",
-            "dashboard_static.static",
-            "objetivos_static.static",
-            "capacitacion_static.static",
-            "hwo_static.static",
-            "vacaciones_static.static",
-            "ralenti_static.static",
-            "mantenimiento_static.static",
-            "om_static.static",
-            "sgc_static.static",
-        ):
+        if request.endpoint in static_endpoints:
             return
         if current_user.is_authenticated:
             return

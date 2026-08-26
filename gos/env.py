@@ -133,6 +133,21 @@ def dev_empresa_nombre() -> str:
     return _get("GOS_DEV_EMPRESA_NOMBRE", "GOS") or "GOS"
 
 
+# ── Modo de aplicación (Option B: Cap vs Objetivos) ─────────────────────
+
+
+def app_mode() -> str:
+    """full | objetivos | capacitacion — ver gos.app_mode."""
+    from gos.app_mode import normalize_app_mode
+
+    return normalize_app_mode(_get("GOS_APP_MODE", "full"))
+
+
+def capacitacion_external_url() -> str | None:
+    """URL del programa Cap separado (enlace en menú de Objetivos)."""
+    return _get("GOS_CAPACITACION_URL")
+
+
 # ── Base de datos ───────────────────────────────────────────────────────
 
 
@@ -151,10 +166,18 @@ def sqlite_database_url() -> str:
     custom = _get("GOS_DATABASE_PATH")
     if custom:
         return f"sqlite:///{Path(custom).resolve()}"
+    mode = app_mode()
+    if mode == "capacitacion":
+        return f"sqlite:///{BASE_DIR / 'instance' / 'capacitacion' / 'gos_cap.db'}"
+    if mode == "objetivos":
+        return f"sqlite:///{BASE_DIR / 'instance' / 'objetivos' / 'gos.db'}"
     return f"sqlite:///{BASE_DIR / 'instance' / 'gos.db'}"
 
 
 def sqlalchemy_database_uri() -> str:
+    # GOS_DATABASE_PATH gana sobre DATABASE_URL (útil al separar Cap / Objetivos).
+    if _get("GOS_DATABASE_PATH"):
+        return sqlite_database_url()
     return database_url() or sqlite_database_url()
 
 

@@ -1,6 +1,6 @@
 from gos.extensions import db
 from gos.models import Perfil
-from gos.services.modulo_service import MODULO_CODES
+from gos.services.modulo_service import MODULO_CODES, modulo_codes_activos
 
 
 def listar_perfiles_empresa(empresa_id: int) -> list[Perfil]:
@@ -14,10 +14,11 @@ def listar_perfiles_empresa(empresa_id: int) -> list[Perfil]:
 def _normalizar_modulos(modulos: list[str] | None) -> list[str]:
     if not modulos:
         return []
+    permitidos = set(modulo_codes_activos())
     vistos: set[str] = set()
     resultado: list[str] = []
     for code in modulos:
-        if code in MODULO_CODES and code not in vistos:
+        if code in MODULO_CODES and code in permitidos and code not in vistos:
             vistos.add(code)
             resultado.append(code)
     return resultado
@@ -86,7 +87,7 @@ def eliminar_perfil(perfil: Perfil) -> str | None:
 
 
 # Perfiles base (placeholders de la UI). No había backup recuperable.
-PERFILES_BASE = (
+_PERFILES_BASE_FULL = (
     {
         "nombre": "Operaciones",
         "modulos": ["dashboard", "mantenimiento", "om", "ralenti", "capacitacion"],
@@ -100,6 +101,58 @@ PERFILES_BASE = (
         "modulos": list(MODULO_CODES),
     },
 )
+
+_PERFILES_BASE_OBJETIVOS = (
+    {
+        "nombre": "Operaciones",
+        "modulos": ["dashboard", "mantenimiento", "om", "ralenti"],
+    },
+    {
+        "nombre": "Consultoría",
+        "modulos": ["dashboard", "objetivos", "hwo", "vacaciones"],
+    },
+    {
+        "nombre": "Acceso completo",
+        "modulos": [
+            "dashboard",
+            "objetivos",
+            "hwo",
+            "vacaciones",
+            "ralenti",
+            "mantenimiento",
+            "om",
+            "sgc",
+        ],
+    },
+)
+
+_PERFILES_BASE_CAP = (
+    {
+        "nombre": "Capacitación",
+        "modulos": ["capacitacion"],
+    },
+    {
+        "nombre": "Acceso completo",
+        "modulos": ["capacitacion"],
+    },
+)
+
+
+def _perfiles_base_para_modo() -> tuple[dict, ...]:
+    try:
+        from gos import env
+
+        mode = env.app_mode()
+    except Exception:
+        return _PERFILES_BASE_FULL
+    if mode == "capacitacion":
+        return _PERFILES_BASE_CAP
+    if mode == "objetivos":
+        return _PERFILES_BASE_OBJETIVOS
+    return _PERFILES_BASE_FULL
+
+
+PERFILES_BASE = _PERFILES_BASE_FULL  # compat; restaurar usa _perfiles_base_para_modo
 
 
 def upsert_perfiles_empresa(
@@ -130,7 +183,7 @@ def upsert_perfiles_empresa(
 
 
 def restaurar_perfiles_base(empresa_id: int) -> dict[str, int]:
-    return upsert_perfiles_empresa(empresa_id, list(PERFILES_BASE))
+    return upsert_perfiles_empresa(empresa_id, list(_perfiles_base_para_modo()))
 
 
 def exportar_perfiles_empresa(empresa_id: int) -> list[dict]:

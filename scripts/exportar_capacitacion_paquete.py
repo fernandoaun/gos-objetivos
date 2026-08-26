@@ -33,7 +33,14 @@ EXPORTS_ROOT = ROOT / "exports"
 MODULE_SRC = ROOT / "gos" / "modulos" / "capacitacion"
 STORAGE_SRC = ROOT / "storage" / "capacitacion"
 
-PARENT_TABLES = ("empresas", "sectores", "responsables")
+PARENT_TABLES = (
+    "empresas",
+    "perfiles",
+    "usuarios",
+    "sectores",
+    "areas",
+    "responsables",
+)
 SKIP_DIR_NAMES = {"__pycache__", ".pytest_cache", ".mypy_cache", ".git"}
 SKIP_SUFFIXES = {".pyc", ".pyo"}
 
@@ -216,7 +223,7 @@ def _write_readme(path: Path, *, stamp: str, source: Path, counts: dict[str, int
         "",
         "| Ruta | Descripción |",
         "|------|-------------|",
-        "| `datos/capacitacion.db` | SQLite solo con `cap_*` + `empresas` / `sectores` / `responsables` |",
+        "| `datos/capacitacion.db` | SQLite con `cap_*` + empresas/usuarios/perfiles/sectores/areas/responsables |",
         "| `codigo/capacitacion/` | Código Flask del módulo (blueprints, models, services, static, templates) |",
         "| `storage/capacitacion/` | Evidencias/archivos subidos (si había) |",
         "| `MANIFEST.json` | Conteos y origen del export |",

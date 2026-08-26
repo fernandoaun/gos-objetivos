@@ -11,14 +11,21 @@ from gos.extensions import db
 
 
 def build_summary(empresa_id: int) -> dict[str, Any]:
+    from flask import current_app
+
     modules = [
         _safe("objetivos", _objetivos, empresa_id),
-        _safe("capacitacion", _capacitacion, empresa_id),
-        _safe("hwo", _hwo, empresa_id),
-        _safe("vacaciones", _vacaciones, empresa_id),
-        _safe("ralenti", _ralenti, empresa_id),
-        _safe("mantenimiento", _mantenimiento, empresa_id),
     ]
+    if current_app.config.get("GOS_CAPACITACION_ENABLED"):
+        modules.append(_safe("capacitacion", _capacitacion, empresa_id))
+    modules.extend(
+        [
+            _safe("hwo", _hwo, empresa_id),
+            _safe("vacaciones", _vacaciones, empresa_id),
+            _safe("ralenti", _ralenti, empresa_id),
+            _safe("mantenimiento", _mantenimiento, empresa_id),
+        ]
+    )
 
     scores = [m["score"] for m in modules if m.get("ok") and m.get("score") is not None]
     health = round(sum(scores) / len(scores), 1) if scores else None

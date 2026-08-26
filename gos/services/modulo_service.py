@@ -26,12 +26,43 @@ MODULO_LABELS = {
     "sgc": "SGC",
 }
 
+_OBJETIVOS_CODES = (
+    "dashboard",
+    "objetivos",
+    "hwo",
+    "vacaciones",
+    "ralenti",
+    "mantenimiento",
+    "om",
+    "sgc",
+)
+
+
+def modulo_codes_activos() -> tuple[str, ...]:
+    """Códigos disponibles en el programa actual (GOS_APP_MODE)."""
+    try:
+        from gos import env
+        from gos.app_mode import capacitacion_enabled, objetivos_stack_enabled
+
+        mode = env.app_mode()
+    except Exception:
+        return MODULO_CODES
+
+    if mode == "capacitacion":
+        return ("capacitacion",)
+    if mode == "objetivos":
+        return _OBJETIVOS_CODES
+    return MODULO_CODES
+
 
 def _modulos_por_rol(user) -> set[str] | None:
     if user.es_angel():
         return None
     if user.es_usuario():
-        return {"capacitacion"}
+        activos = set(modulo_codes_activos())
+        if "capacitacion" in activos:
+            return {"capacitacion"}
+        return set()
     if user.es_cliente():
         return None
     return set()
@@ -42,13 +73,18 @@ def codigos_modulos_permitidos(user) -> set[str] | None:
     if isinstance(user, AnonymousUserMixin) or not user.is_authenticated:
         return set()
 
+    activos = set(modulo_codes_activos())
+
     if user.es_administrador():
         return None
 
     if user.perfil_id and user.perfil:
-        return set(user.perfil.modulos or [])
+        return set(user.perfil.modulos or []) & activos
 
-    return _modulos_por_rol(user)
+    rol = _modulos_por_rol(user)
+    if rol is None:
+        return None
+    return rol & activos
 
 
 def modulos_para_usuario(user, descriptors: list[dict]) -> list[dict]:

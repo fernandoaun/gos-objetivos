@@ -42,9 +42,7 @@ class OmPersonnel(db.Model):
     module_id = db.Column(
         db.Integer, db.ForeignKey("om_modules.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    participante_id = db.Column(
-        db.Integer, db.ForeignKey("cap_participantes.id", ondelete="SET NULL"), nullable=True, index=True
-    )
+    participante_id = db.Column(db.Integer, nullable=True, index=True)
     name = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(128))
     sort_order = db.Column(db.Integer, nullable=False, default=0)

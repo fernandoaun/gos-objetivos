@@ -3,7 +3,7 @@ from flask_login import current_user
 
 from gos.models import Perfil
 from gos.services import perfil_service
-from gos.services.modulo_service import MODULO_CODES, MODULO_LABELS
+from gos.services.modulo_service import MODULO_LABELS, modulo_codes_activos
 from gos.utils.auth_decorators import requiere_admin
 
 bp = Blueprint("perfiles", __name__)
@@ -13,10 +13,11 @@ bp = Blueprint("perfiles", __name__)
 @requiere_admin
 def index():
     perfiles = perfil_service.listar_perfiles_empresa(current_user.empresa_id)
+    codes = modulo_codes_activos()
     return render_template(
         "perfiles/index.html",
         perfiles=perfiles,
-        modulo_codes=MODULO_CODES,
+        modulo_codes=codes,
         modulo_labels=MODULO_LABELS,
     )
 

@@ -31,7 +31,8 @@
       <div class="pe-nav-section-label">Módulos</div>
       {% for mod in gos_modules %}
       <a href="{{ mod.url }}"
-         class="pe-nav-link {% if current_module == mod.code %}active{% endif %}">
+         class="pe-nav-link {% if current_module == mod.code %}active{% endif %}"
+         {% if mod.external %}target="_blank" rel="noopener"{% endif %}>
         <i class="bi {{ mod.icon }}"></i>
         <span>{{ mod.label }}</span>
       </a>

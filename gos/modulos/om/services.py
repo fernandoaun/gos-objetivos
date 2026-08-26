@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from flask import current_app
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
@@ -86,12 +87,15 @@ def _nombre_corto_texto(full: str | None) -> str:
 
 def _display_personnel_name(p: OmPersonnel) -> str:
     """Nombre corto para UI; si hay vínculo a Capacitación, lo resuelve en vivo."""
-    if p.participante_id:
-        from gos.modulos.capacitacion.models.participante import Participante
+    if p.participante_id and current_app.config.get("GOS_CAPACITACION_ENABLED"):
+        try:
+            from gos.modulos.capacitacion.models.participante import Participante
 
-        part = db.session.get(Participante, p.participante_id)
-        if part:
-            return _primer_nombre_apellido(part.nombre, part.apellido)
+            part = db.session.get(Participante, p.participante_id)
+            if part:
+                return _primer_nombre_apellido(part.nombre, part.apellido)
+        except Exception:
+            pass
     return _nombre_corto_texto(p.name)
 
 
@@ -194,18 +198,25 @@ def _insert_relations(module: OmModule, data: dict) -> None:
         role = person.get("role") or None
         phones = list(person.get("phones") or [])
 
-        if participante_id:
-            from gos.modulos.capacitacion.models.participante import Participante
+        if participante_id and current_app.config.get("GOS_CAPACITACION_ENABLED"):
+            try:
+                from gos.modulos.capacitacion.models.participante import Participante
 
-            part = db.session.get(Participante, participante_id)
-            if part:
-                name = _primer_nombre_apellido(part.nombre, part.apellido)
-                if not role and part.puesto:
-                    role = part.puesto.nombre
-                if not phones and part.telefono:
-                    phones = [{"type": "Personal", "number": part.telefono}]
+                part = db.session.get(Participante, participante_id)
+                if part:
+                    name = _primer_nombre_apellido(part.nombre, part.apellido)
+                    if not role and part.puesto:
+                        role = part.puesto.nombre
+                    if not phones and part.telefono:
+                        phones = [{"type": "Personal", "number": part.telefono}]
+                else:
+                    name = _nombre_corto_texto(name)
+            except Exception:
+                name = _nombre_corto_texto(name)
         else:
             name = _nombre_corto_texto(name)
+            if not current_app.config.get("GOS_CAPACITACION_ENABLED"):
+                participante_id = None
 
         personnel = OmPersonnel(
             module=module,
@@ -253,8 +264,13 @@ def _insert_relations(module: OmModule, data: dict) -> None:
 
 
 def catalog_personal(empresa_id: int, q: str | None = None) -> list[dict]:
-    """Personas activas de Capacitación para asignar en O&M."""
-    from gos.modulos.capacitacion.models.participante import Participante
+    """Personas activas de Capacitación para asignar en O&M (solo si Cap está en esta app)."""
+    if not current_app.config.get("GOS_CAPACITACION_ENABLED"):
+        return []
+    try:
+        from gos.modulos.capacitacion.models.participante import Participante
+    except Exception:
+        return []
 
     query = Participante.query.filter_by(empresa_id=empresa_id, activo=True)
     rows = query.order_by(Participante.apellido, Participante.nombre).all()

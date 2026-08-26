@@ -1,7 +1,8 @@
 ' Inicia GOS Objetivos sin ventanas negras (consola oculta).
+' Si existe instance\objetivos\gos.db (separación Cap), usa modo objetivos.
 Option Explicit
 
-Dim WshShell, FSO, root, exitCode
+Dim WshShell, FSO, root, exitCode, objDb, runner
 
 Set WshShell = CreateObject("WScript.Shell")
 Set FSO = CreateObject("Scripting.FileSystemObject")
@@ -16,7 +17,7 @@ If exitCode <> 0 Then
     WScript.Quit 1
 End If
 
-WshShell.Run "cmd /c for /f ""tokens=5"" %a in ('netstat -aon 2^>nul ^| findstr "":5000"" ^| findstr ""LISTENING""') do taskkill /F /PID %a >nul 2>&1", 0, True
+WshShell.Run "cmd /c for /f ""tokens=5"" %a in ('netstat -aon 2^>nul ^| findstr "":5001"" ^| findstr ""LISTENING""') do taskkill /F /PID %a >nul 2>&1", 0, True
 
 exitCode = WshShell.Run("cmd /c cd /d """ & root & """ && python scripts\actualizar.py", 0, True)
 If exitCode <> 0 Then
@@ -25,7 +26,14 @@ If exitCode <> 0 Then
     WScript.Quit 1
 End If
 
-WshShell.Run "cmd /c cd /d """ & root & """ && pythonw run.py", 0, False
+objDb = root & "\instance\objetivos\gos.db"
+If FSO.FileExists(objDb) Then
+    runner = "pythonw run_objetivos.py"
+Else
+    runner = "pythonw run.py"
+End If
+
+WshShell.Run "cmd /c cd /d """ & root & """ && " & runner, 0, False
 
 WScript.Sleep 5000
-WshShell.Run "http://127.0.0.1:5000/", 1, False
+WshShell.Run "http://127.0.0.1:5001/", 1, False

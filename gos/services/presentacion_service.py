@@ -137,6 +137,10 @@ def _pack_datos(module_code: str) -> dict:
         if module_code == "mantenimiento":
             return _pack_mantenimiento()
         if module_code == "capacitacion":
+            from flask import current_app
+
+            if not current_app.config.get("GOS_CAPACITACION_ENABLED"):
+                return {}
             return _pack_capacitacion()
         if module_code == "vacaciones":
             return _pack_vacaciones()

@@ -1,4 +1,5 @@
-"""Inicializa tablas antes de Gunicorn (Render)."""
+"""Inicializa tablas antes de Gunicorn (Render). Respeta GOS_APP_MODE."""
+import os
 import sys
 from pathlib import Path
 
@@ -28,17 +29,23 @@ def main() -> None:
         )
         sys.exit(1)
 
+    mode = env.app_mode()
+    print(f"[render_start] GOS_APP_MODE={mode}")
+
     try:
         from gos import create_app
+        from gos.app_mode import objetivos_stack_enabled
         from gos.extensions import db
         from gos.services.bootstrap_service import ensure_initial_admin
-        from gos.modulos.objetivos import ensure_planeamiento_config
 
         app = create_app("production")
         with app.app_context():
             db.create_all()
             ensure_initial_admin()
-            ensure_planeamiento_config()
+            if objetivos_stack_enabled(mode):  # type: ignore[arg-type]
+                from gos.modulos.objetivos import ensure_planeamiento_config
+
+                ensure_planeamiento_config()
             uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")
             backend = "postgresql" if uri.startswith("postgres") else "sqlite"
             print(f"[render_start] Base OK ({backend})")
