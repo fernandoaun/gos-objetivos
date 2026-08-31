@@ -23,6 +23,18 @@
   .sched-hist-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border, #e2e8f0); border-radius: 8px; background: #f8fafc; }
   .sched-hist-add { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end; }
   @media (max-width: 640px) { .sched-hist-add { grid-template-columns: 1fr; } }
+  .sched-stack { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+  .sched-base-wrap { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .sched-base-label { font-size: 10px; color: var(--muted, #64748b); white-space: nowrap; }
+  .sched-sel--base { font-size: 11px; padding: 2px 4px; }
+  .sched-changes { display: flex; flex-direction: column; gap: 3px; }
+  .sched-change-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 10px; line-height: 1.3; color: var(--muted, #64748b); padding: 2px 0; }
+  .sched-change-line--here { color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 3px 6px; font-weight: 600; }
+  .sched-change-date { white-space: nowrap; }
+  .sched-change-date::before { content: '↳ '; }
+  .sched-change-arrow { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sched-change-here { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; color: #1d4ed8; background: #dbeafe; padding: 1px 5px; border-radius: 999px; white-space: nowrap; }
+  .sched-hist-row--here { border-color: #93c5fd; background: #eff6ff; }
 </style>
 </head>
 <body>
@@ -849,6 +861,61 @@ function scheduleForDate(history,date){
 }
 function scheduleAt(eq,date){return scheduleForDate(eq.scheduleHistory,date);}
 function baseSchedule(history){return(history||[]).find(e=>!e.from)?.schedule||scheduleForDate(history,new Date());}
+function effectiveScheduleRef(cfg){return cfg?.periodEnd||cfg?.periodStart||new Date();}
+function effectiveSchedule(history,cfg){return scheduleForDate(history,effectiveScheduleRef(cfg));}
+function scheduleOptionsHtml(selected){return SCHEDULES.map(s=>`<option value="${s}"${selected===s?' selected':''}>${SCHEDULE_LABEL[s]}</option>`).join('');}
+function datedScheduleChanges(history){
+  const h=normalizeScheduleHistory(history);
+  const out=[];
+  for(const entry of h){
+    if(!entry.from)continue;
+    const fromDate=parseDate(entry.from);
+    if(!fromDate)continue;
+    const dayBefore=new Date(fromDate.getTime());
+    dayBefore.setDate(dayBefore.getDate()-1);
+    out.push({from:entry.from,fromDate,fromLabel:fmt(fromDate),prevSched:scheduleForDate(h,dayBefore),newSched:entry.schedule});
+  }
+  return out;
+}
+function changeInPeriod(change,periodStart,periodEnd){
+  if(!change?.fromDate||!periodStart||!periodEnd)return false;
+  const t=startOfDay(change.fromDate).getTime();
+  return t>=startOfDay(periodStart).getTime()&&t<=startOfDay(periodEnd).getTime();
+}
+function scheduleEntryIndexForRef(history, refDate) {
+  const h = normalizeScheduleHistory(history);
+  const refT = startOfDay(refDate)?.getTime();
+  if (!refT) return 0;
+  let idx = 0;
+  for (let i = 0; i < h.length; i++) {
+    if (!h[i].from) { idx = i; continue; }
+    const fromT = startOfDay(parseDate(h[i].from))?.getTime();
+    if (fromT != null && fromT <= refT) idx = i;
+  }
+  return idx;
+}
+function renderScheduleChangeLines(history,cfg){
+  const changes=datedScheduleChanges(history).filter(ch=>changeInPeriod(ch,cfg?.periodStart,cfg?.periodEnd));
+  if(!changes.length)return '';
+  return `<div class="sched-changes">${changes.map(ch=>`<div class="sched-change-line sched-change-line--here" title="Cambio de modalidad en este período"><span class="sched-change-date">${ch.fromLabel}</span><span class="sched-change-arrow">${SCHEDULE_LABEL[ch.prevSched]} → ${SCHEDULE_LABEL[ch.newSched]}</span><span class="sched-change-here">cambio aquí</span></div>`).join('')}</div>`;
+}
+function renderScheduleCell(e){
+  const cfg=D.config||{};
+  const periodSched=effectiveSchedule(e.scheduleHistory,cfg);
+  const eqEnc=encodeURIComponent(e.equipo);
+  const histBtn=`<button type="button" class="sched-hist-btn${hasScheduleChanges(e.scheduleHistory)?' sched-hist-btn--active':''}" title="Cambios de modalidad por fecha" data-eq="${eqEnc}" onclick="openScheduleHistory(decodeURIComponent(this.dataset.eq))">&#128197;</button>`;
+  const changeLines=renderScheduleChangeLines(e.scheduleHistory,cfg);
+  const select=`<select class="sched-sel${hasScheduleChanges(e.scheduleHistory)?' sched-sel--base':''}" data-eq="${e.equipo}" onchange="setSchedule(this)" title="Modalidad vigente en el período">${scheduleOptionsHtml(periodSched)}</select>`;
+  if(hasScheduleChanges(e.scheduleHistory)){
+    return `<div class="sched-cell"><div class="sched-stack"><label class="sched-base-wrap"><span class="sched-base-label">Base</span>${select}</label>${changeLines}</div>${histBtn}</div>`;
+  }
+  return `<div class="sched-cell">${select}${histBtn}</div>`;
+}
+function refreshEquipmentPeriodMetrics(){
+  const cfg=D.config;
+  if(!cfg?.periodStart||!Object.keys(D.eqs||{}).length)return;
+  for(const k of Object.keys(D.eqs))reCountEquipment(k);
+}
 function hasScheduleChanges(history){return(history||[]).some(e=>!!e.from);}
 function serializeScheduleHistory(history){
   const h=normalizeScheduleHistory(history);
@@ -1015,9 +1082,8 @@ function setSchedule(sel) {
   const eq = eqKey(sel.dataset.eq); const e = D.eqs[eq]; if (!e) return;
   const newSched = sel.value;
   const history = normalizeScheduleHistory(e.scheduleHistory || [{ from: null, schedule: newSched }]);
-  const base = history.find(item => !item.from);
-  if (base) base.schedule = newSched;
-  else history.unshift({ from: null, schedule: newSched });
+  const idx = scheduleEntryIndexForRef(history, effectiveScheduleRef(D.config));
+  history[idx].schedule = newSched;
   applyScheduleHistory(e, history);
   reCountEquipment(eq);
   saveModalidadEntry(eq, e.scheduleHistory);
@@ -1039,11 +1105,19 @@ function renderScheduleHistoryModal() {
     schedSel.innerHTML = SCHEDULES.map(s => `<option value="${s}">${SCHEDULE_LABEL[s]}</option>`).join('');
   }
   list.innerHTML = (e.scheduleHistory || []).map((item, idx) => {
+    const cfg = D.config || {};
     const label = item.from ? `Desde ${fmt(parseDate(item.from))}` : 'Desde el inicio';
     const del = item.from
       ? `<button type="button" class="sched-hist-btn" title="Quitar" onclick="removeScheduleChange(${idx})">×</button>`
       : '<span style="font-size:11px;color:var(--muted)">Base</span>';
-    return `<div class="sched-hist-row"><div><strong>${label}</strong><div style="font-size:12px;color:var(--muted)">${SCHEDULE_LABEL[item.schedule] || item.schedule}</div></div>${del}</div>`;
+    let detail = SCHEDULE_LABEL[item.schedule] || item.schedule;
+    if (item.from) {
+      const ch = datedScheduleChanges(e.scheduleHistory).find(c => c.from === item.from);
+      if (ch) detail = `${SCHEDULE_LABEL[ch.prevSched]} → ${SCHEDULE_LABEL[ch.newSched]}`;
+    }
+    const here = item.from && changeInPeriod({ fromDate: parseDate(item.from) }, cfg.periodStart, cfg.periodEnd);
+    const hereTag = here ? ' <span class="sched-change-here">cambio en este período</span>' : '';
+    return `<div class="sched-hist-row${here ? ' sched-hist-row--here' : ''}"><div><strong>${label}${hereTag}</strong><div style="font-size:12px;color:var(--muted)">${detail}</div></div>${del}</div>`;
   }).join('');
 }
 
@@ -2039,6 +2113,7 @@ function syncAndRenderPeriodStatus() {
 // ═══════════════════════════════════════════
 function renderAll() {
   syncMesCerradoState();
+  refreshEquipmentPeriodMetrics();
   renderTopbar(); renderToolbarInfo(); renderFileBar();
   renderProgressBar(); renderKPIs(); renderEquipmentTable();
   renderIncidents(); renderChartsForView(activeView);
@@ -2127,17 +2202,16 @@ function renderEquipmentTable() {
     let desvBadge = '—';
     if (e.expectedToDate > 0) { const d = e.desvioServ, cls = d >= 0 ? 'b-green' : d >= -2 ? 'b-yellow' : 'b-red'; desvBadge = `<span class="badge ${cls}">${d >= 0 ? '+' : ''}${d}</span>`; }
     const eqEnc = encodeURIComponent(e.equipo);
-    const baseSched = baseSchedule(e.scheduleHistory);
     const histBtn = `<button type="button" class="sched-hist-btn${hasScheduleChanges(e.scheduleHistory) ? ' sched-hist-btn--active' : ''}" title="Cambios de modalidad por fecha" data-eq="${eqEnc}" onclick="openScheduleHistory(decodeURIComponent(this.dataset.eq))">&#128197;</button>`;
     const fdsBadge = `<span class="badge badge-click ${e.fds > 0 ? 'b-red' : 'b-gray'}" role="button" tabindex="0" title="Ver días de FDS" data-eq="${eqEnc}" onclick="openFdsDetail(this.dataset.eq)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openFdsDetail(this.dataset.eq)}">${e.fds}</span>`;
-    return `<tr><td class="r eq-num">${i + 1}</td><td><span class="dot dot-${e.semaforo}"></span></td><td><span class="eq-name">${e.equipo}</span></td><td><span class="cli-name">${e.cliente}</span></td><td><div class="sched-cell"><select class="sched-sel" data-eq="${e.equipo}" onchange="setSchedule(this)">${SCHEDULES.map(s => `<option value="${s}"${baseSched === s ? ' selected' : ''}>${SCHEDULE_LABEL[s]}</option>`).join('')}</select>${histBtn}</div></td><td class="r">${e.jornadasPeriodo || 0}</td><td class="r"><span class="badge b-green">${e.op}</span></td><td class="r"><span class="badge b-blue">${e.sbsp}</span></td><td class="r"><span class="badge ${e.sbcc > 0 ? 'b-yellow' : 'b-gray'}">${e.sbcc}</span></td><td class="r">${fdsBadge}</td><td class="r">${e.fdsTolerado}</td><td class="r">${fdsRest}</td><td class="r"><strong>${e.totalServ}</strong></td><td class="r">${e.expectedToDate}</td><td class="r">${e.expectedMonth}</td><td class="r">${desvBadge}</td><td><span class="pbar-wrap"><span class="pbar-fill" style="width:${Math.min(pctC, 100).toFixed(0)}%;background:${pctColor}"></span></span><span style="font-size:11px;font-weight:700;color:${pctColor}">${pctStr}</span></td></tr>`;
+    const schedCell = renderScheduleCell(e);
+    return `<tr><td class="r eq-num">${i + 1}</td><td><span class="dot dot-${e.semaforo}"></span></td><td><span class="eq-name">${e.equipo}</span></td><td><span class="cli-name">${e.cliente}</span></td><td>${schedCell}</td><td class="r">${e.jornadasPeriodo || 0}</td><td class="r"><span class="badge b-green">${e.op}</span></td><td class="r"><span class="badge b-blue">${e.sbsp}</span></td><td class="r"><span class="badge ${e.sbcc > 0 ? 'b-yellow' : 'b-gray'}">${e.sbcc}</span></td><td class="r">${fdsBadge}</td><td class="r">${e.fdsTolerado}</td><td class="r">${fdsRest}</td><td class="r"><strong>${e.totalServ}</strong></td><td class="r">${e.expectedToDate}</td><td class="r">${e.expectedMonth}</td><td class="r">${desvBadge}</td><td><span class="pbar-wrap"><span class="pbar-fill" style="width:${Math.min(pctC, 100).toFixed(0)}%;background:${pctColor}"></span></span><span style="font-size:11px;font-weight:700;color:${pctColor}">${pctStr}</span></td></tr>`;
   }).join('');
   const tot = f => eqList.reduce((s, e) => s + (e[f] || 0), 0);
   const totServ = tot('totalServ'), totExp = tot('expectedToDate'), totExpMes = tot('expectedMonth'), totFDS = tot('fds'), totDesv = totServ - totExp;
   const pctG = totExp > 0 ? ((totServ / totExp) * 100).toFixed(1) + '%' : '—';
   const desvB = totExp > 0 ? `<span class="badge ${totDesv >= 0 ? 'b-green' : 'b-red'}">${totDesv >= 0 ? '+' : ''}${totDesv}</span>` : '—';
   document.getElementById('eq-tfoot').innerHTML = `<td class="r"></td><td></td><td>TOTAL</td><td></td><td></td><td class="r">${tot('jornadasPeriodo')}</td><td class="r">${tot('op')}</td><td class="r">${tot('sbsp')}</td><td class="r">${tot('sbcc')}</td><td class="r">${totFDS}</td><td class="r">${tot('fdsTolerado')}</td><td class="r">${tot('fdsRestante')}</td><td class="r"><strong>${totServ}</strong></td><td class="r">${totExp}</td><td class="r">${totExpMes}</td><td class="r">${desvB}</td><td>${pctG}</td>`;
-  document.querySelectorAll('#eq-tbody .sched-sel').forEach(sel => { const e = D.eqs[sel.dataset.eq]; if (e) sel.value = baseSchedule(e.scheduleHistory); });
 }
 
 function renderIncidents() {
