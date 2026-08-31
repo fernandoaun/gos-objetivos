@@ -64,6 +64,14 @@ def test_hwo_modalidad_persiste(app):
         assert prefs == {"EQ-1": "24hs", "EQ-2": "lun-vie"}
 
 
+def test_hwo_modalidad_historial_json(app):
+    with app.app_context():
+        hist = '[{"schedule":"lun-vie"},{"from":"2026-03-15","schedule":"10x5"}]'
+        storage.save_modalidad({"EQ-1": hist})
+        prefs = storage.get_all_modalidad()
+        assert prefs["EQ-1"] == hist
+
+
 def test_hwo_modalidad_actualiza_sin_borrar_otros(app):
     with app.app_context():
         storage.save_modalidad({"EQ-1": "24hs", "EQ-2": "lun-vie"})

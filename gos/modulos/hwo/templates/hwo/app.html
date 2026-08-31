@@ -14,6 +14,15 @@
   .hwo-modal.hidden { display: none !important; }
   .hwo-modal-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, 0.45); }
   .hwo-modal-panel { position: relative; z-index: 1; width: min(960px, 100%); max-height: min(80vh, 720px); overflow: auto; background: var(--card, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 10px; box-shadow: 0 18px 50px rgba(15, 23, 42, 0.22); }
+  .sched-cell { display: flex; align-items: center; gap: 4px; min-width: 170px; }
+  .sched-cell .sched-sel { flex: 1; min-width: 0; }
+  .sched-hist-btn { flex: 0 0 auto; border: 1px solid var(--border, #e2e8f0); background: #fff; border-radius: 6px; width: 28px; height: 28px; cursor: pointer; font-size: 13px; line-height: 1; padding: 0; }
+  .sched-hist-btn:hover { background: #f8fafc; }
+  .sched-hist-btn--active { border-color: #3b82f6; background: #eff6ff; }
+  .sched-hist-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .sched-hist-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 1px solid var(--border, #e2e8f0); border-radius: 8px; background: #f8fafc; }
+  .sched-hist-add { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end; }
+  @media (max-width: 640px) { .sched-hist-add { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -233,6 +242,34 @@
       <button type="button" class="hwo-modal-close" id="day-detail-close" aria-label="Cerrar">×</button>
     </div>
     <div class="hwo-modal-body" id="day-detail-body"></div>
+  </div>
+</div>
+
+<div id="sched-history-modal" class="hwo-modal hidden" aria-hidden="true">
+  <div class="hwo-modal-backdrop" id="sched-history-backdrop"></div>
+  <div class="hwo-modal-panel" role="dialog" aria-modal="true" aria-labelledby="sched-history-title">
+    <div class="hwo-modal-head">
+      <div>
+        <div class="hwo-modal-title" id="sched-history-title">Modalidad por fecha</div>
+        <div class="hwo-modal-sub" id="sched-history-sub"></div>
+      </div>
+      <button type="button" class="hwo-modal-close" id="sched-history-close" aria-label="Cerrar">×</button>
+    </div>
+    <div class="hwo-modal-body">
+      <p style="font-size:12px;color:var(--muted);margin:0 0 12px">La modalidad base (selector en la tabla) aplica desde el inicio. Agregá cambios con fecha para programar otra modalidad a partir de ese día.</p>
+      <div class="sched-hist-list" id="sched-history-list"></div>
+      <form id="sched-history-add" class="sched-hist-add">
+        <div>
+          <label class="form-label" for="sched-history-from" style="font-size:11px">Desde</label>
+          <input type="date" class="sched-sel" id="sched-history-from" required>
+        </div>
+        <div>
+          <label class="form-label" for="sched-history-sched" style="font-size:11px">Modalidad</label>
+          <select class="sched-sel" id="sched-history-sched" required></select>
+        </div>
+        <button type="submit" class="btn-primary" style="height:34px">Agregar</button>
+      </form>
+    </div>
   </div>
 </div>
 
@@ -750,6 +787,7 @@ function is10x5WorkDay(date){return dayIn10x5Cycle(date)<SCHEDULE_10X5.work;}
 function calcFdsTol(s, base, equipo) {
   const name = (equipo || '').toString().trim().toUpperCase().replace(/\s+/g, '');
   if (name === 'EHW30') return 0;
+  if (s === '10x5') return 0;
   if (s === 'lun-vie' || s === 'lun-vie-sf') return 1;
   return (base || 0) * jpd(s);
 }
@@ -774,9 +812,69 @@ function expectedOnDay(date,schedule,holidays){
   return 1;
 }
 function expectedRange(schedule,from,to,holidays){let n=0;const d=new Date(from.getTime());while(d<=to){n+=expectedOnDay(d,schedule,holidays);d.setDate(d.getDate()+1);}return n;}
+function fmtIso(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;}
+function normalizeScheduleHistory(arr){
+  const out=[];
+  for(const item of arr||[]){
+    const sched=(item?.schedule||'').trim();
+    if(!SCHEDULES.includes(sched))continue;
+    const from=item.from?parseDate(item.from):null;
+    out.push({from:from?fmtIso(from):null,schedule:sched});
+  }
+  out.sort((a,b)=>{if(!a.from&&!b.from)return 0;if(!a.from)return-1;if(!b.from)return 1;return a.from.localeCompare(b.from);});
+  if(!out.length)out.push({from:null,schedule:'lun-lun'});
+  if(out[0].from)out.unshift({from:null,schedule:out[0].schedule});
+  const seen=new Set();
+  return out.filter(e=>{const k=(e.from||'__base__')+'|'+e.schedule;if(seen.has(k))return false;seen.add(k);return true;});
+}
+function parseScheduleRaw(raw){
+  if(raw==null||raw==='')return null;
+  if(Array.isArray(raw))return normalizeScheduleHistory(raw);
+  const t=String(raw).trim();
+  if(!t)return null;
+  if(t.startsWith('[')){try{const parsed=JSON.parse(t);if(Array.isArray(parsed))return normalizeScheduleHistory(parsed);}catch(_){}}
+  return SCHEDULES.includes(t)?normalizeScheduleHistory([{from:null,schedule:t}]):null;
+}
+function scheduleForDate(history,date){
+  const h=history?.length?history:[{from:null,schedule:'lun-lun'}];
+  let sched=h[0].schedule||'lun-lun';
+  const dt=startOfDay(date)?.getTime();
+  if(!dt)return sched;
+  for(const entry of h){
+    if(!entry.from){sched=entry.schedule;continue;}
+    const fromT=startOfDay(parseDate(entry.from))?.getTime();
+    if(fromT!=null&&fromT<=dt)sched=entry.schedule;
+  }
+  return SCHEDULES.includes(sched)?sched:'lun-lun';
+}
+function scheduleAt(eq,date){return scheduleForDate(eq.scheduleHistory,date);}
+function baseSchedule(history){return(history||[]).find(e=>!e.from)?.schedule||scheduleForDate(history,new Date());}
+function hasScheduleChanges(history){return(history||[]).some(e=>!!e.from);}
+function serializeScheduleHistory(history){
+  const h=normalizeScheduleHistory(history);
+  if(h.length===1&&!h[0].from)return h[0].schedule;
+  return JSON.stringify(h);
+}
+function expectedRangeForEq(eq,from,to,holidays){
+  let n=0;const d=new Date(from.getTime());
+  while(d<=to){n+=expectedOnDay(d,scheduleAt(eq,d),holidays);d.setDate(d.getDate()+1);}
+  return n;
+}
+function expectedNetForEq(eq,from,to,holidays,fdsTol){
+  if(!from||!to||to<from)return 0;
+  return Math.max(0,expectedRangeForEq(eq,from,to,holidays)-(fdsTol||0));
+}
+function calcFdsTolPeriod(history,base,equipo,periodStart,periodEnd){
+  if(!periodStart||!periodEnd)return 0;
+  let total=0;
+  for(const p of eachOperationalPeriod(periodStart,periodEnd)){
+    total+=calcFdsTol(scheduleForDate(history,p.periodStart),base,equipo);
+  }
+  return total;
+}
 /** Proyectado diario neto: jornadas del día × (Esp. del Mes / jornadas brutas), prorrateando FDS Tol. */
 function projectedOnDay(date, eq, holidays) {
-  const gross = expectedOnDay(date, eq.schedule, holidays);
+  const gross = expectedOnDay(date, scheduleAt(eq, date), holidays);
   if (!gross) return 0;
   const jornadas = eq.jornadasPeriodo || 0;
   if (!jornadas) return gross;
@@ -826,7 +924,7 @@ function modalidadStorageKey(equipo, datasetName) {
   return ds ? `${ds}|${eq}` : eq;
 }
 
-function lookupSavedSchedule(equipo, datasetName) {
+function lookupSavedScheduleRaw(equipo, datasetName) {
   const saved = loadModalidad();
   const eq = eqKey(equipo);
   const ds = (datasetName || datasets[activeIdx]?.name || '').trim();
@@ -835,9 +933,15 @@ function lookupSavedSchedule(equipo, datasetName) {
   candidates.push(eq);
   for (const k of candidates) {
     const sched = saved[k];
-    if (sched && SCHEDULES.includes(sched)) return sched;
+    if (sched != null && String(sched).trim()) return sched;
   }
   return null;
+}
+
+function lookupSavedSchedule(equipo, datasetName) {
+  const history = parseScheduleRaw(lookupSavedScheduleRaw(equipo, datasetName));
+  if (!history) return null;
+  return baseSchedule(history);
 }
 
 async function initModalidad() {
@@ -856,7 +960,9 @@ function snapshotModalidadFromEqs(eqs, datasetName) {
   if (!eqs || !datasetName) return;
   for (const [k, e] of Object.entries(eqs)) {
     const eq = eqKey(k);
-    if (e?.schedule && SCHEDULES.includes(e.schedule)) {
+    if (e?.scheduleHistory?.length) {
+      _modalidadCache[modalidadStorageKey(eq, datasetName)] = serializeScheduleHistory(e.scheduleHistory);
+    } else if (e?.schedule && SCHEDULES.includes(e.schedule)) {
       _modalidadCache[modalidadStorageKey(eq, datasetName)] = e.schedule;
     }
   }
@@ -873,37 +979,123 @@ async function persistModalidadCache() {
   } catch(e) { console.warn('No se pudo guardar modalidad:', e); }
 }
 
-async function saveModalidadFor(equipo, schedule) {
-  if (!equipo || !schedule || !SCHEDULES.includes(schedule)) return;
+async function saveModalidadEntry(equipo, history) {
+  if (!equipo || !history?.length) return;
   const eq = eqKey(equipo);
   const storageKey = modalidadStorageKey(eq, datasets[activeIdx]?.name);
-  _modalidadCache[storageKey] = schedule;
+  const serialized = serializeScheduleHistory(history);
+  _modalidadCache[storageKey] = serialized;
   try {
     await fetch('/gos/hwo/api/modalidad', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ [storageKey]: schedule }),
+      body: JSON.stringify({ [storageKey]: serialized }),
     });
   } catch(e) { console.warn('No se pudo guardar modalidad:', e); }
+}
+
+function applyScheduleHistory(e, history) {
+  e.scheduleHistory = normalizeScheduleHistory(history);
+  e.schedule = scheduleForDate(e.scheduleHistory, D.config?.periodEnd || D.config?.periodStart || new Date());
 }
 
 function applyModalidad(datasetName) {
   const dsName = datasetName || datasets[activeIdx]?.name || '';
   for (const [k, e] of Object.entries(D.eqs)) {
-    const saved = lookupSavedSchedule(k, dsName);
-    if (saved && e.schedule !== saved) {
-      e.schedule = saved;
-      e.fdsTolerado = calcFdsTol(saved, e._fdsTolBase, k);
-      reCountEquipment(k);
-    }
+    const raw = lookupSavedScheduleRaw(k, dsName);
+    if (!raw) continue;
+    const history = parseScheduleRaw(raw);
+    if (!history) continue;
+    applyScheduleHistory(e, history);
+    reCountEquipment(k);
   }
 }
 
 function setSchedule(sel) {
   const eq = eqKey(sel.dataset.eq); const e = D.eqs[eq]; if (!e) return;
-  e.schedule = sel.value;
+  const newSched = sel.value;
+  const history = normalizeScheduleHistory(e.scheduleHistory || [{ from: null, schedule: newSched }]);
+  const base = history.find(item => !item.from);
+  if (base) base.schedule = newSched;
+  else history.unshift({ from: null, schedule: newSched });
+  applyScheduleHistory(e, history);
   reCountEquipment(eq);
-  saveModalidadFor(eq, sel.value);
+  saveModalidadEntry(eq, e.scheduleHistory);
+  D.burnup = calcBurnup();
+  D.dailyStates = calcDailyStates();
+  renderEquipmentTable(); renderKPIs(); renderChartsForView(activeView);
+}
+
+let _schedHistoryEq = null;
+
+function renderScheduleHistoryModal() {
+  const e = D.eqs[_schedHistoryEq];
+  const list = document.getElementById('sched-history-list');
+  const sub = document.getElementById('sched-history-sub');
+  const schedSel = document.getElementById('sched-history-sched');
+  if (!e || !list || !sub) return;
+  sub.textContent = `${e.equipo}${e.cliente ? ' · ' + e.cliente : ''}`;
+  if (schedSel && !schedSel.options.length) {
+    schedSel.innerHTML = SCHEDULES.map(s => `<option value="${s}">${SCHEDULE_LABEL[s]}</option>`).join('');
+  }
+  list.innerHTML = (e.scheduleHistory || []).map((item, idx) => {
+    const label = item.from ? `Desde ${fmt(parseDate(item.from))}` : 'Desde el inicio';
+    const del = item.from
+      ? `<button type="button" class="sched-hist-btn" title="Quitar" onclick="removeScheduleChange(${idx})">×</button>`
+      : '<span style="font-size:11px;color:var(--muted)">Base</span>';
+    return `<div class="sched-hist-row"><div><strong>${label}</strong><div style="font-size:12px;color:var(--muted)">${SCHEDULE_LABEL[item.schedule] || item.schedule}</div></div>${del}</div>`;
+  }).join('');
+}
+
+function openScheduleHistory(equipo) {
+  const eq = eqKey(equipo);
+  if (!D.eqs[eq]) return;
+  _schedHistoryEq = eq;
+  renderScheduleHistoryModal();
+  const modal = document.getElementById('sched-history-modal');
+  if (!modal) return;
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeScheduleHistory() {
+  _schedHistoryEq = null;
+  const modal = document.getElementById('sched-history-modal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+function removeScheduleChange(index) {
+  const eq = _schedHistoryEq;
+  const e = eq && D.eqs[eq];
+  if (!e) return;
+  const history = normalizeScheduleHistory(e.scheduleHistory).filter((_, idx) => idx !== index);
+  applyScheduleHistory(e, history);
+  reCountEquipment(eq);
+  saveModalidadEntry(eq, e.scheduleHistory);
+  renderScheduleHistoryModal();
+  D.burnup = calcBurnup();
+  D.dailyStates = calcDailyStates();
+  renderEquipmentTable(); renderKPIs(); renderChartsForView(activeView);
+}
+
+function submitScheduleChange(ev) {
+  ev.preventDefault();
+  const eq = _schedHistoryEq;
+  const e = eq && D.eqs[eq];
+  const fromInput = document.getElementById('sched-history-from');
+  const schedSel = document.getElementById('sched-history-sched');
+  if (!e || !fromInput?.value || !schedSel?.value) return;
+  const fromDate = parseDate(fromInput.value);
+  if (!fromDate) { alert('Fecha inválida'); return; }
+  const history = normalizeScheduleHistory(e.scheduleHistory || []);
+  history.push({ from: fmtIso(fromDate), schedule: schedSel.value });
+  applyScheduleHistory(e, history);
+  reCountEquipment(eq);
+  saveModalidadEntry(eq, e.scheduleHistory);
+  fromInput.value = '';
+  renderScheduleHistoryModal();
   D.burnup = calcBurnup();
   D.dailyStates = calcDailyStates();
   renderEquipmentTable(); renderKPIs(); renderChartsForView(activeView);
@@ -1595,28 +1787,44 @@ function parseDataRows(raw) {
 // ── Calculations ─────────────────────────────
 function stateOf(row) { const s = row.sitRealUC; if (s.includes('FUERA')) return 'fds'; if (s.includes('STAND BY C')) return 'sbcc'; if (s.includes('STAND BY')) return 'sbsp'; if (s.includes('OPERANDO')) return 'op'; return 'other'; }
 
-function prevEqSchedule(prevEqs, key) {
+function prevEqScheduleHistory(prevEqs, key) {
   const prev = prevEqs?.[key];
-  return prev?.schedule && SCHEDULES.includes(prev.schedule) ? prev.schedule : null;
+  if (prev?.scheduleHistory?.length) return normalizeScheduleHistory(prev.scheduleHistory);
+  if (prev?.schedule && SCHEDULES.includes(prev.schedule)) return [{ from: null, schedule: prev.schedule }];
+  return null;
+}
+
+function resolveScheduleHistory(equipo, datasetName, prevEqs, fallback) {
+  const raw = lookupSavedScheduleRaw(equipo, datasetName);
+  if (raw) {
+    const parsed = parseScheduleRaw(raw);
+    if (parsed) return parsed;
+  }
+  const prev = prevEqScheduleHistory(prevEqs, equipo);
+  if (prev) return prev;
+  const sched = fallback || 'lun-lun';
+  return [{ from: null, schedule: sched }];
 }
 
 function calcEquipments(datasetName, prevEqs) {
   const eqs = {}, cfg = D.config;
   const dsName = datasetName || datasets[activeIdx]?.name || '';
-  const months = cfg.periodCount || 1;
   for (const [k, c] of Object.entries(cfg.eqs)) {
     const key = eqKey(k);
-    const sched = lookupSavedSchedule(key, dsName) || prevEqSchedule(prevEqs, key) || detectSchedule(c.totalCompleto, cfg);
+    const fallback = detectSchedule(c.totalCompleto, cfg);
+    const scheduleHistory = resolveScheduleHistory(key, dsName, prevEqs, fallback);
+    const sched = scheduleForDate(scheduleHistory, cfg.periodEnd || cfg.periodStart);
     const tolBase = c.fdsTolerado || 0;
-    eqs[key] = { ...c, equipo: key, schedule: sched, _fdsTolBase: tolBase, fdsTolerado: calcFdsTol(sched, tolBase, key) * months, dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, expectedMonth: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
+    eqs[key] = { ...c, equipo: key, schedule: sched, scheduleHistory, _fdsTolBase: tolBase, fdsTolerado: calcFdsTolPeriod(scheduleHistory, tolBase, key, cfg.periodStart, cfg.periodEnd), dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, expectedMonth: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
   }
   for (const row of D.rows) {
     const k = eqKey(row.centro);
     if (!eqs[k]) {
-      const sched = lookupSavedSchedule(k, dsName) || prevEqSchedule(prevEqs, k) || 'lun-lun';
-      eqs[k] = { equipo: k, cliente: row.cliente, totalCompleto: cfg.periodDays, _fdsTolBase: 2, fdsTolerado: calcFdsTol(sched, 2, k) * months, proyectado: cfg.periodDays - 2, schedule: sched, dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, expectedMonth: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
+      const scheduleHistory = resolveScheduleHistory(k, dsName, prevEqs, 'lun-lun');
+      const sched = scheduleForDate(scheduleHistory, cfg.periodEnd || cfg.periodStart);
+      eqs[k] = { equipo: k, cliente: row.cliente, totalCompleto: cfg.periodDays, _fdsTolBase: 2, fdsTolerado: calcFdsTolPeriod(scheduleHistory, 2, k, cfg.periodStart, cfg.periodEnd), proyectado: cfg.periodDays - 2, schedule: sched, scheduleHistory, dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, expectedMonth: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
     }
-    const e = eqs[k], st = stateOf(row), j = jpd(e.schedule);
+    const e = eqs[k], st = stateOf(row), j = jpd(scheduleAt(e, row.fecha));
     if (st === 'op') { e.op += j; e.dias += j; }
     else if (st === 'fds') { e.fds += j; e.dias += j; e.incidents.push({ fecha: row.fecha, estado: row.sitReal, sitProg: row.sitProg, ubicacion: row.ubicacion, obs: row.obs, cliente: row.cliente, st }); }
     else if (st === 'sbsp') { e.sbsp += j; e.dias += j; }
@@ -1634,11 +1842,11 @@ function calcEquipments(datasetName, prevEqs) {
 function reCountEquipment(eq) {
   const key = eqKey(eq);
   const e = D.eqs[key]; if (!e) return;
-  const j = jpd(e.schedule);
   e.dias = 0; e.op = 0; e.fds = 0; e.sbsp = 0; e.sbcc = 0; e.totalServ = 0; e.incidents = [];
-  e.fdsTolerado = calcFdsTol(e.schedule, e._fdsTolBase, key) * (D.config.periodCount || 1);
+  e.fdsTolerado = calcFdsTolPeriod(e.scheduleHistory, e._fdsTolBase, key, D.config.periodStart, D.config.periodEnd);
   for (const row of D.rows) {
     if (row.centro !== key) continue; const st = stateOf(row);
+    const j = jpd(scheduleAt(e, row.fecha));
     if (st === 'op') { e.op += j; e.dias += j; }
     else if (st === 'fds') { e.fds += j; e.dias += j; e.incidents.push({ fecha: row.fecha, estado: row.sitReal, sitProg: row.sitProg, ubicacion: row.ubicacion, obs: row.obs, cliente: row.cliente, st }); }
     else if (st === 'sbsp') { e.sbsp += j; e.dias += j; }
@@ -1649,9 +1857,10 @@ function reCountEquipment(eq) {
   e.fdsRestante = e.fdsTolerado - e.fds;
   e.semaforo = mesCerrado ? (e.fds <= e.fdsTolerado ? 'green' : 'red') : (e.fdsRestante > 1 ? 'green' : e.fdsRestante === 1 ? 'yellow' : 'red');
   const cfg = D.config;
-  e.jornadasPeriodo = (cfg.periodStart && cfg.periodEnd) ? expectedRange(e.schedule, cfg.periodStart, cfg.periodEnd, D.holidays) : 0;
-  e.expectedMonth = expectedNet(e.schedule, cfg.periodStart, cfg.periodEnd, D.holidays, e.fdsTolerado);
-  e.expectedToDate = expectedNet(e.schedule, cfg.periodStart, expectedCutoffDate(cfg), D.holidays, e.fdsTolerado);
+  e.schedule = scheduleForDate(e.scheduleHistory, cfg.periodEnd || cfg.periodStart);
+  e.jornadasPeriodo = (cfg.periodStart && cfg.periodEnd) ? expectedRangeForEq(e, cfg.periodStart, cfg.periodEnd, D.holidays) : 0;
+  e.expectedMonth = expectedNetForEq(e, cfg.periodStart, cfg.periodEnd, D.holidays, e.fdsTolerado);
+  e.expectedToDate = expectedNetForEq(e, cfg.periodStart, expectedCutoffDate(cfg), D.holidays, e.fdsTolerado);
   e.desvioServ = e.totalServ - e.expectedToDate;
   // % Oper. = Real (serv.) / Esp. a fecha
   e.pctOp = e.expectedToDate > 0 ? (e.totalServ / e.expectedToDate) * 100 : null;
@@ -1664,9 +1873,9 @@ function addExpectedToDate() {
   const cfg = D.config; if (!cfg.periodStart) return;
   const cutoff = expectedCutoffDate(cfg);
   for (const e of Object.values(D.eqs)) {
-    e.jornadasPeriodo = cfg.periodEnd ? expectedRange(e.schedule, cfg.periodStart, cfg.periodEnd, D.holidays) : 0;
-    e.expectedMonth = expectedNet(e.schedule, cfg.periodStart, cfg.periodEnd, D.holidays, e.fdsTolerado);
-    e.expectedToDate = expectedNet(e.schedule, cfg.periodStart, cutoff, D.holidays, e.fdsTolerado);
+    e.jornadasPeriodo = cfg.periodEnd ? expectedRangeForEq(e, cfg.periodStart, cfg.periodEnd, D.holidays) : 0;
+    e.expectedMonth = expectedNetForEq(e, cfg.periodStart, cfg.periodEnd, D.holidays, e.fdsTolerado);
+    e.expectedToDate = expectedNetForEq(e, cfg.periodStart, cutoff, D.holidays, e.fdsTolerado);
     e.desvioServ = e.totalServ - e.expectedToDate;
     e.pctOp = e.expectedToDate > 0 ? (e.totalServ / e.expectedToDate) * 100 : null;
     e.pctCumpl = e.pctOp;
@@ -1720,7 +1929,7 @@ function calcBurnup() {
     const st = stateOf(row);
     if (st !== 'op' && st !== 'sbcc') continue;
     const eq = D.eqs[eqKey(row.centro)];
-    const j = jpd(eq?.schedule || 'lun-lun');
+    const j = jpd(eq ? scheduleAt(eq, row.fecha) : 'lun-lun');
     const t = row.fecha.getTime();
     actualByDate[t] = (actualByDate[t] || 0) + j;
   }
@@ -1778,7 +1987,7 @@ function calcDailyStates() {
     const t = row.fecha.getTime();
     if (!byDate[t]) byDate[t] = { op: 0, fds: 0, sbcc: 0, sbsp: 0 };
     const e = D.eqs[eqKey(row.centro)];
-    const j = e ? jpd(e.schedule) : 1;
+    const j = e ? jpd(scheduleAt(e, row.fecha)) : 1;
     const st = stateOf(row);
     if (st === 'op') byDate[t].op += j;
     else if (st === 'fds') byDate[t].fds += j;
@@ -1918,15 +2127,17 @@ function renderEquipmentTable() {
     let desvBadge = '—';
     if (e.expectedToDate > 0) { const d = e.desvioServ, cls = d >= 0 ? 'b-green' : d >= -2 ? 'b-yellow' : 'b-red'; desvBadge = `<span class="badge ${cls}">${d >= 0 ? '+' : ''}${d}</span>`; }
     const eqEnc = encodeURIComponent(e.equipo);
+    const baseSched = baseSchedule(e.scheduleHistory);
+    const histBtn = `<button type="button" class="sched-hist-btn${hasScheduleChanges(e.scheduleHistory) ? ' sched-hist-btn--active' : ''}" title="Cambios de modalidad por fecha" data-eq="${eqEnc}" onclick="openScheduleHistory(decodeURIComponent(this.dataset.eq))">&#128197;</button>`;
     const fdsBadge = `<span class="badge badge-click ${e.fds > 0 ? 'b-red' : 'b-gray'}" role="button" tabindex="0" title="Ver días de FDS" data-eq="${eqEnc}" onclick="openFdsDetail(this.dataset.eq)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openFdsDetail(this.dataset.eq)}">${e.fds}</span>`;
-    return `<tr><td class="r eq-num">${i + 1}</td><td><span class="dot dot-${e.semaforo}"></span></td><td><span class="eq-name">${e.equipo}</span></td><td><span class="cli-name">${e.cliente}</span></td><td><select class="sched-sel" data-eq="${e.equipo}" onchange="setSchedule(this)">${SCHEDULES.map(s => `<option value="${s}"${e.schedule === s ? ' selected' : ''}>${SCHEDULE_LABEL[s]}</option>`).join('')}</select></td><td class="r">${e.jornadasPeriodo || 0}</td><td class="r"><span class="badge b-green">${e.op}</span></td><td class="r"><span class="badge b-blue">${e.sbsp}</span></td><td class="r"><span class="badge ${e.sbcc > 0 ? 'b-yellow' : 'b-gray'}">${e.sbcc}</span></td><td class="r">${fdsBadge}</td><td class="r">${e.fdsTolerado}</td><td class="r">${fdsRest}</td><td class="r"><strong>${e.totalServ}</strong></td><td class="r">${e.expectedToDate}</td><td class="r">${e.expectedMonth}</td><td class="r">${desvBadge}</td><td><span class="pbar-wrap"><span class="pbar-fill" style="width:${Math.min(pctC, 100).toFixed(0)}%;background:${pctColor}"></span></span><span style="font-size:11px;font-weight:700;color:${pctColor}">${pctStr}</span></td></tr>`;
+    return `<tr><td class="r eq-num">${i + 1}</td><td><span class="dot dot-${e.semaforo}"></span></td><td><span class="eq-name">${e.equipo}</span></td><td><span class="cli-name">${e.cliente}</span></td><td><div class="sched-cell"><select class="sched-sel" data-eq="${e.equipo}" onchange="setSchedule(this)">${SCHEDULES.map(s => `<option value="${s}"${baseSched === s ? ' selected' : ''}>${SCHEDULE_LABEL[s]}</option>`).join('')}</select>${histBtn}</div></td><td class="r">${e.jornadasPeriodo || 0}</td><td class="r"><span class="badge b-green">${e.op}</span></td><td class="r"><span class="badge b-blue">${e.sbsp}</span></td><td class="r"><span class="badge ${e.sbcc > 0 ? 'b-yellow' : 'b-gray'}">${e.sbcc}</span></td><td class="r">${fdsBadge}</td><td class="r">${e.fdsTolerado}</td><td class="r">${fdsRest}</td><td class="r"><strong>${e.totalServ}</strong></td><td class="r">${e.expectedToDate}</td><td class="r">${e.expectedMonth}</td><td class="r">${desvBadge}</td><td><span class="pbar-wrap"><span class="pbar-fill" style="width:${Math.min(pctC, 100).toFixed(0)}%;background:${pctColor}"></span></span><span style="font-size:11px;font-weight:700;color:${pctColor}">${pctStr}</span></td></tr>`;
   }).join('');
   const tot = f => eqList.reduce((s, e) => s + (e[f] || 0), 0);
   const totServ = tot('totalServ'), totExp = tot('expectedToDate'), totExpMes = tot('expectedMonth'), totFDS = tot('fds'), totDesv = totServ - totExp;
   const pctG = totExp > 0 ? ((totServ / totExp) * 100).toFixed(1) + '%' : '—';
   const desvB = totExp > 0 ? `<span class="badge ${totDesv >= 0 ? 'b-green' : 'b-red'}">${totDesv >= 0 ? '+' : ''}${totDesv}</span>` : '—';
   document.getElementById('eq-tfoot').innerHTML = `<td class="r"></td><td></td><td>TOTAL</td><td></td><td></td><td class="r">${tot('jornadasPeriodo')}</td><td class="r">${tot('op')}</td><td class="r">${tot('sbsp')}</td><td class="r">${tot('sbcc')}</td><td class="r">${totFDS}</td><td class="r">${tot('fdsTolerado')}</td><td class="r">${tot('fdsRestante')}</td><td class="r"><strong>${totServ}</strong></td><td class="r">${totExp}</td><td class="r">${totExpMes}</td><td class="r">${desvB}</td><td>${pctG}</td>`;
-  document.querySelectorAll('#eq-tbody .sched-sel').forEach(sel => { const e = D.eqs[sel.dataset.eq]; if (e) sel.value = e.schedule; });
+  document.querySelectorAll('#eq-tbody .sched-sel').forEach(sel => { const e = D.eqs[sel.dataset.eq]; if (e) sel.value = baseSchedule(e.scheduleHistory); });
 }
 
 function renderIncidents() {
@@ -2026,7 +2237,7 @@ function buildDayEquipmentRows(date) {
     const row = byEq[e.equipo];
     const st = row ? stateOf(row) : null;
     const proy = projectedOnDay(day, e, D.holidays);
-    const realServ = row && (st === 'op' || st === 'sbcc') ? jpd(e.schedule) : 0;
+    const realServ = row && (st === 'op' || st === 'sbcc') ? jpd(scheduleAt(e, day)) : 0;
     if (!row && proy <= 0) continue;
     list.push({
       equipo: e.equipo,
@@ -2334,10 +2545,14 @@ async function initApp() {
   });
   document.getElementById('day-detail-close')?.addEventListener('click', closeDayDetail);
   document.getElementById('day-detail-backdrop')?.addEventListener('click', closeDayDetail);
+  document.getElementById('sched-history-close')?.addEventListener('click', closeScheduleHistory);
+  document.getElementById('sched-history-backdrop')?.addEventListener('click', closeScheduleHistory);
+  document.getElementById('sched-history-add')?.addEventListener('submit', submitScheduleChange);
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
       document.querySelectorAll('.hwo-ms-drop.open').forEach(d => d.classList.remove('open'));
       document.querySelectorAll('.hwo-ms-btn[aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded', 'false'));
+      closeScheduleHistory();
       closeDayDetail();
     }
   });

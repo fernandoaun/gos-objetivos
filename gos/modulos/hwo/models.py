@@ -16,4 +16,4 @@ class HwoModalidad(db.Model):
     __tablename__ = "hwo_modalidad"
 
     equipo = db.Column(db.String(255), primary_key=True)
-    schedule = db.Column(db.String(32), nullable=False)
+    schedule = db.Column(db.Text, nullable=False)

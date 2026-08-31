@@ -11,8 +11,10 @@ URL_PREFIX = "/gos/hwo"
 def register(app: Flask, url_prefix: str = URL_PREFIX) -> None:
     _ensure_template_loader(app)
     with app.app_context():
+        from gos.modulos.hwo.schema_upgrade import ensure_hwo_schema
         from gos.modulos.hwo.storage import migrate_legacy_data_if_empty
 
+        ensure_hwo_schema()
         migrate_legacy_data_if_empty()
     _register_blueprints(app, url_prefix)
     _register_context(app)
