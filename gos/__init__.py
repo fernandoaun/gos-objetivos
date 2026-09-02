@@ -109,6 +109,7 @@ def _ensure_schema(mode: AppMode) -> None:
             OmPersonnel,
             OmPhone,
         )
+        import gos.modulos.recursos.models  # noqa: F401
         import gos.modulos.sgc.models  # noqa: F401
 
     ensure_core_schema()
@@ -147,6 +148,7 @@ def _register_modules(app: Flask, mode: AppMode) -> None:
         from gos.modulos.ralenti import register as register_ralenti
         from gos.modulos.mantenimiento import register as register_mantenimiento
         from gos.modulos.om import register as register_om
+        from gos.modulos.recursos import register as register_recursos
         from gos.modulos.sgc import register as register_sgc
 
         register_dashboard(app)
@@ -156,6 +158,7 @@ def _register_modules(app: Flask, mode: AppMode) -> None:
         register_vacaciones(app)
         register_mantenimiento(app)
         register_om(app)
+        register_recursos(app)
         register_sgc(app)
 
     if capacitacion_enabled(mode):
@@ -174,6 +177,7 @@ def _module_descriptors(mode: AppMode) -> list[dict]:
         from gos.modulos.ralenti import module_descriptor as ralenti_descriptor
         from gos.modulos.mantenimiento import module_descriptor as mantenimiento_descriptor
         from gos.modulos.om import module_descriptor as om_descriptor
+        from gos.modulos.recursos import module_descriptor as recursos_descriptor
         from gos.modulos.sgc import module_descriptor as sgc_descriptor
 
         modules.extend(
@@ -185,6 +189,7 @@ def _module_descriptors(mode: AppMode) -> list[dict]:
                 ralenti_descriptor(),
                 mantenimiento_descriptor(),
                 om_descriptor(),
+                recursos_descriptor(),
                 sgc_descriptor(),
             ]
         )
@@ -245,6 +250,8 @@ def _register_platform_context(app: Flask, mode: AppMode) -> None:
             current_module = "mantenimiento"
         elif path.startswith("/gos/om"):
             current_module = "om"
+        elif path.startswith("/gos/recursos"):
+            current_module = "recursos"
         elif path.startswith("/gos/sgc"):
             current_module = "sgc"
 
@@ -274,6 +281,7 @@ def _register_module_access_guard(app: Flask) -> None:
         "ralenti_static.static",
         "mantenimiento_static.static",
         "om_static.static",
+        "recursos_static.static",
         "sgc_static.static",
     }
 
@@ -308,6 +316,7 @@ def _register_auto_login(app: Flask) -> None:
         "ralenti_static.static",
         "mantenimiento_static.static",
         "om_static.static",
+        "recursos_static.static",
         "sgc_static.static",
     }
 

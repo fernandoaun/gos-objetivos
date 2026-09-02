@@ -1,0 +1,393 @@
+{% extends "base.html" %}
+{% block title %}Recursos — GOS{% endblock %}
+{% block page_title %}Recursos · Tablero{% endblock %}
+{% block extra_css %}
+<link href="{{ url_for('recursos_static.static', filename='css/recursos.css') }}?v={{ app_version }}" rel="stylesheet">
+{% endblock %}
+{% block content %}
+<div class="mb-3">
+  <h1 class="h4 mb-1">Afectación de unidades</h1>
+  <p class="text-muted mb-0">Tocá una línea para ver las unidades y a qué servicio está cada una.</p>
+</div>
+
+<div class="rec-kpis">
+  <button type="button" class="rec-kpi rec-row-click" data-rec-kind="kpi" data-rec-key="unidades">
+    <div class="label">Unidades</div>
+    <div class="value">{{ resumen.unidades }}</div>
+    <div class="hint">{{ resumen.asignadas }} con destino</div>
+  </button>
+  <button type="button" class="rec-kpi rec-row-click {% if resumen.faltantes %}warn{% else %}ok{% endif %}" data-rec-kind="kpi" data-rec-key="cobertura">
+    <div class="label">Cobertura servicios</div>
+    <div class="value">{% if resumen.cobertura_servicios is not none %}{{ resumen.cobertura_servicios|round(0)|int }}%{% else %}—{% endif %}</div>
+    <div class="hint">{{ resumen.afectadas_servicios }} / {{ resumen.necesarias_servicios }} cupos</div>
+  </button>
+  <button type="button" class="rec-kpi rec-row-click {% if resumen.faltantes %}danger{% endif %}" data-rec-kind="kpi" data-rec-key="faltantes">
+    <div class="label">Faltantes</div>
+    <div class="value">{{ resumen.faltantes }}</div>
+    <div class="hint">huecos necesarias vs afectadas</div>
+  </button>
+  <button type="button" class="rec-kpi rec-row-click {% if resumen.sin_asignar %}warn{% endif %}" data-rec-kind="kpi" data-rec-key="sin_asignar">
+    <div class="label">Sin asignar</div>
+    <div class="value">{{ resumen.sin_asignar }}</div>
+    <div class="hint">{{ resumen.libres }} libres · {{ resumen.reparacion }} reparación · {{ resumen.fuera }} fuera de servicio</div>
+  </button>
+</div>
+
+<div class="row g-3 rec-tablero-row">
+  <div class="col-lg-7">
+    <div class="rec-col-stack">
+    <div class="pe-card p-3">
+      <h2 class="h6 mb-3">Huecos por servicio</h2>
+      {% if resumen.huecos %}
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Destino</th>
+              <th>Equipo</th>
+              <th>Tipo</th>
+              <th class="text-end">Nec.</th>
+              <th class="text-end">Afec.</th>
+              <th class="text-end">Faltan</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for h in resumen.huecos %}
+            <tr class="rec-row-click" tabindex="0" role="button" data-rec-kind="hueco" data-rec-key="{{ loop.index0 }}">
+              <td>{{ h.destino }}</td>
+              <td class="small text-muted">{{ h.equipo or "—" }}</td>
+              <td><span class="rec-badge-tipo {{ h.tipo }}">{{ h.tipo }}</span></td>
+              <td class="text-end">{{ h.necesarias }}</td>
+              <td class="text-end">{{ h.afectadas }}</td>
+              <td class="text-end rec-delta neg">{{ h.faltan }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        {% if resumen.unidades %}
+        <p class="rec-muted mb-0">No hay huecos: los cupos necesarios están cubiertos.</p>
+        {% else %}
+        <p class="rec-muted mb-0">Todavía no hay datos. Importá la planilla de asignación de unidades.</p>
+        <a class="btn btn-primary btn-sm mt-2" href="{{ url_for('recursos_main.importar') }}">Importar planilla</a>
+        {% endif %}
+      {% endif %}
+    </div>
+    <div class="pe-card p-3 rec-historial">
+      <h2 class="h6 mb-1">Historial de cambios</h2>
+      <p class="rec-muted mb-3">Quién lo hizo, cuándo y qué cambió.</p>
+      {% if historial %}
+      <ul class="rec-historial-list">
+        {% for c in historial %}
+        <li>
+          <div class="rec-historial-meta">
+            <span class="rec-historial-quien">{{ c.quien }}</span>
+            <span>{{ c.fecha }}</span>
+          </div>
+          <div class="rec-historial-resumen">{{ c.resumen }}</div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="rec-muted mb-0">Todavía no hay cambios. Cuando alguien mueva una unidad, un centro o un cupo, va a figurar acá.</p>
+      {% endif %}
+    </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="pe-card p-3 mb-3">
+      <h2 class="h6 mb-3">Parque por tipo</h2>
+      <table class="table table-sm mb-0">
+        {% for tipo, n in resumen.por_tipo.items() %}
+        <tr class="rec-row-click" tabindex="0" role="button" data-rec-kind="tipo" data-rec-key="{{ tipo }}">
+          <td><span class="rec-badge-tipo {{ tipo }}">{{ tipo }}</span> {{ resumen.tipo_labels[tipo] }}</td>
+          <td class="text-end fw-semibold">{{ n }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    <div class="pe-card p-3">
+      <h2 class="h6 mb-3">Dónde están</h2>
+      <table class="table table-sm mb-0">
+        <tr class="rec-row-click" tabindex="0" role="button" data-rec-kind="grupo" data-rec-key="servicio">
+          <td>Servicios</td>
+          <td class="text-end fw-semibold">{{ resumen.por_grupo.servicio }}</td>
+        </tr>
+        <tr class="rec-row-click" tabindex="0" role="button" data-rec-kind="grupo" data-rec-key="estructura">
+          <td>Estructura GOS</td>
+          <td class="text-end fw-semibold">{{ resumen.por_grupo.estructura }}</td>
+        </tr>
+        <tr class="rec-row-click" tabindex="0" role="button" data-rec-kind="grupo" data-rec-key="estado">
+          <td>Estado de parque</td>
+          <td class="text-end fw-semibold">{{ resumen.por_grupo.estado }}</td>
+        </tr>
+        <tr class="rec-row-click" tabindex="0" role="button" data-rec-kind="grupo" data-rec-key="none">
+          <td>Sin asignar</td>
+          <td class="text-end fw-semibold">{{ resumen.sin_asignar }}</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade rec-detalle" id="rec-detalle" tabindex="-1" aria-labelledby="rec-detalle-titulo" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title h5 mb-0" id="rec-detalle-titulo">Detalle</h2>
+          <p class="text-muted small mb-0" id="rec-detalle-sub"></p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body" id="rec-detalle-body"></div>
+    </div>
+  </div>
+</div>
+<script type="application/json" id="rec-detalle-data">{{ detalle|tojson }}</script>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function () {
+  const dataEl = document.getElementById("rec-detalle-data");
+  const panelEl = document.getElementById("rec-detalle");
+  const titleEl = document.getElementById("rec-detalle-titulo");
+  const subEl = document.getElementById("rec-detalle-sub");
+  const bodyEl = document.getElementById("rec-detalle-body");
+  if (!dataEl || !panelEl || !bodyEl) return;
+
+  const DATA = JSON.parse(dataEl.textContent || "{}");
+  const FLOT_URL = {{ url_for("recursos_main.flota")|tojson }};
+  const SERV_URL = {{ url_for("recursos_main.servicios")|tojson }};
+
+  function esc(value) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function chip(u) {
+    const centro = u.es_centro ? " centro" : "";
+    const title = [u.interno, u.dominio].filter(Boolean).join(" · ");
+    const extra = u.dominio ? `<span class="rec-chip-dom">${esc(u.dominio)}</span>` : "";
+    return `<span class="rec-chip rec-chip-static ${esc(u.tipo)}${centro}" title="${esc(title)}">${esc(u.interno)}${extra}</span>`;
+  }
+
+  function chips(list, empty) {
+    if (!list || !list.length) {
+      return `<span class="rec-chips-empty">${esc(empty || "Nada para mostrar")}</span>`;
+    }
+    return list.map(chip).join("");
+  }
+
+  function stats(items) {
+    return `<div class="rec-detalle-stats">${items
+      .filter((s) => s && s.value !== "" && s.value != null)
+      .map((s) => `<span><strong>${esc(s.value)}</strong> ${esc(s.label)}</span>`)
+      .join("")}</div>`;
+  }
+
+  function bloqueDestino(d, opts) {
+    opts = opts || {};
+    const equipo = d.equipo ? `<span class="rec-detalle-equipo">${esc(d.equipo)}</span>` : "";
+    const meta = [d.grupo_label, d.n != null ? d.n + " un." : ""]
+      .filter(Boolean)
+      .join(" · ");
+    let extra = "";
+    if (opts.cupos && (d.necesarias || d.afectadas || d.faltantes)) {
+      extra = `<p class="rec-muted mb-1">Nec. ${d.necesarias || 0} · Afec. ${d.afectadas || 0}` +
+        (d.faltantes ? ` · Faltan ${d.faltantes}` : "") +
+        `</p>`;
+    }
+    const units = d.unidades || [];
+    return `<section class="rec-detalle-dest">
+      <header>
+        <h3>${esc(d.nombre || "")} ${equipo}</h3>
+        ${meta ? `<span class="text-muted small">${esc(meta)}</span>` : ""}
+      </header>
+      ${extra}
+      <div class="rec-chips">${chips(units, "Sin unidades")}</div>
+    </section>`;
+  }
+
+  function linkFlota(qs) {
+    const url = qs ? FLOT_URL + "?" + qs : FLOT_URL;
+    return `<p class="mt-3 mb-0"><a class="small" href="${esc(url)}">Ver en Flota</a> · <a class="small" href="${esc(SERV_URL)}">Ver en Servicios</a></p>`;
+  }
+
+  function renderHueco(h) {
+    if (!h) {
+      titleEl.textContent = "Detalle";
+      subEl.textContent = "";
+      bodyEl.innerHTML = "<p class='rec-muted'>No hay detalle.</p>";
+      return;
+    }
+    titleEl.textContent = h.destino || "Hueco";
+    subEl.textContent = [h.equipo, h.tipo_label ? h.tipo + " · " + h.tipo_label : h.tipo]
+      .filter(Boolean)
+      .join(" · ");
+    let html = stats([
+      { value: h.necesarias, label: "necesarias" },
+      { value: h.afectadas, label: "afectadas" },
+      { value: h.faltan, label: "faltan" },
+    ]);
+    html += `<section class="rec-detalle-dest">
+      <header><h3>${esc(h.tipo_label || h.tipo)} en este servicio</h3></header>
+      <div class="rec-chips">${chips(h.unidades, "Ninguna unidad de este tipo asignada")}</div>
+    </section>`;
+    if (h.centros && h.centros.length) {
+      html += `<section class="rec-detalle-dest">
+        <header><h3>Centro / asociadas</h3></header>
+        <div class="rec-chips">${chips(h.centros)}</div>
+      </section>`;
+    }
+    if (h.otras && h.otras.length) {
+      html += `<section class="rec-detalle-dest">
+        <header><h3>Otras unidades en ${esc(h.destino)}</h3></header>
+        <div class="rec-chips">${chips(h.otras)}</div>
+      </section>`;
+    }
+    const qs = h.destino_id ? "destino=" + encodeURIComponent(h.destino_id) : "";
+    html += linkFlota(qs);
+    bodyEl.innerHTML = html;
+  }
+
+  function renderTipo(t) {
+    if (!t) {
+      titleEl.textContent = "Detalle";
+      subEl.textContent = "";
+      bodyEl.innerHTML = "<p class='rec-muted'>No hay detalle.</p>";
+      return;
+    }
+    titleEl.textContent = (t.tipo || "") + " · " + (t.label || "");
+    subEl.textContent = (t.total || 0) + " unidad" + (t.total === 1 ? "" : "es");
+    let html = "";
+    (t.destinos || []).forEach((d) => {
+      html += bloqueDestino(d);
+    });
+    if (t.sin_asignar && t.sin_asignar.length) {
+      html += `<section class="rec-detalle-dest">
+        <header><h3>Sin asignar</h3></header>
+        <div class="rec-chips">${chips(t.sin_asignar)}</div>
+      </section>`;
+    }
+    if (!html) html = "<p class='rec-muted'>No hay unidades de este tipo.</p>";
+    html += linkFlota("tipo=" + encodeURIComponent(t.tipo || ""));
+    bodyEl.innerHTML = html;
+  }
+
+  function renderGrupo(g) {
+    if (!g) {
+      titleEl.textContent = "Detalle";
+      subEl.textContent = "";
+      bodyEl.innerHTML = "<p class='rec-muted'>No hay detalle.</p>";
+      return;
+    }
+    titleEl.textContent = g.label || "Grupo";
+    subEl.textContent = (g.total || 0) + " unidad" + (g.total === 1 ? "" : "es");
+    let html = "";
+    if (g.grupo === "none") {
+      if (g.hint) html += `<p class="rec-muted">${esc(g.hint)}</p>`;
+      if (g.centros && g.centros.length) {
+        html += `<section class="rec-detalle-dest">
+          <header><h3>Centros sin servicio</h3></header>
+          <div class="rec-chips">${g.centros.map((c) =>
+            `<span class="rec-chip rec-chip-static centro">${esc(c.codigo || c.nombre)}</span>`
+          ).join("")}</div>
+        </section>`;
+      }
+      html += `<section class="rec-detalle-dest">
+        <header><h3>Unidades</h3></header>
+        <div class="rec-chips">${chips(g.unidades, "No hay unidades sin asignar")}</div>
+      </section>`;
+      html += linkFlota("destino=none");
+    } else {
+      const destinos = (g.destinos || []).filter((d) => (d.unidades || []).length || d.faltantes);
+      if (!destinos.length) {
+        html = "<p class='rec-muted'>No hay unidades en este grupo.</p>";
+      } else {
+        destinos.forEach((d) => {
+          html += bloqueDestino(d, { cupos: g.grupo === "servicio" });
+        });
+      }
+      html += linkFlota("grupo=" + encodeURIComponent(g.grupo || ""));
+    }
+    bodyEl.innerHTML = html;
+  }
+
+  function renderKpi(key) {
+    const kpis = DATA.kpis || {};
+    if (key === "faltantes") {
+      const pack = kpis.faltantes || {};
+      titleEl.textContent = "Faltantes";
+      subEl.textContent = (pack.total || 0) + " hueco" + (pack.total === 1 ? "" : "s");
+      const huecos = pack.huecos || [];
+      if (!huecos.length) {
+        bodyEl.innerHTML = "<p class='rec-muted'>No hay huecos.</p>" + linkFlota();
+        return;
+      }
+      bodyEl.innerHTML = huecos.map((h) => {
+        return `<section class="rec-detalle-dest">
+          <header>
+            <h3>${esc(h.destino)} ${h.equipo ? `<span class="rec-detalle-equipo">${esc(h.equipo)}</span>` : ""}</h3>
+            <span class="text-muted small">${esc(h.tipo)} · ${esc(h.tipo_label)} · faltan ${h.faltan}</span>
+          </header>
+          <div class="rec-chips">${chips(h.unidades, "Ninguna unidad de este tipo")}</div>
+        </section>`;
+      }).join("") + linkFlota();
+      return;
+    }
+    if (key === "cobertura") {
+      const pack = kpis.cobertura || {};
+      titleEl.textContent = "Cobertura de servicios";
+      const cov = pack.total;
+      subEl.textContent = (cov == null ? "—" : Math.round(cov) + "%") + (pack.hint ? " · " + pack.hint : "");
+      const destinos = pack.destinos || [];
+      bodyEl.innerHTML = (destinos.length
+        ? destinos.map((d) => bloqueDestino(d, { cupos: true })).join("")
+        : "<p class='rec-muted'>No hay servicios.</p>") + `<p class="mt-3 mb-0"><a class="small" href="${esc(SERV_URL)}">Abrir Servicios</a></p>`;
+      return;
+    }
+    if (key === "sin_asignar") {
+      renderGrupo(kpis.sin_asignar || DATA.grupos && DATA.grupos.none);
+      return;
+    }
+    const pack = kpis.unidades || {};
+    titleEl.textContent = "Unidades";
+    subEl.textContent = (pack.total || 0) + " en el parque" + (pack.hint ? " · " + pack.hint : "");
+    let html = (pack.destinos || []).map((d) => bloqueDestino(d)).join("");
+    if (pack.sin_asignar && pack.sin_asignar.length) {
+      html += `<section class="rec-detalle-dest">
+        <header><h3>Sin asignar</h3></header>
+        <div class="rec-chips">${chips(pack.sin_asignar)}</div>
+      </section>`;
+    }
+    bodyEl.innerHTML = (html || "<p class='rec-muted'>No hay unidades.</p>") + linkFlota();
+  }
+
+  function abrir(kind, key) {
+    if (kind === "hueco") renderHueco((DATA.huecos || [])[Number(key)]);
+    else if (kind === "tipo") renderTipo((DATA.tipos || {})[key]);
+    else if (kind === "grupo") renderGrupo((DATA.grupos || {})[key]);
+    else if (kind === "kpi") renderKpi(key);
+    else return;
+    if (window.bootstrap) {
+      window.bootstrap.Modal.getOrCreateInstance(panelEl).show();
+    }
+  }
+
+  document.querySelectorAll("[data-rec-kind]").forEach((el) => {
+    el.addEventListener("click", () => abrir(el.dataset.recKind, el.dataset.recKey));
+    el.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        abrir(el.dataset.recKind, el.dataset.recKey);
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}

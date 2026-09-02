@@ -578,6 +578,68 @@ CATALOG: dict[str, dict] = {
             }
         ],
     ),
+    "recursos": _mod(
+        code="recursos",
+        label="Recursos",
+        sistema="SISTEMA DE RECURSOS DE LA OPERACIÓN",
+        tagline="Recursos",
+        tagline_accent="que cubren cada frente",
+        pilares=["Flota · Servicios · Cupos · Estados"],
+        callout="Una unidad, un destino, cupos visibles",
+        statement="La operación rinde cuando cada unidad está donde se necesita.",
+        statement_pilares=["Afectación · Cupo · Disponibilidad · Control"],
+        proceso=["CARGAR", "ASIGNAR", "CUBRIR", "REVISAR", "AJUSTAR"],
+        flujo=[
+            {"title": "PLANILLA", "subtitle": "unidades y cupos"},
+            {"title": "AFECTACIÓN", "subtitle": "servicio o estructura"},
+            {"title": "TABLERO", "subtitle": "huecos y libres"},
+            {"title": "ACCIÓN", "subtitle": "mover la flota"},
+        ],
+        overview_title="Recursos muestra dónde está cada unidad y qué falta",
+        overview_highlight="dónde está cada unidad",
+        overview_footer="AFECTACIÓN",
+        submodulos=[
+            {
+                "code": "tablero",
+                "label": "Tablero",
+                "eyebrow": "COBERTURA",
+                "title": "El tablero compara cupos necesarios y afectados",
+                "highlight": "cupos necesarios y afectados",
+                "bullets": [
+                    "Resume flota, libres y huecos por tipo de unidad.",
+                    "Señala servicios que operan por debajo del cupo.",
+                    "Sirve para decidir movimientos el mismo día.",
+                ],
+                "footer": "TABLERO",
+            },
+            {
+                "code": "flota",
+                "label": "Flota",
+                "eyebrow": "ASIGNACIÓN",
+                "title": "Cada unidad tiene un destino operativo",
+                "highlight": "un destino operativo",
+                "bullets": [
+                    "Lista interno, dominio, tipo y contratista.",
+                    "Permite cambiar el destino sin rearmar la planilla.",
+                    "Separa servicios, estructura GOS y estado de parque.",
+                ],
+                "footer": "FLOTA",
+            },
+            {
+                "code": "importar",
+                "label": "Importar",
+                "eyebrow": "DATOS",
+                "title": "La planilla de asignación alimenta el módulo",
+                "highlight": "alimenta el módulo",
+                "bullets": [
+                    "Lee destinos, cupos y la O de afectación.",
+                    "Reemplaza el estado actual con el archivo cargado.",
+                    "Deja inactivas las unidades que ya no figuran.",
+                ],
+                "footer": "IMPORTAR",
+            },
+        ],
+    ),
 }
 
 

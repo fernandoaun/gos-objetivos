@@ -21,5 +21,5 @@ def capacitacion_enabled(mode: AppMode) -> bool:
 
 
 def objetivos_stack_enabled(mode: AppMode) -> bool:
-    """Dashboard + Objetivos + HWO + Vacaciones + Ralentí + Mant + O&M + SGC."""
+    """Dashboard + Objetivos + HWO + Vacaciones + Ralentí + Mant + O&M + Recursos + SGC."""
     return mode in ("full", "objetivos")

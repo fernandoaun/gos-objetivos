@@ -76,6 +76,13 @@ TABLES = [
     "om_personnel_phones",
     "om_module_items",
     "om_audit_log",
+    # Recursos
+    "rec_destinos",
+    "rec_centros",
+    "rec_unidades",
+    "rec_cupos",
+    "rec_asignaciones",
+    "rec_cambios",
     # Análisis / Vacaciones / Ralentí
     "hwo_datasets",
     "hwo_modalidad",
@@ -134,6 +141,7 @@ def _ensure_schema(target_url: str) -> None:
     import gos.modulos.mantenimiento.models  # noqa: F401
     import gos.modulos.objetivos.models  # noqa: F401
     import gos.modulos.om.models  # noqa: F401
+    import gos.modulos.recursos.models  # noqa: F401
     import gos.modulos.ralenti.models  # noqa: F401
     import gos.modulos.vacaciones.models  # noqa: F401
     import gos.modulos.sgc.models  # noqa: F401
@@ -418,6 +426,7 @@ def importar_sqlite(
     import gos.modulos.mantenimiento.models  # noqa: F401
     import gos.modulos.objetivos.models  # noqa: F401
     import gos.modulos.om.models  # noqa: F401
+    import gos.modulos.recursos.models  # noqa: F401
     import gos.modulos.ralenti.models  # noqa: F401
     import gos.modulos.vacaciones.models  # noqa: F401
     from gos.extensions import db

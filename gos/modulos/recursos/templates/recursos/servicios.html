@@ -1,0 +1,488 @@
+{% extends "base.html" %}
+{% block title %}Servicios — Recursos{% endblock %}
+{% block page_title %}Recursos · Servicios{% endblock %}
+{% block extra_css %}
+<link href="{{ url_for('recursos_static.static', filename='css/recursos.css') }}?v={{ app_version }}" rel="stylesheet">
+{% endblock %}
+{% block content %}
+{% macro rec_chip(u) %}
+<span class="rec-chip {{ u.tipo }}{% if u.es_centro %} centro{% endif %}"
+      draggable="true"
+      data-kind="unidad"
+      data-unidad-id="{{ u.id }}"
+      title="{{ u.interno }}{% if u.dominio %} · {{ u.dominio }}{% endif %} — arrastrá a otro destino">
+  {{ u.interno }}
+</span>
+{% endmacro %}
+
+{% macro rec_card(s, compact=true) %}
+  <article class="rec-svc rec-dropzone rec-svc-edit tono-{{ s.tono|default(s.grupo) }} {% if not s.ok %}gap{% endif %} {% if s.sin_centro %}sin-centro{% endif %}"
+           data-destino-id="{{ s.id }}"
+           data-nombre="{{ s.nombre }}"
+           data-equipo="{{ s.equipo or '' }}"
+           {% for t in s.tipos %}data-nec-{{ t.tipo|lower }}="{{ t.necesarias }}"{% endfor %}
+           title="Clic para editar requerimientos">
+    {% if s.sin_centro %}
+    <div class="rec-alerta-centro" title="Este servicio no tiene centro">!</div>
+    {% endif %}
+    {% if (s.equipo and s.equipo != 'GOS') or s.centros %}
+    <div class="equipo">
+      {% if s.equipo and s.equipo != 'GOS' %}
+      <span class="rec-chip centro rec-chip-equipo"
+            draggable="true"
+            data-kind="centro"
+            data-equipo="{{ s.equipo }}"
+            data-from-destino-id="{{ s.id }}"
+            title="Centro {{ s.equipo }} — arrastrá a otro servicio">{{ s.equipo }}</span>
+      {% endif %}
+      {% for c in s.centros or [] %}{{ rec_chip(c) }}{% endfor %}
+    </div>
+    {% endif %}
+    <h3>{{ s.nombre }}</h3>
+    <table>
+      <thead>
+        <tr>
+          <th></th>
+          <th class="text-end">Nec.</th>
+          <th class="text-end">Afec.</th>
+          <th class="text-end">Δ</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in s.tipos %}
+        {% if not compact or t.necesarias or t.afectadas %}
+        <tr>
+          <td><span class="rec-badge-tipo {{ t.tipo }}">{{ t.tipo }}</span></td>
+          <td class="text-end">{{ t.necesarias }}</td>
+          <td class="text-end">{{ t.afectadas }}</td>
+          <td class="text-end rec-delta {% if t.delta < 0 %}neg{% elif t.delta > 0 %}pos{% else %}zero{% endif %}">
+            {% if t.delta > 0 %}+{% endif %}{{ t.delta }}
+          </td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="rec-chips">
+      {% for u in s.flota or [] %}{{ rec_chip(u) }}{% endfor %}
+      {% if not s.flota and not s.centros %}
+      <span class="rec-chips-empty">Soltá una unidad acá</span>
+      {% endif %}
+    </div>
+  </article>
+{% endmacro %}
+
+<div class="mb-3 d-flex flex-wrap justify-content-between align-items-start gap-2">
+  <div>
+    <h1 class="h4 mb-1">Afectación por servicio y estructura</h1>
+    <p class="text-muted mb-0">Arrastrá unidades o centros (también a Sin asignar). Clic en una tarjeta o en Necesarias de una columna para editar. El cambio se guarda también en Flota.</p>
+  </div>
+  <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#rec-svc-modal" id="rec-svc-alta-btn">
+    <i class="bi bi-plus-lg me-1"></i> Agregar servicio
+  </button>
+</div>
+
+{% set parque = resumen.parque_columnas if resumen.parque_columnas is defined else [] %}
+{% set estructura = resumen.estructura if resumen.estructura is defined else [] %}
+{% set estados = resumen.estados if resumen.estados is defined else [] %}
+{% set libres = resumen.sin_asignar_flota if resumen.sin_asignar_flota is defined else [] %}
+{% set centros_libres = resumen.sin_asignar_centros if resumen.sin_asignar_centros is defined else [] %}
+
+{% if not resumen.servicios and not estructura and not estados %}
+<div class="pe-card p-4">
+  <p class="rec-muted mb-2">Todavía no hay destinos cargados. Agregá un servicio o importá la planilla.</p>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('recursos_main.importar') }}">Importar planilla</a>
+</div>
+{% else %}
+
+<div class="rec-svc-grid">
+  <article class="rec-svc rec-dropzone rec-unassigned {% if libres or centros_libres %}gap{% endif %}" data-destino-id="">
+    <h3>Sin asignar</h3>
+    <p class="rec-muted mb-2">
+      {{ libres|length }} unidad{{ 'es' if libres|length != 1 else '' }}{% if centros_libres %} · {{ centros_libres|length }} centro{{ 's' if centros_libres|length != 1 else '' }}{% endif %} sin destino.
+    </p>
+    <div class="rec-chips">
+      {% for c in centros_libres %}
+      <span class="rec-chip centro rec-chip-equipo"
+            draggable="true"
+            data-kind="centro"
+            data-equipo="{{ c.codigo }}"
+            data-centro-id="{{ c.id }}"
+            title="Centro {{ c.codigo }} — arrastrá a un servicio">{{ c.codigo }}</span>
+      {% endfor %}
+      {% for u in libres %}{{ rec_chip(u) }}{% endfor %}
+      {% if not libres and not centros_libres %}
+      <span class="rec-chips-empty">Soltá acá para dejar sin destino</span>
+      {% endif %}
+    </div>
+  </article>
+
+  {% if parque %}
+  <article class="rec-svc rec-svc-wide">
+    <div class="equipo">GOS</div>
+    <h3>Estructura y estado de parque</h3>
+    <div class="rec-parque-wrap">
+      <table class="rec-parque">
+        <thead>
+          <tr>
+            <th></th>
+            <th></th>
+            {% for c in parque %}
+            <th class="text-center rec-parque-col tono-{{ c.tono|default(c.grupo) }} {% if c.alerta_columna %}rec-parque-neg{% endif %} {% if c.id %}rec-dropzone rec-parque-edit{% endif %}"
+                {% if c.id %}data-destino-id="{{ c.id }}" data-nombre="{{ c.nombre }}" {% for t in c.tipos %}data-nec-{{ t.tipo|lower }}="{{ t.necesarias }}"{% endfor %} title="Clic para editar requerimientos"{% endif %}>{{ c.nombre }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for bloque, clave in [('Necesarias', 'necesarias'), ('Afectadas', 'afectadas'), ('Δ', 'delta')] %}
+          {% for t in resumen.tipo_labels.keys() %}
+          <tr class="{% if loop.first %}rec-parque-split{% endif %}">
+            {% if loop.first %}
+            <th class="rec-parque-block" rowspan="4">{{ bloque }}</th>
+            {% endif %}
+            <th><span class="rec-badge-tipo {{ t }}">{{ t }}</span></th>
+            {% for c in parque %}
+              {% set fila = c.tipos|selectattr('tipo', 'equalto', t)|first %}
+              {% set val = fila[clave] if fila else 0 %}
+              <td class="text-center {% if c.alerta_columna %}rec-parque-neg{% endif %} {% if c.id %}rec-dropzone{% endif %} {% if clave == 'necesarias' and c.id %}rec-parque-edit{% endif %} {% if clave == 'delta' %}rec-delta {% if val < 0 %}neg{% elif val > 0 %}pos{% else %}zero{% endif %}{% endif %} {% if val and clave == 'afectadas' and c.tono in ['libre','reparacion','fuera'] %}rec-parque-hit{% endif %}"
+                  {% if c.id %}data-destino-id="{{ c.id }}"{% endif %}
+                  {% if clave == 'necesarias' and c.id %}title="Clic para editar requerimientos"{% endif %}>
+                {% if clave == 'delta' and val > 0 %}+{% endif %}{{ val }}
+              </td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="rec-parque-flota">
+      {% for c in parque if c.id %}
+      <div class="rec-dropzone rec-parque-bin tono-{{ c.tono|default(c.grupo) }}" data-destino-id="{{ c.id }}">
+        <div class="rec-parque-bin-name">{{ c.nombre }}</div>
+        <div class="rec-chips">
+          {% for u in c.flota or [] %}{{ rec_chip(u) }}{% endfor %}
+          {% for u in c.centros or [] %}{{ rec_chip(u) }}{% endfor %}
+          {% if not c.flota and not c.centros %}
+          <span class="rec-chips-empty">Soltá acá</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </article>
+  {% endif %}
+
+  {% for s in resumen.servicios %}{{ rec_card(s) }}{% endfor %}
+</div>
+
+{% endif %}
+
+<div class="modal fade" id="rec-svc-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" id="rec-svc-form">
+      <div class="modal-header">
+        <h2 class="modal-title h5" id="rec-svc-modal-title">Nuevo servicio</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="svc-id" value="">
+        <div class="mb-2" id="svc-nombre-wrap">
+          <label class="form-label" for="svc-nombre">Servicio</label>
+          <input class="form-control form-control-sm" id="svc-nombre" required placeholder="ACON-HWO-MRN-24">
+        </div>
+        <div class="mb-3" id="svc-centro-wrap">
+          <label class="form-label" for="svc-centro">Centro (opcional)</label>
+          <input class="form-control form-control-sm" id="svc-centro" placeholder="H18">
+          <div class="form-text">Si lo borrás, el centro pasa a <strong>Sin asignar</strong>. Si no hay centro, la tarjeta queda en rojo.</div>
+        </div>
+        <div class="fw-semibold small mb-2">Unidades necesarias</div>
+        <div class="rec-cupos-grid">
+          {% for t in tipos %}
+          <div>
+            <label class="form-label" for="svc-nec-{{ t }}">{{ t }} · {{ tipo_labels[t] }}</label>
+            <input class="form-control form-control-sm" id="svc-nec-{{ t }}" type="number" min="0" step="1" value="0">
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="modal-footer justify-content-between">
+        <button type="button" class="btn btn-outline-danger btn-sm d-none" id="rec-svc-baja">Dar de baja</button>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary btn-sm" id="rec-svc-save">Guardar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+  (function () {
+    const chips = document.querySelectorAll(".rec-chip[draggable]");
+    const zones = document.querySelectorAll(".rec-dropzone");
+    const tipos = {{ tipos|list|tojson }};
+    const form = document.getElementById("rec-svc-form");
+    const modalEl = document.getElementById("rec-svc-modal");
+    let recDragging = false;
+
+    async function postJson(url, body) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "No se pudo guardar");
+      }
+      return data;
+    }
+
+    function destinoDe(el) {
+      const raw = el.dataset.destinoId;
+      if (raw === undefined) return undefined;
+      if (raw === "") return null;
+      return Number(raw);
+    }
+
+    function payloadDe(chip) {
+      if (chip.dataset.kind === "centro") {
+        return {
+          kind: "centro",
+          equipo: chip.dataset.equipo,
+          from: chip.dataset.fromDestinoId ? Number(chip.dataset.fromDestinoId) : null,
+        };
+      }
+      return { kind: "unidad", id: Number(chip.dataset.unidadId) };
+    }
+
+    chips.forEach((chip) => {
+      chip.addEventListener("dragstart", (e) => {
+        const payload = payloadDe(chip);
+        e.dataTransfer.setData("text/plain", JSON.stringify(payload));
+        e.dataTransfer.effectAllowed = "move";
+        chip.classList.add("dragging");
+        document.body.classList.add("rec-dnd");
+        recDragging = true;
+      });
+      chip.addEventListener("dragend", () => {
+        chip.classList.remove("dragging");
+        document.body.classList.remove("rec-dnd");
+        zones.forEach((z) => z.classList.remove("rec-drop-over"));
+      });
+    });
+
+    zones.forEach((zone) => {
+      zone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        zone.classList.add("rec-drop-over");
+      });
+      zone.addEventListener("dragleave", (e) => {
+        if (!zone.contains(e.relatedTarget)) {
+          zone.classList.remove("rec-drop-over");
+        }
+      });
+      zone.addEventListener("drop", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        zones.forEach((z) => z.classList.remove("rec-drop-over"));
+        let payload;
+        try {
+          payload = JSON.parse(e.dataTransfer.getData("text/plain") || "{}");
+        } catch (err) {
+          payload = { kind: "unidad", id: Number(e.dataTransfer.getData("text/plain")) };
+        }
+        const destinoId = destinoDe(zone);
+        if (destinoId === undefined) return;
+        try {
+          if (payload.kind === "centro") {
+            if (payload.from && destinoId && payload.from === destinoId) return;
+            document.body.classList.add("rec-dnd-busy");
+            await postJson("/gos/recursos/api/centros/mover", {
+              equipo: payload.equipo,
+              destino_id: destinoId,
+              desde_id: payload.from,
+            });
+          } else {
+            const unidadId = payload.id;
+            if (!unidadId) return;
+            const chipEl = document.querySelector(`.rec-chip[data-unidad-id="${unidadId}"]`);
+            const fromZone = chipEl ? chipEl.closest(".rec-dropzone") : null;
+            if (fromZone && destinoDe(fromZone) === destinoId) return;
+            document.body.classList.add("rec-dnd-busy");
+            await postJson(`/gos/recursos/api/unidades/${unidadId}/destino`, {
+              destino_id: destinoId,
+            });
+          }
+          location.reload();
+        } catch (err) {
+          document.body.classList.remove("rec-dnd-busy");
+          if (err && err.message) alert(err.message);
+        }
+      });
+    });
+
+    function cuposDeForm() {
+      const cupos = {};
+      tipos.forEach((t) => {
+        const el = document.getElementById(`svc-nec-${t}`);
+        cupos[t] = el ? Number(el.value || 0) : 0;
+      });
+      return cupos;
+    }
+
+    function esParque() {
+      return form && form.dataset.parque === "1";
+    }
+
+    function modoParque(on) {
+      if (form) form.dataset.parque = on ? "1" : "";
+      const nombreWrap = document.getElementById("svc-nombre-wrap");
+      const centroWrap = document.getElementById("svc-centro-wrap");
+      if (nombreWrap) nombreWrap.classList.toggle("d-none", on);
+      if (centroWrap) centroWrap.classList.toggle("d-none", on);
+      const nombreEl = document.getElementById("svc-nombre");
+      if (nombreEl) {
+        nombreEl.readOnly = on;
+        nombreEl.required = !on;
+      }
+    }
+
+    function cargarCupos(src) {
+      tipos.forEach((t) => {
+        const el = document.getElementById(`svc-nec-${t}`);
+        if (!el) return;
+        const key = "nec" + t.charAt(0) + t.slice(1).toLowerCase();
+        const raw = src.dataset[key] ?? src.getAttribute(`data-nec-${t.toLowerCase()}`);
+        el.value = raw || "0";
+      });
+    }
+
+    function abrirAlta() {
+      modoParque(false);
+      document.getElementById("rec-svc-modal-title").textContent = "Nuevo servicio";
+      document.getElementById("svc-id").value = "";
+      document.getElementById("svc-nombre").value = "";
+      document.getElementById("svc-centro").value = "";
+      tipos.forEach((t) => {
+        const el = document.getElementById(`svc-nec-${t}`);
+        if (el) el.value = "0";
+      });
+      const bajaBtn = document.getElementById("rec-svc-baja");
+      if (bajaBtn) bajaBtn.classList.add("d-none");
+    }
+
+    function abrirEdicion(card) {
+      modoParque(false);
+      document.getElementById("rec-svc-modal-title").textContent = "Requerimientos del servicio";
+      document.getElementById("svc-id").value = card.dataset.destinoId || "";
+      document.getElementById("svc-nombre").value = card.dataset.nombre || "";
+      document.getElementById("svc-centro").value = card.dataset.equipo || "";
+      cargarCupos(card);
+      const bajaBtn = document.getElementById("rec-svc-baja");
+      if (bajaBtn) bajaBtn.classList.remove("d-none");
+    }
+
+    function abrirEdicionParque(el) {
+      const id = el.dataset.destinoId;
+      if (!id) return;
+      const src = document.querySelector(`.rec-parque-col[data-destino-id="${id}"]`) || el;
+      modoParque(true);
+      document.getElementById("rec-svc-modal-title").textContent =
+        "Requerimientos de " + (src.dataset.nombre || "");
+      document.getElementById("svc-id").value = id;
+      document.getElementById("svc-nombre").value = src.dataset.nombre || "";
+      document.getElementById("svc-centro").value = "";
+      cargarCupos(src);
+      const bajaBtn = document.getElementById("rec-svc-baja");
+      if (bajaBtn) bajaBtn.classList.add("d-none");
+    }
+
+    function mostrarModal() {
+      if (window.bootstrap && modalEl) {
+        window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      }
+    }
+
+    const altaBtn = document.getElementById("rec-svc-alta-btn");
+    if (altaBtn) altaBtn.addEventListener("click", abrirAlta);
+
+    document.querySelectorAll(".rec-svc-edit").forEach((card) => {
+      card.addEventListener("click", (e) => {
+        if (recDragging) return;
+        if (e.target.closest(".rec-chip")) return;
+        abrirEdicion(card);
+        mostrarModal();
+      });
+    });
+
+    document.querySelectorAll(".rec-parque-edit").forEach((el) => {
+      el.addEventListener("click", (e) => {
+        if (recDragging) return;
+        e.stopPropagation();
+        abrirEdicionParque(el);
+        mostrarModal();
+      });
+    });
+
+    document.addEventListener("dragend", () => {
+      setTimeout(() => {
+        recDragging = false;
+      }, 50);
+    });
+
+    if (form) {
+      form.addEventListener("submit", async (ev) => {
+        ev.preventDefault();
+        const nombre = document.getElementById("svc-nombre").value.trim();
+        const parque = esParque();
+        if (!parque && !nombre) return;
+        const id = document.getElementById("svc-id").value;
+        const btn = document.getElementById("rec-svc-save");
+        btn.disabled = true;
+        try {
+          if (id) {
+            const payload = { cupos: cuposDeForm() };
+            if (!parque) {
+              payload.nombre = nombre;
+              payload.equipo = document.getElementById("svc-centro").value.trim();
+            }
+            await postJson(`/gos/recursos/api/destinos/${id}`, payload);
+          } else {
+            await postJson("/gos/recursos/api/destinos", {
+              nombre,
+              equipo: document.getElementById("svc-centro").value.trim(),
+              cupos: cuposDeForm(),
+            });
+          }
+          location.reload();
+        } catch (err) {
+          alert(err.message || "No se pudo guardar");
+          btn.disabled = false;
+        }
+      });
+    }
+
+    const bajaBtn = document.getElementById("rec-svc-baja");
+    if (bajaBtn) {
+      bajaBtn.addEventListener("click", async () => {
+        const id = document.getElementById("svc-id").value;
+        const nombre = document.getElementById("svc-nombre").value.trim() || "este servicio";
+        if (!id) return;
+        if (!confirm(`¿Dar de baja ${nombre}? Las unidades y el centro pasan a Sin asignar.`)) return;
+        bajaBtn.disabled = true;
+        try {
+          await postJson(`/gos/recursos/api/destinos/${id}/baja`);
+          location.reload();
+        } catch (err) {
+          alert(err.message || "No se pudo dar de baja el servicio");
+          bajaBtn.disabled = false;
+        }
+      });
+    }
+  })();
+</script>
+{% endblock %}

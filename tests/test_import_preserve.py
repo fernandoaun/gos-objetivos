@@ -205,6 +205,8 @@ def test_import_tables_incluye_todos_los_modulos():
         "tot_hs",
         "ralenti_files",
         "ralenti_events",
+        "rec_destinos",
+        "rec_unidades",
     ):
         assert table in PROTECTED_TABLES
 

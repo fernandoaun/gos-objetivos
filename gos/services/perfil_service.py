@@ -90,7 +90,7 @@ def eliminar_perfil(perfil: Perfil) -> str | None:
 _PERFILES_BASE_FULL = (
     {
         "nombre": "Operaciones",
-        "modulos": ["dashboard", "mantenimiento", "om", "ralenti", "capacitacion"],
+        "modulos": ["dashboard", "mantenimiento", "om", "recursos", "ralenti", "capacitacion"],
     },
     {
         "nombre": "Consultoría",
@@ -105,7 +105,7 @@ _PERFILES_BASE_FULL = (
 _PERFILES_BASE_OBJETIVOS = (
     {
         "nombre": "Operaciones",
-        "modulos": ["dashboard", "mantenimiento", "om", "ralenti"],
+        "modulos": ["dashboard", "mantenimiento", "om", "recursos", "ralenti"],
     },
     {
         "nombre": "Consultoría",
@@ -121,6 +121,7 @@ _PERFILES_BASE_OBJETIVOS = (
             "ralenti",
             "mantenimiento",
             "om",
+            "recursos",
             "sgc",
         ],
     },

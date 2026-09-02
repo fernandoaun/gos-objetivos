@@ -11,6 +11,7 @@ MODULO_CODES = (
     "ralenti",
     "mantenimiento",
     "om",
+    "recursos",
     "sgc",
 )
 
@@ -23,6 +24,7 @@ MODULO_LABELS = {
     "ralenti": "Ralentí",
     "mantenimiento": "Mantenimiento",
     "om": "O&M",
+    "recursos": "Recursos",
     "sgc": "SGC",
 }
 
@@ -34,6 +36,7 @@ _OBJETIVOS_CODES = (
     "ralenti",
     "mantenimiento",
     "om",
+    "recursos",
     "sgc",
 )
 
@@ -118,6 +121,8 @@ def modulo_desde_ruta(path: str) -> str | None:
         return "mantenimiento"
     if path.startswith("/gos/om"):
         return "om"
+    if path.startswith("/gos/recursos"):
+        return "recursos"
     if path.startswith("/gos/sgc"):
         return "sgc"
     return None

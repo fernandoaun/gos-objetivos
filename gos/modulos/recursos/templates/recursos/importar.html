@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Importar — Recursos{% endblock %}
+{% block page_title %}Recursos · Importar{% endblock %}
+{% block extra_css %}
+<link href="{{ url_for('recursos_static.static', filename='css/recursos.css') }}?v={{ app_version }}" rel="stylesheet">
+{% endblock %}
+{% block content %}
+<div class="mb-3" style="max-width:720px">
+  <h1 class="h4 mb-1">Importar planilla</h1>
+  <p class="text-muted">Archivo de afectación de unidades (hoja <strong>Unidades</strong>).</p>
+</div>
+
+<div class="pe-card p-3" style="max-width:720px">
+  <div class="rec-drop" id="dropzone" role="button" tabindex="0">
+    <div class="fs-2 mb-1">⬆</div>
+    <h2 class="h6 mb-1" id="drop-title">Planilla de asignación</h2>
+    <p class="rec-muted mb-0" id="drop-sub">Arrastrá o hacé clic · .xlsx / .xlsm</p>
+  </div>
+  <input type="file" id="file-input" accept=".xlsx,.xlsm" hidden>
+  <button type="button" class="btn btn-primary w-100 mt-3 d-none" id="btn-import">Importar Excel</button>
+  <div id="import-status" class="rec-muted mt-3 d-none">Importando…</div>
+  <div id="import-result" class="mt-3 d-none"></div>
+  <p class="rec-muted mt-3 mb-0">
+    Reemplaza destinos, cupos y asignaciones con lo que trae el archivo.
+    Las unidades que dejen de aparecer quedan inactivas (no se borran).
+    Los destinos se leen de la fila de servicios; cada «O» asigna la unidad.
+  </p>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+  const drop = document.getElementById("dropzone");
+  const input = document.getElementById("file-input");
+  const btn = document.getElementById("btn-import");
+  const statusEl = document.getElementById("import-status");
+  const resultEl = document.getElementById("import-result");
+  const title = document.getElementById("drop-title");
+  const sub = document.getElementById("drop-sub");
+  let file = null;
+
+  function setFile(f) {
+    file = f;
+    title.textContent = f.name;
+    sub.textContent = `${Math.round(f.size / 1024)} KB listos para importar`;
+    btn.classList.remove("d-none");
+    resultEl.classList.add("d-none");
+  }
+
+  drop.addEventListener("click", () => input.click());
+  drop.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") input.click();
+  });
+  input.addEventListener("change", () => {
+    if (input.files[0]) setFile(input.files[0]);
+  });
+  drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("drag"); });
+  drop.addEventListener("dragleave", () => drop.classList.remove("drag"));
+  drop.addEventListener("drop", (e) => {
+    e.preventDefault();
+    drop.classList.remove("drag");
+    if (e.dataTransfer.files[0]) setFile(e.dataTransfer.files[0]);
+  });
+
+  btn.addEventListener("click", async () => {
+    if (!file) return;
+    const fd = new FormData();
+    fd.append("file", file);
+    statusEl.classList.remove("d-none");
+    resultEl.classList.add("d-none");
+    btn.disabled = true;
+    try {
+      const res = await fetch("/gos/recursos/api/importar", { method: "POST", body: fd });
+      const data = await res.json();
+      resultEl.classList.remove("d-none");
+      if (!res.ok || !data.ok) {
+        resultEl.innerHTML = `<div class="alert alert-danger mb-0">${data.error || "Error al importar"}</div>`;
+      } else {
+        const warns = (data.detalle && data.detalle.warnings) || [];
+        resultEl.innerHTML = `<div class="alert alert-success mb-0">${data.mensaje}</div>` +
+          (warns.length ? `<ul class="small text-muted mt-2 mb-0">${warns.map(w => `<li>${w}</li>`).join("")}</ul>` : "") +
+          `<p class="mt-3 mb-0"><a class="btn btn-sm btn-primary" href="/gos/recursos/">Ver tablero</a></p>`;
+      }
+    } catch (err) {
+      resultEl.classList.remove("d-none");
+      resultEl.innerHTML = `<div class="alert alert-danger mb-0">Error de red</div>`;
+    } finally {
+      statusEl.classList.add("d-none");
+      btn.disabled = false;
+    }
+  });
+</script>
+{% endblock %}

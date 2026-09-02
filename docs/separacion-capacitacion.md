@@ -32,6 +32,17 @@ En Objetivos, el menú puede mostrar **Capacitación** como enlace externo (`GOS
 - Sync Cap ↔ Vacaciones deja de compartir DB (hay que reimportar personas o usar API a futuro).
 - Subir backup a Render: cada programa tendrá su propia DB/servicio cuando despliegues Cap por separado (`wsgi_capacitacion:app`).
 
+## Cutover seguro (sin perder datos)
+
+1. **Backup Render → local** (`bajar_render_a_prueba` / ya hecho antes del split).
+2. Push código con `gos-objetivos` en `GOS_APP_MODE=full` → Cap sigue en el servicio actual con la misma Postgres.
+3. Crear servicio + DB `gos-capacitacion` (Blueprint o manual).
+4. Subir Cap con `SUBIR CAP A RENDER.bat` (URL externa de la DB Cap).
+5. Recién ahí, en `gos-objetivos`:
+   - `GOS_APP_MODE=objetivos`
+   - `GOS_CAPACITACION_URL=https://<host-cap>/gos/capacitacion`
+6. Las tablas `cap_*` viejas en la Postgres de Objetivos pueden quedar (huérfanas); no se borran solos.
+
 ## Deploy en Render (dos programas)
 
 Ver [deploy-render-separado.md](deploy-render-separado.md): servicios `gos-objetivos` + `gos-capacitacion`, dos Postgres, `SUBIR CAP A RENDER.bat`.

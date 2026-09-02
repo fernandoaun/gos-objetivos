@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+{% block title %}Flota — Recursos{% endblock %}
+{% block page_title %}Recursos · Flota{% endblock %}
+{% block extra_css %}
+<link href="{{ url_for('recursos_static.static', filename='css/recursos.css') }}?v={{ app_version }}" rel="stylesheet">
+{% endblock %}
+{% block content %}
+<div class="mb-3 d-flex flex-wrap justify-content-between align-items-start gap-2">
+  <div>
+    <h1 class="h4 mb-1">Flota</h1>
+    <p class="text-muted mb-0">{{ unidades|length }} unidad{{ 'es' if unidades|length != 1 else '' }}. Las sin asignar van primero, en rojo. LIBRE es un destino.</p>
+  </div>
+  <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#rec-alta" aria-expanded="false">
+    <i class="bi bi-plus-lg me-1"></i> Agregar unidad
+  </button>
+</div>
+
+<div class="collapse mb-3" id="rec-alta">
+  <form id="rec-alta-form" class="pe-card p-3 rec-alta-form">
+    <h2 class="h6 mb-3">Nueva unidad</h2>
+    <div class="rec-alta-grid">
+      <div>
+        <label class="form-label" for="alta-interno">Interno</label>
+        <input class="form-control form-control-sm" id="alta-interno" name="interno" required placeholder="UL 120">
+      </div>
+      <div>
+        <label class="form-label" for="alta-dominio">Dominio</label>
+        <input class="form-control form-control-sm" id="alta-dominio" name="dominio" placeholder="ABC 123">
+      </div>
+      <div>
+        <label class="form-label" for="alta-tipo">Tipo</label>
+        <select class="form-select form-select-sm" id="alta-tipo" name="tipo">
+          <option value="">Según interno</option>
+          {% for t in tipos %}
+          <option value="{{ t }}">{{ t }} · {{ tipo_labels[t] }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="alta-contratista">Contratista</label>
+        <input class="form-control form-control-sm" id="alta-contratista" name="contratista" placeholder="OP">
+      </div>
+      <div>
+        <label class="form-label" for="alta-destino">Destino</label>
+        <select class="form-select form-select-sm" id="alta-destino" name="destino_id">
+          <option value="">Sin asignar</option>
+          {% for d in destinos %}
+          <option value="{{ d.id }}">{{ d.nombre }}{% if d.equipo %} · {{ d.equipo }}{% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="rec-alta-check">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="alta-centro" name="es_centro">
+          <label class="form-check-label" for="alta-centro">Asociada al centro</label>
+        </div>
+        <div class="form-text">No suma en Nec/Afec; se muestra al lado del equipo (H18, …).</div>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm mt-3">Guardar unidad</button>
+  </form>
+</div>
+
+<form class="rec-filters pe-card p-3" method="get">
+  <div>
+    <label class="form-label" for="q">Buscar</label>
+    <input class="form-control form-control-sm" id="q" name="q" value="{{ filtros.q }}" placeholder="Interno, dominio, contratista">
+  </div>
+  <div>
+    <label class="form-label" for="tipo">Tipo</label>
+    <select class="form-select form-select-sm" id="tipo" name="tipo">
+      <option value="">Todos</option>
+      {% for t in tipos %}
+      <option value="{{ t }}" {% if filtros.tipo == t %}selected{% endif %}>{{ t }} · {{ tipo_labels[t] }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label class="form-label" for="grupo">Grupo</label>
+    <select class="form-select form-select-sm" id="grupo" name="grupo">
+      <option value="">Todos</option>
+      <option value="servicio" {% if filtros.grupo == 'servicio' %}selected{% endif %}>Servicio</option>
+      <option value="estructura" {% if filtros.grupo == 'estructura' %}selected{% endif %}>Estructura</option>
+      <option value="estado" {% if filtros.grupo == 'estado' %}selected{% endif %}>Estado de parque</option>
+    </select>
+  </div>
+  <div>
+    <label class="form-label" for="destino">Destino</label>
+    <select class="form-select form-select-sm" id="destino" name="destino">
+      <option value="">Todos</option>
+      <option value="none" {% if filtros.destino == 'none' %}selected{% endif %}>Sin asignar</option>
+      {% for d in destinos %}
+      <option value="{{ d.id }}" {% if filtros.destino == d.id|string %}selected{% endif %}>{{ d.nombre }}{% if d.equipo %} · {{ d.equipo }}{% endif %}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-check rec-filter-check">
+    <input class="form-check-input" type="checkbox" id="bajas" name="bajas" value="1" {% if filtros.bajas %}checked{% endif %}>
+    <label class="form-check-label" for="bajas">Ver dadas de baja</label>
+  </div>
+  <button type="submit" class="btn btn-primary btn-sm">Filtrar</button>
+  <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('recursos_main.flota') }}">Limpiar</a>
+</form>
+
+<div class="pe-card rec-table">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Interno</th>
+          <th>Dominio</th>
+          <th>Tipo</th>
+          <th>Contratista</th>
+          <th>Destino</th>
+          <th>Centro</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in unidades %}
+        <tr data-unidad="{{ u.id }}" class="{% if not u.activo %}rec-baja{% elif u.sin_asignar %}rec-pendiente{% endif %}">
+          <td class="fw-semibold">{{ u.interno }}</td>
+          <td class="text-nowrap">{{ u.dominio or "—" }}</td>
+          <td><span class="rec-badge-tipo {{ u.tipo }}">{{ u.tipo }}</span></td>
+          <td>{{ u.contratista or "—" }}</td>
+          <td>
+            {% if u.activo %}
+            <select class="form-select form-select-sm rec-dest-select" data-unidad-id="{{ u.id }}">
+              <option value="">Sin asignar</option>
+              {% for d in destinos %}
+              <option value="{{ d.id }}" {% if u.destino_id == d.id %}selected{% endif %}>
+                {{ d.nombre }}{% if d.equipo %} · {{ d.equipo }}{% endif %}
+              </option>
+              {% endfor %}
+            </select>
+            {% else %}
+            <span class="text-muted">Dada de baja</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.activo %}
+            <input class="form-check-input rec-centro-check" type="checkbox" data-unidad-id="{{ u.id }}" {% if u.es_centro %}checked{% endif %} title="Asociada al centro: no suma en cupos">
+            {% else %}
+            —
+            {% endif %}
+          </td>
+          <td class="text-end text-nowrap">
+            {% if u.activo %}
+            <button type="button" class="btn btn-outline-danger btn-sm rec-baja-btn" data-unidad-id="{{ u.id }}" data-interno="{{ u.interno }}">Dar de baja</button>
+            {% else %}
+            <button type="button" class="btn btn-outline-secondary btn-sm rec-reactivar-btn" data-unidad-id="{{ u.id }}">Reactivar</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" class="text-muted p-4">No hay unidades con estos filtros.{% if not filtros.q and not filtros.tipo %}<br><a href="{{ url_for('recursos_main.importar') }}">Importar planilla</a>{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+  async function recPost(url, body) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body === undefined ? "{}" : JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || "No se pudo guardar");
+    }
+    return data;
+  }
+
+  document.querySelectorAll(".rec-dest-select").forEach((sel) => {
+    sel.addEventListener("change", async () => {
+      const unidadId = sel.dataset.unidadId;
+      const raw = sel.value;
+      const destinoId = raw === "" ? null : Number(raw);
+      sel.disabled = true;
+      try {
+        await recPost(`/gos/recursos/api/unidades/${unidadId}/destino`, { destino_id: destinoId });
+        location.reload();
+      } catch (err) {
+        alert(err.message || "Error de red al guardar el destino");
+        location.reload();
+      }
+    });
+  });
+
+  document.querySelectorAll(".rec-centro-check").forEach((chk) => {
+    chk.addEventListener("change", async () => {
+      chk.disabled = true;
+      try {
+        await recPost(`/gos/recursos/api/unidades/${chk.dataset.unidadId}/centro`, {
+          es_centro: chk.checked,
+        });
+      } catch (err) {
+        alert(err.message || "No se pudo marcar el centro");
+        chk.checked = !chk.checked;
+      } finally {
+        chk.disabled = false;
+      }
+    });
+  });
+
+  document.querySelectorAll(".rec-baja-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const interno = btn.dataset.interno;
+      if (!confirm(`¿Dar de baja ${interno}? Deja de contar en flota y en las tarjetas.`)) return;
+      btn.disabled = true;
+      try {
+        await recPost(`/gos/recursos/api/unidades/${btn.dataset.unidadId}/baja`);
+        location.reload();
+      } catch (err) {
+        alert(err.message || "No se pudo dar de baja");
+        btn.disabled = false;
+      }
+    });
+  });
+
+  document.querySelectorAll(".rec-reactivar-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        await recPost(`/gos/recursos/api/unidades/${btn.dataset.unidadId}/reactivar`);
+        location.reload();
+      } catch (err) {
+        alert(err.message || "No se pudo reactivar");
+        btn.disabled = false;
+      }
+    });
+  });
+
+  const altaForm = document.getElementById("rec-alta-form");
+  if (altaForm) {
+    altaForm.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const interno = document.getElementById("alta-interno").value.trim();
+      if (!interno) return;
+      const destRaw = document.getElementById("alta-destino").value;
+      const btn = altaForm.querySelector("button[type=submit]");
+      btn.disabled = true;
+      try {
+        await recPost("/gos/recursos/api/unidades", {
+          interno,
+          dominio: document.getElementById("alta-dominio").value.trim(),
+          tipo: document.getElementById("alta-tipo").value,
+          contratista: document.getElementById("alta-contratista").value.trim(),
+          es_centro: document.getElementById("alta-centro").checked,
+          destino_id: destRaw === "" ? null : Number(destRaw),
+        });
+        location.reload();
+      } catch (err) {
+        alert(err.message || "No se pudo agregar la unidad");
+        btn.disabled = false;
+      }
+    });
+  }
+</script>
+{% endblock %}

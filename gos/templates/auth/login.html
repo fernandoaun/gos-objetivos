@@ -9,8 +9,8 @@
   <form method="post" class="pe-card p-4">
     <div class="mb-3">
       <label class="form-label" for="email">Usuario (email)</label>
-      <input type="email" class="form-control" id="email" name="email" required autofocus
-             placeholder="admin@demo.local" autocomplete="username"
+      <input type="text" class="form-control" id="email" name="email" required autofocus
+             placeholder="admin@gos.local" autocomplete="username" inputmode="email"
              value="{{ request.form.email or '' }}">
     </div>
     <div class="mb-3">

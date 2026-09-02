@@ -150,6 +150,8 @@ def _pack_datos(module_code: str) -> dict:
             return _pack_objetivos()
         if module_code == "om":
             return _pack_om()
+        if module_code == "recursos":
+            return _pack_recursos()
         if module_code == "hwo":
             return _pack_hwo()
         if module_code == "dashboard":
@@ -940,6 +942,49 @@ def _pack_om() -> dict:
         }
     ]
     return {"overview_kpis": overview, "chips": ["Personal", "Unidades", "Herramientas", "Insumos"], "slides": slides}
+
+
+def _pack_recursos() -> dict:
+    from gos.modulos.recursos import services as rec
+
+    data = rec.resumen()
+    huecos = data.get("huecos") or []
+    overview = [
+        {"value": _fmt(data.get("unidades")), "label": "unidades"},
+        {"value": _fmt(data.get("asignadas")), "label": "asignadas"},
+        {"value": _fmt(data.get("faltantes")), "label": "faltantes"},
+        {"value": _fmt(data.get("libres")), "label": "libres"},
+    ]
+    slides = [
+        {
+            "tags": ["tablero"],
+            "layout": "ranking_spotlight",
+            "eyebrow": "RECURSOS OPERACIÓN",
+            "title": "La flota se afecta por servicio y estructura",
+            "highlight": "por servicio y estructura",
+            "kpis": [
+                {"value": _fmt(data.get("unidades")), "label": "unidades", "tone": "dark"},
+                {"value": _fmt(data.get("por_grupo", {}).get("servicio")), "label": "en servicio", "tone": "gold"},
+                {"value": _fmt(data.get("faltantes")), "label": "faltantes", "tone": "green"},
+                {"value": _fmt(data.get("sin_asignar")), "label": "sin asignar", "tone": "white"},
+            ],
+            "ranking": [
+                {
+                    "rank": f"{i:02d}",
+                    "label": f'{h.get("destino") or "—"} · {h.get("tipo")}',
+                    "value": _fmt(h.get("faltan")),
+                }
+                for i, h in enumerate(huecos[:10], 1)
+            ],
+            "ranking_title": "HUECOS",
+            "spotlight": {
+                "value": _fmt(data.get("faltantes")),
+                "text": f"{data.get('faltantes') or 0} cupos sin cubrir en servicios y estructura.",
+            },
+            "footer": "TABLERO",
+        }
+    ]
+    return {"overview_kpis": overview, "chips": ["Flota", "Servicios", "Cupos", "Estados"], "slides": slides}
 
 
 def _pack_hwo() -> dict:

@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% block title %}Centros — Recursos{% endblock %}
+{% block page_title %}Recursos · Centros{% endblock %}
+{% block extra_css %}
+<link href="{{ url_for('recursos_static.static', filename='css/recursos.css') }}?v={{ app_version }}" rel="stylesheet">
+{% endblock %}
+{% block content %}
+<div class="mb-3 d-flex flex-wrap justify-content-between align-items-start gap-2">
+  <div>
+    <h1 class="h4 mb-1">Centros</h1>
+    <p class="text-muted mb-0">{{ centros|length }} centro{{ 's' if centros|length != 1 else '' }}. Si no está en un servicio, aparece en <strong>Sin asignar</strong>.</p>
+  </div>
+  <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#rec-centro-alta" aria-expanded="false">
+    <i class="bi bi-plus-lg me-1"></i> Agregar centro
+  </button>
+</div>
+
+<div class="collapse mb-3" id="rec-centro-alta">
+  <form id="rec-centro-alta-form" class="pe-card p-3 rec-alta-form">
+    <h2 class="h6 mb-3">Nuevo centro</h2>
+    <div class="rec-alta-grid">
+      <div>
+        <label class="form-label" for="alta-codigo">Código</label>
+        <input class="form-control form-control-sm" id="alta-codigo" required placeholder="H18">
+      </div>
+      <div>
+        <label class="form-label" for="alta-nombre">Nombre</label>
+        <input class="form-control form-control-sm" id="alta-nombre" placeholder="Opcional">
+      </div>
+      <div>
+        <label class="form-label" for="alta-destino">Servicio</label>
+        <select class="form-select form-select-sm" id="alta-destino">
+          <option value="">Sin asignar</option>
+          {% for s in servicios %}
+          <option value="{{ s.id }}">{{ s.nombre }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm mt-3">Guardar centro</button>
+  </form>
+</div>
+
+<form class="rec-filters pe-card p-3 mb-3" method="get">
+  <div class="form-check mt-4">
+    <input class="form-check-input" type="checkbox" id="bajas" name="bajas" value="1" {% if filtros.bajas %}checked{% endif %} onchange="this.form.submit()">
+    <label class="form-check-label" for="bajas">Mostrar dados de baja</label>
+  </div>
+</form>
+
+<div class="pe-card">
+  <div class="table-responsive">
+    <table class="table table-sm align-middle mb-0 rec-table">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Nombre</th>
+          <th>Servicio</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in centros %}
+        <tr class="{% if not c.activo %}rec-baja{% elif c.sin_asignar %}rec-pendiente{% endif %}"
+            data-centro-id="{{ c.id }}"
+            data-codigo="{{ c.codigo }}"
+            data-nombre="{{ c.nombre or '' }}"
+            data-destino-id="{{ c.destino_id or '' }}">
+          <td class="fw-semibold">{{ c.codigo }}</td>
+          <td>{{ c.nombre or "—" }}</td>
+          <td>
+            {% if c.activo %}
+            <select class="form-select form-select-sm rec-centro-dest" data-centro-id="{{ c.id }}">
+              <option value="">Sin asignar</option>
+              {% for s in servicios %}
+              <option value="{{ s.id }}" {% if c.destino_id == s.id %}selected{% endif %}>{{ s.nombre }}</option>
+              {% endfor %}
+            </select>
+            {% else %}
+            <span class="text-muted">Dado de baja</span>
+            {% endif %}
+          </td>
+          <td class="text-end text-nowrap">
+            {% if c.activo %}
+            <button type="button" class="btn btn-outline-secondary btn-sm rec-centro-edit" data-centro-id="{{ c.id }}">Editar</button>
+            <button type="button" class="btn btn-outline-danger btn-sm rec-centro-baja" data-centro-id="{{ c.id }}" data-codigo="{{ c.codigo }}">Dar de baja</button>
+            {% else %}
+            <button type="button" class="btn btn-outline-secondary btn-sm rec-centro-reactivar" data-centro-id="{{ c.id }}">Reactivar</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="4" class="text-muted p-4">No hay centros.{% if not filtros.bajas %}<br>Agregá uno o importá la planilla.{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="modal fade" id="rec-centro-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <form class="modal-content" id="rec-centro-form">
+      <div class="modal-header">
+        <h2 class="modal-title h5">Editar centro</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-id" value="">
+        <div class="mb-2">
+          <label class="form-label" for="edit-codigo">Código</label>
+          <input class="form-control form-control-sm" id="edit-codigo" required>
+        </div>
+        <div class="mb-2">
+          <label class="form-label" for="edit-nombre">Nombre</label>
+          <input class="form-control form-control-sm" id="edit-nombre">
+        </div>
+        <div>
+          <label class="form-label" for="edit-destino">Servicio</label>
+          <select class="form-select form-select-sm" id="edit-destino">
+            <option value="">Sin asignar</option>
+            {% for s in servicios %}
+            <option value="{{ s.id }}">{{ s.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+  async function recPost(url, body) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body === undefined ? "{}" : JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      throw new Error(data.error || "No se pudo guardar");
+    }
+    return data;
+  }
+
+  document.querySelectorAll(".rec-centro-dest").forEach((sel) => {
+    sel.addEventListener("change", async () => {
+      const raw = sel.value;
+      sel.disabled = true;
+      try {
+        await recPost(`/gos/recursos/api/centros/${sel.dataset.centroId}`, {
+          destino_id: raw === "" ? null : Number(raw),
+        });
+        location.reload();
+      } catch (err) {
+        alert(err.message || "No se pudo asignar el centro");
+        location.reload();
+      }
+    });
+  });
+
+  document.querySelectorAll(".rec-centro-baja").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm(`¿Dar de baja ${btn.dataset.codigo}? Si estaba en un servicio, ese servicio queda sin centro.`)) return;
+      btn.disabled = true;
+      try {
+        await recPost(`/gos/recursos/api/centros/${btn.dataset.centroId}/baja`);
+        location.reload();
+      } catch (err) {
+        alert(err.message || "No se pudo dar de baja");
+        btn.disabled = false;
+      }
+    });
+  });
+
+  document.querySelectorAll(".rec-centro-reactivar").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        await recPost(`/gos/recursos/api/centros/${btn.dataset.centroId}/reactivar`);
+        location.reload();
+      } catch (err) {
+        alert(err.message || "No se pudo reactivar");
+        btn.disabled = false;
+      }
+    });
+  });
+
+  const modalEl = document.getElementById("rec-centro-modal");
+  document.querySelectorAll(".rec-centro-edit").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const row = btn.closest("tr");
+      document.getElementById("edit-id").value = row.dataset.centroId;
+      document.getElementById("edit-codigo").value = row.dataset.codigo || "";
+      document.getElementById("edit-nombre").value = row.dataset.nombre || "";
+      document.getElementById("edit-destino").value = row.dataset.destinoId || "";
+      if (window.bootstrap && modalEl) {
+        window.bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      }
+    });
+  });
+
+  const editForm = document.getElementById("rec-centro-form");
+  if (editForm) {
+    editForm.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const id = document.getElementById("edit-id").value;
+      const destRaw = document.getElementById("edit-destino").value;
+      const btn = editForm.querySelector("button[type=submit]");
+      btn.disabled = true;
+      try {
+        await recPost(`/gos/recursos/api/centros/${id}`, {
+          codigo: document.getElementById("edit-codigo").value.trim(),
+          nombre: document.getElementById("edit-nombre").value.trim(),
+          destino_id: destRaw === "" ? null : Number(destRaw),
+        });
+        location.reload();
+      } catch (err) {
+        alert(err.message || "No se pudo guardar");
+        btn.disabled = false;
+      }
+    });
+  }
+
+  const altaForm = document.getElementById("rec-centro-alta-form");
+  if (altaForm) {
+    altaForm.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const codigo = document.getElementById("alta-codigo").value.trim();
+      if (!codigo) return;
+      const destRaw = document.getElementById("alta-destino").value;
+      const btn = altaForm.querySelector("button[type=submit]");
+      btn.disabled = true;
+      try {
+        await recPost("/gos/recursos/api/centros", {
+          codigo,
+          nombre: document.getElementById("alta-nombre").value.trim(),
+          destino_id: destRaw === "" ? null : Number(destRaw),
+        });
+        location.reload();
+      } catch (err) {
+        alert(err.message || "No se pudo agregar el centro");
+        btn.disabled = false;
+      }
+    });
+  }
+</script>
+{% endblock %}
