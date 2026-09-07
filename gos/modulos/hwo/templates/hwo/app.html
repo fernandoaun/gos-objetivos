@@ -223,7 +223,7 @@
       <div id="view-incidencias" class="view">
         <div class="section">
           <div class="section-head">
-            <div class="section-title">Incidencias — FDS y Stand By con cargo</div>
+            <div class="section-title">Incidencias — Fuera de servicio</div>
             <span class="section-sub" id="inc-count"></span>
           </div>
           <div style="overflow-x:auto">
@@ -1859,7 +1859,36 @@ function parseDataRows(raw) {
 }
 
 // ── Calculations ─────────────────────────────
-function stateOf(row) { const s = row.sitRealUC; if (s.includes('FUERA')) return 'fds'; if (s.includes('STAND BY C')) return 'sbcc'; if (s.includes('STAND BY')) return 'sbsp'; if (s.includes('OPERANDO')) return 'op'; return 'other'; }
+function stateOf(row) {
+  const s = (row.sitRealUC || '').toString().toUpperCase().replace(/\s+/g, ' ').trim();
+  const compact = s.replace(/[\s\/\-]/g, '');
+  if (s.includes('FUERA') || compact === 'FDS') return 'fds';
+  // SBCP / STAND BY C/CARGO: stand by con cargo. No es desvío.
+  if (compact.includes('SBCP') || compact.includes('SBCC') || s.includes('C/CARGO') || s.includes('CON CARGO') || s.includes('STAND BY C')) return 'sbcc';
+  // SBSP / STAND BY (S-P): stand by sin planta. No es desvío.
+  if (compact.includes('SBSP') || s.includes('S-P') || s.includes('S/P') || s.includes('SIN PLANTA') || s.includes('STAND BY')) return 'sbsp';
+  if (s.includes('OPERANDO')) return 'op';
+  return 'other';
+}
+
+/** Operando o stand by (SBSP / SBCP). El desvío se toma solo sobre FDS. */
+function isAvailableState(st) { return st === 'op' || st === 'sbsp' || st === 'sbcc'; }
+
+function pushFdsIncident(e, row, st) {
+  e.incidents.push({ fecha: row.fecha, estado: row.sitReal, sitProg: row.sitProg, ubicacion: row.ubicacion, obs: row.obs, cliente: row.cliente, st });
+}
+
+function tallyEquipmentRow(e, row) {
+  const st = stateOf(row);
+  const j = jpd(scheduleAt(e, row.fecha));
+  if (st === 'op') { e.op += j; e.dias += j; }
+  else if (st === 'fds') { e.fds += j; e.dias += j; pushFdsIncident(e, row, st); }
+  else if (st === 'sbsp') { e.sbsp += j; e.dias += j; }
+  else if (st === 'sbcc') { e.sbcc += j; e.dias += j; }
+  else e.dias += j;
+}
+
+function availableServ(e) { return (e.op || 0) + (e.sbsp || 0) + (e.sbcc || 0); }
 
 function prevEqScheduleHistory(prevEqs, key) {
   const prev = prevEqs?.[key];
@@ -1898,15 +1927,10 @@ function calcEquipments(datasetName, prevEqs) {
       const sched = scheduleForDate(scheduleHistory, cfg.periodEnd || cfg.periodStart);
       eqs[k] = { equipo: k, cliente: row.cliente, totalCompleto: cfg.periodDays, _fdsTolBase: 2, fdsTolerado: calcFdsTolPeriod(scheduleHistory, 2, k, cfg.periodStart, cfg.periodEnd), proyectado: cfg.periodDays - 2, schedule: sched, scheduleHistory, dias: 0, op: 0, sbsp: 0, sbcc: 0, fds: 0, totalServ: 0, expectedToDate: 0, expectedMonth: 0, desvioServ: 0, pctCumpl: null, pctOp: null, incidents: [] };
     }
-    const e = eqs[k], st = stateOf(row), j = jpd(scheduleAt(e, row.fecha));
-    if (st === 'op') { e.op += j; e.dias += j; }
-    else if (st === 'fds') { e.fds += j; e.dias += j; e.incidents.push({ fecha: row.fecha, estado: row.sitReal, sitProg: row.sitProg, ubicacion: row.ubicacion, obs: row.obs, cliente: row.cliente, st }); }
-    else if (st === 'sbsp') { e.sbsp += j; e.dias += j; }
-    else if (st === 'sbcc') { e.sbcc += j; e.dias += j; e.incidents.push({ fecha: row.fecha, estado: row.sitReal, sitProg: row.sitProg, ubicacion: row.ubicacion, obs: row.obs, cliente: row.cliente, st }); }
-    else e.dias += j;
+    tallyEquipmentRow(eqs[k], row);
   }
   for (const e of Object.values(eqs)) {
-    e.totalServ = e.op + e.sbcc;
+    e.totalServ = availableServ(e);
     e.fdsRestante = e.fdsTolerado - e.fds;
     e.semaforo = e.fdsRestante > 1 ? 'green' : e.fdsRestante === 1 ? 'yellow' : 'red';
   }
@@ -1919,15 +1943,10 @@ function reCountEquipment(eq) {
   e.dias = 0; e.op = 0; e.fds = 0; e.sbsp = 0; e.sbcc = 0; e.totalServ = 0; e.incidents = [];
   e.fdsTolerado = calcFdsTolPeriod(e.scheduleHistory, e._fdsTolBase, key, D.config.periodStart, D.config.periodEnd);
   for (const row of D.rows) {
-    if (row.centro !== key) continue; const st = stateOf(row);
-    const j = jpd(scheduleAt(e, row.fecha));
-    if (st === 'op') { e.op += j; e.dias += j; }
-    else if (st === 'fds') { e.fds += j; e.dias += j; e.incidents.push({ fecha: row.fecha, estado: row.sitReal, sitProg: row.sitProg, ubicacion: row.ubicacion, obs: row.obs, cliente: row.cliente, st }); }
-    else if (st === 'sbsp') { e.sbsp += j; e.dias += j; }
-    else if (st === 'sbcc') { e.sbcc += j; e.dias += j; e.incidents.push({ fecha: row.fecha, estado: row.sitReal, sitProg: row.sitProg, ubicacion: row.ubicacion, obs: row.obs, cliente: row.cliente, st }); }
-    else e.dias += j;
+    if (row.centro !== key) continue;
+    tallyEquipmentRow(e, row);
   }
-  e.totalServ = e.op + e.sbcc;
+  e.totalServ = availableServ(e);
   e.fdsRestante = e.fdsTolerado - e.fds;
   e.semaforo = mesCerrado ? (e.fds <= e.fdsTolerado ? 'green' : 'red') : (e.fdsRestante > 1 ? 'green' : e.fdsRestante === 1 ? 'yellow' : 'red');
   const cfg = D.config;
@@ -2001,7 +2020,7 @@ function calcBurnup() {
   const actualByDate = {};
   for (const row of D.rows) {
     const st = stateOf(row);
-    if (st !== 'op' && st !== 'sbcc') continue;
+    if (!isAvailableState(st)) continue;
     const eq = D.eqs[eqKey(row.centro)];
     const j = jpd(eq ? scheduleAt(eq, row.fecha) : 'lun-lun');
     const t = row.fecha.getTime();
@@ -2311,7 +2330,7 @@ function buildDayEquipmentRows(date) {
     const row = byEq[e.equipo];
     const st = row ? stateOf(row) : null;
     const proy = projectedOnDay(day, e, D.holidays);
-    const realServ = row && (st === 'op' || st === 'sbcc') ? jpd(scheduleAt(e, day)) : 0;
+    const realServ = row && isAvailableState(st) ? jpd(scheduleAt(e, day)) : 0;
     if (!row && proy <= 0) continue;
     list.push({
       equipo: e.equipo,
