@@ -792,7 +792,16 @@ function buildHolidaySet(ps,pe){const set=new Set();if(!ps||!pe)return set;const
 const SCHEDULES=['24hs','12hs','lun-lun','lun-vie','lun-vie-sf','10x5'];
 const SCHEDULE_LABEL={'24hs':'24hs (2j/día)','12hs':'12hs (1j/día)','lun-lun':'Lun–Lun (7d)','lun-vie':'Lun–Vie','lun-vie-sf':'L–V s/fer.','10x5':'10×5 (10d op / 5d parada)'};
 const SCHEDULE_10X5={work:10,cycle:15,epoch:new Date(2020,0,1)};
+/** Primer día en que el equipo opera; antes no hay jornada esperada. */
+const OPS_START_BY_EQ={
+  EHW40:new Date(2026,2,27),
+};
 function jpd(s){return s==='24hs'?2:1;}
+function opsStartDate(eq){
+  const name=eqKey(eq?.equipo||'').toUpperCase().replace(/\s+/g,'');
+  const d=OPS_START_BY_EQ[name];
+  return d?startOfDay(d):null;
+}
 function defaultEpoch10x5(eq){
   const name=eqKey(eq?.equipo||'').toUpperCase().replace(/\s+/g,'');
   // SW30 arrancó 10×5 el 20/04/2026: 20–29 trabajo, 30/04 empiezan los 5 de descanso.
@@ -844,6 +853,8 @@ function detectSchedule(tc,cfg){
   return'lun-lun';
 }
 function expectedOnDay(date,schedule,holidays,eq){
+  const start=opsStartDate(eq);
+  if(start&&startOfDay(date)<start)return 0;
   const dow=date.getDay();
   if(schedule==='24hs')return 2;
   if(schedule==='10x5')return is10x5WorkDay(date,epoch10x5(eq,date))?1:0;
