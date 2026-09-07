@@ -793,8 +793,37 @@ const SCHEDULES=['24hs','12hs','lun-lun','lun-vie','lun-vie-sf','10x5'];
 const SCHEDULE_LABEL={'24hs':'24hs (2j/día)','12hs':'12hs (1j/día)','lun-lun':'Lun–Lun (7d)','lun-vie':'Lun–Vie','lun-vie-sf':'L–V s/fer.','10x5':'10×5 (10d op / 5d parada)'};
 const SCHEDULE_10X5={work:10,cycle:15,epoch:new Date(2020,0,1)};
 function jpd(s){return s==='24hs'?2:1;}
-function dayIn10x5Cycle(date){const d=startOfDay(date);if(!d)return 0;const offset=daysBetween(startOfDay(SCHEDULE_10X5.epoch),d);return((offset%SCHEDULE_10X5.cycle)+SCHEDULE_10X5.cycle)%SCHEDULE_10X5.cycle;}
-function is10x5WorkDay(date){return dayIn10x5Cycle(date)<SCHEDULE_10X5.work;}
+function defaultEpoch10x5(eq){
+  const name=eqKey(eq?.equipo||'').toUpperCase().replace(/\s+/g,'');
+  // SW30 arrancó 10×5 el 20/04/2026: 20–29 trabajo, 30/04 empiezan los 5 de descanso.
+  if(name==='SW30')return startOfDay(new Date(2026,3,20));
+  return startOfDay(SCHEDULE_10X5.epoch);
+}
+/** Inicio del tramo 10×5 vigente: fecha "desde" del cambio, o el default del equipo. */
+function epoch10x5(eq,date){
+  const fallback=defaultEpoch10x5(eq);
+  const h=normalizeScheduleHistory(eq?.scheduleHistory);
+  const dt=startOfDay(date)?.getTime();
+  let epoch=fallback;
+  for(const entry of h){
+    if(!entry.from){
+      if(entry.schedule==='10x5')epoch=fallback;
+      continue;
+    }
+    const fromDate=startOfDay(parseDate(entry.from));
+    const fromT=fromDate?.getTime();
+    if(fromT==null||(dt!=null&&fromT>dt))continue;
+    if(entry.schedule==='10x5')epoch=fromDate;
+  }
+  return epoch;
+}
+function dayIn10x5Cycle(date,epoch){
+  const d=startOfDay(date);if(!d)return 0;
+  const e0=startOfDay(epoch)||startOfDay(SCHEDULE_10X5.epoch);
+  const offset=daysBetween(e0,d);
+  return((offset%SCHEDULE_10X5.cycle)+SCHEDULE_10X5.cycle)%SCHEDULE_10X5.cycle;
+}
+function is10x5WorkDay(date,epoch){return dayIn10x5Cycle(date,epoch)<SCHEDULE_10X5.work;}
 /** EHW 30 es el único equipo sin tolerancia FDS. */
 function calcFdsTol(s, base, equipo) {
   const name = (equipo || '').toString().trim().toUpperCase().replace(/\s+/g, '');
@@ -814,10 +843,10 @@ function detectSchedule(tc,cfg){
   }
   return'lun-lun';
 }
-function expectedOnDay(date,schedule,holidays){
+function expectedOnDay(date,schedule,holidays,eq){
   const dow=date.getDay();
   if(schedule==='24hs')return 2;
-  if(schedule==='10x5')return is10x5WorkDay(date)?1:0;
+  if(schedule==='10x5')return is10x5WorkDay(date,epoch10x5(eq,date))?1:0;
   if(schedule==='12hs'||schedule==='lun-lun')return 1;
   if(dow===0||dow===6)return 0;
   if(schedule==='lun-vie-sf'&&holidays.has(date.getTime()))return 0;
@@ -924,7 +953,7 @@ function serializeScheduleHistory(history){
 }
 function expectedRangeForEq(eq,from,to,holidays){
   let n=0;const d=new Date(from.getTime());
-  while(d<=to){n+=expectedOnDay(d,scheduleAt(eq,d),holidays);d.setDate(d.getDate()+1);}
+  while(d<=to){n+=expectedOnDay(d,scheduleAt(eq,d),holidays,eq);d.setDate(d.getDate()+1);}
   return n;
 }
 function expectedNetForEq(eq,from,to,holidays,fdsTol){
@@ -941,7 +970,7 @@ function calcFdsTolPeriod(history,base,equipo,periodStart,periodEnd){
 }
 /** Proyectado diario neto: jornadas del día × (Esp. del Mes / jornadas brutas), prorrateando FDS Tol. */
 function projectedOnDay(date, eq, holidays) {
-  const gross = expectedOnDay(date, scheduleAt(eq, date), holidays);
+  const gross = expectedOnDay(date, scheduleAt(eq, date), holidays, eq);
   if (!gross) return 0;
   const jornadas = eq.jornadasPeriodo || 0;
   if (!jornadas) return gross;
@@ -1877,7 +1906,7 @@ function holidaySet(cfg) {
 /** La modalidad pedía jornada ese día (p. ej. no es parada 10x5 ni sábado en lun–vie). */
 function isScheduledWorkDay(eq, date, holidays) {
   if (!eq || !date) return false;
-  return expectedOnDay(date, scheduleAt(eq, date), holidays || holidaySet()) > 0;
+  return expectedOnDay(date, scheduleAt(eq, date), holidays || holidaySet(), eq) > 0;
 }
 
 /**
