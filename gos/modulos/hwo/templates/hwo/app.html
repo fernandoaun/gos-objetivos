@@ -1859,7 +1859,42 @@ function parseDataRows(raw) {
 }
 
 // ── Calculations ─────────────────────────────
-function stateOf(row) { const s = row.sitRealUC; if (s.includes('FUERA')) return 'fds'; if (s.includes('STAND BY C')) return 'sbcc'; if (s.includes('STAND BY')) return 'sbsp'; if (s.includes('OPERANDO')) return 'op'; return 'other'; }
+function stateOf(row) {
+  const s = row.sitRealUC || '';
+  if (s.includes('FUERA')) return 'fds';
+  if (s.includes('STAND BY C') || s.includes('SBCP')) return 'sbcc';
+  if (s.includes('STAND BY') || s.includes('SBSP')) return 'sbsp';
+  if (s.includes('OPERANDO')) return 'op';
+  return 'other';
+}
+
+function holidaySet(cfg) {
+  if (D.holidays && D.holidays.size != null) return D.holidays;
+  const c = cfg || D.config;
+  return buildHolidaySet(c?.periodStart, c?.periodEnd);
+}
+
+/** La modalidad pedía jornada ese día (p. ej. no es parada 10x5 ni sábado en lun–vie). */
+function isScheduledWorkDay(eq, date, holidays) {
+  if (!eq || !date) return false;
+  return expectedOnDay(date, scheduleAt(eq, date), holidays || holidaySet()) > 0;
+}
+
+/**
+ * Barra verde / Real (serv.):
+ * - Operando: siempre (aunque no tocara trabajar).
+ * - SBSP / SBCP: solo si la modalidad indicaba trabajar ese día.
+ */
+function countsAsRealServ(st, eq, date, holidays) {
+  if (st === 'op') return true;
+  if (st === 'sbsp' || st === 'sbcc') return isScheduledWorkDay(eq, date, holidays);
+  return false;
+}
+
+function realServJornadas(st, eq, date, holidays) {
+  if (!countsAsRealServ(st, eq, date, holidays)) return 0;
+  return jpd(eq ? scheduleAt(eq, date) : 'lun-lun');
+}
 
 function prevEqScheduleHistory(prevEqs, key) {
   const prev = prevEqs?.[key];
@@ -1882,6 +1917,7 @@ function resolveScheduleHistory(equipo, datasetName, prevEqs, fallback) {
 
 function calcEquipments(datasetName, prevEqs) {
   const eqs = {}, cfg = D.config;
+  const hol = holidaySet(cfg);
   const dsName = datasetName || datasets[activeIdx]?.name || '';
   for (const [k, c] of Object.entries(cfg.eqs)) {
     const key = eqKey(k);
@@ -1904,9 +1940,9 @@ function calcEquipments(datasetName, prevEqs) {
     else if (st === 'sbsp') { e.sbsp += j; e.dias += j; }
     else if (st === 'sbcc') { e.sbcc += j; e.dias += j; e.incidents.push({ fecha: row.fecha, estado: row.sitReal, sitProg: row.sitProg, ubicacion: row.ubicacion, obs: row.obs, cliente: row.cliente, st }); }
     else e.dias += j;
+    e.totalServ += realServJornadas(st, e, row.fecha, hol);
   }
   for (const e of Object.values(eqs)) {
-    e.totalServ = e.op + e.sbcc;
     e.fdsRestante = e.fdsTolerado - e.fds;
     e.semaforo = e.fdsRestante > 1 ? 'green' : e.fdsRestante === 1 ? 'yellow' : 'red';
   }
@@ -1926,8 +1962,8 @@ function reCountEquipment(eq) {
     else if (st === 'sbsp') { e.sbsp += j; e.dias += j; }
     else if (st === 'sbcc') { e.sbcc += j; e.dias += j; e.incidents.push({ fecha: row.fecha, estado: row.sitReal, sitProg: row.sitProg, ubicacion: row.ubicacion, obs: row.obs, cliente: row.cliente, st }); }
     else e.dias += j;
+    e.totalServ += realServJornadas(st, e, row.fecha, D.holidays);
   }
-  e.totalServ = e.op + e.sbcc;
   e.fdsRestante = e.fdsTolerado - e.fds;
   e.semaforo = mesCerrado ? (e.fds <= e.fdsTolerado ? 'green' : 'red') : (e.fdsRestante > 1 ? 'green' : e.fdsRestante === 1 ? 'yellow' : 'red');
   const cfg = D.config;
@@ -2001,8 +2037,10 @@ function calcBurnup() {
   const actualByDate = {};
   for (const row of D.rows) {
     const st = stateOf(row);
-    if (st !== 'op' && st !== 'sbcc') continue;
     const eq = D.eqs[eqKey(row.centro)];
+    if (eq) {
+      if (!countsAsRealServ(st, eq, row.fecha, D.holidays)) continue;
+    } else if (st !== 'op' && st !== 'sbcc') continue;
     const j = jpd(eq ? scheduleAt(eq, row.fecha) : 'lun-lun');
     const t = row.fecha.getTime();
     actualByDate[t] = (actualByDate[t] || 0) + j;
@@ -2311,7 +2349,7 @@ function buildDayEquipmentRows(date) {
     const row = byEq[e.equipo];
     const st = row ? stateOf(row) : null;
     const proy = projectedOnDay(day, e, D.holidays);
-    const realServ = row && (st === 'op' || st === 'sbcc') ? jpd(scheduleAt(e, day)) : 0;
+    const realServ = row && countsAsRealServ(st, e, day, D.holidays) ? jpd(scheduleAt(e, day)) : 0;
     if (!row && proy <= 0) continue;
     list.push({
       equipo: e.equipo,
