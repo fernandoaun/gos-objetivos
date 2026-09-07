@@ -1899,13 +1899,40 @@ function parseDataRows(raw) {
 }
 
 // ── Calculations ─────────────────────────────
-function stateOf(row) {
-  const s = row.sitRealUC || '';
+function stateText(s) {
+  return (s || '').toString().trim().toUpperCase();
+}
+
+function classifyStateText(s) {
+  s = stateText(s);
+  if (!s) return 'other';
   if (s.includes('FUERA')) return 'fds';
   if (s.includes('STAND BY C') || s.includes('SBCP')) return 'sbcc';
-  if (s.includes('STAND BY') || s.includes('SBSP')) return 'sbsp';
+  if (s.includes('PRE/POST') || (s.includes('PRE') && s.includes('POST') && s.includes('SERV'))) return 'sbsp';
+  if (s.includes('STAND BY') || s.includes('SBSP') || s.includes('SBSS')) return 'sbsp';
   if (s.includes('OPERANDO')) return 'op';
   return 'other';
+}
+
+function stateOf(row) {
+  const real = row.sitRealUC || row.sitReal || '';
+  const st = classifyStateText(real);
+  if (st !== 'other') return st;
+  // Estado vacío: usar la situación programada (p. ej. OPERANDO sin dato real = operando).
+  if (!stateText(real)) return classifyStateText(row.sitProg);
+  return 'other';
+}
+
+function displaySitReal(row, st) {
+  const real = (row?.sitReal || '').toString().trim();
+  if (real) return real;
+  const prog = (row?.sitProg || '').toString().trim();
+  if (prog) return prog;
+  if (st === 'op') return 'OPERANDO';
+  if (st === 'sbsp') return 'SBSP';
+  if (st === 'sbcc') return 'SBCC';
+  if (st === 'fds') return 'FDS';
+  return '—';
 }
 
 function holidaySet(cfg) {
@@ -2394,7 +2421,7 @@ function buildDayEquipmentRows(date) {
     list.push({
       equipo: e.equipo,
       cliente: row?.cliente || e.cliente || '',
-      sitReal: row?.sitReal || '—',
+      sitReal: displaySitReal(row, st),
       sitProg: row?.sitProg || '—',
       st,
       ubicacion: row?.ubicacion || '',
