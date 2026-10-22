@@ -529,3 +529,60 @@ def test_tot_hs_import_rejects_empty_workbook(auth_client):
     assert r.status_code == 500
     err = r.get_json()["error"].lower()
     assert "tot hs" in err or "período" in err or "periodo" in err or "nombre" in err
+
+
+def test_vacaciones_import_planilla_legajo_repetido(auth_client, app):
+    """Un legajo repetido con otra persona no rompe el import: conserva lo anterior y avisa."""
+    import io
+    from datetime import datetime
+
+    import openpyxl
+
+    def _planilla(filas):
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.append(["N° Legajo", "VACACIONES ", None, None, None, "VACACIONES 2026", None, None])
+        ws.append([
+            None, "Empleado", "Fecha ingreso", "Sector", None,
+            "Días Disponibles", "Días tomados", "Dias pendientes",
+        ])
+        for fila in filas:
+            ws.append(fila)
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return buf
+
+    def _subir(buf):
+        return auth_client.post(
+            "/gos/vacaciones/api/importar/excel",
+            data={"file": (buf, "vacaciones.xlsx")},
+            content_type="multipart/form-data",
+        )
+
+    r = _subir(_planilla([
+        [300, "Perez, Juan", datetime(2015, 1, 1), "Operaciones", None, 21, 5, 16],
+        [301, "Gomez, Ana", datetime(2016, 1, 1), "Operaciones", None, 21, 0, 21],
+    ]))
+    assert r.status_code == 200
+
+    r = _subir(_planilla([
+        [300, "Perez, Juan", datetime(2015, 1, 1), "Operaciones", None, 21, 10, 11],
+        [300, "Kaman, Leandro", datetime(2026, 6, 1), "Operaciones", None, 14, 0, 14],
+        [301, "Gomez, Ana", datetime(2016, 1, 1), "Operaciones", None, 21, 7, 14],
+        [301, "Gomez, Ana", datetime(2016, 1, 1), "Operaciones", None, 21, 7, 14],
+    ]))
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data["ok"] is True
+    assert "Legajo 300 repetido en 2026" in data["mensaje"]
+    assert len(data["detalle"]["errores"]) == 1
+
+    with app.app_context():
+        from gos.extensions import db
+
+        rows = {v.legajo: v for v in db.session.query(Vacacion).filter_by(anio=2026)}
+        assert set(rows) == {300, 301}
+        assert rows[300].empleado == "Perez, Juan"
+        assert rows[300].dias_tomados == 5  # quedó el dato anterior
+        assert rows[301].dias_tomados == 7  # duplicado idéntico: se cargó una vez

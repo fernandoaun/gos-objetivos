@@ -14,7 +14,7 @@ import re
 from datetime import date, datetime
 
 import openpyxl
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
 from gos.modulos.vacaciones.models import Registro, Vacacion
@@ -655,6 +655,33 @@ def _parse_year_block_ws(ws, data_start: int, col_offset: int, anio: int, ws_dat
     return rows
 
 
+def _resolver_legajos_repetidos(rows: list[dict]) -> tuple[list[dict], dict]:
+    """Evita violar uq_legajo_anio con legajos repetidos en el Excel.
+
+    Si el legajo se repite con la misma persona, queda la primera fila.
+    Si se repite con personas distintas no se sabe cuál es la correcta:
+    se descartan todas y se informa el conflicto.
+    """
+    grupos: dict[tuple, list[dict]] = {}
+    for r in rows:
+        if r["legajo"] is not None:
+            grupos.setdefault((r["legajo"], r["anio"]), []).append(r)
+
+    conflictos: dict[tuple, list[str]] = {}
+    descartar: set[int] = set()
+    for key, grupo in grupos.items():
+        if len(grupo) < 2:
+            continue
+        nombres = list(dict.fromkeys(g["empleado"].strip() for g in grupo))
+        if len({n.casefold() for n in nombres}) > 1:
+            conflictos[key] = nombres
+            descartar.update(id(g) for g in grupo)
+        else:
+            descartar.update(id(g) for g in grupo[1:])
+
+    return [r for r in rows if id(r) not in descartar], conflictos
+
+
 def _import_planilla(filepath: str, db: Session, result: dict) -> None:
     # data_only=False para conservar comentarios (triángulo rojo).
     # data_only=True para leer el valor calculado de celdas con fórmula (p.ej. =SUM).
@@ -696,6 +723,12 @@ def _import_planilla(filepath: str, db: Session, result: dict) -> None:
         return
 
     anios_en_excel = {r["anio"] for r in all_vac}
+    all_vac, conflictos = _resolver_legajos_repetidos(all_vac)
+    for (legajo, anio), nombres in sorted(conflictos.items()):
+        result["errores"].append(
+            f"Legajo {legajo} repetido en {anio} ({' / '.join(nombres)}): "
+            "no se actualizó, quedan los datos anteriores. Corregí el Excel y volvé a subirlo."
+        )
     existing_vac = db.execute(
         select(Vacacion.legajo, Vacacion.anio).where(Vacacion.anio.in_(anios_en_excel))
     ).fetchall()
@@ -705,7 +738,13 @@ def _import_planilla(filepath: str, db: Session, result: dict) -> None:
     result["vacaciones_actualizadas"] = len(keys_vac_excel & existing_vac_keys)
 
     # Reemplazo por año: el Excel actualizado es la fuente de verdad de esos períodos.
-    db.execute(delete(Vacacion).where(Vacacion.anio.in_(anios_en_excel)))
+    # Los legajos en conflicto conservan lo que ya había en la base.
+    for anio in anios_en_excel:
+        stmt = delete(Vacacion).where(Vacacion.anio == anio)
+        omitidos = [legajo for (legajo, a) in conflictos if a == anio]
+        if omitidos:
+            stmt = stmt.where(or_(Vacacion.legajo.is_(None), Vacacion.legajo.not_in(omitidos)))
+        db.execute(stmt)
     db.bulk_insert_mappings(Vacacion, all_vac)
     db.commit()
     result["vacaciones"] = len(all_vac)

@@ -205,6 +205,8 @@ def importar_excel():
             f"Vacaciones: {result['vacaciones']} procesadas "
             f"({result['vacaciones_nuevas']} nuevas, {result['vacaciones_actualizadas']} actualizadas)"
         )
+    if result["errores"]:
+        partes.append("Atención: " + " ".join(result["errores"]))
 
     return jsonify(
         {

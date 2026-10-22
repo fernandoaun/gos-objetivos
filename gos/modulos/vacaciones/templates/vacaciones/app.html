@@ -1205,7 +1205,7 @@ function handleFileSelected(f) {
 function showImportResult(data) {
   const res = document.getElementById('import-result');
   res.className = 'card result-ok';
-  res.innerHTML = `<h3 style="color:var(--green);margin-bottom:8px;">✓ Importación exitosa</h3><p style="font-size:.85rem;color:var(--muted);">${data.mensaje}</p>`;
+  res.innerHTML = `<h3 style="color:var(--green);margin-bottom:8px;">✓ Importación exitosa</h3><p style="font-size:.85rem;color:var(--muted);">${escHtml(data.mensaje || '')}</p>`;
   if (data.detalle?.registros > 0) res.innerHTML += `<div class="grid3"><div class="stat-box"><div class="val">${data.detalle.registros}</div><div class="lbl">Registros</div></div><div class="stat-box"><div class="val" style="color:var(--accent)">${data.detalle.registros_nuevos}</div><div class="lbl">Nuevos</div></div><div class="stat-box"><div class="val" style="color:var(--yellow)">${data.detalle.registros_actualizados}</div><div class="lbl">Actualizados</div></div></div>`;
   if (data.detalle?.vacaciones > 0) res.innerHTML += `<div class="grid3" style="margin-top:12px;"><div class="stat-box"><div class="val">${data.detalle.vacaciones}</div><div class="lbl">Vacaciones</div></div><div class="stat-box"><div class="val" style="color:var(--accent)">${data.detalle.vacaciones_nuevas}</div><div class="lbl">Nuevas</div></div><div class="stat-box"><div class="val" style="color:var(--yellow)">${data.detalle.vacaciones_actualizadas}</div><div class="lbl">Actualizadas</div></div></div>`;
   res.innerHTML += `<p style="font-size:.8rem;color:var(--muted);margin-top:12px;">Disponible en <strong>Vacaciones adeudadas</strong>.</p>`;
